@@ -1,0 +1,117 @@
+// src/lib/api/client.ts
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+export interface FetchOptions extends RequestInit {
+  token?: string;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public statusText: string,
+    public data?: any
+  ) {
+    super(`API Error: ${status} ${statusText}`);
+    this.name = 'ApiError';
+  }
+}
+
+/**
+ * Cliente HTTP base para fazer requisições à API
+ */
+async function fetchApi<T>(
+  endpoint: string,
+  options: FetchOptions = {}
+): Promise<T> {
+  const { token, ...fetchOptions } = options;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(fetchOptions.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    ...fetchOptions,
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(response.status, response.statusText, errorData);
+  }
+
+  // Se a resposta for 204 (No Content), retorna objeto vazio
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return response.json();
+}
+
+// Métodos HTTP convenientes
+export const api = {
+  get: <T>(endpoint: string, options?: FetchOptions) =>
+    fetchApi<T>(endpoint, { ...options, method: 'GET' }),
+
+  post: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
+    fetchApi<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  put: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
+    fetchApi<T>(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  delete: <T>(endpoint: string, options?: FetchOptions) =>
+    fetchApi<T>(endpoint, { ...options, method: 'DELETE' }),
+
+  patch: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
+    fetchApi<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+};
+
+// Storage helpers para token
+export const tokenStorage = {
+  get: () => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('auth_token');
+  },
+
+  set: (token: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('auth_token', token);
+  },
+
+  remove: () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('auth_token');
+  },
+
+  getWithType: () => {
+    if (typeof window === 'undefined') return { token: null, type: null };
+    const token = localStorage.getItem('auth_token');
+    const type = localStorage.getItem('user_type');
+    return { token, type };
+  },
+
+  setWithType: (token: string, type: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('user_type', type);
+  },
+};
