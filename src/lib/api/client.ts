@@ -1,6 +1,6 @@
 // src/lib/api/client.ts
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export interface FetchOptions extends RequestInit {
   token?: string;
@@ -26,7 +26,7 @@ async function fetchApi<T>(
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string>),
   };

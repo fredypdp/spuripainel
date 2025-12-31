@@ -1,3 +1,8 @@
+"use client"
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { tokenStorage } from '@/lib/api';
+
 import GridShape from "@/components/common/GridShape";
 import ThemeTogglerTwo from "@/components/common/ThemeTogglerTwo";
 
@@ -11,6 +16,14 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
+
+  const router = useRouter();
+  useEffect(() => {
+    // Verifica se o usuário está autenticado
+    const token = tokenStorage.get();
+    if (token) router.push("/");
+  });
+
   return (
     <div className="relative p-6 bg-white z-1 dark:bg-gray-900 sm:p-0">
       <ThemeProvider>

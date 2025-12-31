@@ -1,4 +1,7 @@
-"use client";
+"use client"
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { tokenStorage } from '@/lib/api';
 
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
@@ -19,6 +22,13 @@ export default function AdminLayout({
     : isExpanded || isHovered
     ? "lg:ml-[290px]"
     : "lg:ml-[90px]";
+
+  const router = useRouter();
+  useEffect(() => {
+    // Verifica se o usuário está autenticado
+    const token = tokenStorage.get();
+    if (!token) router.push("/login");
+  });
 
   return (
     <div className="min-h-screen xl:flex">

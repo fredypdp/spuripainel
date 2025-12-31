@@ -10,7 +10,7 @@ export type AnoEscolar =
   | 'primeiro_fundamental' | 'segundo_fundamental' | 'terceiro_fundamental'
   | 'quarto_fundamental' | 'quinto_fundamental' | 'sexto_fundamental'
   | 'setimo_fundamental' | 'oitavo_fundamental' | 'nono_fundamental'
-  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio';
+  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio' | 'quarto_medio';
 
 export type AnoSuperior = 
   | 'primeiro_superior' | 'segundo_superior' | 'terceiro_superior'
@@ -58,7 +58,8 @@ export interface LoginRequest {
 export interface CriarEstudanteFundamentalRequest {
   senha: string;
   nome: string;
-  bilhete_identidade_responsavel: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
   ano_escolar: AnoEscolar;
   status_escolar: StatusEscolar;
 }
@@ -118,10 +119,12 @@ export interface ApiResponse<T = any> {
 }
 
 export interface AuthResponse {
+  id?: string;
+  nome: string;
   token: string;
   codigo: string;
   codigo_academia?: string;
-  id?: string;
+  codigo_estudante?: string;
   type: UserType;
 }
 
