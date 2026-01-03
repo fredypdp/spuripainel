@@ -18,6 +18,11 @@ import type {
   HistoricoEstudante,
   Evento,
   StatusInscricao,
+  MeuPerfilResponse,
+  ConsultarEstudanteResponse,
+  ConsultarAcademiaResponse,
+  ConsultarAdminResponse,
+  BuscarUsuarioResponse,
 } from '@/types/api';
 
 // =====================
@@ -147,8 +152,8 @@ export const eventSourcingService = {
 // =====================
 
 export const adminService = {
-  login: (email: string, senha: string) =>
-    api.post<AuthResponse>('/admin/login', { email, senha }),
+  login: (data: LoginRequest) =>
+    api.post<AuthResponse>('/admin/login', data),
 
   criar: (data: CriarAdminRequest, token?: string) =>
     api.post<ApiResponse>('/admin/register', data, {
@@ -189,6 +194,41 @@ export const adminService = {
 
   desativarAdmin: (id: string, data: DesativarRequest, token?: string) =>
     api.put<ApiResponse>(`/admin/admin/${id}/desativar`, data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  // Novas rotas de consulta
+  consultarAdminPorEmail: (email: string, token?: string) =>
+    api.get<ConsultarAdminResponse>(`/admin/consultar-admin/${email}`, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  buscarUsuario: (tipo: 'estudante' | 'academia' | 'admin', id: string, token?: string) =>
+    api.get<BuscarUsuarioResponse>(`/admin/buscar-usuario?tipo=${tipo}&id=${id}`, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+};
+
+// =====================
+// PERFIL E CONSULTAS PÚBLICAS
+// =====================
+
+export const perfilService = {
+  // Rota universal - retorna perfil baseado no token
+  meuPerfil: (token?: string) =>
+    api.get<MeuPerfilResponse>('/meu-perfil', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  // Academia e Admin podem consultar estudantes
+  consultarEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<ConsultarEstudanteResponse>(`/consultar-estudante/${codigoEstudante}`, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  // Academia e Admin podem consultar academias
+  consultarAcademia: (codigoAcademia: string, token?: string) =>
+    api.get<ConsultarAcademiaResponse>(`/consultar-academia/${codigoAcademia}`, {
       token: token || tokenStorage.get() || undefined,
     }),
 };

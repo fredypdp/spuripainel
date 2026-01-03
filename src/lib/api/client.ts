@@ -1,6 +1,27 @@
 // src/lib/api/client.ts
 
-const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+export interface FetchOptions extends RequestInit {
+  token?: string;
+}
+
+export class SpuriApiError extends Error {
+  constructor(
+    public status: number,
+    public statusText: string,
+    public data?: any
+  ) {
+    super(`API Error: ${status} ${statusText}`);
+    this.name = 'SpuriApiError';
+  }
+}
+
+// src/lib/api/client.ts
+
+import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
+
+const getApiBaseUrl = () => process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export interface FetchOptions extends RequestInit {
   token?: string;
@@ -35,7 +56,7 @@ async function fetchApi<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${getApiBaseUrl()}${endpoint}`;
 
   const response = await fetch(url, {
     ...fetchOptions,
@@ -44,7 +65,7 @@ async function fetchApi<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new ApiError(response.status, response.statusText, errorData);
+    throw new SpuriApiError(response.status, response.statusText, errorData);
   }
 
   // Se a resposta for 204 (No Content), retorna objeto vazio
@@ -85,33 +106,34 @@ export const api = {
     }),
 };
 
-// Storage helpers para token
+// Storage helpers para token (agora usando cookies em vez de localStorage)
 export const tokenStorage = {
   get: () => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('auth_token');
+    return getCookie('auth_token');
   },
 
   set: (token: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('auth_token', token);
+    setCookie('auth_token', token, 1); // Expira em 1 dia (24h)
   },
 
   remove: () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem('auth_token');
+    removeCookie('auth_token');
+    removeCookie('user_type');
   },
 
   getWithType: () => {
     if (typeof window === 'undefined') return { token: null, type: null };
-    const token = localStorage.getItem('auth_token');
-    const type = localStorage.getItem('user_type');
+    const token = getCookie('auth_token');
+    const type = getCookie('user_type');
     return { token, type };
   },
 
   setWithType: (token: string, type: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('user_type', type);
+    setCookie('auth_token', token, 1); // Expira em 1 dia (24h)
+    setCookie('user_type', type, 1);
   },
 };

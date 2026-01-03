@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState,useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -17,7 +17,10 @@ import {
   TableIcon,
   UserCircleIcon,
 } from "../icons/index";
+import Icon from "@/components/ui/Icon";
 import SidebarWidget from "./SidebarWidget";
+import { getCookie } from '@/lib/utils/cookies';
+import type { MeuPerfilResponse } from '@/types/api';
 
 type NavItem = {
   name: string;
@@ -28,75 +31,116 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    subItems: [{ name: "Ecommerce", path: "/", pro: false }],
+    icon: <Icon width="24px" icon="flowbite:grid-outline" />,
+    name: "Painel",
+    path: "/",
   },
   {
-    icon: <CalenderIcon />,
-    name: "Calendar",
-    path: "/calendar",
+    icon: <Icon width="24px" icon="ix:user-profile" />,
+    name: "Perfil",
+    path: "/perfil",
   },
   {
-    icon: <UserCircleIcon />,
-    name: "User Profile",
-    path: "/profile",
-  },
-
-  {
-    name: "Forms",
-    icon: <ListIcon />,
-    subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
+    name: "Registros",
+    icon: <Icon width="24px" icon="vaadin:records" />,
+    subItems: [{ name: "Notas", path: "/notas"}, {name: "Faltas", path: "/faltas"}],
   },
   {
-    name: "Tables",
-    icon: <TableIcon />,
-    subItems: [{ name: "Basic Tables", path: "/basic-tables", pro: false }],
+    icon: <Icon width="24px" icon="fluent-emoji-high-contrast:school" />,
+    name: "Academias",
+    path: "/academias",
   },
   {
-    name: "Pages",
-    icon: <PageIcon />,
-    subItems: [
-      { name: "Blank Page", path: "/blank", pro: false },
-      { name: "404 Error", path: "/error-404", pro: false },
-    ],
-  },
-];
-
-const othersItems: NavItem[] = [
-  {
-    icon: <PieChartIcon />,
-    name: "Charts",
-    subItems: [
-      { name: "Line Chart", path: "/line-chart", pro: false },
-      { name: "Bar Chart", path: "/bar-chart", pro: false },
-    ],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "UI Elements",
-    subItems: [
-      { name: "Alerts", path: "/alerts", pro: false },
-      { name: "Avatar", path: "/avatars", pro: false },
-      { name: "Badge", path: "/badge", pro: false },
-      { name: "Buttons", path: "/buttons", pro: false },
-      { name: "Images", path: "/images", pro: false },
-      { name: "Videos", path: "/videos", pro: false },
-    ],
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Authentication",
-    subItems: [
-      { name: "Sign In", path: "/login", pro: false },
-      { name: "Sign Up", path: "/cadastro", pro: false },
-    ],
+    icon: <Icon width="24px" icon="mdi:account-school" />,
+    name: "Estudantes",
+    path: "/estudantes",
   },
 ];
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const userCookie = getCookie("user")
+  const user: MeuPerfilResponse | null = userCookie ? JSON.parse(userCookie) : null
+
+  // Filtrar navItems baseado no tipo de usuário
+  const filteredNavItems = useMemo(() => {
+    return navItems.filter(item => {
+      // Mostrar "Academias" apenas para admin
+      if (user?.tipo) {
+        if (item.path === "/academias" || item.path === "/estudantes") {
+          return user.tipo === "admin";
+        }
+      }
+      return true;
+    });
+  }, [user]);
+
+  // Derive which submenu should be open based on current pathname
+  const derivedOpenSubmenu = useMemo(() => {
+    let result: { type: "main" | "others"; index: number } | null = null;
+    
+    ["main", "others"].forEach((menuType) => {
+      filteredNavItems.forEach((nav, index) => {
+        if (nav.subItems) {
+          nav.subItems.forEach((subItem) => {
+            if (subItem.path === pathname) {
+              result = {
+                type: menuType as "main" | "others",
+                index,
+              };
+            }
+          });
+        }
+      });
+    });
+    
+    return result;
+  }, [pathname, filteredNavItems]);
+
+  // Track manual toggles separately with the pathname they were set on
+  const [manualToggle, setManualToggle] = useState<{
+    type: "main" | "others";
+    index: number;
+    pathname: string;
+  } | null>(null);
+
+  // Use manual toggle only if it's for the current pathname, otherwise use derived state
+  const openSubmenu = (manualToggle?.pathname === pathname ? manualToggle : null) ?? derivedOpenSubmenu;
+
+  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
+  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+
+  useEffect(() => {
+    // Set the height of the submenu items when the submenu is opened
+    if (openSubmenu !== null) {
+      const key = `${openSubmenu.type}-${openSubmenu.index}`;
+      if (subMenuRefs.current[key]) {
+        setSubMenuHeight((prevHeights) => ({
+          ...prevHeights,
+          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
+        }));
+      }
+    }
+  }, [openSubmenu]);
+
+  const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
+    setManualToggle((prevManualToggle) => {
+      // If clicking the same submenu, close it
+      if (
+        prevManualToggle &&
+        prevManualToggle.type === menuType &&
+        prevManualToggle.index === index &&
+        prevManualToggle.pathname === pathname
+      ) {
+        return null;
+      }
+      // Otherwise open the clicked submenu
+      return { type: menuType, index, pathname };
+    });
+  };
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -224,70 +268,6 @@ const AppSidebar: React.FC = () => {
     </ul>
   );
 
-  const [openSubmenu, setOpenSubmenu] = useState<{
-    type: "main" | "others";
-    index: number;
-  } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // const isActive = (path: string) => path === pathname;
-   const isActive = useCallback((path: string) => path === pathname, [pathname]);
-
-  useEffect(() => {
-    // Check if the current path matches any submenu item
-    let submenuMatched = false;
-    ["main", "others"].forEach((menuType) => {
-      const items = menuType === "main" ? navItems : othersItems;
-      items.forEach((nav, index) => {
-        if (nav.subItems) {
-          nav.subItems.forEach((subItem) => {
-            if (isActive(subItem.path)) {
-              setOpenSubmenu({
-                type: menuType as "main" | "others",
-                index,
-              });
-              submenuMatched = true;
-            }
-          });
-        }
-      });
-    });
-
-    // If no submenu item matches, close the open submenu
-    if (!submenuMatched) {
-      setOpenSubmenu(null);
-    }
-  }, [pathname,isActive]);
-
-  useEffect(() => {
-    // Set the height of the submenu items when the submenu is opened
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
-
-  const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
-    setOpenSubmenu((prevOpenSubmenu) => {
-      if (
-        prevOpenSubmenu &&
-        prevOpenSubmenu.type === menuType &&
-        prevOpenSubmenu.index === index
-      ) {
-        return null;
-      }
-      return { type: menuType, index };
-    });
-  };
-
   return (
     <aside
       className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
@@ -353,28 +333,10 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
-            </div>
-
-            <div className="">
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
+              {renderMenuItems(filteredNavItems, "main")}
             </div>
           </div>
         </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
       </div>
     </aside>
   );

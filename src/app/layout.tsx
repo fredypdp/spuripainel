@@ -20,11 +20,7 @@ export const metadata: Metadata = {
   description: "Mapeamento e registros acadêmicos"
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({children}: Readonly<{children: React.ReactNode;}>) {
   return (
     <html lang="en">
       <body className={`${outfit.className} dark:bg-gray-900`}>

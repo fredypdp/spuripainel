@@ -12,6 +12,7 @@ export {
   consultasService,
   eventSourcingService,
   adminService,
+  perfilService,
 } from './services';
 
 // Exportar hooks

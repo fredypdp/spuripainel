@@ -1,19 +1,22 @@
 "use client"
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { tokenStorage } from '@/lib/api';
 
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
+import { tokenStorage, useApi, perfilService } from '@/lib/api';
+import { setCookie, removeCookie, getCookie } from '@/lib/utils/cookies';
+import type { MeuPerfilResponse } from '@/types/api';
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PainelLayout({children,}: {children: React.ReactNode;}) {
+  const router = useRouter();
+  const userCookie = getCookie("user")
+  const user: MeuPerfilResponse | null = userCookie ? JSON.parse(userCookie) : null
+  const { loading, error: erroAPI, execute:  executarPegarPerfil} = useApi(perfilService.meuPerfil);
+
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   // Dynamic class for main content margin based on sidebar state
@@ -23,11 +26,22 @@ export default function AdminLayout({
     ? "lg:ml-[290px]"
     : "lg:ml-[90px]";
 
-  const router = useRouter();
   useEffect(() => {
     // Verifica se o usuário está autenticado
     const token = tokenStorage.get();
-    if (!token) router.push("/login");
+    if (!token) {
+      removeCookie("user")
+      router.push("/login");
+    }
+
+    if (!user) {
+      (async () => {
+        let data = await executarPegarPerfil();
+        if (data) {
+          setCookie("user", JSON.stringify(data), 1);
+        }
+      })();
+    }
   });
 
   return (

@@ -29,14 +29,18 @@ export default function LoginAdm() {
       return;
     }
     
-    const result = await execute({
-      email: Email,
-      senha,
-    });
-
-    if (result) {
-      tokenStorage.set(result.token);
-      router.push("/");
+    try {
+      const result = await execute({
+        email: Email,
+        senha,
+      });
+  
+      if (result) {
+        tokenStorage.set(result.token);
+        router.push("/");
+      }
+    } catch (error) {
+      console.error('Erro no login:', error);
     }
   };
 

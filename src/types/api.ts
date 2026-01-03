@@ -50,6 +50,7 @@ export interface CriarUniversidadeRequest {
 }
 
 export interface LoginRequest {
+  email?: string;
   usuario: string;
   senha: string;
   type: UserType;
@@ -163,4 +164,91 @@ export interface Evento {
   tipo: string;
   dados: any;
   timestamp: string;
+}
+
+// Response Types - Perfis
+export interface EstudanteDetalhado {
+  id: string;
+  nome: string;
+  codigo_estudante: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
+  codigo_academia?: string;
+  academia_info?: {
+    codigo: string;
+    nome: string;
+    tipo: string;
+    provincia?: string;
+    nivel_escolar?: string;
+  };
+  ano_escolar?: string;
+  ano_superior?: string;
+  curso_medio?: string;
+  curso_superior?: string;
+  status_escolar?: StatusEscolar;
+  status_superior?: StatusEscolar;
+  created_at: string;
+  total_notas?: number;
+  total_faltas?: number;
+  total_inscricoes?: number;
+}
+
+export interface AcademiaDetalhada {
+  id: string;
+  type: AcademiaType;
+  nome: string;
+  codigo_academia: string;
+  provincia: string;
+  endereco: string;
+  numero_telefone: string;
+  email: string;
+  website?: string;
+  nivel_escolar?: string;
+  status: string;
+  cursos: string[];
+  created_at: string;
+  total_estudantes?: number;
+  total_inscricoes_pendentes?: number;
+}
+
+export interface AdminDetalhado {
+  id: string;
+  nome: string;
+  email: string;
+  role: string;
+  status: string;
+  created_by?: string;
+  created_at: string;
+  total_acoes_realizadas?: number;
+}
+
+export interface MeuPerfilResponse {
+  tipo: 'estudante' | 'academia' | 'admin';
+  estudante?: EstudanteDetalhado;
+  academia?: AcademiaDetalhada;
+  admin?: AdminDetalhado;
+}
+
+export interface ConsultarEstudanteResponse {
+  estudante: EstudanteDetalhado;
+  consultado_por: 'academia' | 'admin';
+}
+
+export interface ConsultarAcademiaResponse {
+  academia: AcademiaDetalhada;
+  consultado_por: 'academia' | 'admin';
+  estatisticas_completas?: {
+    total_inscricoes_historico: number;
+    total_notas_registradas: number;
+    total_faltas_registradas: number;
+  };
+}
+
+export interface ConsultarAdminResponse {
+  admin: AdminDetalhado;
+}
+
+export interface BuscarUsuarioResponse {
+  tipo: 'estudante' | 'academia' | 'admin';
+  dados: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
 }
