@@ -23,6 +23,7 @@ import type {
   ConsultarAcademiaResponse,
   ConsultarAdminResponse,
   BuscarUsuarioResponse,
+  ConsultarAcademiasResponse,
 } from '@/types/api';
 
 // =====================
@@ -129,6 +130,11 @@ export const consultasService = {
       token: token || tokenStorage.get() || undefined,
     });
   },
+
+  listarAcademias: (token?: string) =>
+    api.get<ConsultarAcademiasResponse>('/academias', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 };
 
 // =====================
@@ -197,7 +203,6 @@ export const adminService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  // Novas rotas de consulta
   consultarAdminPorEmail: (email: string, token?: string) =>
     api.get<ConsultarAdminResponse>(`/admin/consultar-admin/${email}`, {
       token: token || tokenStorage.get() || undefined,
@@ -214,19 +219,16 @@ export const adminService = {
 // =====================
 
 export const perfilService = {
-  // Rota universal - retorna perfil baseado no token
   meuPerfil: (token?: string) =>
     api.get<MeuPerfilResponse>('/meu-perfil', {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  // Academia e Admin podem consultar estudantes
   consultarEstudante: (codigoEstudante: string, token?: string) =>
     api.get<ConsultarEstudanteResponse>(`/consultar-estudante/${codigoEstudante}`, {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  // Academia e Admin podem consultar academias
   consultarAcademia: (codigoAcademia: string, token?: string) =>
     api.get<ConsultarAcademiaResponse>(`/consultar-academia/${codigoAcademia}`, {
       token: token || tokenStorage.get() || undefined,

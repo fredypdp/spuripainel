@@ -193,6 +193,19 @@ export interface EstudanteDetalhado {
   total_inscricoes?: number;
 }
 
+export interface AcademiaSimples {
+  codigo_academia: string,
+  created_at: string,
+  id: string,
+  nivel_escolar?: string,
+  nome: string,
+  provincia: string,
+  status: string,
+  total_estudantes: number,
+  total_inscricoes_pendentes: number,
+  type: AcademiaType
+}
+
 export interface AcademiaDetalhada {
   id: string;
   type: AcademiaType;
@@ -232,6 +245,11 @@ export interface MeuPerfilResponse {
 export interface ConsultarEstudanteResponse {
   estudante: EstudanteDetalhado;
   consultado_por: 'academia' | 'admin';
+}
+
+export interface ConsultarAcademiasResponse {
+  academias: AcademiaSimples[],
+  total: number
 }
 
 export interface ConsultarAcademiaResponse {

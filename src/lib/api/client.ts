@@ -1,6 +1,6 @@
 // src/lib/api/client.ts
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 export interface FetchOptions extends RequestInit {
   token?: string;
@@ -21,7 +21,7 @@ export class SpuriApiError extends Error {
 
 import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
 
-const getApiBaseUrl = () => process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
+const getApiBaseUrl = () => API_BASE_URL;
 
 export interface FetchOptions extends RequestInit {
   token?: string;
