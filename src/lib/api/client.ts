@@ -12,7 +12,7 @@ export class SpuriApiError extends Error {
     public statusText: string,
     public data?: any
   ) {
-    super(`API Error: ${status} ${statusText}`);
+    super(data.error);
     this.name = 'SpuriApiError';
   }
 }
