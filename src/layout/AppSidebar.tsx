@@ -57,7 +57,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-const AppSidebar: React.FC = () => {
+export default function AppSidebar() {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
   const userCookie = getCookie("user")
@@ -66,10 +66,15 @@ const AppSidebar: React.FC = () => {
   // Filtrar navItems baseado no tipo de usuário
   const filteredNavItems = useMemo(() => {
     return navItems.filter(item => {
-      // Mostrar "Academias" apenas para admin
       if (user?.tipo) {
-        if (item.path === "/academias" || item.path === "/estudantes") {
+        // Mostrar "Academias" apenas para admin
+        if (item.path === "/academias") {
           return user.tipo === "admin";
+        }
+        
+        // Mostrar "Estudantes" para admin e academia
+        if (item.path === "/estudantes") {
+          return user.tipo === "admin" || user.tipo === "academia";
         }
       }
       return true;
@@ -341,5 +346,3 @@ const AppSidebar: React.FC = () => {
     </aside>
   );
 };
-
-export default AppSidebar;

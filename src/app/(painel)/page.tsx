@@ -8,9 +8,7 @@ import RecentOrders from "@/components/ecommerce/RecentOrders";
 import DemographicCard from "@/components/ecommerce/DemographicCard";
 
 export const metadata: Metadata = {
-  title:
-    "Painel Administrativo",
-  description: "This is Next.js Home for Spuri Dashboard Template",
+  title: "Painel Administrativo",
 };
 
 export default function Ecommerce() {
