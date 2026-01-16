@@ -42,10 +42,10 @@ export const healthService = {
 
 export const academiaService = {
   criarEscola: (data: CriarEscolaRequest) =>
-    api.post<ApiResponse<AuthResponse>>('/academia/register', data),
+    api.post<{data: {codigo_academia: string, id: string}, message: string}>('/academia/register', data),
 
   criarUniversidade: (data: CriarUniversidadeRequest) =>
-    api.post<ApiResponse<AuthResponse>>('/academia/register', data),
+    api.post<{data: {codigo_academia: string, id: string}, message: string}>('/academia/register', data),
 
   login: (data: LoginRequest) =>
     api.post<AuthResponse>('/login', data),

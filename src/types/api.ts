@@ -320,3 +320,61 @@ export interface PrimeiroAmdminResponse {
 		url: "/admin/login"
 	}
 }
+
+export interface Provincia {
+  nome: ProvinciaNome;
+  codigo: ProvinciaCodigo;
+}
+
+export type ProvinciaNome =
+  | "BENGO"
+  | "BENGUELA"
+  | "BIE"
+  | "CABINDA"
+  | "CUANDO CUBANGO"
+  | "CUANZA NORTE"
+  | "CUANZA SUL"
+  | "CUBANGO"
+  | "CUNENE"
+  | "HUAMBO"
+  | "HUILA"
+  | "ICOLO E BENGO"
+  | "LUANDA"
+  | "LUNDA NORTE"
+  | "LUNDA SUL"
+  | "MALANJE"
+  | "MOXICO"
+  | "MOXICO LESTE"
+  | "NAMIBE"
+  | "UIGE"
+  | "ZAIRE";
+
+export type ProvinciaCodigo =
+  | "BGO" | "BGU" | "BIE" | "CAB" | "CND" | "CNO" | "CUS"
+  | "CBG" | "CNN" | "HUA" | "HUI" | "IBG" | "LUA"
+  | "LNO" | "LSU" | "MAL" | "MOX" | "MXL" | "NAM"
+  | "UIG" | "ZAI";
+
+export const Provincias: Provincia[] = [
+  { nome: "BENGO", codigo: "BGO" },
+  { nome: "BENGUELA", codigo: "BGU" },
+  { nome: "BIE", codigo: "BIE" },
+  { nome: "CABINDA", codigo: "CAB" },
+  { nome: "CUANDO CUBANGO", codigo: "CND" },
+  { nome: "CUANZA NORTE", codigo: "CNO" },
+  { nome: "CUANZA SUL", codigo: "CUS" },
+  { nome: "CUBANGO", codigo: "CBG" },
+  { nome: "CUNENE", codigo: "CNN" },
+  { nome: "HUAMBO", codigo: "HUA" },
+  { nome: "HUILA", codigo: "HUI" },
+  { nome: "ICOLO E BENGO", codigo: "IBG" },
+  { nome: "LUANDA", codigo: "LUA" },
+  { nome: "LUNDA NORTE", codigo: "LNO" },
+  { nome: "LUNDA SUL", codigo: "LSU" },
+  { nome: "MALANJE", codigo: "MAL" },
+  { nome: "MOXICO", codigo: "MOX" },
+  { nome: "MOXICO LESTE", codigo: "MXL" },
+  { nome: "NAMIBE", codigo: "NAM" },
+  { nome: "UIGE", codigo: "UIG" },
+  { nome: "ZAIRE", codigo: "ZAI" },
+];
