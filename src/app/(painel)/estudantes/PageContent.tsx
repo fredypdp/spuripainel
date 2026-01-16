@@ -52,7 +52,7 @@ export default function Estudantes() {
       <PageBreadcrumb pageTitle="Estudantes" />
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={refetch}>Carregar estudantes</Button>
+          <Button disabled={carregandoEstudantes} size="sm" onClick={refetch}>Carregar estudantes</Button>
         </div>
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-[1200px] w-full overflow-x-auto">

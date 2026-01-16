@@ -157,7 +157,7 @@ export default function Academias() {
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={openModal}>Cadastrar uma academia</Button>
-          <Button variant="outline" size="sm" onClick={refetch}>Carregar academias</Button>
+          <Button variant="outline" size="sm" disabled={carregandoAcademias} onClick={refetch}>Carregar academias</Button>
           <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[584px] p-5 lg:p-10">
             <form onSubmit={handleCadastro}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar escola</h4>
