@@ -234,7 +234,7 @@ export default function Academias() {
                   />
                 </div>
 
-                <div className="sm:col-span-2 sm:col-span-1">
+                <div className="col-span-2 sm:col-span-1">
                   <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                     Nível acadêmico<span className="text-error-500">*</span>
                   </span>
@@ -251,7 +251,7 @@ export default function Academias() {
                   />
                 </div>
                 
-                <div className="sm:col-span-2 sm:col-span-1">
+                <div className="col-span-2 sm:col-span-1">
                   <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                     Província<span className="text-error-500">*</span>
                   </span>
