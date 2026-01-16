@@ -174,7 +174,7 @@ export default function Academias() {
                   />
                 </div>
 
-                <div>
+                <div className="col-span-1 sm:col-span-2">
                   <Label>
                     Senha<span className="text-error-500">*</span>
                   </Label>
@@ -198,7 +198,7 @@ export default function Academias() {
                   </div>
                 </div>
 
-                <div className="col-span-1">
+                <div className="col-span-1 sm:col-span-2">
                   <Label>
                     Número de telefone<span className="text-error-500">*</span>
                   </Label>
@@ -210,7 +210,7 @@ export default function Academias() {
                   />
                 </div>
                 
-                <div className="col-span-1">
+                <div className="col-span-1 sm:col-span-2">
                   <Label>
                     E-mail<span className="text-error-500">*</span>
                   </Label>
@@ -222,7 +222,7 @@ export default function Academias() {
                   />
                 </div>
                 
-                <div className="col-span-1">
+                <div className="col-span-1 sm:col-span-2">
                   <Label>
                     Endereço<span className="text-error-500">*</span>
                   </Label>
@@ -234,7 +234,7 @@ export default function Academias() {
                   />
                 </div>
 
-                <div className="sm:col-span-1">
+                <div className="sm:col-span-1 sm:col-span-2">
                   <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                     Nível acadêmico<span className="text-error-500">*</span>
                   </span>
@@ -251,7 +251,7 @@ export default function Academias() {
                   />
                 </div>
                 
-                <div className="sm:col-span-1">
+                <div className="sm:col-span-1 sm:col-span-2">
                   <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                     Província<span className="text-error-500">*</span>
                   </span>
