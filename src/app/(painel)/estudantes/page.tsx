@@ -1,8 +1,9 @@
-import PageContent from "./PageContent";
+import React from "react";
 import { Metadata } from "next";
+import PageContent from "./PageContent";
 
 export const metadata: Metadata = {
-  title: "Fazer login - Admin",
+  title: "Estudantes",
 };
 
 export default function login() {

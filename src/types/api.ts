@@ -1,6 +1,7 @@
 // src/types/api.ts
 
 export type UserType = 'academia' | 'estudante' | 'admin';
+export type AdminType = "gerente" | "admin" | "fpp";
 
 export type AcademiaType = 'escola' | 'superior';
 
@@ -242,6 +243,31 @@ export interface MeuPerfilResponse {
   admin?: AdminDetalhado;
 }
 
+export interface ConsultarEstudantesResponse {
+  estudantes: [
+    {
+      id: string,
+      nome: string,
+      codigo_estudante: string,
+      bilhete_identidade?: string,
+      bilhete_identidade_responsavel?: string;
+      codigo_academia?: string,
+      ano_escolar?: string,
+      ano_superior?: string,
+      status_superior?: string,
+      status_escolar?: StatusEscolar,
+      created_at: string,
+      total_notas: number,
+      total_faltas: number,
+      total_inscricoes: number
+    }
+  ],
+  total: number
+  tipo_usuario: string
+  codigo_academia?: string,
+  nome_academia?: string,
+}
+
 export interface ConsultarEstudanteResponse {
   estudante: EstudanteDetalhado;
   consultado_por: 'academia' | 'admin';
@@ -269,4 +295,28 @@ export interface ConsultarAdminResponse {
 export interface BuscarUsuarioResponse {
   tipo: 'estudante' | 'academia' | 'admin';
   dados: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
+}
+
+export interface PrimeiroAmdminResponse {
+	credentials: {
+		email: string,
+		senha: string
+	},
+	data: {
+		email: string,
+		id: string,
+		nome: string,
+		role: AdminType
+	},
+	message: string,
+	next_steps: string[],
+	success: boolean,
+	test_login: {
+		body: {
+			email: string,
+			senha: string
+		},
+		method: "POST",
+		url: "/admin/login"
+	}
 }

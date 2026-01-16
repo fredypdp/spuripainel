@@ -24,6 +24,8 @@ import type {
   ConsultarAdminResponse,
   BuscarUsuarioResponse,
   ConsultarAcademiasResponse,
+  ConsultarEstudantesResponse,
+  PrimeiroAmdminResponse
 } from '@/types/api';
 
 // =====================
@@ -135,6 +137,11 @@ export const consultasService = {
     api.get<ConsultarAcademiasResponse>('/academias', {
       token: token || tokenStorage.get() || undefined,
     }),
+  
+  listarEstudantes: (token?: string) =>
+    api.get<ConsultarEstudantesResponse>('/estudantes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 };
 
 // =====================
@@ -166,10 +173,8 @@ export const adminService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  listarEstudantes: (token?: string) =>
-    api.get<ApiResponse>('/admin/estudantes', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+  criaPrimeiroAdmin: (data: CriarAdminRequest) =>
+  api.post<PrimeiroAmdminResponse>("/bootstrap/admin-fpp", data),
 
   listarInscricoes: (status?: StatusInscricao, token?: string) => {
     const query = status ? `?status=${status}` : '';

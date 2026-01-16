@@ -43,12 +43,8 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   const { isOpen, openModal, closeModal } = useModal();
   
   // API Hooks
-  const { execute: executarPegarPerfil } = useApi(perfilService.meuPerfil);
-  const { 
-    data: dataAcademias, 
-    loading: carregandoAcademias, 
-    error: erroAcademias 
-  } = useApiQuery(() => consultasService.listarAcademias());
+  const {execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
+  const {data: dataAcademias,loading: carregandoAcademias,error: erroAcademias} = useApiQuery(() => consultasService.listarAcademias());
 
   // Usar diretamente os dados da API (sem estado intermediário)
   const academias = dataAcademias?.academias || [];
