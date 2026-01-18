@@ -1,25 +1,8 @@
 // src/lib/api/client.ts
 
-const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-
-export interface FetchOptions extends RequestInit {
-  token?: string;
-}
-
-export class SpuriApiError extends Error {
-  constructor(
-    public status: number,
-    public statusText: string,
-    public data?: any
-  ) {
-    super(data.error);
-    this.name = 'SpuriApiError';
-  }
-}
-
-// src/lib/api/client.ts
-
 import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
+
+const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 
 const getApiBaseUrl = () => API_BASE_URL;
 
@@ -37,6 +20,8 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+
+export class SpuriApiError extends ApiError {}
 
 /**
  * Cliente HTTP base para fazer requisições à API
@@ -63,8 +48,17 @@ async function fetchApi<T>(
     headers,
   });
 
+  // 🔥 CORRIGIDO: Capturar erro ANTES de tentar parse
   if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
+    let errorData: any = null;
+    
+    try {
+      errorData = await response.json();
+    } catch (parseError) {
+      errorData = { error: response.statusText };
+    }
+    
+    // Lançar erro com os dados parseados
     throw new SpuriApiError(response.status, response.statusText, errorData);
   }
 
@@ -106,7 +100,7 @@ export const api = {
     }),
 };
 
-// Storage helpers para token (agora usando cookies em vez de localStorage)
+// Storage helpers para token (usando cookies)
 export const tokenStorage = {
   get: () => {
     if (typeof window === 'undefined') return null;
@@ -122,6 +116,7 @@ export const tokenStorage = {
     if (typeof window === 'undefined') return;
     removeCookie('auth_token');
     removeCookie('user_type');
+    removeCookie('user');
   },
 
   getWithType: () => {
@@ -133,7 +128,7 @@ export const tokenStorage = {
 
   setWithType: (token: string, type: string) => {
     if (typeof window === 'undefined') return;
-    setCookie('auth_token', token, 1); // Expira em 1 dia (24h)
+    setCookie('auth_token', token, 1);
     setCookie('user_type', type, 1);
   },
 };

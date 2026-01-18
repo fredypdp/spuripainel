@@ -1,31 +1,70 @@
 // src/lib/api/index.ts
 
-// Exportar tudo do client
-export { api, tokenStorage, ApiError } from './client';
+// Client
+export { api, tokenStorage, ApiError, SpuriApiError } from './client';
 export type { FetchOptions } from './client';
 
-// Exportar todos os serviços
+// Serviços
 export {
   healthService,
+  bootstrapService, // 🔥 Novo
   academiaService,
   estudanteService,
+  inscricoesService, // 🔥 Atualizado
   consultasService,
   eventSourcingService,
   adminService,
   perfilService,
 } from './services';
 
-// Exportar hooks
+// Hooks
 export { useApi, useApiQuery } from '@/hooks/useApi';
 
-// Re-exportar tipos importantes
+// Tipos principais
 export type {
   UserType,
+  AdminType,
   AcademiaType,
+  NivelEscolar,
+  AnoEscolar,
+  AnoSuperior,
+  StatusEscolar,
+  StatusSuperior,
+  StatusGeral, // 🔥 Novo
+  StatusInscricao,
+  Periodo,
   LoginRequest,
   AuthResponse,
   ApiResponse,
   Inscricao,
+  ListarInscricoesResponse, // 🔥 Novo
+  InscricaoResponse,
   HistoricoEstudante,
-  StatusInscricao,
+  Evento,
+  EstudanteDetalhado,
+  AcademiaSimples,
+  AcademiaDetalhada,
+  AdminDetalhado,
+  MeuPerfilResponse,
+  ConsultarEstudanteResponse,
+  ConsultarAcademiaResponse,
+  ConsultarAdminResponse,
+  BuscarUsuarioResponse,
+  ConsultarAcademiasResponse,
+  ConsultarEstudantesResponse,
+  PrimeiroAmdminResponse,
+  CriarEscolaRequest,
+  CriarUniversidadeRequest,
+  CriarEstudanteFundamentalRequest,
+  CriarEstudanteSuperiorRequest,
+  SolicitarInscricaoRequest,
+  RegistrarNotasRequest,
+  RegistrarFaltasRequest,
+  CriarAdminRequest,
+  DesativarRequest,
+  Materia,
+  Provincia,
+  ProvinciaNome,
+  ProvinciaCodigo,
+  Provincias,
 } from '@/types/api';

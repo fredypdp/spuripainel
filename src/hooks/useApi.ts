@@ -50,13 +50,22 @@ export function useApi<T, Args extends any[]>(
         let errorMessage = 'Ocorreu um erro desconhecido';
 
         if (err instanceof ApiError) {
-          errorMessage = err.data?.message || err.data?.error || err.statusText;
+          // 🔥 PRIORIZAR err.data.error (padrão do backend Go)
+          if (err.data?.error) {
+            errorMessage = err.data.error;
+          } else if (err.data?.message) {
+            errorMessage = err.data.message;
+          } else if (err.statusText) {
+            errorMessage = err.statusText;
+          }
         } else if (err instanceof Error) {
           errorMessage = err.message;
         }
 
         setState({ data: null, loading: false, error: errorMessage });
-        return null;
+        
+        // 🔥 RELANÇAR A EXCEÇÃO para ser capturada no componente
+        throw err;
       }
     },
     [apiFunction]

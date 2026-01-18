@@ -7,7 +7,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
-import { tokenStorage, useApiQuery, useApi, perfilService, consultasService } from '@/lib/api';
+import { tokenStorage, useApiQuery, useApi, perfilService, consultasService, estudanteService} from '@/lib/api';
 import { setCookie, removeCookie, getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse, AcademiaSimples } from '@/types/api';
 
@@ -44,7 +44,8 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   
   // API Hooks
   const {execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
-  const {data: dataAcademias,loading: carregandoAcademias,error: erroAcademias} = useApiQuery(() => consultasService.listarAcademias());
+  const FazerInscricao = useApi(estudanteService.solicitarInscricaoEscola);
+  const {data: dataAcademias, loading: carregandoAcademias, error: erroAcademias} = useApiQuery(() => consultasService.listarAcademias());
 
   // Usar diretamente os dados da API (sem estado intermediário)
   const academias = dataAcademias?.academias || [];
@@ -85,14 +86,54 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
     }
   }, [user, openModal]);
 
-  const handleSalvarInscricao = () => {
+  const handleSalvarInscricao = async () => {
     if (!academiaSelecionada) {
       alert("Selecione uma instituição");
       return;
     }
 
-    // TODO: Implementar lógica de inscrição
-    closeModal();
+    // 🔥 VALIDAR: Se estudante tem ano_escolar
+    if (!user?.estudante?.ano_escolar) {
+      alert("Ano escolar não encontrado. Por favor, atualize seu perfil.");
+      return;
+    }
+
+    try {
+      // 🔥 Executar inscrição
+      const result = await FazerInscricao.execute({
+        codigo_academia: academiaSelecionada.codigo_academia,
+        ano_escolar_inscricao: user.estudante.ano_escolar,
+        curso_medio: user.estudante.curso_medio || null,
+      });
+
+      // 🔥 Sucesso
+      if (result && 'message' in result) {
+        alert(`✅ ${result.message}`);
+        closeModal();
+        
+        // Recarregar perfil
+        const novosDados = await executarPegarPerfil();
+        if (novosDados) {
+          setUser(novosDados);
+          setCookie("user", JSON.stringify(novosDados), 1);
+        }
+      }
+    } catch (error: any) {
+      // 🔥 EXTRAIR MENSAGEM DO ERRO
+      let errorMsg = 'Erro ao fazer inscrição';
+      
+      // Backend retorna {error: "mensagem"}
+      if (error?.data?.error) {
+        errorMsg = error.data.error;
+      } 
+      // Fallback para outras mensagens
+      else if (error?.message) {
+        errorMsg = error.message;
+      }
+      
+      // 🔥 EXIBIR ERRO NO LAYOUT
+      alert(`❌ ${errorMsg}`);
+    }
   };
 
   return (
@@ -150,6 +191,17 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
               className="w-full" 
               emptyMessage="Nenhuma instituição encontrada"
             />
+            
+            {/* 🔥 INFO: Mostrar dados do estudante */}
+            {user?.estudante && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>Seus dados:</strong><br/>
+                  Ano Escolar: {user.estudante.ano_escolar || 'Não informado'}<br/>
+                  {user.estudante.curso_medio && `Curso: ${user.estudante.curso_medio}`}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -165,9 +217,9 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
           <Button 
             size="sm" 
             onClick={handleSalvarInscricao}
-            disabled={!academiaSelecionada || carregandoAcademias}
+            disabled={!academiaSelecionada || carregandoAcademias || FazerInscricao.loading}
           >
-            Inscrever-se
+            {FazerInscricao.loading ? 'Inscrevendo...' : 'Inscrever-se'}
           </Button>
         </div>
       </Modal>

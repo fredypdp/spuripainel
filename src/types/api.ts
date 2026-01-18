@@ -1,11 +1,11 @@
 // src/types/api.ts
 
 export type UserType = 'academia' | 'estudante' | 'admin';
-export type AdminType = "gerente" | "admin" | "fpp";
+export type AdminType = "gerente" | "adm" | "fpp"; // 🔥 Corrigido: "adm" ao invés de "admin"
 
 export type AcademiaType = 'escola' | 'superior';
 
-export type NivelEscolar = 'fundamental' | 'medio';
+export type NivelEscolar = 'fundamental' | 'medio' | "misto";
 
 export type AnoEscolar = 
   | 'primeiro_fundamental' | 'segundo_fundamental' | 'terceiro_fundamental'
@@ -17,9 +17,11 @@ export type AnoSuperior =
   | 'primeiro_superior' | 'segundo_superior' | 'terceiro_superior'
   | 'quarto_superior' | 'quinto_superior';
 
-export type StatusEscolar = 'ativo' | 'inativo' | 'transferido' | 'concluido';
+export type StatusEscolar = 'inativo' | 'em_andamento' | 'finalizado'; // 🔥 Atualizado
+export type StatusSuperior = 'inativo' | 'em_andamento' | 'finalizado'; // 🔥 Atualizado
+export type StatusGeral = 'inativo' | 'ativo' | 'finalizado'; // 🔥 Novo
 
-export type StatusInscricao = 'espera' | 'aprovada' | 'reprovada';
+export type StatusInscricao = 'espera' | 'aprovado' | 'reprovado';
 
 export type Periodo = 
   | 'trimestre_1' | 'trimestre_2' | 'trimestre_3'
@@ -62,22 +64,22 @@ export interface CriarEstudanteFundamentalRequest {
   nome: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  ano_escolar: AnoEscolar;
-  status_escolar: StatusEscolar;
+  ano_escolar?: AnoEscolar;
+  status_escolar?: StatusEscolar;
 }
 
 export interface CriarEstudanteSuperiorRequest {
   senha: string;
   nome: string;
   bilhete_identidade: string;
-  ano_superior: AnoSuperior;
-  curso_superior: string;
-  status_superior: StatusEscolar;
+  ano_superior?: AnoSuperior;
+  curso_superior?: string;
+  status_superior?: StatusSuperior;
 }
 
 export interface SolicitarInscricaoRequest {
   codigo_academia: string;
-  ano_escolar_inscricao?: AnoEscolar;
+  ano_escolar_inscricao: AnoEscolar;
   curso_medio?: string | null;
 }
 
@@ -105,7 +107,7 @@ export interface CriarAdminRequest {
   nome: string;
   email: string;
   senha: string;
-  role: string;
+  role: AdminType;
 }
 
 export interface DesativarRequest {
@@ -124,21 +126,36 @@ export interface AuthResponse {
   id?: string;
   nome: string;
   token: string;
-  codigo: string;
-  codigo_academia?: string;
-  codigo_estudante?: string;
+  codigo: string; // 🔥 Unificado: codigo_estudante ou codigo_academia
   type: UserType;
+  role?: AdminType; // 🔥 Para admin
 }
 
 export interface Inscricao {
   id: string;
+  estudante_id: string;
   codigo_estudante: string;
+  academia_id: string;
   codigo_academia: string;
+  tipo: 'escola' | 'universidade';
+  ano_inscricao: string;
+  curso?: string;
   status: StatusInscricao;
-  ano_escolar_inscricao?: AnoEscolar;
-  curso_medio?: string;
+  status_usado: boolean; // 🔥 Novo
   created_at: string;
   updated_at: string;
+  event_id?: string;
+  version?: number;
+}
+
+export interface ListarInscricoesResponse {
+  inscricoes: Inscricao[];
+  total: number;
+  total_geral: number;
+  limit: number;
+  offset: number;
+  status_filter?: string;
+  user_type: UserType;
 }
 
 export interface NotasPorPeriodo {
@@ -162,9 +179,17 @@ export interface HistoricoEstudante {
 
 export interface Evento {
   id: string;
-  tipo: string;
-  dados: any;
-  timestamp: string;
+  event_id: string;
+  aggregate_id: string;
+  aggregate_type: string;
+  event_type: string;
+  event_version: number;
+  payload: any;
+  metadata: any;
+  occurred_at: string;
+  recorded_at: string;
+  ledger_hash: string;
+  previous_hash?: string;
 }
 
 // Response Types - Perfis
@@ -175,19 +200,20 @@ export interface EstudanteDetalhado {
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
   codigo_academia?: string;
+  status: StatusGeral; // 🔥 Novo
+  status_escolar: StatusEscolar; // 🔥 Atualizado
+  status_superior: StatusSuperior; // 🔥 Atualizado
   academia_info?: {
     codigo: string;
     nome: string;
     tipo: string;
     provincia?: string;
-    nivel_escolar?: string;
+    nivel_escolar?: NivelEscolar;
   };
   ano_escolar?: string;
   ano_superior?: string;
   curso_medio?: string;
   curso_superior?: string;
-  status_escolar?: StatusEscolar;
-  status_superior?: StatusEscolar;
   created_at: string;
   total_notas?: number;
   total_faltas?: number;
@@ -195,16 +221,16 @@ export interface EstudanteDetalhado {
 }
 
 export interface AcademiaSimples {
-  codigo_academia: string,
-  created_at: string,
-  id: string,
-  nivel_escolar?: string,
-  nome: string,
-  provincia: string,
-  status: string,
-  total_estudantes: number,
-  total_inscricoes_pendentes: number,
-  type: AcademiaType
+  codigo_academia: string;
+  created_at: string;
+  id: string;
+  nivel_escolar?: NivelEscolar;
+  nome: string;
+  provincia: string;
+  status: string;
+  total_estudantes: number;
+  total_inscricoes_pendentes: number;
+  type: AcademiaType;
 }
 
 export interface AcademiaDetalhada {
@@ -217,7 +243,7 @@ export interface AcademiaDetalhada {
   numero_telefone: string;
   email: string;
   website?: string;
-  nivel_escolar?: string;
+  nivel_escolar?: NivelEscolar;
   status: string;
   cursos: string[];
   created_at: string;
@@ -229,7 +255,7 @@ export interface AdminDetalhado {
   id: string;
   nome: string;
   email: string;
-  role: string;
+  role: AdminType;
   status: string;
   created_by?: string;
   created_at: string;
@@ -244,28 +270,26 @@ export interface MeuPerfilResponse {
 }
 
 export interface ConsultarEstudantesResponse {
-  estudantes: [
-    {
-      id: string,
-      nome: string,
-      codigo_estudante: string,
-      bilhete_identidade?: string,
-      bilhete_identidade_responsavel?: string;
-      codigo_academia?: string,
-      ano_escolar?: string,
-      ano_superior?: string,
-      status_superior?: string,
-      status_escolar?: StatusEscolar,
-      created_at: string,
-      total_notas: number,
-      total_faltas: number,
-      total_inscricoes: number
-    }
-  ],
-  total: number
-  tipo_usuario: string
-  codigo_academia?: string,
-  nome_academia?: string,
+  estudantes: {
+    id: string;
+    nome: string;
+    codigo_estudante: string;
+    bilhete_identidade?: string;
+    bilhete_identidade_responsavel?: string;
+    codigo_academia?: string;
+    ano_escolar?: string;
+    ano_superior?: string;
+    status_superior?: StatusSuperior;
+    status_escolar?: StatusEscolar;
+    created_at: string;
+    total_notas: number;
+    total_faltas: number;
+    total_inscricoes: number;
+  }[];
+  total: number;
+  tipo_usuario: string;
+  codigo_academia?: string;
+  nome_academia?: string;
 }
 
 export interface ConsultarEstudanteResponse {
@@ -274,8 +298,8 @@ export interface ConsultarEstudanteResponse {
 }
 
 export interface ConsultarAcademiasResponse {
-  academias: AcademiaSimples[],
-  total: number
+  academias: AcademiaSimples[];
+  total: number;
 }
 
 export interface ConsultarAcademiaResponse {
@@ -298,27 +322,32 @@ export interface BuscarUsuarioResponse {
 }
 
 export interface PrimeiroAmdminResponse {
-	credentials: {
-		email: string,
-		senha: string
-	},
-	data: {
-		email: string,
-		id: string,
-		nome: string,
-		role: AdminType
-	},
-	message: string,
-	next_steps: string[],
-	success: boolean,
-	test_login: {
-		body: {
-			email: string,
-			senha: string
-		},
-		method: "POST",
-		url: "/admin/login"
-	}
+  credentials: {
+    email: string;
+    senha: string;
+  };
+  data: {
+    email: string;
+    id: string;
+    nome: string;
+    role: AdminType;
+  };
+  message: string;
+  next_steps: string[];
+  success: boolean;
+  test_login: {
+    body: {
+      email: string;
+      senha: string;
+    };
+    method: "POST";
+    url: "/admin/login";
+  };
+}
+
+export interface InscricaoResponse {
+  message: string;
+  codigo_academia: string;
 }
 
 export interface Provincia {
@@ -327,27 +356,10 @@ export interface Provincia {
 }
 
 export type ProvinciaNome =
-  | "BENGO"
-  | "BENGUELA"
-  | "BIE"
-  | "CABINDA"
-  | "CUANDO CUBANGO"
-  | "CUANZA NORTE"
-  | "CUANZA SUL"
-  | "CUBANGO"
-  | "CUNENE"
-  | "HUAMBO"
-  | "HUILA"
-  | "ICOLO E BENGO"
-  | "LUANDA"
-  | "LUNDA NORTE"
-  | "LUNDA SUL"
-  | "MALANJE"
-  | "MOXICO"
-  | "MOXICO LESTE"
-  | "NAMIBE"
-  | "UIGE"
-  | "ZAIRE";
+  | "BENGO" | "BENGUELA" | "BIE" | "CABINDA" | "CUANDO CUBANGO"
+  | "CUANZA NORTE" | "CUANZA SUL" | "CUBANGO" | "CUNENE" | "HUAMBO"
+  | "HUILA" | "ICOLO E BENGO" | "LUANDA" | "LUNDA NORTE" | "LUNDA SUL"
+  | "MALANJE" | "MOXICO" | "MOXICO LESTE" | "NAMIBE" | "UIGE" | "ZAIRE";
 
 export type ProvinciaCodigo =
   | "BGO" | "BGU" | "BIE" | "CAB" | "CND" | "CNO" | "CUS"

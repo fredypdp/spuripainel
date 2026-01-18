@@ -55,6 +55,11 @@ const navItems: NavItem[] = [
     name: "Estudantes",
     path: "/estudantes",
   },
+  {
+    icon: <Icon width="24px" icon="map:school" />,
+    name: "Inscrições",
+    path: "/inscricoes",
+  },
 ];
 
 export default function AppSidebar() {
@@ -73,7 +78,7 @@ export default function AppSidebar() {
         }
         
         // Mostrar "Estudantes" para admin e academia
-        if (item.path === "/estudantes") {
+        if (item.path === "/estudantes" || item.path === "/inscricoes") {
           return user.tipo === "admin" || user.tipo === "academia";
         }
       }
