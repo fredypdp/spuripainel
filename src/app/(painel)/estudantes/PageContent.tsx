@@ -1,7 +1,7 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, academiaService, tokenStorage } from '@/lib/api';
+import { useApi, consultasService, estudanteService, tokenStorage } from '@/lib/api';
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 
 import Button from "@/components/ui/button/Button";
@@ -9,8 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
-import { Dropdown } from 'primereact/dropdown';
-import { NivelEscolar, Provincias, Provincia } from '@/types/api';
+import { EstudanteDetalhado } from '@/types/api';
 
 import {
   Table,
@@ -20,81 +19,65 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface NivelAcademico {
-  nome: string,
-  nivel: NivelEscolar,
-  id: number
-}
-
-export default function Academias() {
+export default function Estudantes() {
   const { isOpen, openModal, closeModal } = useModal();
+  const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
   const [carregado, setCarregado] = useState(false);
   
-  const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
-  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.criarEscola);
+  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
+  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(estudanteService.criar);
   
   const [showSenha, setShowSenha] = useState(false);
+  const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   
+  // Campos do formulário
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
-  const [email, setEmail] = useState('')
-  const [numeroTelefone, setNumeroTelefone] = useState('')
-  const [endereco, setEndereco] = useState('')
-  const [provinciaSelecionada, setProvinciaSelecionada] = useState<Provincia | null>(null);
-  const [nivelEscolarSelecionado, setNivelEscolarSelecionado] = useState<NivelAcademico | null>(null);
+  const [email, setEmail] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [bilheteIdentidade, setBilheteIdentidade] = useState('');
+  const [bilheteResponsavel, setBilheteResponsavel] = useState('');
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  
-  const NiveisAcademicos: NivelAcademico[] = [
-    {nome: "Ensino Fundamental (1ª-9ª)", nivel: "fundamental", id: 1},
-    {nome: "Ensino Médio", nivel: "medio", id: 2},
-    {nome: "Fundamental e Médio", nivel: "misto", id: 3},
-  ];
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   const carregarLista = async () => {
-    await carregarAcademias({ token: tokenStorage.get() || undefined });
-    setCarregado(true);
+    try {
+      const token = tokenStorage.get();
+      await carregarEstudantes(token || undefined);
+      setCarregado(true);
+    } catch (err) {
+      console.error('Erro ao carregar estudantes:', err);
+    }
   };
+
+  useEffect(() => {
+    carregarLista();
+  }, []);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
     if (!nome.trim()) {
-      erros.push('Nome da escola é obrigatório');
+      erros.push('Nome do estudante é obrigatório');
     }
 
     if (!senha || senha.length < 6) {
       erros.push('Senha deve ter no mínimo 6 caracteres');
     }
 
-    if (!nivelEscolarSelecionado) {
-      erros.push('Selecione o nível acadêmico');
-    }
-
-    if (!provinciaSelecionada) {
-      erros.push('Selecione a província');
-    }
-
-    if (!numeroTelefone.trim()) {
-      erros.push('Número de telefone é obrigatório');
-    } else {
-      const telefoneNumerico = numeroTelefone.replace(/\D/g, '');
-      if (telefoneNumerico.length < 9) {
-        erros.push('Número de telefone inválido (mínimo 9 dígitos)');
-      }
-    }
-
-    if (!email.trim()) {
-      erros.push('E-mail é obrigatório');
-    } else {
+    if (email && email.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         erros.push('E-mail inválido');
       }
     }
 
-    if (!endereco.trim()) {
-      erros.push('Endereço é obrigatório');
+    if (telefone && telefone.trim()) {
+      const telefoneNumerico = telefone.replace(/\D/g, '');
+      if (telefoneNumerico.length < 9) {
+        erros.push('Número de telefone inválido (mínimo 9 dígitos)');
+      }
     }
 
     setValidationErrors(erros);
@@ -105,17 +88,18 @@ export default function Academias() {
     setNome('');
     setSenha('');
     setEmail('');
-    setNumeroTelefone('');
-    setEndereco('');
-    setProvinciaSelecionada(null);
-    setNivelEscolarSelecionado(null);
+    setTelefone('');
+    setBilheteIdentidade('');
+    setBilheteResponsavel('');
     setValidationErrors([]);
+    setSuccessMessage('');
   };
 
   const handleCadastro = async (e: React.FormEvent) => {
     e.preventDefault();
 
     setValidationErrors([]);
+    setSuccessMessage('');
 
     if (!validarFormulario()) {
       return;
@@ -125,19 +109,20 @@ export default function Academias() {
       const result = await executarCadastro({
         senha,
         nome: nome.trim(),
-        type: "escola",
-        cursos: [],
-        provincia: provinciaSelecionada!.nome,
-        endereco: endereco.trim(),
-        numero_telefone: numeroTelefone.trim(),
-        email: email.trim(),
-        nivel_escolar: nivelEscolarSelecionado!.nivel,
+        email: email.trim() || undefined,
+        telefone: telefone.trim() || undefined,
+        bilhete_identidade: bilheteIdentidade.trim() || undefined,
+        bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
       });
 
       if (result?.data) {
-        limparFormulario();
-        closeModal();
-        carregarLista();
+        setSuccessMessage(`Estudante cadastrado com sucesso! Código: ${result.data.codigo_estudante}`);
+        
+        setTimeout(() => {
+          limparFormulario();
+          closeModal();
+          carregarLista();
+        }, 2000);
       }
     } catch (err) {
       console.error('Erro no cadastro:', err);
@@ -149,48 +134,95 @@ export default function Academias() {
     closeModal();
   };
 
+  const handleVerDetalhes = (estudante: EstudanteDetalhado) => {
+    setEstudanteSelecionado(estudante);
+    openDetailsModal();
+  };
+
+  const formatarData = (data: string) => {
+    try {
+      return new Date(data).toLocaleDateString("pt-BR", {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return '-';
+    }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'ativo':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      case 'inativo':
+        return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+      case 'finalizado':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
+  };
+
+  const getStatusEscolarBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'em_andamento':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+      case 'finalizado':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      case 'inativo':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
+  };
+
   return (
     <div>
-      <PageBreadcrumb pageTitle="Academias" />
+      <PageBreadcrumb pageTitle="Estudantes" />
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={openModal}>Cadastrar uma academia</Button>
+          <Button size="sm" onClick={openModal}>Cadastrar estudante</Button>
           <Button 
             variant="outline" 
             size="sm" 
-            disabled={carregandoAcademias} 
+            disabled={carregandoEstudantes} 
             onClick={carregarLista}
           >
-            {carregandoAcademias ? 'Carregando...' : 'Carregar academias'}
+            {carregandoEstudantes ? 'Carregando...' : 'Carregar estudantes'}
           </Button>
           
-          {dataAcademias && (
+          {dataEstudantes && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
-              <span className="font-medium">{dataAcademias.total}</span>
-              <span className="ml-1">academias encontradas</span>
+              <span className="font-medium">{dataEstudantes.total}</span>
+              <span className="ml-1">estudantes encontrados</span>
             </div>
           )}
           
-          <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[584px] p-5 lg:p-10">
+          {/* Modal de Cadastro */}
+          <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[640px] p-5 lg:p-10">
             <form onSubmit={handleCadastro}>
-              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar escola</h4>
+              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar estudante</h4>
+              
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
                 <div className="col-span-2">
-                  <Label>Nome da escola</Label>
+                  <Label>Nome completo *</Label>
                   <Input 
                     type="text" 
-                    placeholder="Digite o nome da escola"
+                    placeholder="Digite o nome completo"
+                    value={nome}
                     onChange={(e) => setNome(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Senha</Label>
+                  <Label>Senha *</Label>
                   <div className="relative">
                     <Input 
-                      placeholder="Digite a sua senha (mín. 6 caracteres)"
+                      placeholder="Mínimo 6 caracteres"
                       type={showSenha ? "text" : "password"}
+                      value={senha}
                       onChange={(e) => setSenha(e.target.value)}
                       disabled={carregandoCadastro}
                     />
@@ -208,66 +240,57 @@ export default function Academias() {
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Número de telefone</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="+244 900 000 000"
-                    onChange={(e) => setNumeroTelefone(e.target.value)} 
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-                
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>E-mail</Label>
+                  <Label>E-mail (opcional)</Label>
                   <Input 
                     type="email" 
-                    placeholder="Digite o e-mail da escola"
+                    placeholder="email@exemplo.com"
+                    value={email}
                     onChange={(e) => setEmail(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
                 </div>
                 
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Endereço</Label>
+                  <Label>Telefone (opcional)</Label>
                   <Input 
                     type="text" 
-                    placeholder="Digite o endereço da escola"
-                    onChange={(e) => setEndereco(e.target.value)} 
+                    placeholder="+244 900 000 000"
+                    value={telefone}
+                    onChange={(e) => setTelefone(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Nível acadêmico
-                  </span>
-                  <Dropdown 
-                    value={nivelEscolarSelecionado} 
-                    onChange={(e) => setNivelEscolarSelecionado(e.value)} 
-                    options={NiveisAcademicos} 
-                    optionLabel="nome"
-                    placeholder="Selecione o nível escolar da instituição" 
-                    className="w-full md:w-14rem"
+                  <Label>Bilhete de Identidade (opcional)</Label>
+                  <Input 
+                    type="text" 
+                    placeholder="000000000XX000"
+                    value={bilheteIdentidade}
+                    onChange={(e) => setBilheteIdentidade(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
                 </div>
-                
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Província
-                  </span>
-                  <Dropdown 
-                    value={provinciaSelecionada} 
-                    onChange={(e) => setProvinciaSelecionada(e.value)} 
-                    options={Provincias} 
-                    optionLabel="nome"
-                    filter
-                    placeholder="Selecione a província da instituição" 
-                    className="w-full md:w-14rem"
+
+                <div className="col-span-2">
+                  <Label>Bilhete do Responsável (opcional)</Label>
+                  <Input 
+                    type="text" 
+                    placeholder="000000000XX000"
+                    value={bilheteResponsavel}
+                    onChange={(e) => setBilheteResponsavel(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
                 </div>
               </div>
+
+              {successMessage && (
+                <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                    {successMessage}
+                  </p>
+                </div>
+              )}
 
               {validationErrors.length > 0 && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -284,7 +307,7 @@ export default function Academias() {
                 </div>
               )}
 
-              {erroCadastro && (
+              {erroCadastro && !successMessage && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
                     {erroCadastro}
@@ -303,6 +326,7 @@ export default function Academias() {
                 </Button>
                 <Button 
                   size="sm"
+                  type="submit"
                   disabled={carregandoCadastro}
                 >
                   {carregandoCadastro ? (
@@ -320,57 +344,141 @@ export default function Academias() {
               </div>
             </form>
           </Modal>
+
+          {/* Modal de Detalhes */}
+          <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[700px] p-5 lg:p-10">
+            {estudanteSelecionado && (
+              <div>
+                <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
+                  Detalhes do Estudante
+                </h4>
+                
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p>
+                      <p className="text-sm text-gray-900 dark:text-white capitalize">{estudanteSelecionado.nome}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.codigo_estudante}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.email || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Telefone</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.telefone || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">BI</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.bilhete_identidade || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Geral</p>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudanteSelecionado.status)}`}>
+                        {estudanteSelecionado.status}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Escolar</p>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusEscolarBadge(estudanteSelecionado.status_escolar)}`}>
+                        {estudanteSelecionado.status_escolar.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Superior</p>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusEscolarBadge(estudanteSelecionado.status_superior)}`}>
+                        {estudanteSelecionado.status_superior.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código Academia</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.codigo_academia || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ano Escolar</p>
+                      <p className="text-sm text-gray-900 dark:text-white capitalize">{estudanteSelecionado.ano_escolar?.replace('_', ' ') || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Notas</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.total_notas}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Faltas</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.total_faltas}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Inscrições</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.total_inscricoes}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{formatarData(estudanteSelecionado.created_at)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-6">
+                  <Button size="sm" variant="outline" onClick={closeDetailsModal}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
         </div>
 
-        {erroAcademias && (
+        {erroEstudantes && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-700 dark:text-red-400">
-              Erro ao carregar academias: {erroAcademias}
+              Erro ao carregar estudantes: {erroEstudantes}
             </p>
           </div>
         )}
 
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="max-w-[1200px] w-full overflow-x-auto">
+          <div className="w-full overflow-x-auto">
             <Table className="w-full">
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível escolar</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Provincia</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Total de estudantes</TableCell>
+                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Email</TableCell>
+                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Academia</TableCell>
+                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Notas</TableCell>
+                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Faltas</TableCell>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Data de criação</TableCell>
+                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
                 </TableRow>
               </TableHeader>
 
-              {carregandoAcademias && (
+              {carregandoEstudantes && (
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-12">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Carregando estudantes...</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 </TableBody>
               )}
 
-              {!carregandoAcademias && !carregado && (
+              {!carregandoEstudantes && !carregado && (
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-12">
                         <div className="text-gray-400 dark:text-gray-500 mb-4">
                           <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                           </svg>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Clique em &ldquo;Carregar academias&rdquo; para visualizar
+                          Clique em &ldquo;Carregar estudantes&rdquo; para visualizar
                         </p>
                       </div>
                     </TableCell>
@@ -378,18 +486,18 @@ export default function Academias() {
                 </TableBody>
               )}
 
-              {!carregandoAcademias && carregado && dataAcademias && dataAcademias.total === 0 && (
+              {!carregandoEstudantes && carregado && dataEstudantes && dataEstudantes.total === 0 && (
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-12">
                         <div className="text-gray-400 dark:text-gray-500 mb-2">
                           <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                           </svg>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Nenhuma academia encontrada
+                          Nenhum estudante encontrado
                         </p>
                       </div>
                     </TableCell>
@@ -397,33 +505,47 @@ export default function Academias() {
                 </TableBody>
               )}
                 
-              {!carregandoAcademias && dataAcademias && dataAcademias.total > 0 && (
+              {!carregandoEstudantes && dataEstudantes && dataEstudantes.total > 0 && (
                 <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                  {dataAcademias.academias.map((academia) => (
-                    <TableRow key={academia.id}>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.nome || '-'}
+                  {dataEstudantes.estudantes.map((estudante) => (
+                    <TableRow key={estudante.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                      <TableCell className="max-w-[200px] capitalize truncate px-5 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">
+                        {estudante.nome || '-'}
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.codigo_academia || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                        {estudante.codigo_estudante || '-'}
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.type || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                        {estudante.email || '-'}
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.nivel_escolar || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                        {estudante.codigo_academia || '-'}
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.provincia || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
+                        {estudante.total_notas}
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.total_estudantes || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
+                        {estudante.total_faltas > 0 ? (
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
+                            {estudante.total_faltas}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">0</span>
+                        )}
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.status || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>
+                          {estudante.status || '-'}
+                        </span>
                       </TableCell>
-                      <TableCell className="max-w-[280px] capitalize truncate px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {new Date(academia.created_at).toLocaleDateString("pt-BR") || '-'}
+                      <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleVerDetalhes(estudante)}
+                        >
+                          Ver detalhes
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

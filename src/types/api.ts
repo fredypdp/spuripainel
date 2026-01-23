@@ -95,7 +95,6 @@ export interface SolicitarInscricaoUniversidadeRequest {
   curso?: string;
 }
 
-// 🔥 NOVO v3.0: Nota individual
 export interface RegistrarNotasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
@@ -105,11 +104,10 @@ export interface RegistrarNotasRequest {
   observacao?: string;
 }
 
-// 🔥 NOVO v3.0: Falta individual
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
-  data: string; // YYYY-MM-DD
+  data: string;
   materia_disciplinar_id: string;
   quantidade: number;
   observacao?: string;
@@ -146,7 +144,6 @@ export interface AtualizarStatusRequest {
   novo_status: StatusEscolar | StatusSuperior;
 }
 
-// ✅ Cursos e Matérias
 export interface CriarCursoRequest {
   nome: string;
   type: CursoType;
@@ -171,7 +168,6 @@ export interface AtualizarMateriaRequest {
   type?: MateriaType;
 }
 
-// ✅ Atualização de Dados
 export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
@@ -275,7 +271,6 @@ export interface InscricaoResponse {
   academia: string;
 }
 
-// 🔥 NOVO v3.0: Estrutura individual de nota
 export interface Nota {
   id: string;
   estudante_id: string;
@@ -292,7 +287,6 @@ export interface Nota {
   version: number;
 }
 
-// 🔥 NOVO v3.0: Estrutura individual de falta
 export interface Falta {
   id: string;
   estudante_id: string;
@@ -360,7 +354,6 @@ export interface VerificarIntegridadeResponse {
   message: string;
 }
 
-// ✅ Cursos e Matérias
 export interface Curso {
   id: string;
   nome: string;
@@ -432,7 +425,7 @@ export interface AcademiaSimples {
   codigo_academia: string;
   provincia: string;
   status: string;
-  nivel_escolar?: NivelEscolar;
+  nivel_escolar?: NivelEscolar | null;
   created_at: string;
   total_estudantes: number;
   total_inscricoes_pendentes: number;
@@ -449,7 +442,7 @@ export interface AcademiaDetalhada {
   email?: string;
   email_verificado: boolean;
   website?: string;
-  nivel_escolar?: NivelEscolar;
+  nivel_escolar?: NivelEscolar | null;
   status: string;
   cursos: string[];
   created_at: string;
@@ -517,13 +510,11 @@ export interface BuscarUsuarioResponse {
   dados: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
 }
 
+// ✅ CORRIGIDO: Response agora segue o padrão do backend
 export interface ConsultarAcademiasResponse {
   academias: AcademiaSimples[];
   total: number;
-  total_geral: number;
-  limit: number;
-  offset: number;
-  has_next: boolean;
+  tipo_usuario: UserType;
 }
 
 export interface ConsultarEstudantesResponse {
@@ -574,7 +565,6 @@ export interface AtualizarStatusResponse {
   novo_status: string;
 }
 
-// ✅ ADMIN - Registros
 export interface RegistroCompleto {
   notas?: Nota[];
   total_notas?: number;

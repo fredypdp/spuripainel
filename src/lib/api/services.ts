@@ -338,18 +338,11 @@ export const consultasService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarAcademias: (params?: { limit?: number; offset?: number; token?: string }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
-
-    const query = queryParams.toString();
-    const url = `/academias${query ? `?${query}` : ''}`;
-
-    return api.get<ConsultarAcademiasResponse>(url, {
-      token: params?.token || tokenStorage.get() || undefined,
-    });
-  },
+  // ✅ CORRIGIDO: Removida paginação e ajustado response type
+  listarAcademias: (token?: string) =>
+    api.get<ConsultarAcademiasResponse>('/academias', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   listarEstudantes: (token?: string) =>
     api.get<ConsultarEstudantesResponse>('/estudantes', {
