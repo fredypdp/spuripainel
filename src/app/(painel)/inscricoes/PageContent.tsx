@@ -2,8 +2,8 @@
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Pagination from "@/components/common/Pagination";
-import { useApiQuery, inscricoesService } from '@/lib/api';
-import type { Inscricao, StatusInscricao } from '@/types/api';
+import { useApi, inscricoesService, tokenStorage } from '@/lib/api';
+import type { StatusInscricao } from '@/types/api';
 
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -22,44 +22,37 @@ export default function Inscricoes() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusInscricao | undefined>(undefined);
   
-  // Calcular offset baseado na página atual
-  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-  
-  const {
-    data: dataInscricoes, 
-    loading: carregandoInscricoes, 
-    error: erroInscricoes, 
-    refetch
-  } = useApiQuery(() => 
-    inscricoesService.listarInscricoes({
+  const { data: dataInscricoes, loading: carregandoInscricoes, error: erroInscricoes, execute } = useApi(inscricoesService.listarInscricoes);
+
+  const loadInscricoes = () => {
+    const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+    execute({
       status: statusFilter,
       limit: ITEMS_PER_PAGE,
-      offset: offset
-    })
-  );
+      offset: offset,
+      token: tokenStorage.get() || undefined
+    });
+  };
 
-  // Refetch quando mudar página ou filtro
   useEffect(() => {
-    refetch();
+    if (tokenStorage.get()) {
+      loadInscricoes();
+    }
   }, [currentPage, statusFilter]);
 
-  // Calcular total de páginas
   const totalPages = dataInscricoes 
     ? Math.ceil(dataInscricoes.total_geral / ITEMS_PER_PAGE)
     : 0;
 
-  // Handler de mudança de página
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  // Handler de filtro de status
   const handleStatusFilter = (status: StatusInscricao | undefined) => {
     setStatusFilter(status);
-    setCurrentPage(1); // Reset para primeira página ao filtrar
+    setCurrentPage(1);
   };
 
-  // Função para formatar status
   const formatarStatus = (status: StatusInscricao) => {
     const statusMap = {
       'espera': { label: 'Em Espera', color: 'warning' as const },
@@ -69,7 +62,6 @@ export default function Inscricoes() {
     return statusMap[status] || { label: status, color: 'default' as const };
   };
 
-  // Função para formatar data
   const formatarData = (data: string) => {
     return new Date(data).toLocaleDateString("pt-BR", {
       day: '2-digit',
@@ -81,17 +73,16 @@ export default function Inscricoes() {
   };
 
   return (
-    <div className="">
+    <div>
       <PageBreadcrumb pageTitle="Inscrições" />
       
       <div className="space-y-6">
-        {/* Filtros e Ações */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             <Button 
               disabled={carregandoInscricoes} 
               size="sm" 
-              onClick={() => refetch()}
+              onClick={loadInscricoes}
             >
               Atualizar
             </Button>
@@ -129,7 +120,6 @@ export default function Inscricoes() {
             </Button>
           </div>
 
-          {/* Info de Resultados */}
           {dataInscricoes && (
             <div className="text-sm text-gray-600 dark:text-gray-400">
               <span className="font-medium">{dataInscricoes.total_geral}</span> inscrições encontradas
@@ -142,11 +132,9 @@ export default function Inscricoes() {
           )}
         </div>
 
-        {/* Tabela */}
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto">
             <Table className="w-full">
-              {/* Table Header */}
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
@@ -173,7 +161,6 @@ export default function Inscricoes() {
                 </TableRow>
               </TableHeader>
 
-              {/* Loading State */}
               {carregandoInscricoes && (
                 <TableBody>
                   <TableRow>
@@ -187,7 +174,6 @@ export default function Inscricoes() {
                 </TableBody>
               )}
 
-              {/* Error State */}
               {erroInscricoes && !carregandoInscricoes && (
                 <TableBody>
                   <TableRow>
@@ -202,7 +188,7 @@ export default function Inscricoes() {
                           Erro ao carregar inscrições
                         </p>
                         <p className="text-xs text-gray-500 mt-1">{erroInscricoes}</p>
-                        <Button size="sm" onClick={() => refetch()} className="mt-4">
+                        <Button size="sm" onClick={loadInscricoes} className="mt-4">
                           Tentar novamente
                         </Button>
                       </div>
@@ -211,8 +197,7 @@ export default function Inscricoes() {
                 </TableBody>
               )}
 
-              {/* Empty State */}
-              {!carregandoInscricoes && dataInscricoes && dataInscricoes.inscricoes && dataInscricoes.inscricoes && dataInscricoes.inscricoes.length === 0 && (
+              {!carregandoInscricoes && dataInscricoes && dataInscricoes.inscricoes && dataInscricoes.inscricoes.length === 0 && (
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={7}>
@@ -237,7 +222,6 @@ export default function Inscricoes() {
                 </TableBody>
               )}
 
-              {/* Data */}
               {!carregandoInscricoes && dataInscricoes && dataInscricoes.inscricoes && dataInscricoes.inscricoes.length > 0 && (
                 <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                   {dataInscricoes.inscricoes.map((inscricao) => {
@@ -282,7 +266,6 @@ export default function Inscricoes() {
           </div>
         </div>
 
-        {/* Paginação */}
         {dataInscricoes && dataInscricoes.total_geral > 0 && (
           <Pagination
             currentPage={currentPage}

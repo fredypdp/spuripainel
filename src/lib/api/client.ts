@@ -2,9 +2,19 @@
 
 import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
 
-const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
+// ✅ CORRIGIDO: Garantir que a URL base sempre tenha protocolo
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL;
 
-const getApiBaseUrl = () => API_BASE_URL;
+const getApiBaseUrl = () => {
+  const url = API_BASE_URL;
+  
+  // ✅ Se a URL não começar com http:// ou https://, adicionar https://
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    return `https://${url}`;
+  }
+  
+  return url;
+};
 
 export interface FetchOptions extends RequestInit {
   token?: string;
@@ -41,7 +51,14 @@ async function fetchApi<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const url = `${getApiBaseUrl()}${endpoint}`;
+  const baseUrl = getApiBaseUrl();
+  
+  // ✅ Validação adicional
+  if (!baseUrl) {
+    throw new Error('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env');
+  }
+
+  const url = `${baseUrl}${endpoint}`;
 
   const response = await fetch(url, {
     ...fetchOptions,

@@ -5,17 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import {
-  BoxCubeIcon,
-  CalenderIcon,
   ChevronDownIcon,
-  GridIcon,
   HorizontaLDots,
-  ListIcon,
-  PageIcon,
-  PieChartIcon,
-  PlugInIcon,
-  TableIcon,
-  UserCircleIcon,
 } from "../icons/index";
 import Icon from "@/components/ui/Icon";
 import SidebarWidget from "./SidebarWidget";
@@ -65,26 +56,38 @@ const navItems: NavItem[] = [
 export default function AppSidebar() {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
-  const userCookie = getCookie("user")
-  const user: MeuPerfilResponse | null = userCookie ? JSON.parse(userCookie) : null
+  const [user, setUser] = useState<MeuPerfilResponse | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const userCookie = getCookie("user");
+    if (userCookie) {
+      try {
+        setUser(JSON.parse(userCookie));
+      } catch (error) {
+        console.error('Erro ao parsear cookie do usuário:', error);
+      }
+    }
+  }, []);
 
   // Filtrar navItems baseado no tipo de usuário
   const filteredNavItems = useMemo(() => {
+    if (!mounted) return navItems; // Mostrar todos antes de montar
+    
     return navItems.filter(item => {
       if (user?.tipo) {
-        // Mostrar "Academias" apenas para admin
         if (item.path === "/academias") {
           return user.tipo === "admin";
         }
         
-        // Mostrar "Estudantes" para admin e academia
         if (item.path === "/estudantes" || item.path === "/inscricoes") {
           return user.tipo === "admin" || user.tipo === "academia";
         }
       }
       return true;
     });
-  }, [user]);
+  }, [user, mounted]);
 
   // Derive which submenu should be open based on current pathname
   const derivedOpenSubmenu = useMemo(() => {
@@ -350,4 +353,4 @@ export default function AppSidebar() {
       </div>
     </aside>
   );
-};
+}

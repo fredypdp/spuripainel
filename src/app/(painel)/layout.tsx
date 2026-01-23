@@ -7,7 +7,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
-import { tokenStorage, useApiQuery, useApi, perfilService, consultasService, estudanteService} from '@/lib/api';
+import { tokenStorage, useApi, perfilService, consultasService, estudanteService} from '@/lib/api';
 import { setCookie, removeCookie, getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse, AcademiaSimples } from '@/types/api';
 
@@ -21,7 +21,6 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const hasLoadedProfile = useRef(false);
   
-  // Inicializar user do cookie (se existir)
   const [user, setUser] = useState<MeuPerfilResponse | null>(() => {
     if (typeof window === 'undefined') return null;
     
@@ -39,25 +38,20 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   
   const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaSimples | null>(null);
   
-  // Modal
   const { isOpen, openModal, closeModal } = useModal();
   
-  // API Hooks
   const {execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
-  const FazerInscricao = useApi(estudanteService.solicitarInscricaoEscola);
-  const {data: dataAcademias, loading: carregandoAcademias, error: erroAcademias} = useApiQuery(() => consultasService.listarAcademias());
+  const { loading: carregandoInscricao, error: erroInscricao, execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
+  const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
 
-  // Usar diretamente os dados da API (sem estado intermediário)
   const academias = dataAcademias?.academias || [];
 
-  // Dynamic class for main content margin
   const mainContentMargin = isMobileOpen
     ? "ml-0"
     : isExpanded || isHovered
     ? "lg:ml-[290px]"
     : "lg:ml-[90px]";
 
-  // Verificar autenticação e carregar perfil se necessário
   useEffect(() => {
     const token = tokenStorage.get();
     
@@ -67,10 +61,9 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       return;
     }
 
-    // Se não tem user no estado e ainda não tentou carregar, buscar da API
     if (!user && !hasLoadedProfile.current) {
       hasLoadedProfile.current = true;
-      executarPegarPerfil().then((data) => {
+      executarPegarPerfil(token).then((data) => {
         if (data) {
           setUser(data);
           setCookie("user", JSON.stringify(data), 1);
@@ -79,12 +72,12 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
     }
   }, [router, user, executarPegarPerfil]);
 
-  // Abrir modal se estudante não tem academia
   useEffect(() => {
     if (user?.tipo === "estudante" && !user.estudante?.codigo_academia) {
+      carregarAcademias({ token: tokenStorage.get() || undefined });
       openModal();
     }
-  }, [user, openModal]);
+  }, [user, openModal, carregarAcademias]);
 
   const handleSalvarInscricao = async () => {
     if (!academiaSelecionada) {
@@ -92,68 +85,54 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       return;
     }
 
-    // 🔥 VALIDAR: Se estudante tem ano_escolar
     if (!user?.estudante?.ano_escolar) {
       alert("Ano escolar não encontrado. Por favor, atualize seu perfil.");
       return;
     }
 
     try {
-      // 🔥 Executar inscrição
-      const result = await FazerInscricao.execute({
+      const result = await executarInscricao({
         codigo_academia: academiaSelecionada.codigo_academia,
         ano_escolar_inscricao: user.estudante.ano_escolar,
-        curso_medio: user.estudante.curso_medio || null,
-      });
+        curso_medio: user.estudante.curso_medio || undefined,
+      }, tokenStorage.get() || undefined);
 
-      // 🔥 Sucesso
       if (result && 'message' in result) {
         alert(`✅ ${result.message}`);
         closeModal();
         
-        // Recarregar perfil
-        const novosDados = await executarPegarPerfil();
+        const novosDados = await executarPegarPerfil(tokenStorage.get() || undefined);
         if (novosDados) {
           setUser(novosDados);
           setCookie("user", JSON.stringify(novosDados), 1);
         }
       }
     } catch (error: any) {
-      // 🔥 EXTRAIR MENSAGEM DO ERRO
       let errorMsg = 'Erro ao fazer inscrição';
       
-      // Backend retorna {error: "mensagem"}
       if (error?.data?.error) {
         errorMsg = error.data.error;
-      } 
-      // Fallback para outras mensagens
-      else if (error?.message) {
+      } else if (error?.message) {
         errorMsg = error.message;
       }
       
-      // 🔥 EXIBIR ERRO NO LAYOUT
       alert(`❌ ${errorMsg}`);
     }
   };
 
   return (
     <div className="min-h-screen xl:flex">
-      {/* Sidebar and Backdrop */}
       <AppSidebar />
       <Backdrop />
       
-      {/* Main Content Area */}
       <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
-        {/* Header */}
         <AppHeader />
         
-        {/* Page Content */}
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
           {children}
         </div>
       </div>
 
-      {/* Modal de Inscrição */}
       <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[600px] p-5 lg:p-10">
         <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
           Inscreva-se numa instituição
@@ -164,21 +143,24 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
           Selecione uma das opções abaixo.
         </p>
 
-        {/* Loading */}
         {carregandoAcademias && (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           </div>
         )}
 
-        {/* Erro */}
         {erroAcademias && (
-          <div className="p-4 mb-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">Erro ao carregar instituições: {erroAcademias}</p>
+          <div className="p-4 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-700 dark:text-red-400">Erro ao carregar instituições: {erroAcademias}</p>
           </div>
         )}
 
-        {/* Dropdown */}
+        {erroInscricao && (
+          <div className="p-4 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-700 dark:text-red-400">{erroInscricao}</p>
+          </div>
+        )}
+
         {!carregandoAcademias && !erroAcademias && academias.length > 0 && (
           <div className="mb-6">
             <Dropdown 
@@ -192,10 +174,9 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
               emptyMessage="Nenhuma instituição encontrada"
             />
             
-            {/* 🔥 INFO: Mostrar dados do estudante */}
             {user?.estudante && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-700">
+              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
                   <strong>Seus dados:</strong><br/>
                   Ano Escolar: {user.estudante.ano_escolar || 'Não informado'}<br/>
                   {user.estudante.curso_medio && `Curso: ${user.estudante.curso_medio}`}
@@ -205,21 +186,29 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
           </div>
         )}
 
-        {/* Nenhuma academia disponível */}
         {!carregandoAcademias && !erroAcademias && academias.length === 0 && (
-          <div className="p-4 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-700">Nenhuma instituição disponível no momento.</p>
+          <div className="p-4 mb-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">Nenhuma instituição disponível no momento.</p>
           </div>
         )}
 
-        {/* Botões */}
         <div className="flex items-center justify-end gap-3">
           <Button 
             size="sm" 
             onClick={handleSalvarInscricao}
-            disabled={!academiaSelecionada || carregandoAcademias || FazerInscricao.loading}
+            disabled={!academiaSelecionada || carregandoAcademias || carregandoInscricao}
           >
-            {FazerInscricao.loading ? 'Inscrevendo...' : 'Inscrever-se'}
+            {carregandoInscricao ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Inscrevendo...
+              </>
+            ) : (
+              'Inscrever-se'
+            )}
           </Button>
         </div>
       </Modal>

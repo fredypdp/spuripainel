@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
@@ -12,14 +12,48 @@ import type { MeuPerfilResponse } from '@/types/api';
 
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();
+  const [User, setUser] = useState<MeuPerfilResponse | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const userCookie = getCookie("user");
+    if (userCookie) {
+      try {
+        setUser(JSON.parse(userCookie));
+      } catch (error) {
+        console.error('Erro ao parsear cookie do usuário:', error);
+      }
+    }
+  }, []);
+
   const handleSave = () => {
-    // Handle save logic here
     console.log("Saving changes...");
     closeModal();
   };
 
-  const userCookie = getCookie("user")
-  const User: MeuPerfilResponse | null = userCookie ? JSON.parse(userCookie) : null
+  // Evitar renderização até montar no cliente
+  if (!mounted) {
+    return (
+      <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
+            <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
+              <Image
+                width={80}
+                height={80}
+                src="/images/flamengo.jpg"
+                alt="user"
+              />
+            </div>
+            <div className="order-3 xl:order-2">
+              <h4 className="capitalize truncate mb-2 text-lg font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">Carregando...</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <>

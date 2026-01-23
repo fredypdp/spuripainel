@@ -1,6 +1,6 @@
 // src/hooks/useApi.ts
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ApiError } from '@/lib/api/client';
 
 interface UseApiState<T> {
@@ -50,7 +50,6 @@ export function useApi<T, Args extends any[]>(
         let errorMessage = 'Ocorreu um erro desconhecido';
 
         if (err instanceof ApiError) {
-          // 🔥 PRIORIZAR err.data.error (padrão do backend Go)
           if (err.data?.error) {
             errorMessage = err.data.error;
           } else if (err.data?.message) {
@@ -64,7 +63,6 @@ export function useApi<T, Args extends any[]>(
 
         setState({ data: null, loading: false, error: errorMessage });
         
-        // 🔥 RELANÇAR A EXCEÇÃO para ser capturada no componente
         throw err;
       }
     },
@@ -88,7 +86,8 @@ export function useApi<T, Args extends any[]>(
  * @example
  * ```tsx
  * const { data, loading, error, refetch } = useApiQuery(() => 
- *   consultasService.notasEstudante('THT6782')
+ *   consultasService.notasEstudante('THT6782'),
+ *   { enabled: !!tokenStorage.get() }
  * );
  * ```
  */
@@ -101,26 +100,27 @@ export function useApiQuery<T>(
   }
 ): UseApiReturn<T> & { refetch: () => Promise<void> } {
   const { data, loading, error, execute, reset } = useApi(apiFunction);
-  const [hasExecuted, setHasExecuted] = useState(false);
-
+  
+  // Estabilizar refetch para evitar loops infinitos
   const refetch = useCallback(async () => {
-    const result = await execute();
-    if (result && options?.onSuccess) {
-      options.onSuccess(result);
+    try {
+      const result = await execute();
+      if (result && options?.onSuccess) {
+        options.onSuccess(result);
+      }
+    } catch (err) {
+      // Error já foi tratado no execute
     }
-    if (error && options?.onError) {
-      options.onError(error);
-    }
-  }, [execute, error, options]);
+  }, [execute, options?.onSuccess]);
 
-  // Auto-execute on mount
-  useState(() => {
+  // Auto-execute on mount if enabled (apenas uma vez)
+  useEffect(() => {
     const enabled = options?.enabled ?? true;
-    if (enabled && !hasExecuted) {
-      setHasExecuted(true);
+    if (enabled) {
       refetch();
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options?.enabled]); // Apenas re-executa se 'enabled' mudar
 
   return {
     data,

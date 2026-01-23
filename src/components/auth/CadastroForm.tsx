@@ -1,5 +1,4 @@
 "use client";
-import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
@@ -25,12 +24,11 @@ interface AnoAcademico {
 export default function CadastroForm() {
   const router = useRouter();
   const [showSenha, setShowSenha] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
-  const { data, loading: carregandoLogin, error: erroApiLogin, execute } = useApi(estudanteService.login);
+  const { loading: carregandoLogin, execute: executeLogin } = useApi(estudanteService.login);
+  const { loading, error: erroAPI, execute } = useApi(estudanteService.criar);
 
-  // Dados do formulário
   const [nome, setNome] = useState('');
   const [biEstudante, setBiEstudante] = useState('');
   const [biResponsavel, setBiResponsavel] = useState('');
@@ -41,7 +39,6 @@ export default function CadastroForm() {
   const [selectedNivelAcademico, setSelectedNivelAcademico] = useState<NivelAcademico | null>(null);
   const [selectedAnoAcademico, setSelectedAnoAcademico] = useState<AnoAcademico | null>(null);
   
-  // Erros de validação
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   
   const NiveisAcademicos: NivelAcademico[] = [
@@ -50,7 +47,6 @@ export default function CadastroForm() {
     {name: 'Ensino Superior', id: 3},
   ];
 
-  // Função para retornar os anos acadêmicos baseado no nível selecionado
   const getAnosAcademicos = (): AnoAcademico[] => {
     if (!selectedNivelAcademico) return [];
     
@@ -60,21 +56,18 @@ export default function CadastroForm() {
     ];
     
     if (selectedNivelAcademico.id === 1) {
-      // Ensino Fundamental: 1º ao 9º ano
       return Array.from({length: 9}, (_, i) => ({
         name: `${i + 1}º Ano`,
         id: i + 1,
         ano: `${numerosExtenso[i]}_fundamental`
       }));
     } else if (selectedNivelAcademico.id === 2) {
-      // Ensino Médio: 1º ao 4º ano
       return Array.from({length: 4}, (_, i) => ({
         name: `${i + 1}º Ano`,
         id: i + 1,
         ano: `${numerosExtenso[i]}_medio`
       }));
     } else if (selectedNivelAcademico.id === 3) {
-      // Ensino Superior: 1º ao 5º ano
       return Array.from({length: 5}, (_, i) => ({
         name: `${i + 1}º Ano`,
         id: i + 1,
@@ -85,20 +78,11 @@ export default function CadastroForm() {
     return [];
   };
 
-  // Hooks de API
-  const criarFundamental = useApi(estudanteService.criarFundamental);
-  const criarSuperior = useApi(estudanteService.criarSuperior);
-
-  // Determinar qual hook usar baseado no nível
   const isEnsinoSuperior = selectedNivelAcademico?.id === 3;
-  const currentApi = isEnsinoSuperior ? criarSuperior : criarFundamental;
-  const { loading, error: erroAPI } = currentApi;
 
-  // Validação do formulário
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
-    // Validações obrigatórias
     if (!nome.trim()) {
       erros.push('Nome completo é obrigatório');
     }
@@ -120,16 +104,14 @@ export default function CadastroForm() {
     }
     
     if (biEstudante.trim() && biEstudante.trim().length !== 14) {
-      erros.push('O B.I. deve ter 14 carácteres (B.I. do estudante)');
+      erros.push('O B.I. deve ter 14 caracteres (B.I. do estudante)');
     }
 
     if (biResponsavel.trim() && biResponsavel.trim().length !== 14) {
-      erros.push('O B.I. deve ter 14 carácteres (B.I. do responsável)');
+      erros.push('O B.I. deve ter 14 caracteres (B.I. do responsável)');
     }
 
-    // Validações específicas por nível
     if (isEnsinoSuperior) {
-      // Superior: BI do estudante é obrigatório
       if (!biEstudante.trim()) {
         erros.push('Bilhete de identidade é obrigatório para ensino superior');
       }
@@ -137,7 +119,6 @@ export default function CadastroForm() {
         erros.push('Curso superior é obrigatório');
       }
     } else {
-      // Fundamental/Médio: pelo menos um BI deve estar preenchido
       if (!biEstudante.trim() && !biResponsavel.trim()) {
         erros.push('Preencha pelo menos um bilhete de identidade (estudante ou responsável)');
       }
@@ -147,13 +128,12 @@ export default function CadastroForm() {
     return erros.length === 0;
   };
 
-  // Função para copiar código para área de transferência
   const copiarCodigo = async () => {
     if (CodigoEstudante) {
       try {
         await navigator.clipboard.writeText(CodigoEstudante);
         setCopiado(true);
-        handleLogin()
+        handleLogin();
         setTimeout(() => setCopiado(false), 2000);
       } catch (err) {
         console.error('Erro ao copiar código:', err);
@@ -164,42 +144,33 @@ export default function CadastroForm() {
   const handleCadastro = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Limpar erros anteriores
     setValidationErrors([]);
 
-    // Validar formulário
     if (!validarFormulario()) {
       return;
     }
 
-    let result;
-
     try {
-      if (isEnsinoSuperior) {
-        // Cadastrar estudante superior
-        result = await criarSuperior.execute({
-          senha,
-          nome: nome.trim(),
-          bilhete_identidade: biEstudante.trim(),
+      const payload = {
+        senha,
+        nome: nome.trim(),
+        bilhete_identidade: biEstudante.trim() || undefined,
+        bilhete_identidade_responsavel: biResponsavel.trim() || undefined,
+        ...(isEnsinoSuperior ? {
           ano_superior: selectedAnoAcademico!.ano as AnoSuperior,
           curso_superior: cursoSuperior.trim(),
-          status_superior: 'ativo'
-        });
-      } else {
-        // Cadastrar estudante fundamental/médio
-        result = await criarFundamental.execute({
-          senha,
-          nome: nome.trim(),
-          bilhete_identidade: biEstudante.trim() || undefined,
-          bilhete_identidade_responsavel: biResponsavel.trim() || undefined,
+          status_superior: 'inativo' as const
+        } : {
           ano_escolar: selectedAnoAcademico!.ano as AnoEscolar,
-          status_escolar: 'ativo'
-        });
-      }
+          status_escolar: 'inativo' as const
+        })
+      };
+
+      console.log(payload);
+      const result = await execute(payload);
 
       if (result?.data) {
-        let {data, message} = result
-        setCodigoEstudante(data.codigo_estudante)
+        setCodigoEstudante(result.data.codigo_estudante);
       }
     } catch (err) {
       console.error('Erro no cadastro:', err);
@@ -207,8 +178,8 @@ export default function CadastroForm() {
   };
 
   const handleLogin = async () => {    
-    const result = await execute({
-      usuario: CodigoEstudante,
+    const result = await executeLogin({
+      usuario: CodigoEstudante!,
       senha,
       type: 'estudante'
     });
@@ -270,7 +241,6 @@ export default function CadastroForm() {
               <div>
                 <form onSubmit={handleCadastro}>
                   <div className="space-y-5">
-                    {/* Nome completo */}
                     <div>
                       <div className="sm:col-span-1">
                         <Label>
@@ -287,7 +257,6 @@ export default function CadastroForm() {
                       </div>
                     </div>
 
-                    {/* Nível acadêmico */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <div className="sm:col-span-1">
                         <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
@@ -325,7 +294,6 @@ export default function CadastroForm() {
                       )}
                     </div>
 
-                    {/* Bilhetes de identidade */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <div className="sm:col-span-1">
                         <Label>
@@ -357,7 +325,6 @@ export default function CadastroForm() {
                       )}
                     </div>
 
-                    {/* Curso superior (só aparece para ensino superior) */}
                     {isEnsinoSuperior && (
                       <div>
                         <Label>
@@ -374,7 +341,6 @@ export default function CadastroForm() {
                       </div>
                     )}
 
-                    {/* Senha */}
                     <div>
                       <Label>
                         Senha<span className="text-error-500">*</span>
@@ -399,7 +365,6 @@ export default function CadastroForm() {
                       </div>
                     </div>
 
-                    {/* Erros de validação */}
                     {validationErrors.length > 0 && (
                       <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                         <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
@@ -415,14 +380,12 @@ export default function CadastroForm() {
                       </div>
                     )}
 
-                    {/* Erro da API */}
                     {erroAPI && (
                       <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                         <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroAPI}</p>
                       </div>
                     )}
 
-                    {/* Botão */}
                     <div>
                       <button 
                         type="submit"
