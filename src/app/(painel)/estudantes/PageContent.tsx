@@ -210,7 +210,6 @@ export default function Estudantes() {
                   <Input 
                     type="text" 
                     placeholder="Digite o nome completo"
-                    value={nome}
                     onChange={(e) => setNome(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
@@ -222,7 +221,6 @@ export default function Estudantes() {
                     <Input 
                       placeholder="Mínimo 6 caracteres"
                       type={showSenha ? "text" : "password"}
-                      value={senha}
                       onChange={(e) => setSenha(e.target.value)}
                       disabled={carregandoCadastro}
                     />
@@ -244,7 +242,6 @@ export default function Estudantes() {
                   <Input 
                     type="email" 
                     placeholder="email@exemplo.com"
-                    value={email}
                     onChange={(e) => setEmail(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
@@ -255,7 +252,6 @@ export default function Estudantes() {
                   <Input 
                     type="text" 
                     placeholder="+244 900 000 000"
-                    value={telefone}
                     onChange={(e) => setTelefone(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
@@ -266,7 +262,6 @@ export default function Estudantes() {
                   <Input 
                     type="text" 
                     placeholder="000000000XX000"
-                    value={bilheteIdentidade}
                     onChange={(e) => setBilheteIdentidade(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
@@ -277,7 +272,6 @@ export default function Estudantes() {
                   <Input 
                     type="text" 
                     placeholder="000000000XX000"
-                    value={bilheteResponsavel}
                     onChange={(e) => setBilheteResponsavel(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
