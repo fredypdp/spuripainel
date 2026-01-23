@@ -320,7 +320,6 @@ export default function Estudantes() {
                 </Button>
                 <Button 
                   size="sm"
-                  type="submit"
                   disabled={carregandoCadastro}
                 >
                   {carregandoCadastro ? (
