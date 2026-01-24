@@ -424,7 +424,7 @@ export interface AcademiaSimples {
   nome: string;
   codigo_academia: string;
   provincia: string;
-  status: string;
+  status: "ativo" | "inativo";
   nivel_escolar?: NivelEscolar | null;
   created_at: string;
   total_estudantes: number;

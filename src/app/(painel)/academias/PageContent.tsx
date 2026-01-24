@@ -1,8 +1,9 @@
 "use client"
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, academiaService, tokenStorage } from '@/lib/api';
+import { useApi, consultasService, academiaService, adminService, tokenStorage } from '@/lib/api';
 import { EyeCloseIcon, EyeIcon } from "@/icons";
+import { useUserCookie } from "@/hooks/useUserCookie";
 
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
@@ -27,18 +28,22 @@ interface NivelAcademico {
 }
 
 export default function Academias() {
+  const { user, loading: loadingUser } = useUserCookie();
   const { isOpen, openModal, closeModal } = useModal();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
+  const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
   const [carregado, setCarregado] = useState(false);
   
-  // ✅ CORRIGIDO: Removido parâmetros que não existem mais
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.criarEscola);
+  const { loading: carregandoAtivar, error: erroAtivar, execute: executarAtivar } = useApi(adminService.ativarAcademia);
+  const { loading: carregandoDesativar, error: erroDesativar, execute: executarDesativar } = useApi(adminService.desativarAcademia);
   
   const [showSenha, setShowSenha] = useState(false);
   const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaSimples | null>(null);
+  const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaSimples | null>(null);
+  const [motivoDesativacao, setMotivoDesativacao] = useState('');
   
-  // Campos do formulário
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
   const [email, setEmail] = useState('');
@@ -57,7 +62,6 @@ export default function Academias() {
     { nome: "Fundamental e Médio", nivel: "misto", id: 3 },
   ];
 
-  // ✅ CORRIGIDO: Chamada sem parâmetros
   const carregarLista = async () => {
     try {
       const token = tokenStorage.get();
@@ -68,55 +72,34 @@ export default function Academias() {
     }
   };
 
+  // ✅ Corrigido: useEffect agora apenas agenda a execução
   useEffect(() => {
-    carregarLista()
+    const loadData = async () => {
+      await carregarLista();
+    };
+    loadData();
   }, []);
-
-  useEffect(() => {
-    console.log(dataAcademias)
-  }, [dataAcademias]);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
-    if (!nome.trim()) {
-      erros.push('Nome da escola é obrigatório');
-    }
-
-    if (!senha || senha.length < 6) {
-      erros.push('Senha deve ter no mínimo 6 caracteres');
-    }
-
-    if (!nivelEscolarSelecionado) {
-      erros.push('Selecione o nível acadêmico');
-    }
-
-    if (!provinciaSelecionada) {
-      erros.push('Selecione a província');
-    }
-
+    if (!nome.trim()) erros.push('Nome da escola é obrigatório');
+    if (!senha || senha.length < 6) erros.push('Senha deve ter no mínimo 6 caracteres');
+    if (!nivelEscolarSelecionado) erros.push('Selecione o nível acadêmico');
+    if (!provinciaSelecionada) erros.push('Selecione a província');
     if (!numeroTelefone.trim()) {
       erros.push('Número de telefone é obrigatório');
     } else {
       const telefoneNumerico = numeroTelefone.replace(/\D/g, '');
-      if (telefoneNumerico.length < 9) {
-        erros.push('Número de telefone inválido (mínimo 9 dígitos)');
-      }
+      if (telefoneNumerico.length < 9) erros.push('Número de telefone inválido (mínimo 9 dígitos)');
     }
-
     if (!email.trim()) {
       erros.push('E-mail é obrigatório');
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        erros.push('E-mail inválido');
-      }
+      if (!emailRegex.test(email)) erros.push('E-mail inválido');
     }
-
-    if (!endereco.trim()) {
-      erros.push('Endereço é obrigatório');
-    }
-
+    if (!endereco.trim()) erros.push('Endereço é obrigatório');
     if (website && website.trim()) {
       try {
         new URL(website);
@@ -144,13 +127,10 @@ export default function Academias() {
 
   const handleCadastro = async (e: React.FormEvent) => {
     e.preventDefault();
-
     setValidationErrors([]);
     setSuccessMessage('');
 
-    if (!validarFormulario()) {
-      return;
-    }
+    if (!validarFormulario()) return;
 
     try {
       const result = await executarCadastro({
@@ -188,6 +168,61 @@ export default function Academias() {
   const handleVerDetalhes = (academia: AcademiaSimples) => {
     setAcademiaSelecionada(academia);
     openDetailsModal();
+  };
+
+  // ✅ Função para ativar academia
+  const handleAtivar = async (academia: AcademiaSimples) => {
+    if (!confirm(`Tem certeza que deseja ativar a academia "${academia.nome}"?`)) {
+      return;
+    }
+
+    try {
+      const token = tokenStorage.get();
+      await executarAtivar(academia.codigo_academia, token || undefined);
+      
+      alert('Academia ativada com sucesso!');
+      carregarLista();
+    } catch (err) {
+      console.error('Erro ao ativar academia:', err);
+      alert('Erro ao ativar academia. Tente novamente.');
+    }
+  };
+
+  // ✅ Função para abrir modal de desativação
+  const handleAbrirDesativar = (academia: AcademiaSimples) => {
+    setAcademiaParaDesativar(academia);
+    setMotivoDesativacao('');
+    openDesativarModal();
+  };
+
+  // ✅ Função para desativar academia
+  const handleDesativar = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!motivoDesativacao.trim()) {
+      alert('Por favor, informe o motivo da desativação.');
+      return;
+    }
+
+    if (!academiaParaDesativar) return;
+
+    try {
+      const token = tokenStorage.get();
+      await executarDesativar(
+        academiaParaDesativar.codigo_academia,
+        { motivo: motivoDesativacao.trim() },
+        token || undefined
+      );
+      
+      alert('Academia desativada com sucesso!');
+      closeDesativarModal();
+      setAcademiaParaDesativar(null);
+      setMotivoDesativacao('');
+      carregarLista();
+    } catch (err) {
+      console.error('Erro ao desativar academia:', err);
+      alert('Erro ao desativar academia. Tente novamente.');
+    }
   };
 
   const formatarData = (data: string) => {
@@ -464,6 +499,62 @@ export default function Academias() {
               </div>
             )}
           </Modal>
+
+          {/* Modal de Desativar Academia */}
+          <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
+            <form onSubmit={handleDesativar}>
+              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
+              
+              {academiaParaDesativar && (
+                <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    <span className="font-semibold">Academia:</span> {academiaParaDesativar.nome}
+                  </p>
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    <span className="font-semibold">Código:</span> {academiaParaDesativar.codigo_academia}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <Label>Motivo da desativação *</Label>
+                <textarea
+                  className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
+                  placeholder="Descreva o motivo da desativação..."
+                  rows={4}
+                  value={motivoDesativacao}
+                  onChange={(e) => setMotivoDesativacao(e.target.value)}
+                  disabled={carregandoDesativar}
+                  required
+                />
+              </div>
+
+              {erroDesativar && (
+                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
+                    {erroDesativar}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end w-full gap-3 mt-6">
+                <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>Cancelar</Button>
+                <Button size="sm" variant="danger" disabled={carregandoDesativar}>
+                  {carregandoDesativar ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Desativando...
+                    </>
+                  ) : (
+                    'Desativar Academia'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Modal>
         </div>
 
         {erroAcademias && (
@@ -579,13 +670,33 @@ export default function Academias() {
                         </span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleVerDetalhes(academia)}
-                        >
-                          Ver detalhes
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleVerDetalhes(academia)}>Ver detalhes</Button>
+                          {!loadingUser && user?.tipo === "admin" && (
+                            <>
+                              {academia.status === "inativo" && (
+                                <Button 
+                                  size="sm" 
+                                  variant="primary" 
+                                  onClick={() => handleAtivar(academia)}
+                                  disabled={carregandoAtivar}
+                                >
+                                  {carregandoAtivar ? 'Ativando...' : 'Ativar'}
+                                </Button>
+                              )}
+                              {academia.status === "ativo" && (
+                                <Button 
+                                  size="sm" 
+                                  variant="danger" 
+                                  onClick={() => handleAbrirDesativar(academia)}
+                                  disabled={carregandoDesativar}
+                                >
+                                  Desativar
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

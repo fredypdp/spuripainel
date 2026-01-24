@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useSidebar } from "@/context/SidebarContext";
@@ -8,33 +8,23 @@ import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
 import { tokenStorage, useApi, perfilService, consultasService, estudanteService} from '@/lib/api';
-import { setCookie, removeCookie, getCookie } from '@/lib/utils/cookies';
-import type { MeuPerfilResponse, AcademiaSimples } from '@/types/api';
+import { setCookie, removeCookie } from '@/lib/utils/cookies';
+import type { AcademiaSimples } from '@/types/api';
+import { useUserCookie } from '@/hooks/useUserCookie';
 
 import { Modal } from "@/components/ui/modal";
 import { Dropdown } from 'primereact/dropdown';
 import Button from "@/components/ui/button/Button";
 import { useModal } from "@/hooks/useModal";
+import { useState } from 'react';
 
 export default function PainelLayout({children}: {children: React.ReactNode}) {
   const router = useRouter();
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const hasLoadedProfile = useRef(false);
+  const hasCheckedInscricao = useRef(false);
   
-  const [user, setUser] = useState<MeuPerfilResponse | null>(() => {
-    if (typeof window === 'undefined') return null;
-    
-    const userCookie = getCookie("user");
-    if (userCookie) {
-      try {
-        return JSON.parse(userCookie);
-      } catch (error) {
-        console.error('Erro ao parsear cookie do usuário:', error);
-        return null;
-      }
-    }
-    return null;
-  });
+  const { user, loading: loadingUser } = useUserCookie();
   
   const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaSimples | null>(null);
   
@@ -52,6 +42,7 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
     ? "lg:ml-[290px]"
     : "lg:ml-[90px]";
 
+  // Verificação de autenticação
   useEffect(() => {
     const token = tokenStorage.get();
     
@@ -61,23 +52,35 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       return;
     }
 
-    if (!user && !hasLoadedProfile.current) {
+    // Recarregar perfil se não tiver user e ainda não carregou
+    if (!loadingUser && !user && !hasLoadedProfile.current) {
       hasLoadedProfile.current = true;
       executarPegarPerfil(token).then((data) => {
         if (data) {
-          setUser(data);
           setCookie("user", JSON.stringify(data), 1);
+          // Forçar reload para pegar o novo cookie
+          window.location.reload();
         }
       });
     }
-  }, [router, user, executarPegarPerfil]);
+  }, [router, user, loadingUser, executarPegarPerfil]);
 
+  // Modal de inscrição para estudantes sem academia
   useEffect(() => {
-    if (user?.tipo === "estudante" && !user.estudante?.codigo_academia) {
-      carregarAcademias({ token: tokenStorage.get() || undefined });
-      openModal();
+    if (loadingUser) return;
+    
+    if (user?.tipo === "estudante" && !user.estudante?.codigo_academia && !hasCheckedInscricao.current) {
+      hasCheckedInscricao.current = true;
+      
+      const loadAcademias = async () => {
+        const token = tokenStorage.get();
+        await carregarAcademias(token || undefined);
+        openModal();
+      };
+      
+      loadAcademias();
     }
-  }, [user, openModal, carregarAcademias]);
+  }, [user, loadingUser, openModal]);
 
   const handleSalvarInscricao = async () => {
     if (!academiaSelecionada) {
@@ -103,8 +106,8 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
         
         const novosDados = await executarPegarPerfil(tokenStorage.get() || undefined);
         if (novosDados) {
-          setUser(novosDados);
           setCookie("user", JSON.stringify(novosDados), 1);
+          window.location.reload();
         }
       }
     } catch (error: any) {
