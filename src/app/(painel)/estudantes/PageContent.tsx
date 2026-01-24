@@ -51,8 +51,28 @@ export default function Estudantes() {
     }
   };
 
+  // ✅ CORREÇÃO: Usar useEffect corretamente
   useEffect(() => {
-    carregarLista();
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const token = tokenStorage.get();
+        await carregarEstudantes(token || undefined);
+        if (isMounted) {
+          setCarregado(true);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar estudantes:', err);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validarFormulario = (): boolean => {

@@ -21,23 +21,36 @@ const ITEMS_PER_PAGE = 20;
 export default function Inscricoes() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusInscricao | undefined>(undefined);
+  const [carregado, setCarregado] = useState(false);
   
   const { data: dataInscricoes, loading: carregandoInscricoes, error: erroInscricoes, execute } = useApi(inscricoesService.listarInscricoes);
 
-  const loadInscricoes = () => {
-    const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-    execute({
-      status: statusFilter,
-      limit: ITEMS_PER_PAGE,
-      offset: offset,
-      token: tokenStorage.get() || undefined
-    });
+  const loadInscricoes = async () => {
+    const token = tokenStorage.get();
+    if (!token) return;
+    
+    try {
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      
+      await execute({
+        status: statusFilter,
+        limit: ITEMS_PER_PAGE,
+        offset: offset,
+        token: token || undefined
+      });
+      
+      setCarregado(true);
+    } catch (err) {
+      console.error('Erro ao carregar inscrições:', err);
+    }
   };
 
   useEffect(() => {
-    if (tokenStorage.get()) {
+    const token = tokenStorage.get();
+    if (token) {
       loadInscricoes();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, statusFilter]);
 
   const totalPages = dataInscricoes 
@@ -63,13 +76,17 @@ export default function Inscricoes() {
   };
 
   const formatarData = (data: string) => {
-    return new Date(data).toLocaleDateString("pt-BR", {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(data).toLocaleDateString("pt-BR", {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
   };
 
   return (
@@ -84,13 +101,14 @@ export default function Inscricoes() {
               size="sm" 
               onClick={loadInscricoes}
             >
-              Atualizar
+              {carregandoInscricoes ? 'Carregando...' : 'Atualizar'}
             </Button>
             
             <Button 
               size="sm" 
               variant={statusFilter === undefined ? "primary" : "outline"}
               onClick={() => handleStatusFilter(undefined)}
+              disabled={carregandoInscricoes}
             >
               Todas
             </Button>
@@ -99,6 +117,7 @@ export default function Inscricoes() {
               size="sm" 
               variant={statusFilter === 'espera' ? "primary" : "outline"}
               onClick={() => handleStatusFilter('espera')}
+              disabled={carregandoInscricoes}
             >
               Em Espera
             </Button>
@@ -107,6 +126,7 @@ export default function Inscricoes() {
               size="sm" 
               variant={statusFilter === 'aprovado' ? "primary" : "outline"}
               onClick={() => handleStatusFilter('aprovado')}
+              disabled={carregandoInscricoes}
             >
               Aprovadas
             </Button>
@@ -115,25 +135,38 @@ export default function Inscricoes() {
               size="sm" 
               variant={statusFilter === 'reprovado' ? "primary" : "outline"}
               onClick={() => handleStatusFilter('reprovado')}
+              disabled={carregandoInscricoes}
             >
               Reprovadas
             </Button>
           </div>
 
           {dataInscricoes && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{dataInscricoes.total_geral}</span> inscrições encontradas
+            <div className="flex items-center gap-3">
+              <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
+                <span className="font-medium">{dataInscricoes.total_geral}</span>
+                <span className="ml-1">inscrições encontradas</span>
+              </div>
+              
               {dataInscricoes.user_type && (
-                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                <div className="px-3 py-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg font-medium">
                   Visualização: {dataInscricoes.user_type}
-                </span>
+                </div>
               )}
             </div>
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="max-w-full overflow-x-auto">
+        {erroInscricoes && (
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-700 dark:text-red-400">
+              Erro ao carregar inscrições: {erroInscricoes}
+            </p>
+          </div>
+        )}
+
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="w-full overflow-x-auto">
             <Table className="w-full">
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
@@ -174,30 +207,26 @@ export default function Inscricoes() {
                 </TableBody>
               )}
 
-              {erroInscricoes && !carregandoInscricoes && (
+              {!carregandoInscricoes && !carregado && (
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={7}>
                       <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-red-500 mb-2">
-                          <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <div className="text-gray-400 dark:text-gray-500 mb-4">
+                          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Erro ao carregar inscrições
+                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                          Clique em &quot;Atualizar&quot; para visualizar as inscrições
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">{erroInscricoes}</p>
-                        <Button size="sm" onClick={loadInscricoes} className="mt-4">
-                          Tentar novamente
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 </TableBody>
               )}
 
-              {!carregandoInscricoes && dataInscricoes && dataInscricoes.inscricoes && dataInscricoes.inscricoes.length === 0 && (
+              {!carregandoInscricoes && carregado && dataInscricoes && dataInscricoes.total_geral === 0 && (
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={7}>
@@ -212,7 +241,7 @@ export default function Inscricoes() {
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           {statusFilter 
-                            ? `Não há inscrições com status "${formatarStatus(statusFilter).label}"`
+                            ? `Não há inscrições com status &quot;${formatarStatus(statusFilter).label}&quot;`
                             : "Ainda não há inscrições registradas"
                           }
                         </p>
@@ -232,29 +261,29 @@ export default function Inscricoes() {
                         key={inscricao.id}
                         className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors"
                       >
-                        <TableCell className="max-w-[200px] truncate px-4 py-3 text-gray-700 dark:text-gray-300 text-start text-theme-sm font-medium">
+                        <TableCell className="max-w-[200px] truncate px-5 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">
                           {inscricao.codigo_estudante}
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate px-4 py-3 text-gray-600 dark:text-gray-400 text-start text-theme-sm">
+                        <TableCell className="max-w-[200px] truncate px-5 py-3 text-gray-500 dark:text-gray-400 text-start text-theme-sm">
                           {inscricao.codigo_academia}
                         </TableCell>
-                        <TableCell className="max-w-[150px] capitalize truncate px-4 py-3 text-gray-600 dark:text-gray-400 text-start text-theme-sm">
-                          <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-white/[0.05] rounded">
+                        <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-start text-theme-sm">
+                          <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-white/[0.05] text-gray-700 dark:text-gray-300 rounded font-medium">
                             {inscricao.tipo}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-[100px] truncate px-4 py-3 text-gray-600 dark:text-gray-400 text-start text-theme-sm">
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 dark:text-gray-400 text-start text-theme-sm">
                           {inscricao.ano_inscricao}
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate px-4 py-3 text-gray-600 dark:text-gray-400 text-start text-theme-sm">
+                        <TableCell className="max-w-[200px] truncate px-5 py-3 text-gray-500 dark:text-gray-400 text-start text-theme-sm">
                           {inscricao.curso || '-'}
                         </TableCell>
-                        <TableCell className="px-4 py-3">
+                        <TableCell className="px-5 py-3 text-start">
                           <Badge color={statusInfo.color}>
                             {statusInfo.label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-[180px] truncate px-4 py-3 text-gray-600 dark:text-gray-400 text-start text-theme-sm">
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 dark:text-gray-400 text-start text-theme-sm">
                           {formatarData(inscricao.created_at)}
                         </TableCell>
                       </TableRow>
@@ -266,7 +295,7 @@ export default function Inscricoes() {
           </div>
         </div>
 
-        {dataInscricoes && dataInscricoes.total_geral > 0 && (
+        {dataInscricoes && dataInscricoes.total_geral > 0 && totalPages > 1 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

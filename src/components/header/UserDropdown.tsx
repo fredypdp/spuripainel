@@ -1,5 +1,5 @@
 "use client"
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { tokenStorage } from '@/lib/api';
@@ -24,20 +24,36 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 export default function UserDropdown() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
+  const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
+
+  // Listener para mudanças no storage
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const updatedUser = getUserFromCookie();
+      setUser(prev => {
+        // Só atualiza se houver mudança real
+        if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
+          return updatedUser;
+        }
+        return prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const userName = useMemo(() => 
-    user?.estudante?.nome || user?.academia?.nome || user?.admin?.nome || null,
+    user?.estudante?.nome || user?.academia?.nome || user?.admin?.nome || "Usuário",
     [user]
   );
 
   const userExtra = useMemo(() => 
-    user?.estudante?.codigo_estudante || user?.academia?.codigo_academia || user?.admin?.email || null,
+    user?.estudante?.codigo_estudante || user?.academia?.codigo_academia || user?.admin?.email || "",
     [user]
   );
 
   const userInitials = useMemo(() => 
-    userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "",
+    userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "U",
     [userName]
   );
 
@@ -59,9 +75,11 @@ export default function UserDropdown() {
           <p className="text-sm font-medium text-gray-800 dark:text-white/90">
             {userName}
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-            {userExtra}
-          </p>
+          {userExtra && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+              {userExtra}
+            </p>
+          )}
         </div>
         <svg
           className={`h-4 w-4 text-gray-500 transition-transform dark:text-gray-400 ${
@@ -91,9 +109,11 @@ export default function UserDropdown() {
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {userName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                {userExtra}
-              </p>
+              {userExtra && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  {userExtra}
+                </p>
+              )}
             </div>
             
             <div className="p-2">
