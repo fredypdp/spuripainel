@@ -456,6 +456,7 @@ export interface AdminDetalhado {
   id: string;
   nome: string;
   email: string;
+  email_verificado: boolean;
   role: AdminType;
   status: string;
   created_by?: string;
