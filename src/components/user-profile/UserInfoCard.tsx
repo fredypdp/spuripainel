@@ -154,7 +154,6 @@ export default function UserInfoCard() {
                             if (user?.tipo) {
                               let res = await VerificarEmailComFrontend(userEmail, user?.tipo)
                               setEmailEnviado(res.success)
-                              console.log(res.email)
                             }
                           } catch (error) {
                             setEmailErro(true);

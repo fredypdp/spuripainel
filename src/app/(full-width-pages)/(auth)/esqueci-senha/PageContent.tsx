@@ -2,28 +2,24 @@
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { EyeCloseIcon, EyeIcon } from "@/icons";
-import Link from "next/link";
 import React, { useState } from "react";
 import { useRouter } from 'next/navigation';
 
-import { useApi, estudanteService, academiaService, tokenStorage } from '@/lib/api';
+import { useApi, adminService, tokenStorage } from '@/lib/api';
+import { RecuperarSenhaComFrontend } from "@/lib/utils/email"
+import Alert from "@/components/ui/alert/Alert";
+import Link from "next/link";
 
-export default function LoginForm() {
-  const router = useRouter();
-  const [showSenha, setShowSenha] = useState(false);
-
+export default function LoginAdm() {
   const [codigo, setCodigo] = useState('');
-  const [senha, setSenha] = useState('');
-  const [contaTipo, setContaTipo] = useState<'estudante' | 'academia'>('estudante');
   
-  const { loading: carregandoEstudante, error: erroEstudante, execute: executeEstudante } = useApi(estudanteService.login);
-  const { loading: carregandoAcademia, error: erroAcademia, execute: executeAcademia } = useApi(academiaService.login);
-  
+  const { loading, error: erroAPI } = useApi(adminService.login);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [contaTipo, setContaTipo] = useState<'estudante' | 'academia'>('estudante');
 
-  const loading = carregandoEstudante || carregandoAcademia;
-  const erro = contaTipo === 'estudante' ? erroEstudante : erroAcademia;
+  const [EnviandoEmailRecurepacao, setEnviandoEmailRecurepacao] = useState(false);
+  const [EmailEnviado, setEmailEnviado] = useState(false);
+  const [EmailErro, setEmailErro] = useState(false);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -32,35 +28,8 @@ export default function LoginForm() {
       erros.push('Código de identificação é obrigatório');
     }
 
-    if (!senha.trim()) {
-      erros.push('Senha é obrigatória');
-    }
-
     setValidationErrors(erros);
     return erros.length === 0;
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    setValidationErrors([]);
-
-    if (!validarFormulario()) {
-      return;
-    }
-    
-    try {
-      const result = contaTipo === 'estudante'
-        ? await executeEstudante({ usuario: codigo, senha, type: 'estudante' })
-        : await executeAcademia({ usuario: codigo, senha, type: 'academia' });
-    
-      if (result) {
-        tokenStorage.setWithType(result.token, contaTipo);
-        router.push("/");
-      }
-    } catch (error) {
-      console.error('Erro no login:', error);
-    }
   };
 
   return (
@@ -68,11 +37,9 @@ export default function LoginForm() {
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           <div className="mb-5 sm:mb-8">
-            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              Fazer login
-            </h1>
+            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">Recuperar senha</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Enviar e-mail de recuperação de senha</p>
           </div>
-          
           <div className="flex border border-brand-500 rounded-lg w-full text-sm font-medium transition shadow-theme-xs mb-5">
             <div 
               onClick={() => setContaTipo('estudante')} 
@@ -95,9 +62,8 @@ export default function LoginForm() {
               Academia
             </div>
           </div>
-          
           <div>
-            <form onSubmit={handleLogin}>
+            <form onSubmit={e => e.preventDefault()}>
               <div className="space-y-6">
                 <div>
                   <Label>Código de {contaTipo}</Label>
@@ -109,30 +75,6 @@ export default function LoginForm() {
                     type="text"
                     onChange={(e) => setCodigo(e.target.value)} 
                   />
-                </div>
-                
-                <div>
-                  <Label>Senha</Label>
-                  <div className="relative">
-                    <Input 
-                      disabled={loading} 
-                      id="senha" 
-                      name="senha" 
-                      type={showSenha ? "text" : "password"} 
-                      placeholder="Digite a sua senha"
-                      onChange={(e) => setSenha(e.target.value)} 
-                    />
-                    <span 
-                      onClick={() => setShowSenha(!showSenha)} 
-                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
-                    >
-                      {showSenha ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
-                      )}
-                    </span>
-                  </div>
                 </div>
 
                 {validationErrors.length > 0 && (
@@ -150,39 +92,57 @@ export default function LoginForm() {
                   </div>
                 )}
 
-                {erro && (
+                {erroAPI && (
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                      {erro}
+                      {erroAPI}
                     </p>
                   </div>
                 )}
 
-                <div>
-                  <Button 
-                    disabled={loading} 
-                    className="w-full" 
-                    size="sm"
-                  >
-                    {loading ? (
+                <div className="flex flex-col gap-2">
+                  <Button onClick={async () => {
+                    setValidationErrors([]);
+                    if (!validarFormulario()) return;
+
+                    setEnviandoEmailRecurepacao(true);
+                    setEmailEnviado(false);
+                    setEmailErro(false);
+
+                    
+                    try {
+                      let res = await RecuperarSenhaComFrontend(codigo, contaTipo)
+                      setEmailEnviado(res.success)
+                    } catch (error) {
+                      setEmailErro(true);
+                    } finally {
+                      setEnviandoEmailRecurepacao(false);
+                    }
+                  }} disabled={EnviandoEmailRecurepacao} className="w-full capitalize" size="sm">
+                    {EnviandoEmailRecurepacao ? (
                       <>
                         <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Entrando...
+                        Enviando e-mail
                       </>
                     ) : (
-                      'Entrar'
+                      'Enviar e-mail de recuperação'
                     )}
                   </Button>
+                  {EmailEnviado && (
+                    <Alert title="E-mail enviado com sucesso!" message="Verifique sua caixa de e-mails" variant="success" />
+                  )}
+                  {EmailErro && (
+                    <Alert title="Erro ao enviar e-mail!" message="Tente novamente mais tarde" variant="error" />
+                  )}
                 </div>
               </div>
             </form>
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Esqueceu a senha?{" "}
-                <Link href="/esqueci-senha" className="text-brand-500 hover:text-brand-600 dark:text-brand-400">Clique aqui</Link>
+                <Link href="/login" className="text-brand-500 hover:text-brand-600 dark:text-brand-400">Fazer login</Link>
               </p>
             </div>
           </div>

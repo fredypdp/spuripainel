@@ -1,34 +1,57 @@
 // app/api/recuperar-senha/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { emailService } from '@/lib/email/email-service';
-import { emailAuthService } from '@/lib/api/services/email.service';
+
+// Inicializar serviço de email
+emailService.initialize();
 
 export async function POST(request: NextRequest) {
   try {
-    const { identificador, tipo } = await request.json();
+    const body = await request.json();
+    const { token, email, nome, senha_padrao } = body;
 
-    // 1. Gerar token no backend
-    const response = await emailAuthService.gerarTokenRecuperacao({
-      identificador,
-      tipo
-    });
+    if (!token || !email || !nome || !senha_padrao) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Token, email, nome e senha_padrao são obrigatórios' 
+        },
+        { status: 400 }
+      );
+    }
 
-    // 2. Enviar email pelo servidor usando nodemailer
-    emailService.initialize();
-    const emailResult = await emailService.sendPasswordResetEmail(
-      response.email,
-      response.token,
-      response.nome
+    // Enviar email com a senha padrão
+    const result = await emailService.sendPasswordResetEmail(
+      email, 
+      token, 
+      nome,
+      senha_padrao
     );
 
-    if (emailResult.success) {
-      return NextResponse.json({ success: true, email: response.email });
-    } else {
-      throw new Error(emailResult.error || 'Erro ao enviar email');
+    if (!result.success) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: result.error || 'Erro ao enviar email' 
+        },
+        { status: 500 }
+      );
     }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Email de recuperação enviado com sucesso',
+      messageId: result.messageId,
+    });
+
   } catch (error: any) {
+    console.error('Erro na API de recuperação de senha:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { 
+        success: false, 
+        error: error.message || 'Erro interno do servidor' 
+      },
       { status: 500 }
     );
   }

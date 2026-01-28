@@ -1,51 +1,43 @@
 // src/lib/api/services/email.service.ts
 
 import { api } from '../client';
-
-export interface GerarTokenVerificacaoRequest {
-  identificador: string;
-  tipo: 'estudante' | 'academia' | 'admin';
-}
-
-export interface GerarTokenRecuperacaoRequest {
-  identificador: string;
-  tipo: 'estudante' | 'academia' | 'admin';
-}
-
-export interface TokenResponse {
-  success: boolean;
-  token: string;
-  email: string;
-  nome: string;
-  tipo: string;
-  expira_em: string;
-}
-
-export interface VerificarEmailResponse {
-  message: string;
-  email: string;
-}
-
-export interface ResetarSenhaResponse {
-  message: string;
-  senha_padrao: string;
-  email: string;
-  proximos_passos: string;
-}
+import type {
+  GerarTokenVerificacaoRequest,
+  GerarTokenRecuperacaoRequest,
+  TokenResponse,
+  VerificarEmailResponse,
+  ResetarSenhaResponse,
+} from '@/types/email-auth';
 
 class EmailAuthService {
+  /**
+   * Gera token de verificação de email
+   * Backend retorna o token para o frontend enviar o email
+   */
   async gerarTokenVerificacao(data: GerarTokenVerificacaoRequest): Promise<TokenResponse> {
     return api.post<TokenResponse>('/gerar-token/verificacao', data);
   }
 
+  /**
+   * Gera token de recuperação de senha
+   * Backend retorna o token para o frontend enviar o email
+   */
   async gerarTokenRecuperacao(data: GerarTokenRecuperacaoRequest): Promise<TokenResponse> {
     return api.post<TokenResponse>('/gerar-token/recuperacao', data);
   }
 
+  /**
+   * Verifica email usando o token
+   * Marca o email como verificado no banco
+   */
   async verificarEmail(token: string): Promise<VerificarEmailResponse> {
     return api.post<VerificarEmailResponse>(`/verificar-email/${token}`);
   }
   
+  /**
+   * Reseta senha usando o token
+   * Retorna a senha padrão gerada pelo backend
+   */
   async resetarSenha(token: string): Promise<ResetarSenhaResponse> {
     return api.post<ResetarSenhaResponse>(`/recuperar-senha/${token}`);
   }

@@ -144,9 +144,9 @@ class EmailService {
             </div>
             <div class="content">
               <p>Olá, <strong>${userName}</strong>!</p>
-              <p>Obrigado por se registrar no Spuri. Para completar seu cadastro, precisamos verificar seu endereço de e-mail.</p>
+              <p>Obrigado por se registrar no Spuri. Para complementar o seu cadastro, precisamos verificar o seu endereço de e-mail.</p>
               <p>Clique no botão abaixo para verificar sua conta:</p>
-              <div style="text-align: center;">
+              <div style="color: white; text-align: center;">
                 <a href="${verificationUrl}" class="button">Verificar E-mail</a>
               </div>
               <p>Ou copie e cole este link no seu navegador:</p>
@@ -174,8 +174,14 @@ class EmailService {
 
   /**
    * Template para e-mail de recuperação de senha
+   * Inclui a senha padrão gerada pelo backend
    */
-  async sendPasswordResetEmail(to: string, token: string, userName: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  async sendPasswordResetEmail(
+    to: string, 
+    token: string, 
+    userName: string,
+    senhaPadrao: string
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/recuperar-senha/${token}`;
 
     const html = `
@@ -188,6 +194,8 @@ class EmailService {
             .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
             .button { display: inline-block; padding: 12px 30px; background-color: #DC2626; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }
             .warning { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px; margin: 20px 0; }
+            .password-box { background-color: #DBEAFE; border: 2px solid #3B82F6; padding: 15px; margin: 20px 0; text-align: center; border-radius: 8px; }
+            .password { font-size: 24px; font-weight: bold; color: #1E40AF; font-family: monospace; letter-spacing: 2px; }
             .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #6b7280; }
           </style>
         </head>
@@ -198,18 +206,27 @@ class EmailService {
             </div>
             <div class="content">
               <p>Olá, <strong>${userName}</strong>!</p>
-              <p>Recebemos uma solicitação para redefinir a senha da sua conta no Spuri.</p>
-              <p>Clique no botão abaixo para criar uma nova senha:</p>
-              <div style="text-align: center;">
-                <a href="${resetUrl}" class="button">Redefinir Senha</a>
+              <p>Sua senha foi resetada com sucesso. Use a senha padrão abaixo para fazer login:</p>
+              
+              <div class="password-box">
+                <p style="margin: 0 0 10px 0; font-size: 14px; color: #4B5563;">Sua nova senha temporária:</p>
+                <div class="password">${senhaPadrao}</div>
               </div>
-              <p>Ou copie e cole este link no seu navegador:</p>
-              <p style="background-color: #e5e7eb; padding: 10px; border-radius: 4px; word-break: break-all;">
-                ${resetUrl}
-              </p>
+
               <div class="warning">
-                <strong>⚠️ Importante:</strong> Este link expira em 1 hora. Se você não solicitou a redefinição de senha, por favor ignore este e-mail e sua senha permanecerá inalterada.
+                <strong>⚠️ Importante:</strong> Por motivos de segurança, altere esta senha imediatamente após fazer login. Acesse seu perfil e vá em "Alterar Senha".
               </div>
+
+              <div class="warning">
+                <strong>🔒 Dicas de Segurança:</strong>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                  <li>Nunca compartilhe sua senha com ninguém</li>
+                  <li>Use uma senha forte com letras, números e símbolos</li>
+                  <li>Não use a mesma senha em diferentes serviços</li>
+                </ul>
+              </div>
+
+              <p>Se você não solicitou a recuperação de senha, entre em contato conosco imediatamente.</p>
             </div>
             <div class="footer">
               <p>© ${new Date().getFullYear()} Spuri - Todos os direitos reservados</p>
@@ -220,11 +237,29 @@ class EmailService {
       </html>
     `;
 
+    const textContent = `
+Olá ${userName}!
+
+Sua senha foi resetada com sucesso.
+
+SENHA TEMPORÁRIA: ${senhaPadrao}
+
+IMPORTANTE: Altere esta senha imediatamente após fazer login por motivos de segurança.
+
+Você pode acessar a página de alteração de senha através deste link:
+${resetUrl}
+
+Se você não solicitou esta recuperação, entre em contato conosco imediatamente.
+
+---
+© ${new Date().getFullYear()} Spuri - Todos os direitos reservados
+    `;
+
     return this.sendEmail({
       to,
-      subject: 'Recuperação de Senha - Spuri',
+      subject: 'Senha Resetada - Spuri',
       html,
-      text: `Olá ${userName}! Para redefinir sua senha, acesse: ${resetUrl}`,
+      text: textContent,
     });
   }
 
