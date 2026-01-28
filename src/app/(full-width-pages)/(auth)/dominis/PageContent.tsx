@@ -65,8 +65,6 @@ export default function LoginAdm() {
         router.push("/");
       }
     } catch (error) {
-      console.error('Erro no login:', error);
-      // O erro já é tratado pelo hook useApi
     }
   };
 

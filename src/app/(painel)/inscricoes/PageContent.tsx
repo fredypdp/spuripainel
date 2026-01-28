@@ -41,7 +41,6 @@ export default function Inscricoes() {
       
       setCarregado(true);
     } catch (err) {
-      console.error('Erro ao carregar inscrições:', err);
     }
   };
 

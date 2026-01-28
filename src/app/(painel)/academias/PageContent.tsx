@@ -68,7 +68,6 @@ export default function Academias() {
       await carregarAcademias(token || undefined);
       setCarregado(true);
     } catch (err) {
-      console.error('Erro ao carregar academias:', err);
     }
   };
 
@@ -156,7 +155,6 @@ export default function Academias() {
         }, 2000);
       }
     } catch (err) {
-      console.error('Erro no cadastro:', err);
     }
   };
 
@@ -183,7 +181,6 @@ export default function Academias() {
       alert('Academia ativada com sucesso!');
       carregarLista();
     } catch (err) {
-      console.error('Erro ao ativar academia:', err);
       alert('Erro ao ativar academia. Tente novamente.');
     }
   };
@@ -220,7 +217,6 @@ export default function Academias() {
       setMotivoDesativacao('');
       carregarLista();
     } catch (err) {
-      console.error('Erro ao desativar academia:', err);
       alert('Erro ao desativar academia. Tente novamente.');
     }
   };

@@ -73,7 +73,6 @@ class EmailService {
       await this.transporter.verify();
       return true;
     } catch (error) {
-      console.error('Email service verification failed:', error);
       return false;
     }
   }
@@ -111,7 +110,6 @@ class EmailService {
         messageId: info.messageId,
       };
     } catch (error: any) {
-      console.error('Failed to send email:', error);
       return {
         success: false,
         error: error.message || 'Unknown error occurred',

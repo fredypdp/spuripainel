@@ -49,6 +49,15 @@ export interface ResetarSenhaResponse {
 }
 
 /**
+ * ✅ Response de erro quando email não está verificado
+ */
+export interface EmailNaoVerificadoError {
+  error: "email não verificado";
+  message: string;
+  email_verificado: false;
+}
+
+/**
  * Request para alterar senha (usuário logado)
  */
 export interface AlterarSenhaRequest {
@@ -120,4 +129,15 @@ export interface FrontendEmailRecuperacaoResponse {
   message: string;
   messageId?: string;
   error?: string;
+}
+
+/**
+ * ✅ Type guard para verificar se erro é EmailNaoVerificadoError
+ */
+export function isEmailNaoVerificadoError(error: any): error is EmailNaoVerificadoError {
+  return (
+    error &&
+    error.error === "email não verificado" &&
+    error.email_verificado === false
+  );
 }

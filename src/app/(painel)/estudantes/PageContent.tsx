@@ -47,7 +47,6 @@ export default function Estudantes() {
       await carregarEstudantes(token || undefined);
       setCarregado(true);
     } catch (err) {
-      console.error('Erro ao carregar estudantes:', err);
     }
   };
 
@@ -63,7 +62,6 @@ export default function Estudantes() {
           setCarregado(true);
         }
       } catch (err) {
-        console.error('Erro ao carregar estudantes:', err);
       }
     };
 
@@ -145,7 +143,6 @@ export default function Estudantes() {
         }, 2000);
       }
     } catch (err) {
-      console.error('Erro no cadastro:', err);
     }
   };
 
@@ -278,7 +275,7 @@ export default function Estudantes() {
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Bilhete de Identidade (opcional)</Label>
+                  <Label>Bilhete de Identidade</Label>
                   <Input 
                     type="text" 
                     placeholder="000000000XX000"
@@ -288,7 +285,7 @@ export default function Estudantes() {
                 </div>
 
                 <div className="col-span-2">
-                  <Label>Bilhete do Responsável (opcional)</Label>
+                  <Label>Bilhete do Responsável</Label>
                   <Input 
                     type="text" 
                     placeholder="000000000XX000"

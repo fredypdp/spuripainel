@@ -17,7 +17,6 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
     try {
       return JSON.parse(userCookie);
     } catch (error) {
-      console.error('Erro ao parsear dados do usuário:', error);
       return null;
     }
   }

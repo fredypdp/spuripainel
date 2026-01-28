@@ -66,7 +66,6 @@ export default function AppSidebar() {
       try {
         setUser(JSON.parse(userCookie));
       } catch (error) {
-        console.error('Erro ao parsear cookie do usuário:', error);
       }
     }
   }, []);

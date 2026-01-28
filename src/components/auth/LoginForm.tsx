@@ -59,7 +59,6 @@ export default function LoginForm() {
         router.push("/");
       }
     } catch (error) {
-      console.error('Erro no login:', error);
     }
   };
 

@@ -136,7 +136,6 @@ export default function CadastroForm() {
         handleLogin();
         setTimeout(() => setCopiado(false), 2000);
       } catch (err) {
-        console.error('Erro ao copiar código:', err);
       }
     }
   };
@@ -165,15 +164,13 @@ export default function CadastroForm() {
           status_escolar: 'inativo' as const
         })
       };
-
-      console.log(payload);
+      
       const result = await execute(payload);
 
       if (result?.data) {
         setCodigoEstudante(result.data.codigo_estudante);
       }
     } catch (err) {
-      console.error('Erro no cadastro:', err);
     }
   };
 

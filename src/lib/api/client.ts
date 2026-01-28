@@ -31,7 +31,16 @@ export class ApiError extends Error {
   }
 }
 
-export class SpuriApiError extends ApiError {}
+export class SpuriApiError extends ApiError {
+  constructor(
+    status: number,
+    statusText: string,
+    data?: any
+  ) {
+    super(status, statusText, data);
+    this.name = 'SpuriApiError';
+  }
+}
 
 /**
  * Cliente HTTP base para fazer requisições à API
@@ -74,6 +83,14 @@ async function fetchApi<T>(
     } catch (parseError) {
       errorData = { error: response.statusText };
     }
+    
+    // ✅ Log detalhado do erro
+    console.error('❌ API Request Failed:', {
+      url,
+      status: response.status,
+      statusText: response.statusText,
+      errorData
+    });
     
     // Lançar erro com os dados parseados
     throw new SpuriApiError(response.status, response.statusText, errorData);

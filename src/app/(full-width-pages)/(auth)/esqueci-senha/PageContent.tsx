@@ -10,7 +10,7 @@ import { RecuperarSenhaComFrontend } from "@/lib/utils/email"
 import Alert from "@/components/ui/alert/Alert";
 import Link from "next/link";
 
-export default function LoginAdm() {
+export default function EsqueciSenha() {
   const [codigo, setCodigo] = useState('');
   
   const { loading, error: erroAPI } = useApi(adminService.login);
@@ -20,6 +20,8 @@ export default function LoginAdm() {
   const [EnviandoEmailRecurepacao, setEnviandoEmailRecurepacao] = useState(false);
   const [EmailEnviado, setEmailEnviado] = useState(false);
   const [EmailErro, setEmailErro] = useState(false);
+  const [EmailNaoVerificado, setEmailNaoVerificado] = useState(false);
+  const [MensagemErro, setMensagemErro] = useState<string>(''); // ✅ Mensagem de erro específica
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -100,9 +102,21 @@ export default function LoginAdm() {
                   </div>
                 )}
 
+                {/* ✅ Alert para email não verificado */}
+                {EmailNaoVerificado && (
+                  <Alert 
+                    title="Email não verificado!" 
+                    message="O e-mail precisa estar verificado para recuperar a senha." 
+                    variant="warning" 
+                  />
+                )}
+
                 <div className="flex flex-col gap-2">
                   <Button onClick={async () => {
                     setValidationErrors([]);
+                    setEmailNaoVerificado(false);
+                    setMensagemErro('');
+                    
                     if (!validarFormulario()) return;
 
                     setEnviandoEmailRecurepacao(true);
@@ -113,8 +127,22 @@ export default function LoginAdm() {
                     try {
                       let res = await RecuperarSenhaComFrontend(codigo, contaTipo)
                       setEmailEnviado(res.success)
-                    } catch (error) {
-                      setEmailErro(true);
+                    } catch (error: any) {                      
+                      // ✅ Verificar se erro é de email não verificado
+                      const errorMessage = error?.message || '';
+                      
+                      if (errorMessage.includes('Email não verificado') || 
+                          errorMessage.includes('email não verificado') ||
+                          errorMessage.includes('verifique seu email')) {
+                        setEmailNaoVerificado(true);
+                        setMensagemErro(errorMessage);
+                      } else if (errorMessage.includes('não encontrado')) {
+                        setEmailErro(true);
+                        setMensagemErro('Usuário não encontrado. Verifique o código digitado.');
+                      } else {
+                        setEmailErro(true);
+                        setMensagemErro(errorMessage || 'Erro ao processar solicitação');
+                      }
                     } finally {
                       setEnviandoEmailRecurepacao(false);
                     }
@@ -134,8 +162,12 @@ export default function LoginAdm() {
                   {EmailEnviado && (
                     <Alert title="E-mail enviado com sucesso!" message="Verifique sua caixa de e-mails" variant="success" />
                   )}
-                  {EmailErro && (
-                    <Alert title="Erro ao enviar e-mail!" message="Tente novamente mais tarde" variant="error" />
+                  {EmailErro && !EmailNaoVerificado && (
+                    <Alert 
+                      title="Erro ao enviar e-mail!" 
+                      message={MensagemErro || "Tente novamente mais tarde"} 
+                      variant="error" 
+                    />
                   )}
                 </div>
               </div>

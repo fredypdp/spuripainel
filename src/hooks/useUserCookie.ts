@@ -20,7 +20,6 @@ export function useUserCookie() {
         }
         return false;
       } catch (error) {
-        console.error('Erro ao parsear cookie do usuário:', error);
         setUser(null);
         return false;
       }

@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Erro na API de recuperação de senha:', error);
     return NextResponse.json(
       { 
         success: false, 
