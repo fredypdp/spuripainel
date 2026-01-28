@@ -30,6 +30,7 @@ export default function UserInfoCard() {
   const [mounted, setMounted] = useState(false);
   const [EnviandoEmailVerificacao, setEnviandoEmailVerificacao] = useState(false);
   const [EmailEnviado, setEmailEnviado] = useState(false);
+  const [EmailErro, setEmailErro] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -146,19 +147,28 @@ export default function UserInfoCard() {
                       ) : (
                         <button onClick={async () => {
                           setEnviandoEmailVerificacao(true);
-                          if (user?.tipo) {
-                            let res = await VerificarEmailComFrontend(userEmail, user?.tipo)
-                            setEmailEnviado(res.success)
-                            console.log(res.email)
+                          setEmailEnviado(false);
+                          setEmailErro(false);
+                          
+                          try {
+                            if (user?.tipo) {
+                              let res = await VerificarEmailComFrontend(userEmail, user?.tipo)
+                              setEmailEnviado(res.success)
+                              console.log(res.email)
+                            }
+                          } catch (error) {
+                            setEmailErro(true);
+                          } finally {
+                            setEnviandoEmailVerificacao(false);
                           }
-                          setEnviandoEmailVerificacao(false);
                         }} disabled={EnviandoEmailVerificacao} className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition bg-orange-500 text-white shadow-theme-xs hover:bg-orange-600 disabled:bg-orange-300 px-2 py-1.5 text-sm">{EnviandoEmailVerificacao ? "Enviando e-mail..." : "Verificar e-mail"}</button>
                       )
                     )}
                   </div>
-                  {EmailEnviado ? (
+                  {EmailEnviado && (
                     <Alert title="E-mail enviado com sucesso!" message="Verifique sua caixa de e-mails" variant="success" />
-                  ) : (
+                  )}
+                  {EmailErro && (
                     <Alert title="Erro ao enviar e-mail!" message="Tente novamente mais tarde" variant="error" />
                   )}
                 </div>

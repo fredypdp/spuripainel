@@ -84,10 +84,17 @@ export default function RecuperarSenhaPage() {
                     </svg>
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Altere esta senha após fazer login</p>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Altere esta senha após fazer login
+                </p>
               </div>
 
-              <button onClick={() => router.push('/')} className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Ir para o Painel</button>
+              <button
+                onClick={() => router.push('/')}
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              >
+                Ir para o Painel
+              </button>
             </>
           )}
 
@@ -102,7 +109,12 @@ export default function RecuperarSenhaPage() {
                 Erro na Recuperação
               </h2>
               <p className="mb-4 text-gray-600 dark:text-gray-400">{message}</p>
-              <button onClick={() => router.push('/')} className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Ir para o Painel</button>
+              <button
+                onClick={() => router.push('/')}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              >
+                Ir para o Painel
+              </button>
             </>
           )}
         </div>
