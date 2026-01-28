@@ -98,7 +98,7 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"Sistema SPURI" <${this.config.auth.user}>`,
+        from: `"Spuri" <${this.config.auth.user}>`,
         to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
         subject: options.subject,
         text: options.text,
@@ -144,7 +144,7 @@ class EmailService {
             </div>
             <div class="content">
               <p>Olá, <strong>${userName}</strong>!</p>
-              <p>Obrigado por se registrar no Sistema SPURI. Para completar seu cadastro, precisamos verificar seu endereço de e-mail.</p>
+              <p>Obrigado por se registrar no Spuri. Para completar seu cadastro, precisamos verificar seu endereço de e-mail.</p>
               <p>Clique no botão abaixo para verificar sua conta:</p>
               <div style="text-align: center;">
                 <a href="${verificationUrl}" class="button">Verificar E-mail</a>
@@ -157,7 +157,7 @@ class EmailService {
               <p>Se você não solicitou esta verificação, por favor ignore este e-mail.</p>
             </div>
             <div class="footer">
-              <p>© ${new Date().getFullYear()} Sistema SPURI - Todos os direitos reservados</p>
+              <p>© ${new Date().getFullYear()} Spuri - Todos os direitos reservados</p>
             </div>
           </div>
         </body>
@@ -166,7 +166,7 @@ class EmailService {
 
     return this.sendEmail({
       to,
-      subject: 'Verificação de E-mail - Sistema SPURI',
+      subject: 'Verificação de E-mail - Spuri',
       html,
       text: `Olá ${userName}! Para verificar seu e-mail, acesse: ${verificationUrl}`,
     });
@@ -198,7 +198,7 @@ class EmailService {
             </div>
             <div class="content">
               <p>Olá, <strong>${userName}</strong>!</p>
-              <p>Recebemos uma solicitação para redefinir a senha da sua conta no Sistema SPURI.</p>
+              <p>Recebemos uma solicitação para redefinir a senha da sua conta no Spuri.</p>
               <p>Clique no botão abaixo para criar uma nova senha:</p>
               <div style="text-align: center;">
                 <a href="${resetUrl}" class="button">Redefinir Senha</a>
@@ -212,7 +212,7 @@ class EmailService {
               </div>
             </div>
             <div class="footer">
-              <p>© ${new Date().getFullYear()} Sistema SPURI - Todos os direitos reservados</p>
+              <p>© ${new Date().getFullYear()} Spuri - Todos os direitos reservados</p>
               <p>Se você tiver problemas, entre em contato com nosso suporte.</p>
             </div>
           </div>
@@ -222,7 +222,7 @@ class EmailService {
 
     return this.sendEmail({
       to,
-      subject: 'Recuperação de Senha - Sistema SPURI',
+      subject: 'Recuperação de Senha - Spuri',
       html,
       text: `Olá ${userName}! Para redefinir sua senha, acesse: ${resetUrl}`,
     });
@@ -274,7 +274,7 @@ class EmailService {
               <p>Bem-vindo(a) e bons estudos!</p>
             </div>
             <div class="footer">
-              <p>© ${new Date().getFullYear()} Sistema SPURI - Todos os direitos reservados</p>
+              <p>© ${new Date().getFullYear()} Spuri - Todos os direitos reservados</p>
             </div>
           </div>
         </body>

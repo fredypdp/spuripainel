@@ -7,8 +7,7 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import Image from "next/image";
 import { getCookie } from '@/lib/utils/cookies';
-import type { MeuPerfilResponse, ConsultarAcademiaResponse } from '@/types/api';
-import { useApi, perfilService} from '@/lib/api';
+import type { MeuPerfilResponse } from '@/types/api';
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
   if (typeof window === 'undefined') return null;
@@ -34,18 +33,6 @@ export default function UserMetaCard() {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  const {execute: executarConsultarAcademia} = useApi(perfilService.consultarAcademia);
-  useEffect(() => {
-    console.log(user)
-    if (user) {
-      executarConsultarAcademia(user?.academia?.codigo_academia).then((data) => {
-        if (data) {
-          console.log(data);
-        }
-      });
-    }
-  }, [user, executarConsultarAcademia]);
 
   // Listener para mudanças no cookie
   useEffect(() => {
