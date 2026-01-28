@@ -20,7 +20,19 @@ export default function AuthLayout({
   const router = useRouter();
   useEffect(() => {
     const token = tokenStorage.get();
-    if (token) router.push("/");
+    const pathname = window.location.pathname;
+    
+    // Permitir acesso às rotas de verificação e recuperação mesmo logado
+    const rotasPermitidas = [
+      '/verificar-email/',
+      '/recuperar-senha/'
+    ];
+    
+    const rotaPermitida = rotasPermitidas.some(rota => pathname.includes(rota));
+    
+    if (token && !rotaPermitida) {
+      router.push("/");
+    }
   }, [router]);
 
   return (

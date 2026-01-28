@@ -549,41 +549,11 @@ export const perfilService = {
       `/consultar-academia/${codigoAcademia}`,
       { token: token || tokenStorage.get() || undefined }
     ),
-};
-
-// =====================
-// EMAIL (Verificação e Recuperação)
-// =====================
-
-export const emailService = {
-  solicitarVerificacao: (data: SolicitarVerificacaoRequest) =>
-    api.post<{ message: string; email: string }>(
-      '/verificar-email/solicitar',
-      data
-    ),
-
-  verificarEmail: (token: string) =>
-    api.post<{ message: string; email: string }>(
-      `/verificar-email/${token}`,
-      undefined
-    ),
-
-  solicitarRecuperacao: (data: SolicitarRecuperacaoRequest) =>
-    api.post<{ message: string; email: string }>(
-      '/recuperar-senha/solicitar',
-      data
-    ),
-
-  resetarSenha: (token: string) =>
-    api.post<{ message: string; senha_padrao: string; email: string; proximos_passos: string }>(
-      `/recuperar-senha/${token}`,
-      undefined
-    ),
 
   alterarSenha: (data: AlterarSenhaRequest, token?: string) =>
-    api.put<{ message: string }>(
-      '/alterar-senha',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  api.put<{ message: string }>(
+    '/alterar-senha',
+    data,
+    { token: token || tokenStorage.get() || undefined }
+  ),
 };

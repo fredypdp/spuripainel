@@ -34,46 +34,20 @@ export interface ResetarSenhaResponse {
 }
 
 class EmailAuthService {
-  /**
-   * Gera token de verificação de email (retorna token para frontend enviar)
-   */
   async gerarTokenVerificacao(data: GerarTokenVerificacaoRequest): Promise<TokenResponse> {
     return api.post<TokenResponse>('/gerar-token/verificacao', data);
   }
 
-  /**
-   * Gera token de recuperação de senha (retorna token para frontend enviar)
-   */
   async gerarTokenRecuperacao(data: GerarTokenRecuperacaoRequest): Promise<TokenResponse> {
     return api.post<TokenResponse>('/gerar-token/recuperacao', data);
   }
 
-  /**
-   * Verifica email usando token (mesma rota original)
-   */
   async verificarEmail(token: string): Promise<VerificarEmailResponse> {
     return api.post<VerificarEmailResponse>(`/verificar-email/${token}`);
   }
-
-  /**
-   * Reseta senha usando token (mesma rota original)
-   */
+  
   async resetarSenha(token: string): Promise<ResetarSenhaResponse> {
     return api.post<ResetarSenhaResponse>(`/recuperar-senha/${token}`);
-  }
-
-  /**
-   * Solicita verificação de email (envia via backend - rota original)
-   */
-  async solicitarVerificacaoEmail(data: GerarTokenVerificacaoRequest): Promise<{ message: string; email: string }> {
-    return api.post('/verificar-email/solicitar', data);
-  }
-
-  /**
-   * Solicita recuperação de senha (envia via backend - rota original)
-   */
-  async solicitarRecuperacaoSenha(data: GerarTokenRecuperacaoRequest): Promise<{ message: string; email: string }> {
-    return api.post('/recuperar-senha/solicitar', data);
   }
 }
 

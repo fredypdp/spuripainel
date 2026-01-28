@@ -1,4 +1,4 @@
-.
+src/
 ├── app
 │   ├── (full-width-pages)
 │   │   ├── (auth)
@@ -29,9 +29,7 @@
 │   │   │   │       └── page.tsx
 │   │   │   ├── blank
 │   │   │   │   └── page.tsx
-│   │   │   ├── calendar
-│   │   │   │   └── page.tsx
-│   │   │   └── perfil
+│   │   │   └── calendar
 │   │   │       └── page.tsx
 │   │   ├── (ui-elements)
 │   │   │   ├── alerts
@@ -58,7 +56,13 @@
 │   │   │   ├── PageContent.tsx
 │   │   │   └── page.tsx
 │   │   ├── layout.tsx
-│   │   └── page.tsx
+│   │   ├── page.tsx
+│   │   └── perfil
+│   │       └── page.tsx
+│   ├── api
+│   │   └── email
+│   │       └── send-test
+│   │           └── route.ts
 │   ├── favicon.ico
 │   ├── globals.css
 │   ├── layout.tsx
@@ -171,7 +175,8 @@
 ├── hooks
 │   ├── useApi.ts
 │   ├── useGoBack.ts
-│   └── useModal.ts
+│   ├── useModal.ts
+│   └── useUserCookie.ts
 ├── icons
 │   ├── alert.svg
 │   ├── angle-down.svg
@@ -240,9 +245,15 @@
 │   ├── api
 │   │   ├── client.ts
 │   │   ├── index.ts
+│   │   ├── services
+│   │   │   └── email.service.ts
 │   │   └── services.ts
+│   ├── email
+│   │   └── email-service.ts
 │   └── utils
-│       └── cookies.ts
+│       ├── cookies.ts
+│       └── email.ts
 ├── svg.d.ts
 └── types
-    └── api.ts
+    ├── api.ts
+    └── email-auth.ts

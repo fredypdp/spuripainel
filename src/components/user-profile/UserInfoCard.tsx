@@ -4,9 +4,10 @@ import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
-import Label from "../form/Label";
+import Alert from "@/components/ui/alert/Alert";
 import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';
+import { VerificarEmailComFrontend } from "@/lib/utils/email"
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
   if (typeof window === 'undefined') return null;
@@ -27,6 +28,8 @@ export default function UserInfoCard() {
   const { isOpen, openModal, closeModal } = useModal();
   const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
   const [mounted, setMounted] = useState(false);
+  const [EnviandoEmailVerificacao, setEnviandoEmailVerificacao] = useState(false);
+  const [EmailEnviado, setEmailEnviado] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -132,18 +135,31 @@ export default function UserInfoCard() {
                 <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
                   Email
                 </p>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                    {userEmail}
-                  </p>
-                  {userEmail && (
-                    user?.estudante?.email_verificado || user?.academia?.email_verificado || user?.admin?.email_verificado ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <button onClick={() => null} disabled={false} className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition bg-orange-500 text-white shadow-theme-xs hover:bg-orange-600 disabled:bg-orange-300 px-2 py-1.5 text-sm">Verificar e-mail</button>
-                    )
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{userEmail}</p>
+                    {userEmail && (
+                      user?.estudante?.email_verificado || user?.academia?.email_verificado || user?.admin?.email_verificado ? (
+                        <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <button onClick={async () => {
+                          setEnviandoEmailVerificacao(true);
+                          if (user?.tipo) {
+                            let res = await VerificarEmailComFrontend(userEmail, user?.tipo)
+                            setEmailEnviado(res.success)
+                            console.log(res.email)
+                          }
+                          setEnviandoEmailVerificacao(false);
+                        }} disabled={EnviandoEmailVerificacao} className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition bg-orange-500 text-white shadow-theme-xs hover:bg-orange-600 disabled:bg-orange-300 px-2 py-1.5 text-sm">{EnviandoEmailVerificacao ? "Enviando e-mail..." : "Verificar e-mail"}</button>
+                      )
+                    )}
+                  </div>
+                  {EmailEnviado ? (
+                    <Alert title="E-mail enviado com sucesso!" message="Verifique sua caixa de e-mails" variant="success" />
+                  ) : (
+                    <Alert title="Erro ao enviar e-mail!" message="Tente novamente mais tarde" variant="error" />
                   )}
                 </div>
               </div>
@@ -162,7 +178,7 @@ export default function UserInfoCard() {
               <div>
                 <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Cargo</p>
                 <p className="text-sm font-medium text-gray-800 dark:text-white/90 uppercase">
-                  {userRole}
+                  {user?.tipo === "admin" ? `Admin - ${userRole}` : userRole}
                 </p>
               </div>
             )}
