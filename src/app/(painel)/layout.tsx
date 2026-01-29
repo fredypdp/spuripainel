@@ -9,7 +9,7 @@ import Backdrop from "@/layout/Backdrop";
 import React from "react";
 import { tokenStorage, useApi, perfilService, consultasService, estudanteService} from '@/lib/api';
 import { setCookie, removeCookie } from '@/lib/utils/cookies';
-import type { AcademiaSimples } from '@/types/api';
+import type { AcademiaDetalhada } from '@/types/api';
 import { useUserCookie } from '@/hooks/useUserCookie';
 
 import { Modal } from "@/components/ui/modal";
@@ -26,7 +26,7 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   
   const { user, loading: loadingUser } = useUserCookie();
   
-  const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaSimples | null>(null);
+  const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaDetalhada | null>(null);
   
   const { isOpen, openModal, closeModal } = useModal();
   
@@ -42,7 +42,6 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
     ? "lg:ml-[290px]"
     : "lg:ml-[90px]";
 
-  // Verificação de autenticação
   useEffect(() => {
     const token = tokenStorage.get();
     
@@ -52,14 +51,35 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       return;
     }
 
-    // Recarregar perfil se não tiver user e ainda não carregou
+    // Recarregar perfil apenas se não tiver user
     if (!loadingUser && !user && !hasLoadedProfile.current) {
       hasLoadedProfile.current = true;
       executarPegarPerfil(token).then((data) => {
         if (data) {
           setCookie("user", JSON.stringify(data), 1);
-          // Forçar reload para pegar o novo cookie
           window.location.reload();
+        }
+      });
+    }
+    
+    // Atualizar cookie silenciosamente se user já existe
+    // (sem reload, apenas atualiza o cookie)
+    if (!loadingUser && user && !hasLoadedProfile.current) {
+      hasLoadedProfile.current = true;
+      executarPegarPerfil(token).then((data) => {
+        if (data) {
+          // Comparar se realmente mudou algo importante
+          const userAtual = JSON.stringify(user);
+          const userNovo = JSON.stringify(data);
+          
+          if (userAtual !== userNovo) {
+            setCookie("user", JSON.stringify(data), 1);
+            // Apenas recarregar se mudou algo relevante
+            window.location.reload();
+          } else {
+            // Apenas atualiza o cookie sem reload
+            setCookie("user", JSON.stringify(data), 1);
+          }
         }
       });
     }

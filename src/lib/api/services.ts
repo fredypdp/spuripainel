@@ -54,6 +54,10 @@ import type {
   RegistroCompleto,
   RegistrosPorEstudanteResponse,
   RegistrosPorAcademiaResponse,
+  RegistrarAprovacaoAnoRequest,
+  AprovacoesEstudanteResponse,
+  ListarAdminsResponse,
+  Inscricao,
 } from '@/types/api';
 
 // =====================
@@ -123,6 +127,13 @@ export const academiaService = {
   registrarFaltas: (data: RegistrarFaltasRequest, token?: string) =>
     api.post<{ message: string; estudante: string; materia: string; quantidade: number }>(
       '/academia/faltas-aluno',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  registrarAprovacaoAno: (data: RegistrarAprovacaoAnoRequest, token?: string) =>
+    api.post<{ message: string; estudante: string; ano_lectivo: string; avancar_ano: boolean }>(
+      '/academia/aprovacao-ano',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -226,7 +237,7 @@ export const estudanteService = {
     ),
 
   minhasInscricoes: (token?: string) =>
-    api.get<{ inscricoes: any[]; total: number }>(
+    api.get<{ inscricoes: Inscricao[]; total: number }>(
       '/estudante/minhas-inscricoes',
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -271,14 +282,20 @@ export const estudanteService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  minhasAprovacoes: (token?: string) =>
+    api.get<{ aprovacoes: any[]; total: number }>(
+      '/estudante/minhas-aprovacoes',
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
-// INSCRIÇÕES UNIFICADAS
+// INSCRIÇÕES
 // =====================
 
 export const inscricoesService = {
-  listarInscricoes: (params?: {
+  listar: (params?: {
     status?: StatusInscricao;
     limit?: number;
     offset?: number;
@@ -297,7 +314,7 @@ export const inscricoesService = {
     });
   },
 
-  listarInscricoesPendentes: (params?: {
+  listarPendentes: (params?: {
     limit?: number;
     offset?: number;
     token?: string;
@@ -332,13 +349,18 @@ export const consultasService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  aprovacoesEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<AprovacoesEstudanteResponse>(
+      `/aprovacoes-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   historicoCompleto: (codigoEstudante: string, token?: string) =>
     api.get<HistoricoCompletoResponse>(
       `/historico-estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ✅ CORRIGIDO: Removida paginação e ajustado response type
   listarAcademias: (token?: string) =>
     api.get<ConsultarAcademiasResponse>('/academias', {
       token: token || tokenStorage.get() || undefined,
@@ -384,7 +406,7 @@ export const adminService = {
     ),
 
   listarAdmins: (token?: string) =>
-    api.get<{ admins: any[]; total: number }>(
+    api.get<ListarAdminsResponse>(
       '/admin/admins',
       { token: token || tokenStorage.get() || undefined }
     ),

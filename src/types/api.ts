@@ -218,6 +218,15 @@ export interface SolicitarVerificacaoRequest {
   tipo: 'estudante' | 'academia' | 'admin';
 }
 
+export interface RegistrarAprovacaoAnoRequest {
+  codigo_estudante: string;
+  ano_lectivo: string;
+  nivel_atual: string;
+  nivel_seguinte?: string;
+  avancar_ano: boolean;
+  observacao?: string;
+}
+
 // =====================
 // RESPONSE TYPES
 // =====================
@@ -250,8 +259,8 @@ export interface Inscricao {
   status_usado: boolean;
   created_at: string;
   updated_at: string;
-  event_id?: string;
-  version?: number;
+  event_id: string;
+  version: number;
 }
 
 export interface ListarInscricoesResponse {
@@ -273,13 +282,12 @@ export interface InscricaoResponse {
 
 export interface Nota {
   id: string;
-  estudante_id: string;
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
-  materia_nome?: string;
+  materia_nome: string;
   nota: number;
   observacao?: string;
   registered_at: string;
@@ -289,14 +297,27 @@ export interface Nota {
 
 export interface Falta {
   id: string;
-  estudante_id: string;
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
   data: string;
   materia_disciplinar_id: string;
-  materia_nome?: string;
+  materia_nome: string;
   quantidade: number;
+  observacao?: string;
+  registered_at: string;
+  event_id: string;
+  version: number;
+}
+
+export interface AprovacaoAno {
+  id: string;
+  codigo_estudante: string;
+  codigo_academia: string;
+  ano_lectivo: string;
+  nivel_atual: string;
+  nivel_seguinte?: string;
+  avancar_ano: boolean;
   observacao?: string;
   registered_at: string;
   event_id: string;
@@ -314,6 +335,13 @@ export interface FaltasEstudanteResponse {
   codigo_estudante: string;
   nome: string;
   faltas: Falta[];
+  total: number;
+}
+
+export interface AprovacoesEstudanteResponse {
+  codigo_estudante: string;
+  nome: string;
+  aprovacoes: AprovacaoAno[];
   total: number;
 }
 
@@ -418,19 +446,6 @@ export interface EstudanteDetalhado {
   version: number;
 }
 
-export interface AcademiaSimples {
-  id: string;
-  type: AcademiaType;
-  nome: string;
-  codigo_academia: string;
-  provincia: string;
-  status: "ativo" | "inativo";
-  nivel_escolar?: NivelEscolar | null;
-  created_at: string;
-  total_estudantes: number;
-  total_inscricoes_pendentes: number;
-}
-
 export interface AcademiaDetalhada {
   id: string;
   type: AcademiaType;
@@ -442,7 +457,7 @@ export interface AcademiaDetalhada {
   email?: string;
   email_verificado: boolean;
   website?: string;
-  nivel_escolar?: NivelEscolar | null;
+  nivel_escolar?: NivelEscolar;
   status: string;
   cursos: string[];
   created_at: string;
@@ -503,7 +518,17 @@ export interface ConsultarAcademiaResponse {
 }
 
 export interface ConsultarAdminResponse {
-  admin: AdminDetalhado;
+  id: string;
+  nome: string;
+  email: string;
+  email_verificado: boolean;
+  role: AdminType;
+  status: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  total_acoes_realizadas: number;
+  version: number;
 }
 
 export interface BuscarUsuarioResponse {
@@ -511,9 +536,8 @@ export interface BuscarUsuarioResponse {
   dados: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
 }
 
-// ✅ CORRIGIDO: Response agora segue o padrão do backend
 export interface ConsultarAcademiasResponse {
-  academias: AcademiaSimples[];
+  academias: AcademiaDetalhada[];
   total: number;
   tipo_usuario: UserType;
 }
@@ -524,6 +548,11 @@ export interface ConsultarEstudantesResponse {
   tipo_usuario: UserType;
   codigo_academia?: string;
   nome_academia?: string;
+}
+
+export interface ListarAdminsResponse {
+  admins: AdminDetalhado[];
+  total: number;
 }
 
 export interface PrimeiroAdminResponse {

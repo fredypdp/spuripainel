@@ -11,7 +11,7 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { Dropdown } from 'primereact/dropdown';
-import { NivelEscolar, Provincias, Provincia, AcademiaSimples } from '@/types/api';
+import { NivelEscolar, Provincias, Provincia, AcademiaDetalhada } from '@/types/api';
 
 import {
   Table,
@@ -40,8 +40,8 @@ export default function Academias() {
   const { loading: carregandoDesativar, error: erroDesativar, execute: executarDesativar } = useApi(adminService.desativarAcademia);
   
   const [showSenha, setShowSenha] = useState(false);
-  const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaSimples | null>(null);
-  const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaSimples | null>(null);
+  const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaDetalhada | null>(null);
+  const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao, setMotivoDesativacao] = useState('');
   
   const [nome, setNome] = useState('');
@@ -163,13 +163,13 @@ export default function Academias() {
     closeModal();
   };
 
-  const handleVerDetalhes = (academia: AcademiaSimples) => {
+  const handleVerDetalhes = (academia: AcademiaDetalhada) => {
     setAcademiaSelecionada(academia);
     openDetailsModal();
   };
 
   // ✅ Função para ativar academia
-  const handleAtivar = async (academia: AcademiaSimples) => {
+  const handleAtivar = async (academia: AcademiaDetalhada) => {
     if (!confirm(`Tem certeza que deseja ativar a academia "${academia.nome}"?`)) {
       return;
     }
@@ -186,7 +186,7 @@ export default function Academias() {
   };
 
   // ✅ Função para abrir modal de desativação
-  const handleAbrirDesativar = (academia: AcademiaSimples) => {
+  const handleAbrirDesativar = (academia: AcademiaDetalhada) => {
     setAcademiaParaDesativar(academia);
     setMotivoDesativacao('');
     openDesativarModal();
