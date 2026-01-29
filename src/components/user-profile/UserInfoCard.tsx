@@ -104,7 +104,7 @@ export default function UserInfoCard() {
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="w-[60%]">
           <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
             Informações Pessoais
           </h4>
@@ -136,7 +136,7 @@ export default function UserInfoCard() {
                   Email
                 </p>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium text-gray-800 dark:text-white/90">{userEmail}</p>
                     {userEmail && (
                       user?.estudante?.email_verificado || user?.academia?.email_verificado || user?.admin?.email_verificado ? (
@@ -183,21 +183,84 @@ export default function UserInfoCard() {
             )}
 
             {userRole && (
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Cargo</p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90 uppercase">
-                  {user?.tipo === "admin" ? `Admin - ${userRole}` : userRole}
-                </p>
-              </div>
+              <>
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Cargo</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                      userRole === 'adm' 
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                        : userRole === 'gerente'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    }`}>
+                      Admin - {userRole.toUpperCase()}
+                    </span>
+                  </p>
+                </div>
+
+                {user?.admin?.status && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Status</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        user.admin.status === 'ativo' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                      }`}>
+                        {user.admin.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                {user?.admin?.total_acoes_realizadas !== undefined && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Total de Ações Realizadas</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.admin.total_acoes_realizadas}
+                    </p>
+                  </div>
+                )}
+
+                {user?.admin?.created_at && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Membro Desde</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {new Date(user.admin.created_at).toLocaleDateString('pt-AO', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                )}
+
+                {user?.admin?.created_by && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Criado Por</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.admin.created_by}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             {user?.estudante && (
               <>
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Código do Estudante</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90 uppercase font-mono">
+                    {user.estudante.codigo_estudante}
+                  </p>
+                </div>
+
                 {user.estudante.ano_escolar && (
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Ano Escolar</p>
                     <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                      {user.estudante.ano_escolar}
+                      {user.estudante.ano_escolar.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </p>
                   </div>
                 )}
@@ -206,15 +269,104 @@ export default function UserInfoCard() {
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Ano Superior</p>
                     <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                      {user.estudante.ano_superior}
+                      {user.estudante.ano_superior.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </p>
                   </div>
                 )}
+
+                {user.estudante.curso_medio && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Curso Médio</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.estudante.curso_medio}
+                    </p>
+                  </div>
+                )}
+
+                {user.estudante.curso_superior && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Curso Superior</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.estudante.curso_superior}
+                    </p>
+                  </div>
+                )}
+
+                {user.estudante.status_escolar && user.estudante.status_escolar !== 'inativo' && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Status Escolar</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        user.estudante.status_escolar === 'em_andamento' 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          : user.estudante.status_escolar === 'finalizado'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                      }`}>
+                        {user.estudante.status_escolar === 'em_andamento' ? 'Em Andamento' : 
+                         user.estudante.status_escolar === 'finalizado' ? 'Finalizado' : 
+                         'Inativo'}
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                {user.estudante.status_superior && user.estudante.status_superior !== 'inativo' && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Status Superior</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        user.estudante.status_superior === 'em_andamento' 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          : user.estudante.status_superior === 'finalizado'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                      }`}>
+                        {user.estudante.status_superior === 'em_andamento' ? 'Em Andamento' : 
+                         user.estudante.status_superior === 'finalizado' ? 'Finalizado' : 
+                         'Inativo'}
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                {user.estudante.bilhete_identidade_responsavel && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">BI do Responsável</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.estudante.bilhete_identidade_responsavel}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Status Geral</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      user.estudante.status === 'ativo' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : user.estudante.status === 'finalizado'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                    }`}>
+                      {user.estudante.status === 'ativo' ? 'Ativo' : 
+                       user.estudante.status === 'finalizado' ? 'Finalizado' : 
+                       'Inativo'}
+                    </span>
+                  </p>
+                </div>
               </>
             )}
 
             {user?.academia && (
               <>
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Código da Academia</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90 uppercase font-mono">
+                    {user.academia.codigo_academia}
+                  </p>
+                </div>
+
                 {user.academia.provincia && (
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Província</p>
@@ -226,9 +378,30 @@ export default function UserInfoCard() {
                 
                 {user.academia.type && (
                   <div>
-                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Tipo</p>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Tipo de Academia</p>
                     <p className="text-sm font-medium text-gray-800 dark:text-white/90 capitalize">
-                      {user.academia.type}
+                      {user.academia.type === 'escola' ? 'Escola' : 'Superior'}
+                    </p>
+                  </div>
+                )}
+
+                {user.academia.nivel_escolar && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Nível Escolar</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90 capitalize">
+                      {user.academia.nivel_escolar === 'fundamental' ? 'Fundamental' :
+                       user.academia.nivel_escolar === 'medio' ? 'Médio' :
+                       user.academia.nivel_escolar === 'misto' ? 'Fundamental e Médio' :
+                       user.academia.nivel_escolar}
+                    </p>
+                  </div>
+                )}
+
+                {user.academia.endereco && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Endereço</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.academia.endereco}
                     </p>
                   </div>
                 )}
@@ -236,8 +409,62 @@ export default function UserInfoCard() {
                 {user.academia.website && (
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Website</p>
-                    <p className="text-sm font-medium text-gray-800 dark:text-white/90 capitalize">
+                    <a 
+                      href={user.academia.website.startsWith('http') ? user.academia.website : `https://${user.academia.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    >
                       {user.academia.website}
+                    </a>
+                  </div>
+                )}
+
+                {user.academia.cursos && user.academia.cursos.length > 0 && (
+                  <div className="lg:col-span-2">
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Cursos Disponíveis</p>
+                    <div className="flex flex-wrap gap-2">
+                      {user.academia.cursos.map((curso, index) => (
+                        <span 
+                          key={index}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                        >
+                          {curso}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Status</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      user.academia.status === 'ativo' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                    }`}>
+                      {user.academia.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </p>
+                </div>
+
+                {user.academia.total_estudantes !== undefined && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Total de Estudantes</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      {user.academia.total_estudantes}
+                    </p>
+                  </div>
+                )}
+
+                {user.academia.total_inscricoes_pendentes !== undefined && user.academia.total_inscricoes_pendentes > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Inscrições Pendentes</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                        {user.academia.total_inscricoes_pendentes}
+                      </span>
                     </p>
                   </div>
                 )}
@@ -245,16 +472,6 @@ export default function UserInfoCard() {
             )}
           </div>
         </div>
-
-        <button
-          onClick={openModal}
-          className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto"
-        >
-          <svg className="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path fillRule="evenodd" clipRule="evenodd" d="M15.0911 2.78206C14.2125 1.90338 12.7878 1.90338 11.9092 2.78206L4.57524 10.116C4.26682 10.4244 4.0547 10.8158 3.96468 11.2426L3.31231 14.3352C3.25997 14.5833 3.33653 14.841 3.51583 15.0203C3.69512 15.1996 3.95286 15.2761 4.20096 15.2238L7.29355 14.5714C7.72031 14.4814 8.11172 14.2693 8.42013 13.9609L15.7541 6.62695C16.6327 5.74827 16.6327 4.32365 15.7541 3.44497L15.0911 2.78206ZM12.9698 3.84272C13.2627 3.54982 13.7376 3.54982 14.0305 3.84272L14.6934 4.50563C14.9863 4.79852 14.9863 5.2734 14.6934 5.56629L14.044 6.21573L12.3204 4.49215L12.9698 3.84272ZM11.2597 5.55281L5.6359 11.1766C5.53309 11.2794 5.46238 11.4099 5.43238 11.5522L5.01758 13.5185L6.98394 13.1037C7.1262 13.0737 7.25666 13.003 7.35947 12.9002L12.9833 7.27639L11.2597 5.55281Z" fill=""/>
-          </svg>
-          Editar
-        </button>
       </div>
 
       <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
