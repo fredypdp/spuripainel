@@ -37,6 +37,11 @@ const navItems: NavItem[] = [
     subItems: [{ name: "Notas", path: "/notas"}, {name: "Faltas", path: "/faltas"}],
   },
   {
+    name: "Gerenciamento",
+    icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
+    subItems: [{ name: "Cursos", path: "/cursos"}, {name: "Matérias", path: "/materias"}],
+  },
+  {
     icon: <Icon width="24px" icon="fluent-emoji-high-contrast:school" />,
     name: "Academias",
     path: "/academias",
@@ -76,12 +81,18 @@ export default function AppSidebar() {
     
     return navItems.filter(item => {
       if (user?.tipo) {
+        // Verificar por path direto
         if (item.path === "/academias") {
           return user.tipo === "admin";
         }
         
         if (item.path === "/estudantes" || item.path === "/inscricoes") {
           return user.tipo === "admin" || user.tipo === "academia";
+        }
+
+        // Verificar por nome do item (para items com subItems)
+        if (item.name === "Gerenciamento") {
+          return user.tipo === "academia";
         }
       }
       return true;
