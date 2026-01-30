@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
   {
     name: "Gerenciamento",
     icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
-    subItems: [{ name: "Cursos", path: "/cursos"}, {name: "Matérias", path: "/materias"}],
+    path: "/gerenciamento",
   },
   {
     icon: <Icon width="24px" icon="fluent-emoji-high-contrast:school" />,
@@ -91,7 +91,7 @@ export default function AppSidebar() {
         }
 
         // Verificar por nome do item (para items com subItems)
-        if (item.name === "Gerenciamento") {
+        if (item.path === "gerenciamento") {
           return user.tipo === "academia";
         }
       }

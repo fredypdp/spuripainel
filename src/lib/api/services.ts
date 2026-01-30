@@ -200,6 +200,20 @@ export const academiaService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  ativarMateria: (materiaId: string, token?: string) =>
+    api.put<{ message: string; nome: string }>(
+      `/academia/materias/${materiaId}/ativar`,
+      undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  desativarMateria: (materiaId: string, token?: string) =>
+    api.put<{ message: string; nome: string }>(
+      `/academia/materias/${materiaId}/desativar`,
+      undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
