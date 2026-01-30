@@ -1,10 +1,16 @@
-src/
+.
 ├── app
 │   ├── (full-width-pages)
 │   │   ├── (auth)
 │   │   │   ├── cadastro
 │   │   │   │   └── page.tsx
 │   │   │   ├── dominis
+│   │   │   │   ├── PageContent.tsx
+│   │   │   │   ├── esqueci-senha
+│   │   │   │   │   ├── PageContent.tsx
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── esqueci-senha
 │   │   │   │   ├── PageContent.tsx
 │   │   │   │   └── page.tsx
 │   │   │   ├── layout.tsx
@@ -13,7 +19,10 @@ src/
 │   │   ├── (error-pages)
 │   │   │   └── error-404
 │   │   │       └── page.tsx
-│   │   └── layout.tsx
+│   │   ├── layout.tsx
+│   │   └── verificar-email
+│   │       └── [token]
+│   │           └── page.tsx
 │   ├── (painel)
 │   │   ├── (others-pages)
 │   │   │   ├── (chart)
@@ -52,6 +61,12 @@ src/
 │   │   ├── estudantes
 │   │   │   ├── PageContent.tsx
 │   │   │   └── page.tsx
+│   │   ├── gerenciamento
+│   │   │   ├── PageContent.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── paineis
+│   │   │       ├── CursosPainel.tsx
+│   │   │       └── MateriaPainel.tsx
 │   │   ├── inscricoes
 │   │   │   ├── PageContent.tsx
 │   │   │   └── page.tsx
@@ -60,9 +75,10 @@ src/
 │   │   └── perfil
 │   │       └── page.tsx
 │   ├── api
-│   │   └── email
-│   │       └── send-test
-│   │           └── route.ts
+│   │   ├── recuperar-senha
+│   │   │   └── route.ts
+│   │   └── verificar-email
+│   │       └── route.ts
 │   ├── favicon.ico
 │   ├── globals.css
 │   ├── layout.tsx
@@ -162,6 +178,7 @@ src/
 │   │       └── YouTubeEmbed.tsx
 │   ├── user-profile
 │   │   ├── UserAddressCard.tsx
+│   │   ├── UserConfigCard.tsx
 │   │   ├── UserInfoCard.tsx
 │   │   └── UserMetaCard.tsx
 │   └── videos

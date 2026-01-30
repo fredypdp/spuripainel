@@ -1,10 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
-import Button from "../ui/button/Button";
-import Input from "../form/input/InputField";
-import Label from "../form/Label";
+import { useModal } from "@/hooks/useModal";
+import { Modal } from "@/components/ui/modal";
 import Image from "next/image";
 import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';

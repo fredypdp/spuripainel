@@ -181,6 +181,10 @@ export const academiaService = {
     ),
 
   // Matérias
+  
+  /**
+   * Criar nova matéria disciplinar
+  */
   criarMateria: (data: CriarMateriaRequest, token?: string) =>
     api.post<{ message: string; data: { id: string; nome: string; type: string } }>(
       '/academia/materias',
@@ -188,19 +192,28 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Listar matérias da academia
+  */
   listarMaterias: (token?: string) =>
     api.get<ListarMateriasResponse>(
       '/academia/materias',
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Atualizar dados de uma matéria
+  */
   atualizarMateria: (materiaId: string, data: AtualizarMateriaRequest, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
-
+  
+  /**
+   * Ativar matéria
+  */
   ativarMateria: (materiaId: string, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}/ativar`,
@@ -208,12 +221,15 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Desativar matéria
+  */
   desativarMateria: (materiaId: string, token?: string) =>
-    api.put<{ message: string; nome: string }>(
-      `/academia/materias/${materiaId}/desativar`,
-      undefined,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  api.put<{ message: string; nome: string }>(
+    `/academia/materias/${materiaId}/desativar`,
+    undefined,
+    { token: token || tokenStorage.get() || undefined }
+  ),
 };
 
 // =====================

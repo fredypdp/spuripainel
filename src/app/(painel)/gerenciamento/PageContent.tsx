@@ -1,5 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
+import CursosPainel from "./paineis/CursosPainel";
+import MateriaPainel from "./paineis/MateriaPainel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
 // Definição dos painéis disponíveis
@@ -59,13 +61,13 @@ export default function Gerenciamento() {
         {/* Renderização condicional baseada no painel escolhido */}
         {painelEscolhido === 'cursos' && (
           <div>
-            {/* Conteúdo do painel de Cursos */}
+            <CursosPainel />
           </div>
         )}
         
         {painelEscolhido === 'materias' && (
           <div>
-            {/* Conteúdo do painel de Matérias */}
+            <MateriaPainel />
           </div>
         )}
       </div>
