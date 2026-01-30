@@ -91,7 +91,7 @@ export default function AppSidebar() {
         }
 
         // Verificar por nome do item (para items com subItems)
-        if (item.path === "gerenciamento") {
+        if (item.path === "/gerenciamento") {
           return user.tipo === "academia";
         }
       }
