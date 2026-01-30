@@ -1,20 +1,20 @@
-// src/types/email-types.ts
+// src/types/email-auth.ts
 import { UserType } from "./api";
 
 /**
  * Request para gerar token de verificação (frontend envia email)
  */
 export interface GerarTokenVerificacaoRequest {
-  identificador: string;
-  tipo: UserType;
+  identificador: string; // codigo_estudante, codigo_academia ou email (admin)
+  tipo: UserType; // 'estudante' | 'academia' | 'admin'
 }
 
 /**
  * Request para gerar token de recuperação (frontend envia email)
  */
 export interface GerarTokenRecuperacaoRequest {
-  identificador: string;
-  tipo: UserType;
+  identificador: string; // codigo_estudante, codigo_academia ou email (admin)
+  tipo: UserType; // 'estudante' | 'academia' | 'admin'
 }
 
 /**

@@ -15,7 +15,14 @@ class EmailAuthService {
    * Backend retorna o token para o frontend enviar o email
    */
   async gerarTokenVerificacao(data: GerarTokenVerificacaoRequest): Promise<TokenResponse> {
-    return api.post<TokenResponse>('/gerar-token/verificacao', data);
+    // ✅ Garantir que os campos estão corretos
+    const payload = {
+      identificador: data.identificador,
+      tipo: data.tipo, // 'estudante', 'academia', 'admin'
+    };
+    
+    console.log('📤 Enviando para /gerar-token/verificacao:', payload);
+    return api.post<TokenResponse>('/gerar-token/verificacao', payload);
   }
 
   /**
@@ -23,7 +30,14 @@ class EmailAuthService {
    * Backend retorna o token para o frontend enviar o email
    */
   async gerarTokenRecuperacao(data: GerarTokenRecuperacaoRequest): Promise<TokenResponse> {
-    return api.post<TokenResponse>('/gerar-token/recuperacao', data);
+    // ✅ Garantir que os campos estão corretos
+    const payload = {
+      identificador: data.identificador,
+      tipo: data.tipo, // 'estudante', 'academia', 'admin'
+    };
+    
+    console.log('📤 Enviando para /gerar-token/recuperacao:', payload);
+    return api.post<TokenResponse>('/gerar-token/recuperacao', payload);
   }
 
   /**
@@ -31,7 +45,7 @@ class EmailAuthService {
    * Marca o email como verificado no banco
    */
   async verificarEmail(token: string): Promise<VerificarEmailResponse> {
-    return api.post<VerificarEmailResponse>(`/verificar-email/${token}`);
+    return api.post<VerificarEmailResponse>(`/verificar-email/${token}`, {});
   }
   
   /**
@@ -39,7 +53,7 @@ class EmailAuthService {
    * Retorna a senha padrão gerada pelo backend
    */
   async resetarSenha(token: string): Promise<ResetarSenhaResponse> {
-    return api.post<ResetarSenhaResponse>(`/recuperar-senha/${token}`);
+    return api.post<ResetarSenhaResponse>(`/recuperar-senha/${token}`, {});
   }
 }
 
