@@ -23,7 +23,7 @@ export default function Inscricoes() {
   const [statusFilter, setStatusFilter] = useState<StatusInscricao | undefined>(undefined);
   const [carregado, setCarregado] = useState(false);
   
-  const { data: dataInscricoes, loading: carregandoInscricoes, error: erroInscricoes, execute } = useApi(inscricoesService.listarInscricoes);
+  const { data: dataInscricoes, loading: carregandoInscricoes, error: erroInscricoes, execute } = useApi(inscricoesService.listar);
 
   const loadInscricoes = async () => {
     const token = tokenStorage.get();
