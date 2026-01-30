@@ -90,8 +90,9 @@ export default function MateriaPainel() {
         academiaService.listarMaterias(),
         academiaService.listarCursos(),
       ]);
+      
       setMaterias(materiasRes.materias || []);
-      setCursos(cursosRes.cursos.filter(c => c.status === "ativo") || []);
+      setCursos(cursosRes.total > 0 ? cursosRes.cursos.filter(c => c.status === "ativo") : []);
     } catch (error: any) {
       showAlert("error", error?.data?.error || "Erro ao carregar dados");
     } finally {

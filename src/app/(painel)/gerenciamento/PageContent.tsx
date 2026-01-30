@@ -3,6 +3,9 @@ import { useState, useEffect } from "react";
 import CursosPainel from "./paineis/CursosPainel";
 import MateriaPainel from "./paineis/MateriaPainel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import Alert from "@/components/ui/alert/Alert";
+import { getCookie } from '@/lib/utils/cookies';
+import type { MeuPerfilResponse } from '@/types/api';
 
 // Definição dos painéis disponíveis
 const PAINEIS = [
@@ -13,7 +16,22 @@ const PAINEIS = [
 
 type PainelId = typeof PAINEIS[number]['id'];
 
+const getUserFromCookie = (): MeuPerfilResponse | null => {
+  if (typeof window === 'undefined') return null;
+  
+  const userCookie = getCookie("user");
+  if (userCookie) {
+    try {
+      return JSON.parse(userCookie);
+    } catch (error) {
+      return null;
+    }
+  }
+  return null;
+};
+
 export default function Gerenciamento() {
+  const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
   const [painelEscolhido, setPainelEscolhido] = useState<PainelId>(PAINEIS[0].id);
 
   // Função para obter classes de estilo baseado na posição
@@ -61,7 +79,11 @@ export default function Gerenciamento() {
         {/* Renderização condicional baseada no painel escolhido */}
         {painelEscolhido === 'cursos' && (
           <div>
-            <CursosPainel />
+            {user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "fundamental" ? (
+              <Alert title="Aviso" variant="warning" message="Para gerenciar cursos, você precisa ser uma escola de ensino médio ou uma universidade." />
+            ) : (
+              <CursosPainel />
+            )}
           </div>
         )}
         
