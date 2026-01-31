@@ -1,4 +1,4 @@
-.
+src/
 ├── app
 │   ├── (full-width-pages)
 │   │   ├── (auth)
@@ -63,10 +63,7 @@
 │   │   │   └── page.tsx
 │   │   ├── gerenciamento
 │   │   │   ├── PageContent.tsx
-│   │   │   ├── page.tsx
-│   │   │   └── paineis
-│   │   │       ├── CursosPainel.tsx
-│   │   │       └── MateriaPainel.tsx
+│   │   │   └── page.tsx
 │   │   ├── inscricoes
 │   │   │   ├── PageContent.tsx
 │   │   │   └── page.tsx
@@ -148,6 +145,9 @@
 │   ├── header
 │   │   ├── NotificationDropdown.tsx
 │   │   └── UserDropdown.tsx
+│   ├── paineis
+│   │   ├── CursosPainel.tsx
+│   │   └── MateriaPainel.tsx
 │   ├── tables
 │   │   ├── BasicTableOne.tsx
 │   │   └── Pagination.tsx
@@ -191,7 +191,6 @@
 │   └── ThemeContext.tsx
 ├── hooks
 │   ├── useApi.ts
-│   ├── useGoBack.ts
 │   ├── useModal.ts
 │   └── useUserCookie.ts
 ├── icons
@@ -270,6 +269,7 @@
 │   └── utils
 │       ├── cookies.ts
 │       └── email.ts
+├── middleware.ts
 ├── svg.d.ts
 └── types
     ├── api.ts

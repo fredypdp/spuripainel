@@ -29,11 +29,11 @@ export default function LoginForm() {
     const erros: string[] = [];
 
     if (!codigo.trim()) {
-      erros.push('Código de identificação é obrigatório');
+      erros.push('CÃ³digo de identificaÃ§Ã£o Ã© obrigatÃ³rio');
     }
 
     if (!senha.trim()) {
-      erros.push('Senha é obrigatória');
+      erros.push('Senha Ã© obrigatÃ³ria');
     }
 
     setValidationErrors(erros);
@@ -99,12 +99,12 @@ export default function LoginForm() {
             <form onSubmit={handleLogin}>
               <div className="space-y-6">
                 <div>
-                  <Label>Código de {contaTipo}</Label>
+                  <Label>CÃ³digo de {contaTipo}</Label>
                   <Input 
                     disabled={loading} 
                     id="codigo" 
                     name="codigo" 
-                    placeholder={`Digite o seu código de ${contaTipo}`} 
+                    placeholder={`Digite o seu cÃ³digo de ${contaTipo}`} 
                     type="text"
                     onChange={(e) => setCodigo(e.target.value)} 
                   />

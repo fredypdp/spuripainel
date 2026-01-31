@@ -45,23 +45,10 @@ export default function LoginAdm() {
     if (!validarFormulario()) return;
     
     try {
-      // ✅ Usando a estrutura correta do AdminLoginRequest
-      const result = await execute({ 
-        email,
-        senha
-      });
+      const result = await execute({email, senha});
   
       if (result) {
-        // ✅ Armazenando token com type 'admin' e role (se disponível)
-        tokenStorage.setWithType(result.token, 'admin');
-        
-        // ✅ Opcional: Armazenar role do admin em cookie separado se necessário
-        if (result.role) {
-          if (typeof window !== 'undefined') {
-            document.cookie = `admin_role=${result.role}; path=/; max-age=${24 * 60 * 60}`;
-          }
-        }
-        
+        tokenStorage.setWithType(result.token, 'admin');        
         router.push("/");
       }
     } catch (error) {

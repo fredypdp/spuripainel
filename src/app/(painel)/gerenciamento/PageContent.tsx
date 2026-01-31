@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
-import CursosPainel from "./paineis/CursosPainel";
-import MateriaPainel from "./paineis/MateriaPainel";
+import CursosPainel from "@/components/paineis/CursosPainel";
+import MateriaPainel from "@/components/paineis/MateriaPainel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Alert from "@/components/ui/alert/Alert";
 import { getCookie } from '@/lib/utils/cookies';
