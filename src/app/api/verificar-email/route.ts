@@ -18,23 +18,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('📧 [Verificação] Iniciando processo:', { identificador, tipo });
-
     // 1️⃣ Gerar token no backend Go
-    console.log('1️⃣ Gerando token no backend...');
     const tokenResponse = await emailAuthService.gerarTokenVerificacao({
       identificador,
       tipo
     });
 
-    console.log('✅ Token gerado:', {
-      email: tokenResponse.email,
-      nome: tokenResponse.nome,
-      expira_em: tokenResponse.expira_em
-    });
-
     // 2️⃣ Enviar email via NodeMailer
-    console.log('2️⃣ Enviando email via NodeMailer...');
     emailService.initialize();
     const emailResult = await emailService.sendVerificationEmail(
       tokenResponse.email,
@@ -46,8 +36,6 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro ao enviar email:', emailResult.error);
       throw new Error(emailResult.error || 'Erro ao enviar email');
     }
-
-    console.log('✅ Email enviado com sucesso. MessageID:', emailResult.messageId);
 
     return NextResponse.json({ 
       success: true, 

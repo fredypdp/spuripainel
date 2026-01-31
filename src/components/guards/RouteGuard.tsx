@@ -55,14 +55,13 @@ export default function RouteGuard({ children }: RouteGuardProps) {
 
     if (!allowed && redirectTo && redirectedRef.current !== redirectTo) {
       redirectedRef.current = redirectTo;
-      console.log(`🚫 Acesso negado: ${pathname} → ${redirectTo}`);
       router.push(redirectTo);
     }
   }, [allowed, redirectTo, pathname, router, loadingUser]);
 
   // Estados de renderização
   if (loadingUser) {
-    return <LoadingScreen message="Verificando permissões..." />;
+    return <LoadingScreen message="Espere um pouco..." />;
   }
 
   if (!allowed) {

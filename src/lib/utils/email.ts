@@ -15,8 +15,6 @@ export async function VerificarEmailComFrontend(identificador: string, tipo: Use
     throw new Error('Tipo de usuário inválido');
   }
 
-  console.log('📧 Solicitando verificação de email:', { identificador, tipo });
-
   try {
     // ✅ CHAMA API ROUTE QUE FAZ TUDO:
     // 1. Gera token no backend
@@ -36,7 +34,6 @@ export async function VerificarEmailComFrontend(identificador: string, tipo: Use
       throw new Error(data.error || 'Erro ao enviar email');
     }
 
-    console.log('✅ Email enviado:', data);
     return data;
 
   } catch (error: any) {
@@ -58,8 +55,6 @@ export async function RecuperarSenhaComFrontend(identificador: string, tipo: Use
     throw new Error('Tipo de usuário inválido');
   }
 
-  console.log('🔐 Solicitando recuperação de senha:', { identificador, tipo });
-
   try {
     // ✅ CHAMA API ROUTE QUE FAZ TUDO:
     // 1. Gera token no backend
@@ -79,8 +74,7 @@ export async function RecuperarSenhaComFrontend(identificador: string, tipo: Use
     if (!response.ok) {
       throw new Error(data.error || 'Erro ao recuperar senha');
     }
-
-    console.log('✅ Senha recuperada:', data);
+    
     return data;
 
   } catch (error: any) {

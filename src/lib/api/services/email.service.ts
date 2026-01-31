@@ -21,7 +21,6 @@ class EmailAuthService {
       tipo: data.tipo, // 'estudante', 'academia', 'admin'
     };
     
-    console.log('📤 Enviando para /gerar-token/verificacao:', payload);
     return api.post<TokenResponse>('/gerar-token/verificacao', payload);
   }
 
@@ -36,7 +35,6 @@ class EmailAuthService {
       tipo: data.tipo, // 'estudante', 'academia', 'admin'
     };
     
-    console.log('📤 Enviando para /gerar-token/recuperacao:', payload);
     return api.post<TokenResponse>('/gerar-token/recuperacao', payload);
   }
 

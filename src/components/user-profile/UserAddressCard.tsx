@@ -2,11 +2,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
-import Button from "../ui/button/Button";
-import Input from "../form/input/InputField";
-import Label from "../form/Label";
 import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';
+import { useUserType } from '@/hooks/useRoutePermission';
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
   if (typeof window === 'undefined') return null;
@@ -23,6 +21,7 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 };
 
 export default function UserAddressCard() {
+  const { isAcademia, isEstudante } = useUserType();
   const { isOpen, openModal, closeModal } = useModal();
   const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
   const [mounted, setMounted] = useState(false);
@@ -93,7 +92,7 @@ export default function UserAddressCard() {
   }
 
   // Se for estudante e não tiver academia vinculada, não mostra
-  if (user?.tipo === 'estudante' && !codigoAcademia) {
+  if (isEstudante && !codigoAcademia) {
     return null;
   }
 
@@ -108,11 +107,11 @@ export default function UserAddressCard() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="w-[60%]">
             <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
-              {user?.tipo === 'estudante' ? 'Academia Vinculada' : 'Mais detalhes'}
+              {isEstudante ? 'Academia Vinculada' : 'Mais detalhes'}
             </h4>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
-              {user?.tipo === 'estudante' && (
+              {isEstudante && user?.estudante && (
                 <>
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
@@ -156,7 +155,7 @@ export default function UserAddressCard() {
                 </>
               )}
 
-              {user?.tipo === 'academia' && (
+              {isAcademia && user?.academia && (
                 <>
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">

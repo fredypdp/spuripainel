@@ -2,8 +2,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
-import Button from "../ui/button/Button";
-import Input from "../form/input/InputField";
 import Alert from "@/components/ui/alert/Alert";
 import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';
@@ -92,14 +90,6 @@ export default function UserInfoCard() {
 
   // ✅ Handler com validação robusta
   const handleVerificarEmail = async () => {
-    console.log('🔘 Botão de verificação clicado');
-    console.log('📊 Estado atual:', {
-      user_tipo: user?.tipo,
-      userIdentificador,
-      userEmail,
-      user_completo: user
-    });
-
     setEnviandoEmailVerificacao(true);
     setEmailEnviado(false);
     setEmailErro(null);
@@ -117,19 +107,8 @@ export default function UserInfoCard() {
       if (!userEmail || userEmail.trim() === '') {
         throw new Error('Email não cadastrado');
       }
-
-      console.log('✅ Validações OK. Chamando VerificarEmailComFrontend:', {
-        identificador: userIdentificador,
-        tipo: user.tipo,
-        email: userEmail
-      });
       
-      const res = await VerificarEmailComFrontend(
-        userIdentificador, // ✅ Código do estudante/academia ou email do admin
-        user.tipo          // ✅ 'estudante' | 'academia' | 'admin'
-      );
-      
-      console.log('✅ Resposta recebida:', res);
+      const res = await VerificarEmailComFrontend(userIdentificador, user.tipo);      
       setEmailEnviado(res.success || true);
       
     } catch (error: any) {
@@ -171,7 +150,7 @@ export default function UserInfoCard() {
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="w-[60%]">
+        <div className="w-[70%]">
           <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
             Informações Pessoais
           </h4>

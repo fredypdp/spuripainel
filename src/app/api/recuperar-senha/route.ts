@@ -20,32 +20,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🔐 [Recuperação] Iniciando processo:', { identificador, tipo });
-
     // 1️⃣ Gerar token no backend Go
-    console.log('1️⃣ Gerando token no backend...');
     const tokenResponse = await emailAuthService.gerarTokenRecuperacao({
       identificador,
       tipo
     });
 
-    console.log('✅ Token gerado:', {
-      email: tokenResponse.email,
-      nome: tokenResponse.nome,
-      expira_em: tokenResponse.expira_em
-    });
-
     // 2️⃣ Resetar senha no backend Go
-    console.log('2️⃣ Resetando senha no backend...');
     const resetResponse = await emailAuthService.resetarSenha(tokenResponse.token);
 
-    console.log('✅ Senha resetada:', {
-      email: resetResponse.email,
-      senha_padrao: '***'
-    });
-
     // 3️⃣ Enviar email via NodeMailer
-    console.log('3️⃣ Enviando email via NodeMailer...');
     const emailResult = await emailService.sendPasswordResetEmail(
       tokenResponse.email,
       tokenResponse.token,

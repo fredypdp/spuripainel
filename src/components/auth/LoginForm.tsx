@@ -99,7 +99,7 @@ export default function LoginForm() {
             <form onSubmit={handleLogin}>
               <div className="space-y-6">
                 <div>
-                  <Label>CÃ³digo de {contaTipo}</Label>
+                  <Label>Código de {contaTipo}</Label>
                   <Input 
                     disabled={loading} 
                     id="codigo" 
