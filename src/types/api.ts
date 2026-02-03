@@ -10,7 +10,7 @@ export type AnoEscolar =
   | 'primeiro_fundamental' | 'segundo_fundamental' | 'terceiro_fundamental'
   | 'quarto_fundamental' | 'quinto_fundamental' | 'sexto_fundamental'
   | 'setimo_fundamental' | 'oitavo_fundamental' | 'nono_fundamental'
-  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio';
+  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio' | "quarto_medio";
 
 export type AnoSuperior = 
   | 'primeiro_ano' | 'segundo_ano' | 'terceiro_ano'
