@@ -32,24 +32,36 @@ export async function POST(
   } catch (error: any) {
     console.error('❌ Erro ao verificar email:', error);
 
-    // Tratamento de erros específicos
+    // Tratamento de erros específicos baseado na resposta do backend
     let statusCode = 500;
     let errorMessage = 'Erro ao verificar email';
+    let userFriendlyMessage = '';
 
-    if (error.message?.includes('Token inválido') || error.message?.includes('não encontrado')) {
+    // Extrair mensagem de erro do backend
+    const backendError = error?.data?.error || error?.message || '';
+
+    if (backendError.includes('token já foi usado') || backendError.includes('já verificado')) {
+      statusCode = 400;
+      errorMessage = 'token já foi usado';
+      userFriendlyMessage = 'Este email já foi verificado anteriormente. Você pode fazer login normalmente.';
+    } else if (backendError.includes('Token inválido') || backendError.includes('não encontrado') || backendError.includes('token inválido')) {
       statusCode = 404;
       errorMessage = 'Token inválido ou expirado';
-    } else if (error.message?.includes('já verificado')) {
+      userFriendlyMessage = 'Este link de verificação expirou ou é inválido. Solicite um novo link.';
+    } else if (backendError.includes('expirado')) {
       statusCode = 400;
-      errorMessage = 'Email já foi verificado anteriormente';
-    } else if (error.message) {
-      errorMessage = error.message;
+      errorMessage = 'Token expirado';
+      userFriendlyMessage = 'Este link de verificação expirou. Solicite um novo link.';
+    } else {
+      errorMessage = backendError || errorMessage;
+      userFriendlyMessage = 'Ocorreu um erro ao verificar o email. Tente novamente mais tarde.';
     }
 
     return NextResponse.json(
       { 
         success: false, 
-        error: errorMessage
+        error: errorMessage,
+        message: userFriendlyMessage
       },
       { status: statusCode }
     );
