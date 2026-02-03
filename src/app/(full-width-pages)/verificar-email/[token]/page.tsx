@@ -23,6 +23,7 @@ export default function VerificarEmailPage() {
     const verificar = async () => {
       try {
         const response = await VerificarEmailComToken(token);
+        console.log(response)
         setStatus('success');
         setMessage(response.message || 'Email verificado com sucesso!');
         
