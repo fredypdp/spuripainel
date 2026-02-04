@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import Alert from "@/components/ui/alert/Alert";
 import { useApi, estudanteService, tokenStorage, academiaService, inscricoesService } from '@/lib/api';
 import { Dropdown } from 'primereact/dropdown';
+import { useUserCookie } from '@/hooks/useUserCookie';
 
 interface EstudanteExcel {
   nome: string;
@@ -16,7 +17,7 @@ interface EstudanteExcel {
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
   ano_escolar: string;
-  curso_id?: string; // ✅ Mudou de curso_medio para curso_id (UUID)
+  curso_id?: string;
 }
 
 interface ValidationError {
@@ -33,6 +34,7 @@ interface CadastroResultado {
     codigo?: string;
     erro?: string;
     status: 'sucesso' | 'erro';
+    inscricao?: 'aprovada' | 'pendente' | 'erro';
   }>;
 }
 
@@ -56,13 +58,12 @@ export default function CadastroMassaEstudantes({
   const [resultado, setResultado] = useState<CadastroResultado | null>(null);
   const [progresso, setProgresso] = useState({ atual: 0, total: 0 });
   
+  const { user } = useUserCookie();
   const { execute: executarCadastro } = useApi(estudanteService.criar);
   const { execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
   const { execute: executarAprovar } = useApi(academiaService.aprovarInscricao);
-  const { data: InscricoesPendentes, execute: carregarInscricoesPendentes } = useApi(inscricoesService.listarPendentes);
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
 
-  // ✅ Função para gerar e baixar o template Excel (separado por tipo)
   const handleBaixarTemplate = () => {
     const anosEscolares = tipoTemplate === 'fundamental' 
       ? {
@@ -126,22 +127,14 @@ export default function CadastroMassaEstudantes({
         ];
 
     const ws = XLSX.utils.json_to_sheet(template);
-    
-    // Definir larguras das colunas
     ws['!cols'] = [
-      { wch: 25 }, // nome
-      { wch: 25 }, // email
-      { wch: 18 }, // telefone
-      { wch: 20 }, // bilhete_identidade
-      { wch: 28 }, // bilhete_identidade_responsavel
-      { wch: 22 }, // ano_escolar
-      { wch: 30 }  // curso_id
+      { wch: 25 }, { wch: 25 }, { wch: 18 }, { wch: 20 }, 
+      { wch: 28 }, { wch: 22 }, { wch: 30 }
     ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Estudantes");
     
-    // Adicionar folha com instruções
     const anosValidos = Object.values(anosEscolares).join(', ');
     
     const instrucoes = [
@@ -171,25 +164,21 @@ export default function CadastroMassaEstudantes({
       { coluna: "3.", descricao: "Você pode obter os IDs dos cursos na página de Gerenciamento" },
       { coluna: "4.", descricao: "Exemplo de UUID: 550e8400-e29b-41d4-a716-446655440000" },
       {},
-      { coluna: "SENHA:" },
-      { coluna: "", descricao: "A senha padrão será o código do estudante gerado automaticamente" },
-      { coluna: "", descricao: "O estudante pode alterá-la após o primeiro login" },
+      { coluna: "SENHA E INSCRIÇÃO:" },
+      { coluna: "", descricao: "✅ A senha padrão será o código do estudante gerado automaticamente" },
+      { coluna: "", descricao: "✅ O estudante será automaticamente inscrito na sua academia" },
+      { coluna: "", descricao: "✅ A inscrição será aprovada instantaneamente" },
+      { coluna: "", descricao: "⚠️ O estudante pode alterar a senha após o primeiro login" },
       {},
       { coluna: "OUTRAS INSTRUÇÕES:" },
       { coluna: "1.", descricao: "Não altere os nomes das colunas" },
       { coluna: "2.", descricao: "Mantenha o formato dos dados (especialmente telefone e BI)" },
       { coluna: "3.", descricao: "Remova as linhas de exemplo antes de adicionar seus dados" },
       { coluna: "4.", descricao: "O sistema processará os estudantes em lotes de 10" },
-      { coluna: "5.", descricao: "Inscrição e aprovação serão automáticas" }
     ];
 
     const wsInstrucoes = XLSX.utils.json_to_sheet(instrucoes);
-    wsInstrucoes['!cols'] = [
-      { wch: 30 },
-      { wch: 60 },
-      { wch: 18 },
-      { wch: 30 }
-    ];
+    wsInstrucoes['!cols'] = [{ wch: 30 }, { wch: 60 }, { wch: 18 }, { wch: 30 }];
     
     XLSX.utils.book_append_sheet(wb, wsInstrucoes, "Instruções");
     
@@ -197,31 +186,19 @@ export default function CadastroMassaEstudantes({
     XLSX.writeFile(wb, `template_cadastro_estudantes_${tipoNome}.xlsx`);
   };
 
-  // ✅ Validar dados do Excel
   const validarEstudantes = (dados: EstudanteExcel[]): ValidationError[] => {
     const erros: ValidationError[] = [];
 
     dados.forEach((estudante, index) => {
-      const linha = index + 2; // +2 porque Excel começa em 1 e tem header
+      const linha = index + 2;
 
-      // Nome é obrigatório
       if (!estudante.nome || !estudante.nome.trim()) {
-        erros.push({
-          linha,
-          campo: 'nome',
-          erro: 'Nome é obrigatório'
-        });
+        erros.push({ linha, campo: 'nome', erro: 'Nome é obrigatório' });
       }
 
-      // ✅ Ano escolar é obrigatório
       if (!estudante.ano_escolar || !estudante.ano_escolar.trim()) {
-        erros.push({
-          linha,
-          campo: 'ano_escolar',
-          erro: 'Ano escolar é obrigatório'
-        });
+        erros.push({ linha, campo: 'ano_escolar', erro: 'Ano escolar é obrigatório' });
       } else {
-        // Validar se o ano escolar é válido
         const anosValidos = [
           'primeiro_fundamental', 'segundo_fundamental', 'terceiro_fundamental',
           'quarto_fundamental', 'quinto_fundamental', 'sexto_fundamental',
@@ -230,47 +207,28 @@ export default function CadastroMassaEstudantes({
         ];
         
         if (!anosValidos.includes(estudante.ano_escolar)) {
-          erros.push({
-            linha,
-            campo: 'ano_escolar',
-            erro: 'Ano escolar inválido. Veja as opções válidas na aba Instruções'
-          });
+          erros.push({ linha, campo: 'ano_escolar', erro: 'Ano escolar inválido. Veja as opções válidas na aba Instruções' });
         }
       }
 
-      // ✅ Pelo menos um dos bilhetes deve estar preenchido
       const temBilheteEstudante = estudante.bilhete_identidade && estudante.bilhete_identidade.trim();
       const temBilheteResponsavel = estudante.bilhete_identidade_responsavel && estudante.bilhete_identidade_responsavel.trim();
       
       if (!temBilheteEstudante && !temBilheteResponsavel) {
-        erros.push({
-          linha,
-          campo: 'bilhete_identidade',
-          erro: 'Pelo menos um bilhete (estudante ou responsável) deve ser preenchido'
-        });
+        erros.push({ linha, campo: 'bilhete_identidade', erro: 'Pelo menos um bilhete (estudante ou responsável) deve ser preenchido' });
       }
 
-      // Validar email se fornecido
       if (estudante.email && estudante.email.trim()) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(estudante.email)) {
-          erros.push({
-            linha,
-            campo: 'email',
-            erro: 'E-mail inválido'
-          });
+          erros.push({ linha, campo: 'email', erro: 'E-mail inválido' });
         }
       }
 
-      // Validar telefone se fornecido
       if (estudante.telefone && estudante.telefone.trim()) {
         const telefoneNumerico = estudante.telefone.replace(/\D/g, '');
         if (telefoneNumerico.length < 9) {
-          erros.push({
-            linha,
-            campo: 'telefone',
-            erro: 'Telefone deve ter no mínimo 9 dígitos'
-          });
+          erros.push({ linha, campo: 'telefone', erro: 'Telefone deve ter no mínimo 9 dígitos' });
         }
       }
     });
@@ -278,7 +236,6 @@ export default function CadastroMassaEstudantes({
     return erros;
   };
 
-  // ✅ Processar arquivo Excel - removida validação de limite
   const processarExcel = useCallback((file: File) => {
     const reader = new FileReader();
     
@@ -287,7 +244,6 @@ export default function CadastroMassaEstudantes({
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         
-        // Ler primeira planilha
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet) as EstudanteExcel[];
         
@@ -296,9 +252,6 @@ export default function CadastroMassaEstudantes({
           return;
         }
 
-        // ✅ Removido limite de 100 estudantes
-
-        // Validar dados
         const erros = validarEstudantes(jsonData);
         
         if (erros.length > 0) {
@@ -319,7 +272,6 @@ export default function CadastroMassaEstudantes({
     reader.readAsArrayBuffer(file);
   }, []);
 
-  // Dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (acceptedFiles) => {
       if (acceptedFiles.length > 0) {
@@ -331,11 +283,15 @@ export default function CadastroMassaEstudantes({
       'application/vnd.ms-excel': ['.xls']
     },
     multiple: false,
-    maxSize: 10 * 1024 * 1024 // ✅ Aumentado para 10MB
+    maxSize: 10 * 1024 * 1024
   });
 
-  // ✅ Processar cadastros em lotes de 10
   const handleProcessarCadastros = async () => {
+    if (!user?.academia?.codigo_academia) {
+      alert('Erro: Código da academia não encontrado');
+      return;
+    }
+
     setStep('processando');
     setProgresso({ atual: 0, total: estudantes.length });
 
@@ -346,61 +302,90 @@ export default function CadastroMassaEstudantes({
     };
 
     const BATCH_SIZE = 10;
+    const codigoAcademia = user.academia.codigo_academia;
     
-    // Processar em lotes de 10
     for (let i = 0; i < estudantes.length; i += BATCH_SIZE) {
       const lote = estudantes.slice(i, Math.min(i + BATCH_SIZE, estudantes.length));
       
-      // Processar lote em paralelo
       const promises = lote.map(async (estudante, indexNoLote) => {
         const indexGlobal = i + indexNoLote;
         setProgresso({ atual: indexGlobal + 1, total: estudantes.length });
 
         try {
-          // ✅ Senha padrão será o código do estudante (gerado pelo backend)
+          // 1️⃣ Cadastrar estudante
           const result = await executarCadastro({
-            senha: "TEMP_PASSWORD", // Será substituído pelo código após criação
+            senha: "TEMP_PASSWORD",
             nome: estudante.nome.trim(),
             email: estudante.email?.trim() || undefined,
             telefone: estudante.telefone?.trim() || undefined,
             bilhete_identidade: estudante.bilhete_identidade?.trim() || undefined,
             bilhete_identidade_responsavel: estudante.bilhete_identidade_responsavel?.trim() || undefined,
             ano_escolar: estudante.ano_escolar?.trim() || undefined,
-            curso_medio_id: estudante.curso_id?.trim() || undefined, // ✅ Agora é UUID
+            curso_medio_id: estudante.curso_id?.trim() || undefined,
           });
 
-          if (result?.data) {
-            resultados.sucesso++;
-            resultados.detalhes.push({
-              nome: estudante.nome,
-              codigo: result.data.codigo_estudante,
-              status: 'sucesso'
-            });
-
-            // ✅ Tentar auto-inscrição e aprovação (sem bloquear)
-            // try {
-            //   const token = tokenStorage.get();
-            //   const inscricaoResult = await executarInscricao({
-            //     codigo_academia: result.data.codigo_estudante,
-            //     ano_escolar_inscricao: estudante.ano_escolar,
-            //     curso_medio_id: estudante.curso_id?.trim() || undefined,
-            //   }, token || undefined);
-              
-            //   // Tentar aprovar automaticamente
-            //   if (inscricaoResult) {
-            //     await executarAprovar(inscricaoResult.id || '', {
-            //         codigo_estudante: result.data.codigo_estudante,
-            //         tipo: estudante.ano_escolar.includes('medio') ? 'escola' : 'escola',
-            //         ano_inscricao: estudante.ano_escolar,
-            //         curso_id: estudante.curso_id?.trim() || undefined,
-            //       },
-            //       token || undefined
-            //     );
-            //   }
-            // } catch (inscErr) {
-            //   console.log('Auto-inscrição falhou para:', estudante.nome);
-            // }
+          if (!result?.data) {
+            throw new Error('Erro ao cadastrar estudante');
           }
+
+          const codigoEstudante = result.data.codigo_estudante;
+          let statusInscricao: 'aprovada' | 'pendente' | 'erro' = 'pendente';
+
+          // 2️⃣ Tentar auto-inscrição e aprovação
+          try {
+            const token = tokenStorage.get();
+            
+            // Criar inscrição
+            const inscricaoResult = await executarInscricao({
+              codigo_academia: codigoAcademia,
+              ano_escolar_inscricao: estudante.ano_escolar,
+              curso_medio_id: estudante.curso_id?.trim() || undefined,
+            }, token || undefined);
+
+            if (inscricaoResult) {
+              // Buscar a inscrição criada usando o novo endpoint
+              const inscricoesResponse = await academiaService.getInscricoesPorCodigoEstudante(
+                codigoEstudante,
+                token || undefined
+              );
+
+              // Encontrar a inscrição em status 'espera' para esta academia
+              const inscricaoPendente = inscricoesResponse.inscricoes.find(
+                (insc) => insc.status === 'espera' && 
+                         insc.codigo_academia === codigoAcademia
+              );
+
+              if (inscricaoPendente) {
+                // Aprovar a inscrição
+                await executarAprovar(
+                  inscricaoPendente.id,
+                  {
+                    codigo_estudante: codigoEstudante,
+                    tipo: 'escola',
+                    ano_inscricao: estudante.ano_escolar,
+                    curso_id: estudante.curso_id?.trim() || undefined,
+                  },
+                  token || undefined
+                );
+                
+                statusInscricao = 'aprovada';
+              } else {
+                console.warn(`Inscrição pendente não encontrada para ${codigoEstudante}`);
+                statusInscricao = 'pendente';
+              }
+            }
+          } catch (inscricaoError) {
+            console.error('Erro na auto-inscrição:', inscricaoError);
+            statusInscricao = 'erro';
+          }
+
+          resultados.sucesso++;
+          resultados.detalhes.push({
+            nome: estudante.nome,
+            codigo: codigoEstudante,
+            status: 'sucesso',
+            inscricao: statusInscricao
+          });
         } catch (error: any) {
           resultados.erros++;
           resultados.detalhes.push({
@@ -413,7 +398,6 @@ export default function CadastroMassaEstudantes({
 
       await Promise.all(promises);
       
-      // Delay entre lotes para não sobrecarregar
       if (i + BATCH_SIZE < estudantes.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
@@ -437,7 +421,6 @@ export default function CadastroMassaEstudantes({
     onSuccess();
   };
 
-  // Exportar resultados
   const handleExportarResultados = () => {
     if (!resultado) return;
 
@@ -445,6 +428,9 @@ export default function CadastroMassaEstudantes({
       nome: d.nome,
       codigo: d.codigo || '-',
       status: d.status === 'sucesso' ? 'Sucesso' : 'Erro',
+      inscricao: d.inscricao ? 
+        (d.inscricao === 'aprovada' ? 'Aprovada' : 
+         d.inscricao === 'pendente' ? 'Pendente' : 'Erro') : '-',
       mensagem: d.erro || 'Cadastrado com sucesso'
     })));
 
@@ -481,7 +467,6 @@ export default function CadastroMassaEstudantes({
         {/* Step 1: Upload */}
         {step === 'upload' && (
           <div>
-            {/* ✅ Seletor de tipo de template */}
             <div className="mb-6">
               <span className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-400">
                 Selecione o tipo de ensino:
@@ -507,7 +492,7 @@ export default function CadastroMassaEstudantes({
             <Alert 
               variant="info" 
               title="Como funciona?"
-              message={`1. Selecione o tipo de ensino (${tipoTemplate}). 2. Baixe o template Excel específico. 3. Preencha com os dados dos estudantes. 4. Faça upload do arquivo preenchido.`}
+              message={`1. Selecione o tipo de ensino (${tipoTemplate}). 2. Baixe o template Excel específico. 3. Preencha com os dados dos estudantes. 4. Faça upload do arquivo preenchido. 5. Os estudantes serão automaticamente inscritos e aprovados.`}
             />
 
             <div className="mt-6">
@@ -555,7 +540,7 @@ export default function CadastroMassaEstudantes({
                 <li>{tipoTemplate === 'medio' ? 'Para médio: curso_id é obrigatório' : 'Para fundamental: curso_id é opcional'}</li>
                 <li>Senha padrão: código do estudante (gerado automaticamente)</li>
                 <li>Os estudantes serão processados em lotes de 10</li>
-                <li>Inscrição e aprovação automáticas</li>
+                <li>✅ Inscrição e aprovação automáticas na sua academia</li>
               </ul>
             </div>
           </div>
@@ -579,7 +564,7 @@ export default function CadastroMassaEstudantes({
                 <Alert 
                   variant="success"
                   title="Validação bem-sucedida!"
-                  message="Todos os dados estão corretos. Clique em 'Processar' para iniciar o cadastro."
+                  message="Todos os dados estão corretos. Clique em 'Processar' para iniciar o cadastro e inscrição automática."
                 />
               )}
             </div>
@@ -607,7 +592,6 @@ export default function CadastroMassaEstudantes({
               </div>
             )}
 
-            {/* Preview dos dados */}
             <div className="mb-6">
               <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 Preview dos primeiros 5 estudantes:
@@ -662,14 +646,13 @@ export default function CadastroMassaEstudantes({
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-brand-500"></div>
               </div>
               <h5 className="text-lg font-medium text-gray-800 dark:text-white/90 mb-2">
-                Processando cadastros...
+                Processando cadastros e inscrições...
               </h5>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {progresso.atual} de {progresso.total} estudantes
               </p>
             </div>
 
-            {/* Barra de progresso */}
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
               <div 
                 className="bg-brand-500 h-full transition-all duration-300 rounded-full"
@@ -730,7 +713,8 @@ export default function CadastroMassaEstudantes({
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Nome</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Código</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Cadastro</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Inscrição</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Mensagem</th>
                   </tr>
                 </thead>
@@ -749,6 +733,20 @@ export default function CadastroMassaEstudantes({
                         }`}>
                           {detalhe.status === 'sucesso' ? 'Sucesso' : 'Erro'}
                         </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        {detalhe.inscricao && (
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            detalhe.inscricao === 'aprovada' 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                              : detalhe.inscricao === 'pendente'
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                          }`}>
+                            {detalhe.inscricao === 'aprovada' ? 'Aprovada' : 
+                             detalhe.inscricao === 'pendente' ? 'Pendente' : 'Erro'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
                         {detalhe.erro || 'Cadastrado com sucesso'}
