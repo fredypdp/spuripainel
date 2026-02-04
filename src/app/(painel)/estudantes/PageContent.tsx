@@ -10,6 +10,7 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { EstudanteDetalhado } from '@/types/api';
+import { useUserType } from '@/hooks/useRoutePermission';
 
 import {
   Table,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/table";
 
 export default function Estudantes() {
+  const { isAcademia } = useUserType();
   const { isOpen, openModal, closeModal } = useModal();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
   const [carregado, setCarregado] = useState(false);
@@ -199,7 +201,9 @@ export default function Estudantes() {
       <PageBreadcrumb pageTitle="Estudantes" />
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={openModal}>Cadastrar estudante</Button>
+          {isAcademia && (
+            <Button size="sm" onClick={openModal}>Cadastrar estudante</Button>
+          )}
           <Button 
             variant="outline" 
             size="sm" 

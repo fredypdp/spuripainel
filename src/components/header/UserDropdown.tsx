@@ -75,7 +75,7 @@ export default function UserDropdown() {
             {userName}
           </p>
           {userExtra && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {userExtra}
             </p>
           )}
