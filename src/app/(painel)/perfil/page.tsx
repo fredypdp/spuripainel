@@ -1,4 +1,4 @@
-import UserAddressCard from "@/components/user-profile/UserAddressCard";
+import Details from "@/components/user-profile/Details";
 import UserInfoCard from "@/components/user-profile/UserInfoCard";
 import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import UserConfigCard from "@/components/user-profile/UserConfigCard";
@@ -19,7 +19,7 @@ export default function Perfil() {
         <div className="space-y-6">
           <UserMetaCard />
           <UserInfoCard />
-          <UserAddressCard />
+          <Details />
           <UserConfigCard />
         </div>
       </div>

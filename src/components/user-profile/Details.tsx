@@ -105,7 +105,7 @@ export default function UserAddressCard() {
     <>
       <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="w-[60%]">
+          <div className="w-[70%]">
             <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
               {isEstudante ? 'Academia Vinculada' : 'Mais detalhes'}
             </h4>
@@ -138,17 +138,6 @@ export default function UserAddressCard() {
                       </p>
                       <p className="text-sm font-medium text-gray-800 dark:text-white/90 capitalize">
                         {user.estudante.academia_info.tipo === 'escola' ? 'Escola' : 'Superior'}
-                      </p>
-                    </div>
-                  )}
-
-                  {user.estudante?.academia_info?.codigo && (
-                    <div>
-                      <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                        Código da Academia
-                      </p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        {user.estudante.academia_info.codigo}
                       </p>
                     </div>
                   )}
