@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, estudanteService, tokenStorage } from '@/lib/api';
+import { useApi, consultasService, estudanteService, tokenStorage, academiaService, inscricoesService } from '@/lib/api';
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 
 import Button from "@/components/ui/button/Button";
@@ -11,6 +11,8 @@ import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { EstudanteDetalhado } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
+import CadastroMassaEstudantes from "@/components/estudantes/CadastroMassaEstudantes";
+import { useUserCookie } from '@/hooks/useUserCookie';
 
 import {
   Table,
@@ -22,12 +24,19 @@ import {
 
 export default function Estudantes() {
   const { isAcademia } = useUserType();
+  const { user } = useUserCookie();
+  
   const { isOpen, openModal, closeModal } = useModal();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
+  const { isOpen: isMassaOpen, openModal: openMassaModal, closeModal: closeMassaModal } = useModal();
+  
   const [carregado, setCarregado] = useState(false);
+  const [cadastrandoIndividual, setCadastrandoIndividual] = useState(false);
   
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(estudanteService.criar);
+  const { execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
+  const { execute: executarAprovar } = useApi(academiaService.aprovarInscricao);
   
   const [showSenha, setShowSenha] = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
@@ -39,6 +48,8 @@ export default function Estudantes() {
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
+  const [anoEscolar, setAnoEscolar] = useState('');
+  const [cursoMedio, setCursoMedio] = useState('');
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
@@ -111,13 +122,15 @@ export default function Estudantes() {
     setTelefone('');
     setBilheteIdentidade('');
     setBilheteResponsavel('');
+    setAnoEscolar('');
+    setCursoMedio('');
     setValidationErrors([]);
     setSuccessMessage('');
   };
 
-  const handleCadastro = async (e: React.FormEvent) => {
+  // ✅ Função para cadastro individual com auto-inscrição
+  const handleCadastroIndividual = async (e: React.FormEvent) => {
     e.preventDefault();
-
     setValidationErrors([]);
     setSuccessMessage('');
 
@@ -125,26 +138,92 @@ export default function Estudantes() {
       return;
     }
 
+    if (!isAcademia || !user?.academia?.codigo_academia) {
+      setValidationErrors(['Apenas academias podem cadastrar estudantes']);
+      return;
+    }
+
+    setCadastrandoIndividual(true);
+
     try {
-      const result = await executarCadastro({
+      // 1. Cadastrar estudante
+      const resultCadastro = await executarCadastro({
         senha,
         nome: nome.trim(),
         email: email.trim() || undefined,
         telefone: telefone.trim() || undefined,
         bilhete_identidade: bilheteIdentidade.trim() || undefined,
         bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
+        ano_escolar: anoEscolar.trim() || undefined,
+        curso_medio: cursoMedio.trim() || undefined,
       });
 
-      if (result?.data) {
-        setSuccessMessage(`Estudante cadastrado com sucesso! Código: ${result.data.codigo_estudante}`);
-        
-        setTimeout(() => {
-          limparFormulario();
-          closeModal();
-          carregarLista();
-        }, 2000);
+      if (!resultCadastro?.data) {
+        throw new Error('Erro ao cadastrar estudante');
       }
-    } catch (err) {
+
+      const codigoEstudante = resultCadastro.data.codigo_estudante;
+      let inscricaoId = '';
+
+      try {
+        // 2. Criar inscrição automática (como se o estudante tivesse solicitado)
+        const resultInscricao = await executarInscricao({
+          codigo_academia: user.academia.codigo_academia,
+          ano_escolar_inscricao: anoEscolar.trim() || 'primeiro_fundamental',
+          curso_medio: cursoMedio.trim() || undefined,
+        }, tokenStorage.get() || undefined);
+
+        // Obter ID da inscrição para aprovar
+        // Precisamos buscar a inscrição que acabamos de criar
+        const token = tokenStorage.get();
+        const inscricoesResponse = await inscricoesService.listar({
+          status: 'espera',
+          limit: 100,
+          offset: 0,
+          token: token || undefined
+        });
+
+        // Encontrar a inscrição do estudante recém-cadastrado
+        const inscricaoCriada = inscricoesResponse.inscricoes.find(
+          (insc) => insc.codigo_estudante === codigoEstudante
+        );
+
+        if (inscricaoCriada) {
+          inscricaoId = inscricaoCriada.id;
+
+          // 3. Aprovar inscrição automaticamente
+          await executarAprovar(
+            inscricaoId,
+            {
+              codigo_estudante: codigoEstudante,
+              tipo: 'escola',
+              ano_inscricao: anoEscolar.trim() || 'primeiro_fundamental',
+              curso: cursoMedio.trim() || undefined,
+            },
+            token || undefined
+          );
+        }
+      } catch (inscricaoError) {
+        console.error('Erro na inscrição automática:', inscricaoError);
+        // Continuar mesmo se a inscrição falhar
+      }
+
+      setSuccessMessage(
+        `✅ Estudante cadastrado com sucesso!\n` +
+        `Código: ${codigoEstudante}\n` +
+        `${inscricaoId ? 'Inscrição aprovada automaticamente!' : 'Cadastrado, mas inscrição precisa ser feita manualmente.'}`
+      );
+      
+      setTimeout(() => {
+        limparFormulario();
+        closeModal();
+        carregarLista();
+      }, 3000);
+    } catch (err: any) {
+      console.error('Erro no cadastro:', err);
+      setValidationErrors([err?.data?.error || err?.message || 'Erro ao cadastrar estudante']);
+    } finally {
+      setCadastrandoIndividual(false);
     }
   };
 
@@ -202,7 +281,20 @@ export default function Estudantes() {
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
           {isAcademia && (
-            <Button size="sm" onClick={openModal}>Cadastrar estudante</Button>
+            <>
+              <Button size="sm" onClick={openModal}>
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Cadastrar Individual
+              </Button>
+              <Button size="sm" variant="outline" onClick={openMassaModal}>
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Cadastro em Massa
+              </Button>
+            </>
           )}
           <Button 
             variant="outline" 
@@ -210,7 +302,7 @@ export default function Estudantes() {
             disabled={carregandoEstudantes} 
             onClick={carregarLista}
           >
-            {carregandoEstudantes ? 'Carregando...' : 'Carregar estudantes'}
+            {carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}
           </Button>
           
           {dataEstudantes && (
@@ -220,10 +312,19 @@ export default function Estudantes() {
             </div>
           )}
           
-          {/* Modal de Cadastro */}
+          {/* Modal de Cadastro Individual */}
           <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[640px] p-5 lg:p-10">
-            <form onSubmit={handleCadastro}>
+            <form onSubmit={handleCadastroIndividual}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar estudante</h4>
+              
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <h5 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
+                  ℹ️ Cadastro automático
+                </h5>
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  O estudante será automaticamente inscrito na sua academia e a inscrição será aprovada instantaneamente.
+                </p>
+              </div>
               
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
                 <div className="col-span-2">
@@ -232,7 +333,7 @@ export default function Estudantes() {
                     type="text" 
                     placeholder="Digite o nome completo"
                     onChange={(e) => setNome(e.target.value)} 
-                    disabled={carregandoCadastro}
+                    disabled={cadastrandoIndividual}
                   />
                 </div>
 
@@ -243,7 +344,7 @@ export default function Estudantes() {
                       placeholder="Mínimo 6 caracteres"
                       type={showSenha ? "text" : "password"}
                       onChange={(e) => setSenha(e.target.value)}
-                      disabled={carregandoCadastro}
+                      disabled={cadastrandoIndividual}
                     />
                     <span
                       onClick={() => setShowSenha(!showSenha)}
@@ -264,7 +365,7 @@ export default function Estudantes() {
                     type="email" 
                     placeholder="email@exemplo.com"
                     onChange={(e) => setEmail(e.target.value)} 
-                    disabled={carregandoCadastro}
+                    disabled={cadastrandoIndividual}
                   />
                 </div>
                 
@@ -274,7 +375,7 @@ export default function Estudantes() {
                     type="text" 
                     placeholder="+244 900 000 000"
                     onChange={(e) => setTelefone(e.target.value)} 
-                    disabled={carregandoCadastro}
+                    disabled={cadastrandoIndividual}
                   />
                 </div>
 
@@ -284,7 +385,7 @@ export default function Estudantes() {
                     type="text" 
                     placeholder="000000000XX000"
                     onChange={(e) => setBilheteIdentidade(e.target.value)} 
-                    disabled={carregandoCadastro}
+                    disabled={cadastrandoIndividual}
                   />
                 </div>
 
@@ -294,14 +395,34 @@ export default function Estudantes() {
                     type="text" 
                     placeholder="000000000XX000"
                     onChange={(e) => setBilheteResponsavel(e.target.value)} 
-                    disabled={carregandoCadastro}
+                    disabled={cadastrandoIndividual}
+                  />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <Label>Ano Escolar (opcional)</Label>
+                  <Input 
+                    type="text" 
+                    placeholder="Ex: primeiro_medio"
+                    onChange={(e) => setAnoEscolar(e.target.value)} 
+                    disabled={cadastrandoIndividual}
+                  />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <Label>Curso (opcional)</Label>
+                  <Input 
+                    type="text" 
+                    placeholder="Ex: Ciências"
+                    onChange={(e) => setCursoMedio(e.target.value)} 
+                    disabled={cadastrandoIndividual}
                   />
                 </div>
               </div>
 
               {successMessage && (
                 <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                  <p className="text-sm text-green-700 dark:text-green-400 font-medium whitespace-pre-line">
                     {successMessage}
                   </p>
                 </div>
@@ -335,15 +456,15 @@ export default function Estudantes() {
                   size="sm" 
                   variant="outline" 
                   onClick={handleCloseModal}
-                  disabled={carregandoCadastro}
+                  disabled={cadastrandoIndividual}
                 >
                   Fechar
                 </Button>
                 <Button 
                   size="sm"
-                  disabled={carregandoCadastro}
+                  disabled={cadastrandoIndividual}
                 >
-                  {carregandoCadastro ? (
+                  {cadastrandoIndividual ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -352,12 +473,19 @@ export default function Estudantes() {
                       Cadastrando...
                     </>
                   ) : (
-                    'Cadastrar'
+                    'Cadastrar e Inscrever'
                   )}
                 </Button>
               </div>
             </form>
           </Modal>
+
+          {/* Modal de Cadastro em Massa */}
+          <CadastroMassaEstudantes 
+            isOpen={isMassaOpen}
+            onClose={closeMassaModal}
+            onSuccess={carregarLista}
+          />
 
           {/* Modal de Detalhes */}
           <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[700px] p-5 lg:p-10">
@@ -492,7 +620,7 @@ export default function Estudantes() {
                           </svg>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Clique em &ldquo;Carregar estudantes&rdquo; para visualizar
+                          Clique em &ldquo;Atualizar lista&rdquo; para visualizar
                         </p>
                       </div>
                     </TableCell>
@@ -513,6 +641,11 @@ export default function Estudantes() {
                         <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                           Nenhum estudante encontrado
                         </p>
+                        {isAcademia && (
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                            Use os botões acima para cadastrar estudantes
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

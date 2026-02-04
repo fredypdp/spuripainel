@@ -256,7 +256,7 @@ export default function Academias() {
             disabled={carregandoAcademias} 
             onClick={carregarLista}
           >
-            {carregandoAcademias ? 'Carregando...' : 'Carregar academias'}
+            {carregandoAcademias ? 'Carregando...' : 'Atualizar lista'}
           </Button>
           
           {dataAcademias && (
@@ -372,6 +372,7 @@ export default function Academias() {
                     placeholder="Selecione a província" 
                     className="w-full"
                     disabled={carregandoCadastro}
+                    emptyFilterMessage="Nenhuma província encontrada"
                   />
                 </div>
               </div>
