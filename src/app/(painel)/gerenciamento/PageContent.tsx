@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import CursosPainel from "@/components/paineis/CursosPainel";
 import MateriaPainel from "@/components/paineis/MateriaPainel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";

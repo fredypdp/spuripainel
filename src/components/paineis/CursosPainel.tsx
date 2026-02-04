@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { academiaService } from "@/lib/api";
 import { Curso, CursoType } from "@/types/api";
+import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 import { getCookie } from '@/lib/utils/cookies';
@@ -13,12 +14,15 @@ interface CursoFormData {
   nivel: string[];
 }
 
+// ✅ CORRIGIDO: Anos do ensino médio
 const ANOS_MEDIO = [
   { value: "primeiro_medio", label: "1º Ano Médio" },
   { value: "segundo_medio", label: "2º Ano Médio" },
   { value: "terceiro_medio", label: "3º Ano Médio" },
+  { value: "quarto_medio", label: "4º Ano Médio" },
 ];
 
+// ✅ CORRIGIDO: Anos do ensino superior
 const ANOS_SUPERIOR = [
   { value: "primeiro_ano", label: "1º Ano" },
   { value: "segundo_ano", label: "2º Ano" },
@@ -98,7 +102,10 @@ export default function CursosPainel() {
 
     try {
       if (editingCurso) {
-        await academiaService.atualizarCurso(editingCurso.id, formData);
+        await academiaService.atualizarCurso(editingCurso.id, {
+          nome: formData.nome,
+          type: formData.type,
+        });
         showAlert("success", "Curso atualizado com sucesso");
       } else {
         await academiaService.criarCurso(formData);
@@ -161,13 +168,41 @@ export default function CursosPainel() {
     return !!editingCurso || !!user?.academia?.type;
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
-      </div>
-    );
-  }
+  // ✅ Função para formatar labels dos níveis
+  const formatarNivelLabel = (nivel: string): string => {
+    // Para médio
+    if (nivel.includes('medio')) {
+      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto)_medio/);
+      if (numeroMatch) {
+        const numeros: Record<string, string> = {
+          'primeiro': '1º',
+          'segundo': '2º',
+          'terceiro': '3º',
+          'quarto': '4º'
+        };
+        return `${numeros[numeroMatch[1]]} Médio`;
+      }
+    }
+    
+    // Para superior
+    if (nivel.includes('ano')) {
+      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto)_ano/);
+      if (numeroMatch) {
+        const numeros: Record<string, string> = {
+          'primeiro': '1º',
+          'segundo': '2º',
+          'terceiro': '3º',
+          'quarto': '4º',
+          'quinto': '5º',
+          'sexto': '6º'
+        };
+        return `${numeros[numeroMatch[1]]} Ano`;
+      }
+    }
+    
+    // Fallback
+    return nivel.replace(/_/g, ' ');
+  };
 
   return (
     <div className="space-y-6">
@@ -190,13 +225,12 @@ export default function CursosPainel() {
             Gerencie os cursos da sua academia
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
-        >
-          <Icon icon="mdi:plus" width={16} />
-          Novo Curso
-        </button>
+        <div className="flex gap-3">
+          {!showForm && (
+            <Button disabled={loading} onClick={carregarCursos}>Atualizar lista</Button>
+          )}
+          <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>Novo Curso</Button>
+        </div>
       </div>
 
       {/* Formulário */}
@@ -298,6 +332,13 @@ export default function CursosPainel() {
       )}
 
       {/* Lista de Cursos */}
+      {loading && !showForm && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+        </div>
+      )}
+
+      {!loading && !showForm && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cursos.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
@@ -345,7 +386,7 @@ export default function CursosPainel() {
                       key={n}
                       className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
                     >
-                      {n.replace(/_/g, " ")}
+                      {formatarNivelLabel(n)}
                     </span>
                   ))}
                 </div>
@@ -384,6 +425,7 @@ export default function CursosPainel() {
           ))
         )}
       </div>
+      )}
     </div>
   );
 }

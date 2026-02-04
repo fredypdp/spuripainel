@@ -23,8 +23,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type NivelEnsino = 'fundamental' | 'medio';
-
 interface AnoEscolar {
   label: string;
   value: string;
@@ -57,7 +55,6 @@ export default function Estudantes() {
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  const [nivelEnsino, setNivelEnsino] = useState<NivelEnsino>('fundamental');
   const [anoEscolar, setAnoEscolar] = useState<AnoEscolar | null>(null);
   const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
   
@@ -84,7 +81,48 @@ export default function Estudantes() {
     { label: '4º Ano Médio', value: 'quarto_medio' },
   ];
 
-  const anosDisponiveis = nivelEnsino === 'fundamental' ? anosFundamental : anosMedio;
+  // ✅ Determinar anos disponíveis baseado na academia
+  const getAnosDisponiveis = (): AnoEscolar[] => {
+    const nivelAcademia = user?.academia?.nivel_escolar;
+    
+    if (nivelAcademia === 'fundamental') {
+      return anosFundamental;
+    }
+    
+    if (nivelAcademia === 'medio') {
+      return anosMedio;
+    }
+    
+    // Se for misto, mostrar ambos
+    if (nivelAcademia === 'misto') {
+      return [...anosFundamental, ...anosMedio];
+    }
+    
+    // Fallback
+    return anosFundamental;
+  };
+
+  // ✅ Verificar se o ano selecionado é do médio (para mostrar cursos)
+  const isAnoMedio = (anoValue: string | undefined): boolean => {
+    if (!anoValue) return false;
+    return anosMedio.some(ano => ano.value === anoValue);
+  };
+
+  // ✅ Determinar se deve mostrar seleção de curso
+  const deveMostrarCurso = (): boolean => {
+    const nivelAcademia = user?.academia?.nivel_escolar;
+    
+    // Se for academia só de médio, sempre mostrar
+    if (nivelAcademia === 'medio') return true;
+    
+    // Se for mista, mostrar apenas se ano selecionado for do médio
+    if (nivelAcademia === 'misto') {
+      return isAnoMedio(anoEscolar?.value);
+    }
+    
+    // Se for fundamental, não mostrar
+    return false;
+  };
 
   const carregarLista = async () => {
     try {
@@ -95,13 +133,16 @@ export default function Estudantes() {
     }
   };
 
-  // Carregar cursos ao abrir modal
+  // Carregar cursos ao abrir modal (apenas se for médio ou misto)
   useEffect(() => {
     if (isOpen && isAcademia) {
-      const token = tokenStorage.get();
-      carregarCursos(token || undefined);
+      const nivelAcademia = user?.academia?.nivel_escolar;
+      if (nivelAcademia === 'medio' || nivelAcademia === 'misto') {
+        const token = tokenStorage.get();
+        carregarCursos(token || undefined);
+      }
     }
-  }, [isOpen, isAcademia]);
+  }, [isOpen, isAcademia, user?.academia?.nivel_escolar]);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,10 +166,12 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Limpar ano escolar ao trocar de nível
+  // ✅ Limpar curso ao mudar ano escolar (se deixar de ser médio)
   useEffect(() => {
-    setAnoEscolar(null);
-  }, [nivelEnsino]);
+    if (anoEscolar && !isAnoMedio(anoEscolar.value)) {
+      setCursoSelecionado(null);
+    }
+  }, [anoEscolar]);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -151,8 +194,8 @@ export default function Estudantes() {
       erros.push('Pelo menos um bilhete (estudante ou responsável) deve ser preenchido');
     }
 
-    // ✅ Para médio, curso é obrigatório
-    if (nivelEnsino === 'medio' && !cursoSelecionado) {
+    // ✅ Para médio (ou misto com ano médio), curso é obrigatório
+    if (deveMostrarCurso() && !cursoSelecionado) {
       erros.push('Para ensino médio, o curso é obrigatório');
     }
 
@@ -181,7 +224,6 @@ export default function Estudantes() {
     setTelefone('');
     setBilheteIdentidade('');
     setBilheteResponsavel('');
-    setNivelEnsino('fundamental');
     setAnoEscolar(null);
     setCursoSelecionado(null);
     setValidationErrors([]);
@@ -215,7 +257,7 @@ export default function Estudantes() {
         bilhete_identidade: bilheteIdentidade.trim() || undefined,
         bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
         ano_escolar: anoEscolar?.value || undefined,
-        curso_medio_id: cursoSelecionado?.id || undefined, // ✅ Agora usa UUID do curso
+        curso_medio_id: cursoSelecionado?.id || undefined,
       });
 
       if (!resultCadastro?.data) {
@@ -333,6 +375,15 @@ export default function Estudantes() {
     }
   };
 
+  // ✅ Obter nome descritivo do nível da academia
+  const getNivelAcademiaDescricao = (): string => {
+    const nivel = user?.academia?.nivel_escolar;
+    if (nivel === 'fundamental') return 'Fundamental';
+    if (nivel === 'medio') return 'Médio';
+    if (nivel === 'misto') return 'Fundamental e Médio';
+    return '';
+  };
+
   return (
     <div>
       <PageBreadcrumb pageTitle="Estudantes" />
@@ -380,7 +431,7 @@ export default function Estudantes() {
                   ℹ️ Cadastro automático
                 </h5>
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  O estudante será automaticamente inscrito na sua academia e a inscrição será aprovada instantaneamente. A senha padrão será o código do estudante.
+                  O estudante será automaticamente inscrito na sua academia ({getNivelAcademiaDescricao()}) e a inscrição será aprovada instantaneamente. A senha padrão será o código do estudante.
                 </p>
               </div>
               
@@ -463,70 +514,44 @@ export default function Estudantes() {
                   </p>
                 </div>
 
-                {/* ✅ Dropdown de Nível de Ensino */}
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Nível de Ensino *
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm" 
-                      variant={nivelEnsino === 'fundamental' ? "primary" : "outline"}
-                      onClick={() => setNivelEnsino('fundamental')}
-                      disabled={cadastrandoIndividual}
-                      className="flex-1"
-                    >
-                      Fundamental
-                    </Button>
-                    <Button
-                      size="sm" 
-                      variant={nivelEnsino === 'medio' ? "primary" : "outline"}
-                      onClick={() => setNivelEnsino('medio')}
-                      disabled={cadastrandoIndividual}
-                      className="flex-1"
-                    >
-                      Médio
-                    </Button>
-                  </div>
-                </div>
-
-                {/* ✅ Dropdown de Ano Escolar */}
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Ano Escolar *
-                  </span>
-                  <Dropdown 
-                    value={anoEscolar} 
-                    onChange={(e) => setAnoEscolar(e.value)} 
-                    options={anosDisponiveis} 
-                    optionLabel="label"
-                    placeholder="Selecione o ano" 
-                    className="w-full"
-                    disabled={cadastrandoIndividual}
-                  />
-                </div>
-
-                {/* ✅ Dropdown de Curso (se médio) */}
-                {nivelEnsino === 'medio' && (
-                  <div className="col-span-2">
+                <div className="col-span-2 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                  {/* ✅ Dropdown de Ano Escolar (baseado no nível da academia) */}
+                  <div className="col-span-2 sm:col-span-1">
                     <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                      Curso * (obrigatório para médio)
+                      Ano Escolar * ({getNivelAcademiaDescricao()})
                     </span>
-                    <Dropdown 
-                      value={cursoSelecionado} 
-                      onChange={(e) => setCursoSelecionado(e.value)} 
-                      options={dataCursos?.cursos || []} 
-                      optionLabel="nome"
-                      placeholder="Selecione o curso" 
+                    <Dropdown
+                      value={anoEscolar} 
+                      onChange={(e) => setAnoEscolar(e.value)} 
+                      options={getAnosDisponiveis()} 
+                      optionLabel="label"
+                      placeholder="Selecione o ano" 
                       className="w-full"
                       disabled={cadastrandoIndividual}
-                      emptyMessage="Nenhum curso disponível"
-                      filter
                     />
                   </div>
-                )}
-              </div>
 
+                  {/* ✅ Dropdown de Curso (se for médio ou misto com ano médio selecionado) */}
+                  {deveMostrarCurso() && (
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                        Curso *
+                      </span>
+                      <Dropdown 
+                        value={cursoSelecionado} 
+                        onChange={(e) => setCursoSelecionado(e.value)} 
+                        options={dataCursos?.cursos?.filter(c => c.type === 'medio') || []} 
+                        optionLabel="nome"
+                        placeholder="Selecione o curso" 
+                        className="w-full"
+                        disabled={cadastrandoIndividual}
+                        emptyMessage="Nenhum curso de ensino médio disponível"
+                        filter
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
               {successMessage && (
                 <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                   <p className="text-sm text-green-700 dark:text-green-400 font-medium whitespace-pre-line">
