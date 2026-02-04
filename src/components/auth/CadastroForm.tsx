@@ -157,7 +157,7 @@ export default function CadastroForm() {
         bilhete_identidade_responsavel: biResponsavel.trim() || undefined,
         ...(isEnsinoSuperior ? {
           ano_superior: selectedAnoAcademico!.ano as AnoSuperior,
-          curso_superior: cursoSuperior.trim(),
+          curso_superior_id: cursoSuperior.trim(),
           status_superior: 'inativo' as const
         } : {
           ano_escolar: selectedAnoAcademico!.ano as AnoEscolar,
@@ -329,8 +329,8 @@ export default function CadastroForm() {
                         </Label>
                         <Input
                           type="text"
-                          id="curso_superior"
-                          name="curso_superior"
+                          id="curso_superior_id"
+                          name="curso_superior_id"
                           onChange={(e) => setCursoSuperior(e.target.value)}
                           placeholder="Ex: Engenharia Informática"
                           disabled={loading}

@@ -112,7 +112,7 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       const result = await executarInscricao({
         codigo_academia: academiaSelecionada.codigo_academia,
         ano_escolar_inscricao: user.estudante.ano_escolar,
-        curso_medio: user.estudante.curso_medio || undefined,
+        curso_medio_id: user.estudante.curso_medio_id || undefined,
       }, tokenStorage.get() || undefined);
 
       if (result && 'message' in result) {
@@ -198,7 +198,7 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
                   <p className="text-xs text-blue-700 dark:text-blue-300">
                     <strong>Seus dados:</strong><br/>
                     Ano Escolar: {user.estudante.ano_escolar || 'Não informado'}<br/>
-                    {user.estudante.curso_medio && `Curso: ${user.estudante.curso_medio}`}
+                    {user.estudante.curso_medio_id && `Curso: ${user.estudante.curso_medio_id}`}
                   </p>
                 </div>
               )}
