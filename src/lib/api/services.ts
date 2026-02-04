@@ -58,6 +58,9 @@ import type {
   AprovacoesEstudanteResponse,
   ListarAdminsResponse,
   Inscricao,
+  AlterarCursoRequest,
+  GetInscricoesPorCodigoResponse,
+  AlterarCursoResponse,
 } from '@/types/api';
 
 // =====================
@@ -230,6 +233,27 @@ export const academiaService = {
     undefined,
     { token: token || tokenStorage.get() || undefined }
   ),
+
+  /**
+   * Alterar curso do estudante (médio ou superior)
+   * Acesso: academia
+  */
+  alterarCursoEstudante: (codigoEstudante: string, data: AlterarCursoRequest, token?: string) =>
+    api.put<AlterarCursoResponse>(
+      `/academia/estudante/${codigoEstudante}/curso`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Buscar inscrições de um estudante pelo código
+   * Acesso: academia
+  */
+  getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<GetInscricoesPorCodigoResponse>(
+      `/academia/inscricoes/estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
@@ -318,6 +342,16 @@ export const estudanteService = {
       '/estudante/minhas-aprovacoes',
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  /**
+   * Buscar inscrições de um estudante pelo código
+   * Acesso: estudante (próprio)
+  */
+  getInscricoesPorCodigo: (codigoEstudante: string, token?: string) =>
+    api.get<GetInscricoesPorCodigoResponse>(
+      `/estudante/inscricoes/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
@@ -400,6 +434,16 @@ export const consultasService = {
     api.get<ConsultarEstudantesResponse>('/estudantes', {
       token: token || tokenStorage.get() || undefined,
     }),
+
+  /**
+   * Buscar inscrições de um estudante pelo código
+   * Acesso: estudante (próprio), academia, admin
+  */
+  getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<GetInscricoesPorCodigoResponse>(
+      `/inscricoes/estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================

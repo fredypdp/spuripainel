@@ -232,6 +232,11 @@ export interface RegistrarAprovacaoAnoRequest {
   observacao?: string;
 }
 
+export interface AlterarCursoRequest {
+  tipo_ensino: 'medio' | 'superior';
+  curso_id: string;
+}
+
 // =====================
 // RESPONSE TYPES
 // =====================
@@ -590,6 +595,21 @@ export interface ListarInscricoesAprovadasResponse {
   inscricoes: Inscricao[];
   total: number;
   mensagem: string;
+}
+
+export interface GetInscricoesPorCodigoResponse {
+  codigo_estudante: string;
+  nome: string;
+  inscricoes: Inscricao[];
+  total: number;
+}
+
+export interface AlterarCursoResponse {
+  message: string;
+  codigo_estudante: string;
+  tipo_ensino: 'medio' | 'superior';
+  curso_id: string;
+  curso_nome: string;
 }
 
 export interface VincularAcademiaResponse {
