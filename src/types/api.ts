@@ -68,6 +68,7 @@ export interface AdminLoginRequest {
   senha: string;
 }
 
+// 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
 export interface CriarEstudanteRequest {
   senha: string;
   nome: string;
@@ -77,22 +78,24 @@ export interface CriarEstudanteRequest {
   bilhete_identidade_responsavel?: string;
   ano_escolar?: string;
   ano_superior?: string;
-  curso_medio?: string;
-  curso_superior?: string;
+  curso_medio_id?: string;    // 🔥 MUDOU: agora é UUID
+  curso_superior_id?: string; // 🔥 MUDOU: agora é UUID
   status_escolar?: StatusEscolar;
   status_superior?: StatusSuperior;
 }
 
+// 🔥 ATUALIZADO: curso_medio_id agora é UUID
 export interface SolicitarInscricaoEscolaRequest {
   codigo_academia: string;
   ano_escolar_inscricao: string;
-  curso_medio?: string;
+  curso_medio_id?: string; // 🔥 MUDOU: agora é UUID
 }
 
+// 🔥 ATUALIZADO: curso_id agora é UUID obrigatório
 export interface SolicitarInscricaoUniversidadeRequest {
   codigo_academia: string;
   ano_inscricao: string;
-  curso?: string;
+  curso_superior_id: string; // 🔥 MUDOU: agora é UUID obrigatório
 }
 
 export interface RegistrarNotasRequest {
@@ -113,11 +116,12 @@ export interface RegistrarFaltasRequest {
   observacao?: string;
 }
 
+// 🔥 ATUALIZADO: curso_id agora é UUID
 export interface AprovarInscricaoRequest {
   codigo_estudante: string;
   tipo: 'escola' | 'superior';
   ano_inscricao: string;
-  curso?: string;
+  curso_id?: string; // 🔥 MUDOU: agora é UUID
 }
 
 export interface ReprovarInscricaoRequest {
@@ -176,11 +180,12 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   bilhete_identidade_responsavel?: string;
 }
 
+// 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
 export interface AtualizarDadosAcademicosEstudanteRequest {
   ano_escolar?: string;
   ano_superior?: string;
-  curso_medio?: string;
-  curso_superior?: string;
+  curso_medio_id?: string;    // 🔥 MUDOU: agora é UUID
+  curso_superior_id?: string; // 🔥 MUDOU: agora é UUID
 }
 
 export interface AtualizarDadosAcademiaRequest {
@@ -246,6 +251,7 @@ export interface AuthResponse {
   role?: AdminType;
 }
 
+// 🔥 ATUALIZADO: curso_id agora é UUID
 export interface Inscricao {
   id: string;
   estudante_id: string;
@@ -254,7 +260,7 @@ export interface Inscricao {
   codigo_academia: string;
   tipo: 'escola' | 'superior';
   ano_inscricao: string;
-  curso?: string;
+  curso_id?: string; // 🔥 MUDOU: agora é UUID
   status: StatusInscricao;
   status_usado: boolean;
   created_at: string;
@@ -421,6 +427,7 @@ export interface ListarMateriasResponse {
 // PERFIS E CONSULTAS
 // =====================
 
+// 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
 export interface EstudanteDetalhado {
   id: string;
   nome: string;
@@ -436,8 +443,8 @@ export interface EstudanteDetalhado {
   status_superior: StatusSuperior;
   ano_escolar?: string;
   ano_superior?: string;
-  curso_medio?: string;
-  curso_superior?: string;
+  curso_medio_id?: string;    // 🔥 MUDOU: agora é UUID
+  curso_superior_id?: string; // 🔥 MUDOU: agora é UUID
   created_at: string;
   updated_at: string;
   total_notas: number;

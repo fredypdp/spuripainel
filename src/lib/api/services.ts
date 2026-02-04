@@ -260,15 +260,15 @@ export const estudanteService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  meuHistorico: (token?: string) =>
-    api.get<HistoricoCompletoResponse>(
-      '/estudante/meu-historico',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
   minhasInscricoes: (token?: string) =>
     api.get<{ inscricoes: Inscricao[]; total: number }>(
       '/estudante/minhas-inscricoes',
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  meuHistorico: (token?: string) =>
+    api.get<HistoricoCompletoResponse>(
+      '/estudante/meu-historico',
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -314,7 +314,7 @@ export const estudanteService = {
     ),
 
   minhasAprovacoes: (token?: string) =>
-    api.get<{ aprovacoes: any[]; total: number }>(
+    api.get<AprovacoesEstudanteResponse>(
       '/estudante/minhas-aprovacoes',
       { token: token || tokenStorage.get() || undefined }
     ),
