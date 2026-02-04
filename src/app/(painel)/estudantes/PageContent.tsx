@@ -13,6 +13,7 @@ import { EstudanteDetalhado } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import CadastroMassaEstudantes from "@/components/estudantes/CadastroMassaEstudantes";
 import { useUserCookie } from '@/hooks/useUserCookie';
+import { Dropdown } from 'primereact/dropdown';
 
 import {
   Table,
@@ -21,6 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+type NivelEnsino = 'fundamental' | 'medio';
+
+interface AnoEscolar {
+  label: string;
+  value: string;
+}
 
 export default function Estudantes() {
   const { isAcademia } = useUserType();
@@ -37,22 +45,46 @@ export default function Estudantes() {
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(estudanteService.criar);
   const { execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
   const { execute: executarAprovar } = useApi(academiaService.aprovarInscricao);
+  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
   
   const [showSenha, setShowSenha] = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   
-  // Campos do formulário
+  // ✅ Campos do formulário atualizados
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  const [anoEscolar, setAnoEscolar] = useState('');
-  const [cursoMedio, setCursoMedio] = useState('');
+  const [nivelEnsino, setNivelEnsino] = useState<NivelEnsino>('fundamental');
+  const [anoEscolar, setAnoEscolar] = useState<AnoEscolar | null>(null);
+  const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
+
+  // ✅ Opções de anos escolares por nível
+  const anosFundamental: AnoEscolar[] = [
+    { label: '1º Ano Fundamental', value: 'primeiro_fundamental' },
+    { label: '2º Ano Fundamental', value: 'segundo_fundamental' },
+    { label: '3º Ano Fundamental', value: 'terceiro_fundamental' },
+    { label: '4º Ano Fundamental', value: 'quarto_fundamental' },
+    { label: '5º Ano Fundamental', value: 'quinto_fundamental' },
+    { label: '6º Ano Fundamental', value: 'sexto_fundamental' },
+    { label: '7º Ano Fundamental', value: 'setimo_fundamental' },
+    { label: '8º Ano Fundamental', value: 'oitavo_fundamental' },
+    { label: '9º Ano Fundamental', value: 'nono_fundamental' },
+  ];
+
+  const anosMedio: AnoEscolar[] = [
+    { label: '1º Ano Médio', value: 'primeiro_medio' },
+    { label: '2º Ano Médio', value: 'segundo_medio' },
+    { label: '3º Ano Médio', value: 'terceiro_medio' },
+    { label: '4º Ano Médio', value: 'quarto_medio' },
+  ];
+
+  const anosDisponiveis = nivelEnsino === 'fundamental' ? anosFundamental : anosMedio;
 
   const carregarLista = async () => {
     try {
@@ -63,7 +95,14 @@ export default function Estudantes() {
     }
   };
 
-  // ✅ CORREÇÃO: Usar useEffect corretamente
+  // Carregar cursos ao abrir modal
+  useEffect(() => {
+    if (isOpen && isAcademia) {
+      const token = tokenStorage.get();
+      carregarCursos(token || undefined);
+    }
+  }, [isOpen, isAcademia]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -86,6 +125,11 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ Limpar ano escolar ao trocar de nível
+  useEffect(() => {
+    setAnoEscolar(null);
+  }, [nivelEnsino]);
+
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
@@ -95,6 +139,21 @@ export default function Estudantes() {
 
     if (!senha || senha.length < 6) {
       erros.push('Senha deve ter no mínimo 6 caracteres');
+    }
+
+    // ✅ Ano escolar é obrigatório
+    if (!anoEscolar) {
+      erros.push('Ano escolar é obrigatório');
+    }
+
+    // ✅ Pelo menos um bilhete deve estar preenchido
+    if (!bilheteIdentidade.trim() && !bilheteResponsavel.trim()) {
+      erros.push('Pelo menos um bilhete (estudante ou responsável) deve ser preenchido');
+    }
+
+    // ✅ Para médio, curso é obrigatório
+    if (nivelEnsino === 'medio' && !cursoSelecionado) {
+      erros.push('Para ensino médio, o curso é obrigatório');
     }
 
     if (email && email.trim()) {
@@ -122,8 +181,9 @@ export default function Estudantes() {
     setTelefone('');
     setBilheteIdentidade('');
     setBilheteResponsavel('');
-    setAnoEscolar('');
-    setCursoMedio('');
+    setNivelEnsino('fundamental');
+    setAnoEscolar(null);
+    setCursoSelecionado(null);
     setValidationErrors([]);
     setSuccessMessage('');
   };
@@ -154,8 +214,8 @@ export default function Estudantes() {
         telefone: telefone.trim() || undefined,
         bilhete_identidade: bilheteIdentidade.trim() || undefined,
         bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
-        ano_escolar: anoEscolar.trim() || undefined,
-        curso_medio: cursoMedio.trim() || undefined,
+        ano_escolar: anoEscolar?.value || undefined,
+        curso_medio_id: cursoSelecionado?.id || undefined, // ✅ Agora usa UUID do curso
       });
 
       if (!resultCadastro?.data) {
@@ -166,15 +226,14 @@ export default function Estudantes() {
       let inscricaoId = '';
 
       try {
-        // 2. Criar inscrição automática (como se o estudante tivesse solicitado)
-        const resultInscricao = await executarInscricao({
+        // 2. Criar inscrição automática
+        await executarInscricao({
           codigo_academia: user.academia.codigo_academia,
-          ano_escolar_inscricao: anoEscolar.trim() || 'primeiro_fundamental',
-          curso_medio: cursoMedio.trim() || undefined,
+          ano_escolar_inscricao: anoEscolar?.value || 'primeiro_fundamental',
+          curso_medio_id: cursoSelecionado?.id || undefined,
         }, tokenStorage.get() || undefined);
 
-        // Obter ID da inscrição para aprovar
-        // Precisamos buscar a inscrição que acabamos de criar
+        // 3. Buscar inscrição criada
         const token = tokenStorage.get();
         const inscricoesResponse = await inscricoesService.listar({
           status: 'espera',
@@ -183,7 +242,6 @@ export default function Estudantes() {
           token: token || undefined
         });
 
-        // Encontrar a inscrição do estudante recém-cadastrado
         const inscricaoCriada = inscricoesResponse.inscricoes.find(
           (insc) => insc.codigo_estudante === codigoEstudante
         );
@@ -191,26 +249,26 @@ export default function Estudantes() {
         if (inscricaoCriada) {
           inscricaoId = inscricaoCriada.id;
 
-          // 3. Aprovar inscrição automaticamente
+          // 4. Aprovar inscrição automaticamente
           await executarAprovar(
             inscricaoId,
             {
               codigo_estudante: codigoEstudante,
               tipo: 'escola',
-              ano_inscricao: anoEscolar.trim() || 'primeiro_fundamental',
-              curso: cursoMedio.trim() || undefined,
+              ano_inscricao: anoEscolar?.value || 'primeiro_fundamental',
+              curso_id: cursoSelecionado?.id || undefined,
             },
             token || undefined
           );
         }
       } catch (inscricaoError) {
         console.error('Erro na inscrição automática:', inscricaoError);
-        // Continuar mesmo se a inscrição falhar
       }
 
       setSuccessMessage(
         `✅ Estudante cadastrado com sucesso!\n` +
         `Código: ${codigoEstudante}\n` +
+        `Senha padrão: ${codigoEstudante}\n` +
         `${inscricaoId ? 'Inscrição aprovada automaticamente!' : 'Cadastrado, mas inscrição precisa ser feita manualmente.'}`
       );
       
@@ -218,7 +276,7 @@ export default function Estudantes() {
         limparFormulario();
         closeModal();
         carregarLista();
-      }, 3000);
+      }, 4000);
     } catch (err: any) {
       console.error('Erro no cadastro:', err);
       setValidationErrors([err?.data?.error || err?.message || 'Erro ao cadastrar estudante']);
@@ -312,8 +370,8 @@ export default function Estudantes() {
             </div>
           )}
           
-          {/* Modal de Cadastro Individual */}
-          <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[640px] p-5 lg:p-10">
+          {/* ✅ Modal de Cadastro Individual Atualizado */}
+          <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[700px] p-5 lg:p-10">
             <form onSubmit={handleCadastroIndividual}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar estudante</h4>
               
@@ -322,7 +380,7 @@ export default function Estudantes() {
                   ℹ️ Cadastro automático
                 </h5>
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  O estudante será automaticamente inscrito na sua academia e a inscrição será aprovada instantaneamente.
+                  O estudante será automaticamente inscrito na sua academia e a inscrição será aprovada instantaneamente. A senha padrão será o código do estudante.
                 </p>
               </div>
               
@@ -380,16 +438,19 @@ export default function Estudantes() {
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Bilhete de Identidade</Label>
+                  <Label>Bilhete do Estudante</Label>
                   <Input 
                     type="text" 
                     placeholder="000000000XX000"
                     onChange={(e) => setBilheteIdentidade(e.target.value)} 
                     disabled={cadastrandoIndividual}
                   />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Pelo menos um bilhete é obrigatório
+                  </p>
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-2 sm:col-span-1">
                   <Label>Bilhete do Responsável</Label>
                   <Input 
                     type="text" 
@@ -397,27 +458,73 @@ export default function Estudantes() {
                     onChange={(e) => setBilheteResponsavel(e.target.value)} 
                     disabled={cadastrandoIndividual}
                   />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Pelo menos um bilhete é obrigatório
+                  </p>
                 </div>
 
+                {/* ✅ Dropdown de Nível de Ensino */}
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Ano Escolar (opcional)</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="Ex: primeiro_medio"
-                    onChange={(e) => setAnoEscolar(e.target.value)} 
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                    Nível de Ensino *
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm" 
+                      variant={nivelEnsino === 'fundamental' ? "primary" : "outline"}
+                      onClick={() => setNivelEnsino('fundamental')}
+                      disabled={cadastrandoIndividual}
+                      className="flex-1"
+                    >
+                      Fundamental
+                    </Button>
+                    <Button
+                      size="sm" 
+                      variant={nivelEnsino === 'medio' ? "primary" : "outline"}
+                      onClick={() => setNivelEnsino('medio')}
+                      disabled={cadastrandoIndividual}
+                      className="flex-1"
+                    >
+                      Médio
+                    </Button>
+                  </div>
+                </div>
+
+                {/* ✅ Dropdown de Ano Escolar */}
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                    Ano Escolar *
+                  </span>
+                  <Dropdown 
+                    value={anoEscolar} 
+                    onChange={(e) => setAnoEscolar(e.value)} 
+                    options={anosDisponiveis} 
+                    optionLabel="label"
+                    placeholder="Selecione o ano" 
+                    className="w-full"
                     disabled={cadastrandoIndividual}
                   />
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Curso (opcional)</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="Ex: Ciências"
-                    onChange={(e) => setCursoMedio(e.target.value)} 
-                    disabled={cadastrandoIndividual}
-                  />
-                </div>
+                {/* ✅ Dropdown de Curso (se médio) */}
+                {nivelEnsino === 'medio' && (
+                  <div className="col-span-2">
+                    <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                      Curso * (obrigatório para médio)
+                    </span>
+                    <Dropdown 
+                      value={cursoSelecionado} 
+                      onChange={(e) => setCursoSelecionado(e.value)} 
+                      options={dataCursos?.cursos || []} 
+                      optionLabel="nome"
+                      placeholder="Selecione o curso" 
+                      className="w-full"
+                      disabled={cadastrandoIndividual}
+                      emptyMessage="Nenhum curso disponível"
+                      filter
+                    />
+                  </div>
+                )}
               </div>
 
               {successMessage && (
@@ -452,7 +559,7 @@ export default function Estudantes() {
               )}
 
               <div className="flex items-center justify-end w-full gap-3 mt-6">
-                <Button 
+                <Button
                   size="sm" 
                   variant="outline" 
                   onClick={handleCloseModal}
@@ -460,7 +567,7 @@ export default function Estudantes() {
                 >
                   Fechar
                 </Button>
-                <Button 
+                <Button
                   size="sm"
                   disabled={cadastrandoIndividual}
                 >

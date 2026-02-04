@@ -275,7 +275,7 @@ export default function Inscricoes() {
                           {inscricao.ano_inscricao}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate px-5 py-3 text-gray-500 dark:text-gray-400 text-start text-theme-sm">
-                          {inscricao.curso || '-'}
+                          {inscricao.curso_id || '-'}
                         </TableCell>
                         <TableCell className="px-5 py-3 text-start">
                           <Badge color={statusInfo.color}>

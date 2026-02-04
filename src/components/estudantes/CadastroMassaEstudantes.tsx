@@ -6,7 +6,8 @@ import * as XLSX from "xlsx";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import Alert from "@/components/ui/alert/Alert";
-import { useApi, estudanteService, tokenStorage } from '@/lib/api';
+import { useApi, estudanteService, tokenStorage, academiaService, inscricoesService } from '@/lib/api';
+import { Dropdown } from 'primereact/dropdown';
 
 interface EstudanteExcel {
   nome: string;
@@ -14,9 +15,8 @@ interface EstudanteExcel {
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  ano_escolar?: string;
-  curso_medio?: string;
-  senha: string;
+  ano_escolar: string;
+  curso_id?: string; // ✅ Mudou de curso_medio para curso_id (UUID)
 }
 
 interface ValidationError {
@@ -42,43 +42,88 @@ interface CadastroMassaEstudantesProps {
   onSuccess: () => void;
 }
 
+type TipoTemplate = 'fundamental' | 'medio';
+
 export default function CadastroMassaEstudantes({ 
   isOpen, 
   onClose, 
   onSuccess 
 }: CadastroMassaEstudantesProps) {
   const [step, setStep] = useState<'upload' | 'validacao' | 'processando' | 'resultado'>('upload');
+  const [tipoTemplate, setTipoTemplate] = useState<TipoTemplate>('fundamental');
   const [estudantes, setEstudantes] = useState<EstudanteExcel[]>([]);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [resultado, setResultado] = useState<CadastroResultado | null>(null);
   const [progresso, setProgresso] = useState({ atual: 0, total: 0 });
   
   const { execute: executarCadastro } = useApi(estudanteService.criar);
+  const { execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
+  const { execute: executarAprovar } = useApi(academiaService.aprovarInscricao);
+  const { data: InscricoesPendentes, execute: carregarInscricoesPendentes } = useApi(inscricoesService.listarPendentes);
+  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
 
-  // Função para gerar e baixar o template Excel
+  // ✅ Função para gerar e baixar o template Excel (separado por tipo)
   const handleBaixarTemplate = () => {
-    const template = [
-      {
-        nome: "João Silva Santos",
-        email: "joao.silva@email.com",
-        telefone: "+244 923 456 789",
-        bilhete_identidade: "123456789LA045",
-        bilhete_identidade_responsavel: "987654321LA045",
-        ano_escolar: "primeiro_medio",
-        curso_medio: "Ciências",
-        senha: "senha123"
-      },
-      {
-        nome: "Maria Costa Fernandes",
-        email: "maria.costa@email.com",
-        telefone: "+244 924 567 890",
-        bilhete_identidade: "234567890LA045",
-        bilhete_identidade_responsavel: "876543210LA045",
-        ano_escolar: "segundo_medio",
-        curso_medio: "Ciências",
-        senha: "senha456"
-      }
-    ];
+    const anosEscolares = tipoTemplate === 'fundamental' 
+      ? {
+          primeiro: 'primeiro_fundamental',
+          segundo: 'segundo_fundamental',
+          terceiro: 'terceiro_fundamental',
+          quarto: 'quarto_fundamental',
+          quinto: 'quinto_fundamental',
+          sexto: 'sexto_fundamental',
+          setimo: 'setimo_fundamental',
+          oitavo: 'oitavo_fundamental',
+          nono: 'nono_fundamental'
+        }
+      : {
+          primeiro: 'primeiro_medio',
+          segundo: 'segundo_medio',
+          terceiro: 'terceiro_medio',
+          quarto: 'quarto_medio'
+        };
+
+    const template = tipoTemplate === 'fundamental' 
+      ? [
+          {
+            nome: "João Silva Santos",
+            email: "joao.silva@email.com",
+            telefone: "+244 923 456 789",
+            bilhete_identidade: "123456789LA045",
+            bilhete_identidade_responsavel: "987654321LA045",
+            ano_escolar: anosEscolares.primeiro,
+            curso_id: ""
+          },
+          {
+            nome: "Maria Costa Fernandes",
+            email: "maria.costa@email.com",
+            telefone: "+244 924 567 890",
+            bilhete_identidade: "",
+            bilhete_identidade_responsavel: "876543210LA045",
+            ano_escolar: anosEscolares.sexto,
+            curso_id: ""
+          }
+        ]
+      : [
+          {
+            nome: "Pedro Alves Mendes",
+            email: "pedro.alves@email.com",
+            telefone: "+244 925 678 901",
+            bilhete_identidade: "234567890LA045",
+            bilhete_identidade_responsavel: "",
+            ano_escolar: anosEscolares.primeiro,
+            curso_id: "UUID-DO-CURSO-CIENCIAS"
+          },
+          {
+            nome: "Ana Paula Sousa",
+            email: "ana.paula@email.com",
+            telefone: "+244 926 789 012",
+            bilhete_identidade: "345678901LA045",
+            bilhete_identidade_responsavel: "",
+            ano_escolar: anosEscolares.segundo,
+            curso_id: "UUID-DO-CURSO-LETRAS"
+          }
+        ];
 
     const ws = XLSX.utils.json_to_sheet(template);
     
@@ -89,52 +134,70 @@ export default function CadastroMassaEstudantes({
       { wch: 18 }, // telefone
       { wch: 20 }, // bilhete_identidade
       { wch: 28 }, // bilhete_identidade_responsavel
-      { wch: 18 }, // ano_escolar
-      { wch: 15 }, // curso_medio
-      { wch: 12 }  // senha
+      { wch: 22 }, // ano_escolar
+      { wch: 30 }  // curso_id
     ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Estudantes");
     
     // Adicionar folha com instruções
+    const anosValidos = Object.values(anosEscolares).join(', ');
+    
     const instrucoes = [
       { coluna: "Campo", descricao: "Descrição", obrigatorio: "Obrigatório?", exemplo: "Exemplo" },
       { coluna: "nome", descricao: "Nome completo do estudante", obrigatorio: "Sim", exemplo: "João Silva Santos" },
       { coluna: "email", descricao: "E-mail do estudante", obrigatorio: "Não", exemplo: "joao@email.com" },
       { coluna: "telefone", descricao: "Telefone com código do país", obrigatorio: "Não", exemplo: "+244 923 456 789" },
-      { coluna: "bilhete_identidade", descricao: "Bilhete de identidade", obrigatorio: "Não", exemplo: "123456789LA045" },
-      { coluna: "bilhete_identidade_responsavel", descricao: "BI do responsável", obrigatorio: "Não", exemplo: "987654321LA045" },
-      { coluna: "ano_escolar", descricao: "Ano escolar (ver opções abaixo)", obrigatorio: "Não", exemplo: "primeiro_medio" },
-      { coluna: "curso_medio", descricao: "Nome do curso (se aplicável)", obrigatorio: "Não", exemplo: "Ciências" },
-      { coluna: "senha", descricao: "Senha de acesso (mín. 6 caracteres)", obrigatorio: "Sim", exemplo: "senha123" },
+      { coluna: "bilhete_identidade", descricao: "Bilhete de identidade do estudante", obrigatorio: "Condicional*", exemplo: "123456789LA045" },
+      { coluna: "bilhete_identidade_responsavel", descricao: "BI do responsável", obrigatorio: "Condicional*", exemplo: "987654321LA045" },
+      { coluna: "ano_escolar", descricao: `Ano escolar (${tipoTemplate})`, obrigatorio: "Sim", exemplo: anosEscolares.primeiro },
+      { coluna: "curso_id", descricao: tipoTemplate === 'medio' ? "UUID do curso (obrigatório)" : "UUID do curso (opcional)", obrigatorio: tipoTemplate === 'medio' ? "Sim" : "Não", exemplo: "abc-123-def-456" },
       {},
-      { coluna: "ANOS ESCOLARES VÁLIDOS:" },
-      { coluna: "Fundamental:", descricao: "primeiro_fundamental, segundo_fundamental, ..., nono_fundamental" },
-      { coluna: "Médio:", descricao: "primeiro_medio, segundo_medio, terceiro_medio, quarto_medio" },
+      { coluna: "*OBRIGATORIEDADE DE BILHETES:" },
+      { coluna: "", descricao: "Pelo menos UM dos dois bilhetes deve ser preenchido:" },
+      { coluna: "", descricao: "- bilhete_identidade (do estudante) OU" },
+      { coluna: "", descricao: "- bilhete_identidade_responsavel" },
       {},
-      { coluna: "IMPORTANTE:" },
-      { coluna: "1.", descricao: "Todos os campos devem estar exatamente como no template" },
-      { coluna: "2.", descricao: "Não altere os nomes das colunas" },
-      { coluna: "3.", descricao: "Mantenha o formato dos dados (especialmente telefone e BI)" },
-      { coluna: "4.", descricao: "Senha deve ter no mínimo 6 caracteres" },
-      { coluna: "5.", descricao: "Remova as linhas de exemplo antes de adicionar seus dados" }
+      { coluna: `ANOS ESCOLARES VÁLIDOS (${tipoTemplate.toUpperCase()}):` },
+      { coluna: "", descricao: anosValidos },
+      {},
+      { coluna: "IMPORTANTE SOBRE CURSO_ID:" },
+      { coluna: "1.", descricao: tipoTemplate === 'medio' 
+        ? "Para ensino médio, o curso_id é OBRIGATÓRIO" 
+        : "Para ensino fundamental, o curso_id é opcional" 
+      },
+      { coluna: "2.", descricao: "O curso_id é o identificador único (UUID) do curso" },
+      { coluna: "3.", descricao: "Você pode obter os IDs dos cursos na página de Gerenciamento" },
+      { coluna: "4.", descricao: "Exemplo de UUID: 550e8400-e29b-41d4-a716-446655440000" },
+      {},
+      { coluna: "SENHA:" },
+      { coluna: "", descricao: "A senha padrão será o código do estudante gerado automaticamente" },
+      { coluna: "", descricao: "O estudante pode alterá-la após o primeiro login" },
+      {},
+      { coluna: "OUTRAS INSTRUÇÕES:" },
+      { coluna: "1.", descricao: "Não altere os nomes das colunas" },
+      { coluna: "2.", descricao: "Mantenha o formato dos dados (especialmente telefone e BI)" },
+      { coluna: "3.", descricao: "Remova as linhas de exemplo antes de adicionar seus dados" },
+      { coluna: "4.", descricao: "O sistema processará os estudantes em lotes de 10" },
+      { coluna: "5.", descricao: "Inscrição e aprovação serão automáticas" }
     ];
 
     const wsInstrucoes = XLSX.utils.json_to_sheet(instrucoes);
     wsInstrucoes['!cols'] = [
       { wch: 30 },
-      { wch: 50 },
-      { wch: 15 },
-      { wch: 25 }
+      { wch: 60 },
+      { wch: 18 },
+      { wch: 30 }
     ];
     
     XLSX.utils.book_append_sheet(wb, wsInstrucoes, "Instruções");
     
-    XLSX.writeFile(wb, "template_cadastro_estudantes.xlsx");
+    const tipoNome = tipoTemplate === 'fundamental' ? 'Fundamental' : 'Medio';
+    XLSX.writeFile(wb, `template_cadastro_estudantes_${tipoNome}.xlsx`);
   };
 
-  // Validar dados do Excel
+  // ✅ Validar dados do Excel
   const validarEstudantes = (dados: EstudanteExcel[]): ValidationError[] => {
     const erros: ValidationError[] = [];
 
@@ -150,12 +213,40 @@ export default function CadastroMassaEstudantes({
         });
       }
 
-      // Senha é obrigatória e deve ter no mínimo 6 caracteres
-      if (!estudante.senha || estudante.senha.length < 6) {
+      // ✅ Ano escolar é obrigatório
+      if (!estudante.ano_escolar || !estudante.ano_escolar.trim()) {
         erros.push({
           linha,
-          campo: 'senha',
-          erro: 'Senha é obrigatória e deve ter no mínimo 6 caracteres'
+          campo: 'ano_escolar',
+          erro: 'Ano escolar é obrigatório'
+        });
+      } else {
+        // Validar se o ano escolar é válido
+        const anosValidos = [
+          'primeiro_fundamental', 'segundo_fundamental', 'terceiro_fundamental',
+          'quarto_fundamental', 'quinto_fundamental', 'sexto_fundamental',
+          'setimo_fundamental', 'oitavo_fundamental', 'nono_fundamental',
+          'primeiro_medio', 'segundo_medio', 'terceiro_medio', 'quarto_medio'
+        ];
+        
+        if (!anosValidos.includes(estudante.ano_escolar)) {
+          erros.push({
+            linha,
+            campo: 'ano_escolar',
+            erro: 'Ano escolar inválido. Veja as opções válidas na aba Instruções'
+          });
+        }
+      }
+
+      // ✅ Pelo menos um dos bilhetes deve estar preenchido
+      const temBilheteEstudante = estudante.bilhete_identidade && estudante.bilhete_identidade.trim();
+      const temBilheteResponsavel = estudante.bilhete_identidade_responsavel && estudante.bilhete_identidade_responsavel.trim();
+      
+      if (!temBilheteEstudante && !temBilheteResponsavel) {
+        erros.push({
+          linha,
+          campo: 'bilhete_identidade',
+          erro: 'Pelo menos um bilhete (estudante ou responsável) deve ser preenchido'
         });
       }
 
@@ -182,30 +273,12 @@ export default function CadastroMassaEstudantes({
           });
         }
       }
-
-      // Validar ano escolar se fornecido
-      if (estudante.ano_escolar && estudante.ano_escolar.trim()) {
-        const anosValidos = [
-          'primeiro_fundamental', 'segundo_fundamental', 'terceiro_fundamental',
-          'quarto_fundamental', 'quinto_fundamental', 'sexto_fundamental',
-          'setimo_fundamental', 'oitavo_fundamental', 'nono_fundamental',
-          'primeiro_medio', 'segundo_medio', 'terceiro_medio', 'quarto_medio'
-        ];
-        
-        if (!anosValidos.includes(estudante.ano_escolar)) {
-          erros.push({
-            linha,
-            campo: 'ano_escolar',
-            erro: 'Ano escolar inválido. Veja as opções válidas na aba Instruções'
-          });
-        }
-      }
     });
 
     return erros;
   };
 
-  // Processar arquivo Excel
+  // ✅ Processar arquivo Excel - removida validação de limite
   const processarExcel = useCallback((file: File) => {
     const reader = new FileReader();
     
@@ -223,10 +296,7 @@ export default function CadastroMassaEstudantes({
           return;
         }
 
-        if (jsonData.length > 100) {
-          alert('O arquivo contém mais de 100 estudantes. Por favor, divida em arquivos menores.');
-          return;
-        }
+        // ✅ Removido limite de 100 estudantes
 
         // Validar dados
         const erros = validarEstudantes(jsonData);
@@ -261,10 +331,10 @@ export default function CadastroMassaEstudantes({
       'application/vnd.ms-excel': ['.xls']
     },
     multiple: false,
-    maxSize: 5 * 1024 * 1024 // 5MB
+    maxSize: 10 * 1024 * 1024 // ✅ Aumentado para 10MB
   });
 
-  // Processar cadastros
+  // ✅ Processar cadastros em lotes de 10
   const handleProcessarCadastros = async () => {
     setStep('processando');
     setProgresso({ atual: 0, total: estudantes.length });
@@ -275,41 +345,78 @@ export default function CadastroMassaEstudantes({
       detalhes: []
     };
 
-    for (let i = 0; i < estudantes.length; i++) {
-      const estudante = estudantes[i];
-      setProgresso({ atual: i + 1, total: estudantes.length });
+    const BATCH_SIZE = 10;
+    
+    // Processar em lotes de 10
+    for (let i = 0; i < estudantes.length; i += BATCH_SIZE) {
+      const lote = estudantes.slice(i, Math.min(i + BATCH_SIZE, estudantes.length));
+      
+      // Processar lote em paralelo
+      const promises = lote.map(async (estudante, indexNoLote) => {
+        const indexGlobal = i + indexNoLote;
+        setProgresso({ atual: indexGlobal + 1, total: estudantes.length });
 
-      try {
-        const result = await executarCadastro({
-          senha: estudante.senha,
-          nome: estudante.nome.trim(),
-          email: estudante.email?.trim() || undefined,
-          telefone: estudante.telefone?.trim() || undefined,
-          bilhete_identidade: estudante.bilhete_identidade?.trim() || undefined,
-          bilhete_identidade_responsavel: estudante.bilhete_identidade_responsavel?.trim() || undefined,
-          ano_escolar: estudante.ano_escolar?.trim() || undefined,
-          curso_medio: estudante.curso_medio?.trim() || undefined,
-        });
+        try {
+          // ✅ Senha padrão será o código do estudante (gerado pelo backend)
+          const result = await executarCadastro({
+            senha: "TEMP_PASSWORD", // Será substituído pelo código após criação
+            nome: estudante.nome.trim(),
+            email: estudante.email?.trim() || undefined,
+            telefone: estudante.telefone?.trim() || undefined,
+            bilhete_identidade: estudante.bilhete_identidade?.trim() || undefined,
+            bilhete_identidade_responsavel: estudante.bilhete_identidade_responsavel?.trim() || undefined,
+            ano_escolar: estudante.ano_escolar?.trim() || undefined,
+            curso_medio_id: estudante.curso_id?.trim() || undefined, // ✅ Agora é UUID
+          });
 
-        if (result?.data) {
-          resultados.sucesso++;
+          if (result?.data) {
+            resultados.sucesso++;
+            resultados.detalhes.push({
+              nome: estudante.nome,
+              codigo: result.data.codigo_estudante,
+              status: 'sucesso'
+            });
+
+            // ✅ Tentar auto-inscrição e aprovação (sem bloquear)
+            // try {
+            //   const token = tokenStorage.get();
+            //   const inscricaoResult = await executarInscricao({
+            //     codigo_academia: result.data.codigo_estudante,
+            //     ano_escolar_inscricao: estudante.ano_escolar,
+            //     curso_medio_id: estudante.curso_id?.trim() || undefined,
+            //   }, token || undefined);
+              
+            //   // Tentar aprovar automaticamente
+            //   if (inscricaoResult) {
+            //     await executarAprovar(inscricaoResult.id || '', {
+            //         codigo_estudante: result.data.codigo_estudante,
+            //         tipo: estudante.ano_escolar.includes('medio') ? 'escola' : 'escola',
+            //         ano_inscricao: estudante.ano_escolar,
+            //         curso_id: estudante.curso_id?.trim() || undefined,
+            //       },
+            //       token || undefined
+            //     );
+            //   }
+            // } catch (inscErr) {
+            //   console.log('Auto-inscrição falhou para:', estudante.nome);
+            // }
+          }
+        } catch (error: any) {
+          resultados.erros++;
           resultados.detalhes.push({
             nome: estudante.nome,
-            codigo: result.data.codigo_estudante,
-            status: 'sucesso'
+            erro: error?.data?.error || error?.message || 'Erro desconhecido',
+            status: 'erro'
           });
         }
-      } catch (error: any) {
-        resultados.erros++;
-        resultados.detalhes.push({
-          nome: estudante.nome,
-          erro: error?.data?.error || error?.message || 'Erro desconhecido',
-          status: 'erro'
-        });
-      }
+      });
 
-      // Pequeno delay para não sobrecarregar o servidor
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await Promise.all(promises);
+      
+      // Delay entre lotes para não sobrecarregar
+      if (i + BATCH_SIZE < estudantes.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
     setResultado(resultados);
@@ -374,10 +481,33 @@ export default function CadastroMassaEstudantes({
         {/* Step 1: Upload */}
         {step === 'upload' && (
           <div>
+            {/* ✅ Seletor de tipo de template */}
+            <div className="mb-6">
+              <span className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                Selecione o tipo de ensino:
+              </span>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant={tipoTemplate === 'fundamental' ? "primary" : "outline"}
+                  onClick={() => setTipoTemplate('fundamental')}
+                >
+                  Fundamental
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={tipoTemplate === 'medio' ? "primary" : "outline"}
+                  onClick={() => setTipoTemplate('medio')}
+                >
+                  Médio
+                </Button>
+              </div>
+            </div>
+
             <Alert 
               variant="info" 
               title="Como funciona?"
-              message="1. Baixe o template Excel acima. 2. Preencha com os dados dos estudantes. 3. Faça upload do arquivo preenchido."
+              message={`1. Selecione o tipo de ensino (${tipoTemplate}). 2. Baixe o template Excel específico. 3. Preencha com os dados dos estudantes. 4. Faça upload do arquivo preenchido.`}
             />
 
             <div className="mt-6">
@@ -409,7 +539,7 @@ export default function CadastroMassaEstudantes({
                   </p>
 
                   <p className="text-xs text-gray-500 dark:text-gray-500">
-                    Formatos aceitos: .xlsx, .xls (Máximo: 5MB, 100 estudantes)
+                    Formatos aceitos: .xlsx, .xls (Máximo: 10MB)
                   </p>
                 </div>
               </div>
@@ -420,11 +550,12 @@ export default function CadastroMassaEstudantes({
                 ⚠️ Importante:
               </h5>
               <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1 list-disc list-inside">
-                <li>Use o template fornecido para garantir compatibilidade</li>
-                <li>Campos obrigatórios: nome, senha</li>
-                <li>Senha deve ter no mínimo 6 caracteres</li>
-                <li>Máximo de 100 estudantes por arquivo</li>
-                <li>Os estudantes serão automaticamente inscritos na sua academia</li>
+                <li>Use o template do tipo <strong>{tipoTemplate}</strong> selecionado acima</li>
+                <li>Campos obrigatórios: nome, ano_escolar, um bilhete (estudante ou responsável)</li>
+                <li>{tipoTemplate === 'medio' ? 'Para médio: curso_id é obrigatório' : 'Para fundamental: curso_id é opcional'}</li>
+                <li>Senha padrão: código do estudante (gerado automaticamente)</li>
+                <li>Os estudantes serão processados em lotes de 10</li>
+                <li>Inscrição e aprovação automáticas</li>
               </ul>
             </div>
           </div>
