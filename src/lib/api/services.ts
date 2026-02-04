@@ -148,6 +148,14 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  // 🔥 NOVO: Cadastrar estudante já vinculado
+  cadastrarEstudante: (data: CriarEstudanteRequest, token?: string) =>
+    api.post<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string; status: string } }>(
+      '/academia/estudante/register',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   // Cursos
   criarCurso: (data: CriarCursoRequest, token?: string) =>
     api.post<{ message: string; data: { id: string; nome: string; type: string } }>(
@@ -271,36 +279,28 @@ export const estudanteService = {
     api.post<AuthResponse>('/login', data),
 
   solicitarInscricaoEscola: (data: SolicitarInscricaoEscolaRequest, token?: string) =>
-    api.post<InscricaoResponse>(
+    api.post<{ message: string; inscricao_id: string; academia: string; tipo: string }>(
       '/estudante/inscricao-escola',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
   solicitarInscricaoUniversidade: (data: SolicitarInscricaoUniversidadeRequest, token?: string) =>
-    api.post<InscricaoResponse>(
+    api.post<{ message: string; inscricao_id: string; academia: string; tipo: string }>(
       '/estudante/inscricao-universidade',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  minhasInscricoes: (token?: string) =>
-    api.get<{ inscricoes: Inscricao[]; total: number }>(
-      '/estudante/minhas-inscricoes',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  meuHistorico: (token?: string) =>
-    api.get<HistoricoCompletoResponse>(
-      '/estudante/meu-historico',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  listarInscricoes: (token?: string) =>
+    api.get<ListarInscricoesResponse>('/estudante/minhas-inscricoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   listarInscricoesAprovadas: (token?: string) =>
-    api.get<ListarInscricoesAprovadasResponse>(
-      '/estudante/inscricoes-aprovadas',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    api.get<ListarInscricoesAprovadasResponse>('/estudante/inscricoes-aprovadas', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   vincularAcademia: (data: VincularAcademiaRequest, token?: string) =>
     api.post<VincularAcademiaResponse>(
@@ -324,7 +324,7 @@ export const estudanteService = {
     ),
 
   atualizarDadosPessoais: (data: AtualizarDadosPessoaisEstudanteRequest, token?: string) =>
-    api.put<{ message: string; aviso?: string; email_verificado?: boolean }>(
+    api.put<{ message: string; aviso?: string }>(
       '/estudante/dados-pessoais',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -337,17 +337,21 @@ export const estudanteService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  meuHistorico: (token?: string) =>
+    api.get<HistoricoCompletoResponse>('/estudante/meu-historico', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
   minhasAprovacoes: (token?: string) =>
-    api.get<AprovacoesEstudanteResponse>(
-      '/estudante/minhas-aprovacoes',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    api.get<AprovacoesEstudanteResponse>('/estudante/minhas-aprovacoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   /**
-   * Buscar inscrições de um estudante pelo código
-   * Acesso: estudante (próprio)
+   * Buscar inscrições do próprio estudante
+   * Acesso: estudante
   */
-  getInscricoesPorCodigo: (codigoEstudante: string, token?: string) =>
+  getMinhasInscricoesPorCodigo: (codigoEstudante: string, token?: string) =>
     api.get<GetInscricoesPorCodigoResponse>(
       `/estudante/inscricoes/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
@@ -355,52 +359,45 @@ export const estudanteService = {
 };
 
 // =====================
-// INSCRIÇÕES
+// INSCRIÇÕES (comum)
 // =====================
 
 export const inscricoesService = {
-  listar: (params?: {
-    status?: StatusInscricao;
-    limit?: number;
-    offset?: number;
-    token?: string;
-  }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.status) queryParams.append('status', params.status);
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
-
-    const query = queryParams.toString();
-    const url = `/inscricoes${query ? `?${query}` : ''}`;
-
-    return api.get<ListarInscricoesResponse>(url, {
-      token: params?.token || tokenStorage.get() || undefined,
+  listar: (status?: StatusInscricao, token?: string) => {
+    const query = status ? `?status=${status}` : '';
+    return api.get<ListarInscricoesResponse>(`/inscricoes${query}`, {
+      token: token || tokenStorage.get() || undefined,
     });
   },
 
-  listarPendentes: (params?: {
-    limit?: number;
-    offset?: number;
-    token?: string;
-  }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
+  listarPendentes: (token?: string) =>
+    api.get<ListarInscricoesResponse>('/inscricoes-pendentes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
-    const query = queryParams.toString();
-    const url = `/inscricoes-pendentes${query ? `?${query}` : ''}`;
-
-    return api.get<ListarInscricoesResponse>(url, {
-      token: params?.token || tokenStorage.get() || undefined,
-    });
-  },
+  detalhes: (inscricaoId: string, token?: string) =>
+    api.get<InscricaoResponse>(`/inscricoes/${inscricaoId}`, {
+      token: token || tokenStorage.get() || undefined,
+    }),
 };
 
 // =====================
-// CONSULTAS (CQRS)
+// CONSULTAS (rotas compartilhadas)
 // =====================
 
 export const consultasService = {
+  estudante: (codigoEstudante: string, token?: string) =>
+    api.get<ConsultarEstudanteResponse>(
+      `/consultar-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  academia: (codigoAcademia: string, token?: string) =>
+    api.get<ConsultarAcademiaResponse>(
+      `/consultar-academia/${codigoAcademia}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   notasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<NotasEstudanteResponse>(
       `/notas-estudante/${codigoEstudante}`,

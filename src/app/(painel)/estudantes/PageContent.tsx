@@ -1,3 +1,4 @@
+// src/app/(painel)/estudantes/PageContent.tsx
 "use client"
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
@@ -40,9 +41,12 @@ export default function Estudantes() {
   const [cadastrandoIndividual, setCadastrandoIndividual] = useState(false);
   
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(estudanteService.criar);
-  const { execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
-  const { execute: executarAprovar } = useApi(academiaService.aprovarInscricao);
+  
+  // 🔥 ATUALIZADO: Academia usa endpoint próprio para cadastrar estudantes vinculados
+  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(
+    isAcademia ? academiaService.cadastrarEstudante : estudanteService.criar
+  );
+  
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
   
   const [showSenha, setShowSenha] = useState(false);
@@ -230,7 +234,7 @@ export default function Estudantes() {
     setSuccessMessage('');
   };
 
-  // ✅ Função para cadastro individual com auto-inscrição
+  // 🔥 ATUALIZADO: Cadastro direto pela academia (já vinculado)
   const handleCadastroIndividual = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationErrors([]);
@@ -248,7 +252,8 @@ export default function Estudantes() {
     setCadastrandoIndividual(true);
 
     try {
-      // 1. Cadastrar estudante
+      // 🔥 ÚNICO PASSO: Cadastrar estudante já vinculado
+      console.log('Cadastrando estudante vinculado à academia...');
       const resultCadastro = await executarCadastro({
         senha,
         nome: nome.trim(),
@@ -258,6 +263,7 @@ export default function Estudantes() {
         bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
         ano_escolar: anoEscolar?.value || undefined,
         curso_medio_id: cursoSelecionado?.id || undefined,
+        status_escolar: 'em_andamento', // Define status inicial
       });
 
       if (!resultCadastro?.data) {
@@ -265,62 +271,24 @@ export default function Estudantes() {
       }
 
       const codigoEstudante = resultCadastro.data.codigo_estudante;
-      let inscricaoId = '';
-
-      try {
-        // 2. Criar inscrição automática
-        await executarInscricao({
-          codigo_academia: user.academia.codigo_academia,
-          ano_escolar_inscricao: anoEscolar?.value || 'primeiro_fundamental',
-          curso_medio_id: cursoSelecionado?.id || undefined,
-        }, tokenStorage.get() || undefined);
-
-        // 3. Buscar inscrição criada
-        const token = tokenStorage.get();
-        const inscricoesResponse = await inscricoesService.listar({
-          status: 'espera',
-          limit: 100,
-          offset: 0,
-          token: token || undefined
-        });
-
-        const inscricaoCriada = inscricoesResponse.inscricoes.find(
-          (insc) => insc.codigo_estudante === codigoEstudante
-        );
-
-        if (inscricaoCriada) {
-          inscricaoId = inscricaoCriada.id;
-
-          // 4. Aprovar inscrição automaticamente
-          await executarAprovar(
-            inscricaoId,
-            {
-              codigo_estudante: codigoEstudante,
-              tipo: 'escola',
-              ano_inscricao: anoEscolar?.value || 'primeiro_fundamental',
-              curso_id: cursoSelecionado?.id || undefined,
-            },
-            token || undefined
-          );
-        }
-      } catch (inscricaoError) {
-        console.error('Erro na inscrição automática:', inscricaoError);
-      }
+      const statusFinal = resultCadastro.data.status;
+      
+      console.log('✅ Estudante cadastrado e vinculado:', codigoEstudante);
 
       setSuccessMessage(
-        `✅ Estudante cadastrado com sucesso!\n` +
+        `✅ Estudante cadastrado e vinculado com sucesso!\n` +
         `Código: ${codigoEstudante}\n` +
-        `Senha padrão: ${codigoEstudante}\n` +
-        `${inscricaoId ? 'Inscrição aprovada automaticamente!' : 'Cadastrado, mas inscrição precisa ser feita manualmente.'}`
+        `Senha: ${senha}\n` +
+        `Status: ${statusFinal}\n` +
+        `✅ O estudante já está vinculado à sua academia!`
       );
       
       setTimeout(() => {
         limparFormulario();
-        closeModal();
         carregarLista();
       }, 4000);
     } catch (err: any) {
-      console.error('Erro no cadastro:', err);
+      console.error('❌ Erro no cadastro:', err);
       setValidationErrors([err?.data?.error || err?.message || 'Erro ao cadastrar estudante']);
     } finally {
       setCadastrandoIndividual(false);
@@ -362,283 +330,289 @@ export default function Estudantes() {
     }
   };
 
-  const getStatusEscolarBadge = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'em_andamento':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
-      case 'finalizado':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      case 'inativo':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
-    }
-  };
-
-  // ✅ Obter nome descritivo do nível da academia
-  const getNivelAcademiaDescricao = (): string => {
-    const nivel = user?.academia?.nivel_escolar;
-    if (nivel === 'fundamental') return 'Fundamental';
-    if (nivel === 'medio') return 'Médio';
-    if (nivel === 'misto') return 'Fundamental e Médio';
-    return '';
-  };
-
   return (
-    <div>
-      <PageBreadcrumb pageTitle="Estudantes" />
-      <div className="space-y-6">
-        <div className="flex flex-wrap gap-2">
-          {isAcademia && (
-            <>
-              <Button size="sm" onClick={openModal}>
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Cadastrar Individual
-              </Button>
-              <Button size="sm" variant="outline" onClick={openMassaModal}>
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                Cadastro em Massa
-              </Button>
-            </>
-          )}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            disabled={carregandoEstudantes} 
-            onClick={carregarLista}
-          >
-            {carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}
-          </Button>
+    <div className="container mx-auto py-6 px-4 lg:px-0 md:px-0">
+      <div className="flex flex-col gap-6">        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Lista de Estudantes
+          </h1>
           
-          {dataEstudantes && (
-            <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
-              <span className="font-medium">{dataEstudantes.total}</span>
-              <span className="ml-1">estudantes encontrados</span>
-            </div>
-          )}
-          
-          {/* ✅ Modal de Cadastro Individual Atualizado */}
-          <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[700px] p-5 lg:p-10">
-            <form onSubmit={handleCadastroIndividual}>
-              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar estudante</h4>
-              
-              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <h5 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
-                  ℹ️ Cadastro automático
-                </h5>
-                <p className="text-xs text-blue-700 dark:text-blue-400">
-                  O estudante será automaticamente inscrito na sua academia ({getNivelAcademiaDescricao()}) e a inscrição será aprovada instantaneamente. A senha padrão será o código do estudante.
-                </p>
+          <div className="ml-auto flex items-center gap-3">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={carregarLista}
+              disabled={carregandoEstudantes}
+            >
+              {carregandoEstudantes ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  Carregando...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Atualizar lista
+                </>
+              )}
+            </Button>
+            
+            {isAcademia && (
+              <>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={openModal}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Cadastrar Individual
+                </Button>
+                
+                <Button 
+                  size="sm"
+                  onClick={openMassaModal}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Cadastro em Massa
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Modal de Cadastro Individual */}
+        <div>
+          <Modal isOpen={isOpen} onClose={handleCloseModal}>
+            <form onSubmit={handleCadastroIndividual} className="space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Cadastrar Estudante
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              
-              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-                <div className="col-span-2">
-                  <Label>Nome completo *</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="Digite o nome completo"
-                    onChange={(e) => setNome(e.target.value)} 
+
+              {validationErrors.length > 0 && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-400 mb-1">
+                        Erro ao cadastrar estudante
+                      </p>
+                      <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-400 space-y-1">
+                        {validationErrors.map((erro, index) => (
+                          <li key={index}>{erro}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-green-600 dark:text-green-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-sm text-green-700 dark:text-green-400 whitespace-pre-line">
+                      {successMessage}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <Label htmlFor="nome">Nome Completo *</Label>
+                  <Input
+                    id="nome"
+                    placeholder="Nome do estudante"
+                    onChange={(e) => setNome(e.target.value)}
                     disabled={cadastrandoIndividual}
                   />
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Senha *</Label>
+                <div>
+                  <Label htmlFor="senha">Senha *</Label>
                   <div className="relative">
-                    <Input 
-                      placeholder="Mínimo 6 caracteres"
+                    <Input
+                      id="senha"
                       type={showSenha ? "text" : "password"}
+                      placeholder="Mínimo 6 caracteres"
                       onChange={(e) => setSenha(e.target.value)}
                       disabled={cadastrandoIndividual}
                     />
-                    <span
+                    <button
+                      type="button"
                       onClick={() => setShowSenha(!showSenha)}
-                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                     >
-                      {showSenha ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
-                      )}
-                    </span>
+                      {showSenha ? <EyeCloseIcon /> : <EyeIcon />}
+                    </button>
                   </div>
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>E-mail (opcional)</Label>
-                  <Input 
-                    type="email" 
-                    placeholder="email@exemplo.com"
-                    onChange={(e) => setEmail(e.target.value)} 
+                <div>
+                  <Label htmlFor="ano-escolar">Ano Escolar *</Label>
+                  <Dropdown
+                    id="ano-escolar"
+                    value={anoEscolar}
+                    options={getAnosDisponiveis()}
+                    onChange={(e) => setAnoEscolar(e.value)}
+                    placeholder="Selecione o ano"
                     disabled={cadastrandoIndividual}
-                  />
-                </div>
-                
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Telefone (opcional)</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="+244 900 000 000"
-                    onChange={(e) => setTelefone(e.target.value)} 
-                    disabled={cadastrandoIndividual}
+                    className="w-full"
                   />
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Bilhete do Estudante</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="000000000XX000"
-                    onChange={(e) => setBilheteIdentidade(e.target.value)} 
-                    disabled={cadastrandoIndividual}
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Pelo menos um bilhete é obrigatório
-                  </p>
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Bilhete do Responsável</Label>
-                  <Input 
-                    type="text" 
-                    placeholder="000000000XX000"
-                    onChange={(e) => setBilheteResponsavel(e.target.value)} 
-                    disabled={cadastrandoIndividual}
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Pelo menos um bilhete é obrigatório
-                  </p>
-                </div>
-
-                <div className="col-span-2 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-                  {/* ✅ Dropdown de Ano Escolar (baseado no nível da academia) */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                      Ano Escolar * ({getNivelAcademiaDescricao()})
-                    </span>
+                {deveMostrarCurso() && (
+                  <div className="md:col-span-2">
+                    <Label htmlFor="curso">Curso * (Obrigatório para Ensino Médio)</Label>
                     <Dropdown
-                      value={anoEscolar} 
-                      onChange={(e) => setAnoEscolar(e.value)} 
-                      options={getAnosDisponiveis()} 
-                      optionLabel="label"
-                      placeholder="Selecione o ano" 
-                      className="w-full"
+                      id="curso"
+                      value={cursoSelecionado}
+                      options={dataCursos?.cursos || []}
+                      onChange={(e) => setCursoSelecionado(e.value)}
+                      optionLabel="nome"
+                      placeholder="Selecione o curso"
                       disabled={cadastrandoIndividual}
+                      className="w-full"
                     />
                   </div>
+                )}
 
-                  {/* ✅ Dropdown de Curso (se for médio ou misto com ano médio selecionado) */}
-                  {deveMostrarCurso() && (
-                    <div className="col-span-2 sm:col-span-1">
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                        Curso *
-                      </span>
-                      <Dropdown 
-                        value={cursoSelecionado} 
-                        onChange={(e) => setCursoSelecionado(e.value)} 
-                        options={dataCursos?.cursos?.filter(c => c.type === 'medio') || []} 
-                        optionLabel="nome"
-                        placeholder="Selecione o curso" 
-                        className="w-full"
-                        disabled={cadastrandoIndividual}
-                        emptyMessage="Nenhum curso de ensino médio disponível"
-                        filter
-                      />
-                    </div>
-                  )}
+                <div>
+                  <Label htmlFor="email">E-mail (opcional)</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={cadastrandoIndividual}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="telefone">Telefone (opcional)</Label>
+                  <Input
+                    id="telefone"
+                    placeholder="Ex: 923456789"
+                    onChange={(e) => setTelefone(e.target.value)}
+                    disabled={cadastrandoIndividual}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="bilhete">Bilhete do Estudante *</Label>
+                  <Input
+                    id="bilhete"
+                    placeholder="Ex: 123456789012AB"
+                    onChange={(e) => setBilheteIdentidade(e.target.value)}
+                    disabled={cadastrandoIndividual}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="bilhete-resp">Bilhete do Responsável</Label>
+                  <Input
+                    id="bilhete-resp"
+                    placeholder="Ex: 123456789012AB"
+                    onChange={(e) => setBilheteResponsavel(e.target.value)}
+                    disabled={cadastrandoIndividual}
+                  />
                 </div>
               </div>
-              {successMessage && (
-                <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-sm text-green-700 dark:text-green-400 font-medium whitespace-pre-line">
-                    {successMessage}
-                  </p>
-                </div>
-              )}
 
-              {validationErrors.length > 0 && (
-                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
-                    Corrija os seguintes erros:
-                  </h3>
-                  <ul className="list-disc list-inside space-y-1">
-                    {validationErrors.map((erro, index) => (
-                      <li key={index} className="text-sm text-red-700 dark:text-red-400">
-                        {erro}
-                      </li>
-                    ))}
-                  </ul>
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                  * Campos obrigatórios | O estudante será cadastrado já vinculado à sua academia
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={handleCloseModal} disabled={cadastrandoIndividual}>Cancelar</Button>
+                  <Button disabled={cadastrandoIndividual}>
+                    {cadastrandoIndividual ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Cadastrando...
+                      </>
+                    ) : (
+                      'Cadastrar Estudante'
+                    )}
+                  </Button>
                 </div>
-              )}
-
-              {erroCadastro && !successMessage && (
-                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                    {erroCadastro}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end w-full gap-3 mt-6">
-                <Button
-                  size="sm" 
-                  variant="outline" 
-                  onClick={handleCloseModal}
-                  disabled={cadastrandoIndividual}
-                >
-                  Fechar
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={cadastrandoIndividual}
-                >
-                  {cadastrandoIndividual ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Cadastrando...
-                    </>
-                  ) : (
-                    'Cadastrar e Inscrever'
-                  )}
-                </Button>
               </div>
             </form>
           </Modal>
+        </div>
 
-          {/* Modal de Cadastro em Massa */}
-          <CadastroMassaEstudantes 
-            isOpen={isMassaOpen}
-            onClose={closeMassaModal}
-            onSuccess={carregarLista}
-          />
+        {/* Modal de Cadastro em Massa */}
+        <CadastroMassaEstudantes 
+          isOpen={isMassaOpen}
+          onClose={closeMassaModal}
+          onSuccess={carregarLista}
+        />
 
-          {/* Modal de Detalhes */}
-          <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[700px] p-5 lg:p-10">
+        {/* Modal de Detalhes */}
+        <div>
+          <Modal 
+            isOpen={isDetailsOpen} 
+            onClose={closeDetailsModal}
+          >
             {estudanteSelecionado && (
               <div>
-                <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
-                  Detalhes do Estudante
-                </h4>
-                
-                <div className="space-y-4">
+                <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700 mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Detalhes do Estudante
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={closeDetailsModal}
+                    className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {estudanteSelecionado.nome.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
+                        {estudanteSelecionado.nome}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Código: {estudanteSelecionado.codigo_estudante}
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{estudanteSelecionado.nome}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.codigo_estudante}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p>
                       <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.email || '-'}</p>
                     </div>
                     <div>
@@ -646,34 +620,22 @@ export default function Estudantes() {
                       <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.telefone || '-'}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">BI</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.bilhete_identidade || '-'}</p>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Academia</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.codigo_academia || '-'}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Geral</p>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudanteSelecionado.status)}`}>
                         {estudanteSelecionado.status}
                       </span>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Escolar</p>
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusEscolarBadge(estudanteSelecionado.status_escolar)}`}>
-                        {estudanteSelecionado.status_escolar.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Superior</p>
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusEscolarBadge(estudanteSelecionado.status_superior)}`}>
-                        {estudanteSelecionado.status_superior.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código Academia</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.codigo_academia || '-'}</p>
-                    </div>
-                    <div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ano Escolar</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{estudanteSelecionado.ano_escolar?.replace('_', ' ') || '-'}</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.ano_escolar || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Escolar</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.status_escolar || '-'}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Notas</p>
