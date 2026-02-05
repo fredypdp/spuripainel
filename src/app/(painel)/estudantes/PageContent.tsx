@@ -208,7 +208,7 @@ export default function Estudantes() {
     setAnoEscolar(null);
     setCursoSelecionado(null);
     setValidationErrors([]);
-    // setSuccessMessage('');
+    setSuccessMessage('');
   };
 
   // 🔥 ATUALIZADO: Cadastro direto pela academia (já vinculado)
@@ -229,7 +229,6 @@ export default function Estudantes() {
     setCadastrandoIndividual(true);
 
     try {
-      console.log('Cadastrando estudante vinculado à academia...');
       const resultCadastro = await executarCadastro({
         senha: "spuri123", // ✅ Senha padrão fixa
         nome: nome.trim(),
@@ -247,8 +246,6 @@ export default function Estudantes() {
       }
 
       const codigoEstudante = resultCadastro.data.codigo_estudante;
-      
-      console.log('✅ Estudante cadastrado e vinculado:', codigoEstudante);
 
       setSuccessMessage(
         `✅ Estudante cadastrado e vinculado com sucesso!\n` +
@@ -259,6 +256,7 @@ export default function Estudantes() {
       
       setTimeout(() => {
         limparFormulario();
+        closeModal();
         carregarLista();
       }, 4000);
     } catch (err: any) {
