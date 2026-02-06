@@ -41,7 +41,6 @@ export default function Estudantes() {
   
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   
-  // 🔥 ATUALIZADO: Academia usa endpoint próprio para cadastrar estudantes vinculados
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(
     isAcademia ? academiaService.cadastrarEstudante : estudanteService.criar
   );
@@ -50,13 +49,13 @@ export default function Estudantes() {
   
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   
-  // ✅ Campos do formulário (SEM senha - usa spuri123 por padrão)
+  // Campos do formulário
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  const [anoEscolar, setAnoEscolar] = useState<AnoEscolar | null>(null);
+  const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<AnoEscolar | null>(null);
   const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -110,7 +109,7 @@ export default function Estudantes() {
     if (nivelAcademia === 'medio') return true;
     
     if (nivelAcademia === 'misto') {
-      return isAnoMedio(anoEscolar?.value);
+      return isAnoMedio(anoEscolarSelecionado);
     }
     
     return false;
@@ -157,10 +156,10 @@ export default function Estudantes() {
   }, []);
 
   useEffect(() => {
-    if (anoEscolar && !isAnoMedio(anoEscolar.value)) {
+    if (anoEscolarSelecionado && !isAnoMedio(anoEscolarSelecionado.value)) {
       setCursoSelecionado(null);
     }
-  }, [anoEscolar]);
+  }, [anoEscolarSelecionado]);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -169,7 +168,7 @@ export default function Estudantes() {
       erros.push('Nome do estudante é obrigatório');
     }
 
-    if (!anoEscolar) {
+    if (!anoEscolarSelecionado) {
       erros.push('Ano escolar é obrigatório');
     }
 
@@ -205,63 +204,57 @@ export default function Estudantes() {
     setTelefone('');
     setBilheteIdentidade('');
     setBilheteResponsavel('');
-    setAnoEscolar(null);
+    setAnoEscolarSelecionado(null);
     setCursoSelecionado(null);
     setValidationErrors([]);
     setSuccessMessage('');
   };
 
-  // 🔥 ATUALIZADO: Cadastro direto pela academia (já vinculado)
+  // 🔥 CORRIGIDO: Conversão de strings vazias para undefined
   const handleCadastroIndividual = async (e: React.FormEvent) => {
     e.preventDefault();
-    setValidationErrors([]);
-    setSuccessMessage('');
-
     if (!validarFormulario()) {
       return;
     }
 
-    if (!isAcademia || !user?.academia?.codigo_academia) {
-      setValidationErrors(['Apenas academias podem cadastrar estudantes']);
-      return;
-    }
-
     setCadastrandoIndividual(true);
+    setValidationErrors([]);
+    setSuccessMessage('');
+
+    // 🔥 CORRIGIDO: Enviar undefined em vez de strings vazias
+    const payload = {
+      nome: nome.trim(),
+      senha: "spuri123",
+      email: email.trim() || undefined,
+      telefone: telefone.trim() || undefined,
+      bilhete_identidade: bilheteIdentidade.trim(),
+      bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
+      ano_escolar: anoEscolarSelecionado || undefined,  // 🔥 MUDOU: '' -> undefined
+      curso_medio_id: cursoSelecionado?.id || undefined, // 🔥 MUDOU: '' -> undefined
+      status_escolar: 'em_andamento',
+    };
 
     try {
-      const resultCadastro = await executarCadastro({
-        senha: "spuri123", // ✅ Senha padrão fixa
-        nome: nome.trim(),
-        email: email.trim() || undefined,
-        telefone: telefone.trim() || undefined,
-        bilhete_identidade: bilheteIdentidade.trim() || undefined,
-        bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
-        ano_escolar: anoEscolar?.value || undefined,
-        curso_medio_id: cursoSelecionado?.id || undefined,
-        status_escolar: 'em_andamento',
-      });
-
-      if (!resultCadastro?.data) {
-        throw new Error('Erro ao cadastrar estudante');
-      }
-
-      const codigoEstudante = resultCadastro.data.codigo_estudante;
-
-      setSuccessMessage(
-        `✅ Estudante cadastrado e vinculado com sucesso!\n` +
-        `Código: ${codigoEstudante}\n` +
-        `Senha padrão: spuri123\n` +
-        `✅ O estudante já está vinculado à sua academia e pode alterar a senha no primeiro login!`
-      );
+      await executarCadastro(payload);
+      setSuccessMessage('Estudante cadastrado com sucesso!');
       
+      // Limpar campos
+      setNome('');
+      setEmail('');
+      setTelefone('');
+      setBilheteIdentidade('');
+      setBilheteResponsavel('');
+      setAnoEscolarSelecionado(null);
+      setCursoSelecionado(null);
+      
+      // Fechar modal após 2s
       setTimeout(() => {
-        limparFormulario();
         closeModal();
-        carregarLista();
-      }, 4000);
+        setSuccessMessage('');
+      }, 2000);
     } catch (err: any) {
-      console.error('❌ Erro no cadastro:', err);
-      setValidationErrors([err?.data?.error || err?.message || 'Erro ao cadastrar estudante']);
+      const mensagemErro = err?.response?.data?.error || err?.message || 'Erro ao cadastrar estudante';
+      setValidationErrors([mensagemErro]);
     } finally {
       setCadastrandoIndividual(false);
     }
@@ -354,9 +347,9 @@ export default function Estudantes() {
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Ano Escolar *</Label>
                   <Dropdown
-                    value={anoEscolar}
+                    value={anoEscolarSelecionado}
                     options={getAnosDisponiveis()}
-                    onChange={(e) => setAnoEscolar(e.value)}
+                    onChange={(e) => setAnoEscolarSelecionado(e.value)}
                     placeholder="Selecione o ano"
                     disabled={cadastrandoIndividual}
                     className="w-full"
