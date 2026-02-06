@@ -15,10 +15,9 @@ class EmailAuthService {
    * Backend retorna o token para o frontend enviar o email
    */
   async gerarTokenVerificacao(data: GerarTokenVerificacaoRequest): Promise<TokenResponse> {
-    // ✅ Garantir que os campos estão corretos
     const payload = {
       identificador: data.identificador,
-      tipo: data.tipo, // 'estudante', 'academia', 'admin'
+      tipo: data.tipo,
     };
     
     return api.post<TokenResponse>('/gerar-token/verificacao', payload);
@@ -29,10 +28,9 @@ class EmailAuthService {
    * Backend retorna o token para o frontend enviar o email
    */
   async gerarTokenRecuperacao(data: GerarTokenRecuperacaoRequest): Promise<TokenResponse> {
-    // ✅ Garantir que os campos estão corretos
     const payload = {
       identificador: data.identificador,
-      tipo: data.tipo, // 'estudante', 'academia', 'admin'
+      tipo: data.tipo,
     };
     
     return api.post<TokenResponse>('/gerar-token/recuperacao', payload);

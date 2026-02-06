@@ -2,13 +2,12 @@
 
 import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
 
-// ✅ CORRIGIDO: Garantir que a URL base sempre tenha protocolo
+// ✅ URL base com protocolo garantido
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL;
 
 const getApiBaseUrl = () => {
   const url = API_BASE_URL;
   
-  // ✅ Se a URL não começar com http:// ou https://, adicionar https://
   if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
     return `https://${url}`;
   }
@@ -31,6 +30,7 @@ export class ApiError extends Error {
   }
 }
 
+// ✅ EXPORTADO: Erro específico da API Spuri
 export class SpuriApiError extends ApiError {
   constructor(
     status: number,
@@ -62,7 +62,6 @@ async function fetchApi<T>(
 
   const baseUrl = getApiBaseUrl();
   
-  // ✅ Validação adicional
   if (!baseUrl) {
     throw new Error('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env');
   }
@@ -74,7 +73,7 @@ async function fetchApi<T>(
     headers,
   });
 
-  // 🔥 CORRIGIDO: Capturar erro ANTES de tentar parse
+  // ✅ Tratamento de erro ANTES do parse
   if (!response.ok) {
     let errorData: any = null;
     
@@ -84,15 +83,16 @@ async function fetchApi<T>(
       errorData = { error: response.statusText };
     }
     
-    // ✅ Log detalhado do erro
-    console.error('❌ API Request Failed:', {
-      url,
-      status: response.status,
-      statusText: response.statusText,
-      errorData
-    });
+    // ✅ Log detalhado do erro (apenas em dev)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ API Request Failed:', {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+    }
     
-    // Lançar erro com os dados parseados
     throw new SpuriApiError(response.status, response.statusText, errorData);
   }
 
