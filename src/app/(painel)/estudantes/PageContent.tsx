@@ -55,7 +55,7 @@ export default function Estudantes() {
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<AnoEscolar | null>(null);
+  const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
   const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -108,7 +108,7 @@ export default function Estudantes() {
     
     if (nivelAcademia === 'medio') return true;
     
-    if (nivelAcademia === 'misto') {
+    if (nivelAcademia === 'misto' && anoEscolarSelecionado) {
       return isAnoMedio(anoEscolarSelecionado);
     }
     
@@ -156,7 +156,7 @@ export default function Estudantes() {
   }, []);
 
   useEffect(() => {
-    if (anoEscolarSelecionado && !isAnoMedio(anoEscolarSelecionado.value)) {
+    if (anoEscolarSelecionado && !isAnoMedio(anoEscolarSelecionado)) {
       setCursoSelecionado(null);
     }
   }, [anoEscolarSelecionado]);
