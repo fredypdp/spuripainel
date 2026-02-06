@@ -29,11 +29,11 @@ export default function LoginForm() {
     const erros: string[] = [];
 
     if (!codigo.trim()) {
-      erros.push('CÃ³digo de identificaÃ§Ã£o Ã© obrigatÃ³rio');
+      erros.push('Código de identificação é obrigatório');
     }
 
     if (!senha.trim()) {
-      erros.push('Senha Ã© obrigatÃ³ria');
+      erros.push('Senha é obrigatória');
     }
 
     setValidationErrors(erros);
@@ -104,7 +104,7 @@ export default function LoginForm() {
                     disabled={loading} 
                     id="codigo" 
                     name="codigo" 
-                    placeholder={`Digite o seu cÃ³digo de ${contaTipo}`} 
+                    placeholder={`Digite o seu código de ${contaTipo}`} 
                     type="text"
                     onChange={(e) => setCodigo(e.target.value)} 
                   />
