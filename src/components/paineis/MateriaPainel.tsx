@@ -15,7 +15,7 @@ interface MateriaFormData {
   curso_id?: string;
 }
 
-// ✅ CORRIGIDO: Anos do ensino fundamental
+// ✅ Anos do ensino fundamental
 const ANOS_FUNDAMENTAL = [
   { value: "primeiro_fundamental", label: "1º Ano" },
   { value: "segundo_fundamental", label: "2º Ano" },
@@ -26,6 +26,24 @@ const ANOS_FUNDAMENTAL = [
   { value: "setimo_fundamental", label: "7º Ano" },
   { value: "oitavo_fundamental", label: "8º Ano" },
   { value: "nono_fundamental", label: "9º Ano" },
+];
+
+// ✅ Anos do ensino médio
+const ANOS_MEDIO = [
+  { value: "primeiro_medio", label: "1º Ano Médio" },
+  { value: "segundo_medio", label: "2º Ano Médio" },
+  { value: "terceiro_medio", label: "3º Ano Médio" },
+  { value: "quarto_medio", label: "4º Ano Médio" },
+];
+
+// ✅ Anos do ensino superior
+const ANOS_SUPERIOR = [
+  { value: "primeiro_ano", label: "1º Ano" },
+  { value: "segundo_ano", label: "2º Ano" },
+  { value: "terceiro_ano", label: "3º Ano" },
+  { value: "quarto_ano", label: "4º Ano" },
+  { value: "quinto_ano", label: "5º Ano" },
+  { value: "sexto_ano", label: "6º Ano" },
 ];
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
@@ -48,8 +66,15 @@ export default function MateriaPainel() {
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
+  const {execute: executarCriarMateria, error: erroCriarMateria, loading: criandoMateria} = useApi(academiaService.criarMateria)
+  const {execute: executarAtualizarMateria, error: erroAtualizarMateria, loading: atualizandoMateria} = useApi(academiaService.atualizarMateria)
   const {execute: executarListarMaterias, data: materias, error: erroListarMaterias, loading: ListandoMaterias} = useApi(academiaService.listarMaterias)
   const {execute: executarListarCursos, data: cursos, error: erroListarCursos, loading: ListandoCursos} = useApi(academiaService.listarCursos)
+
+  // ✅ Detecta se a academia é mista
+  const isAcademiaMista = () => {
+    return user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "misto";
+  };
 
   // Tipo padrão baseado na academia
   const getDefaultType = (): MateriaType => {
@@ -64,6 +89,7 @@ export default function MateriaPainel() {
     // Se for escola
     if (academiaNivel === "fundamental") return "fundamental";
     if (academiaNivel === "medio") return "medio";
+    if (academiaNivel === "misto") return "fundamental"; // Padrão para misto
     
     // Default
     return "fundamental";
@@ -102,18 +128,20 @@ export default function MateriaPainel() {
       return;
     }
 
-    // Validações específicas por tipo
+    if (formData.nivel.length === 0) {
+      showAlert("error", "Selecione pelo menos um ano/nível");
+      return;
+    }
+
+    // ✅ Validações específicas por tipo
     if (formData.type === "fundamental") {
-      if (formData.nivel.length === 0) {
-        showAlert("error", "Para matérias do Fundamental, selecione pelo menos um ano");
-        return;
-      }
+      // Fundamental: apenas anos, sem curso
       if (formData.curso_id) {
         showAlert("error", "Matérias do Fundamental não devem ter curso vinculado");
         return;
       }
     } else {
-      // Médio ou Superior
+      // Médio ou Superior: anos + 1 curso obrigatório
       if (!formData.curso_id) {
         showAlert("error", `Matérias do tipo ${formData.type === 'medio' ? 'Médio' : 'Superior'} devem estar vinculadas a um curso`);
         return;
@@ -124,25 +152,25 @@ export default function MateriaPainel() {
       const payload = {
         nome: formData.nome,
         type: formData.type,
-        ...(formData.type === "fundamental" && { nivel: formData.nivel }),
-        ...(formData.type !== "fundamental" && formData.curso_id && { curso_id: formData.curso_id }),
+        nivel: formData.nivel,
+        ...(formData.curso_id && { curso_id: formData.curso_id }),
       };
 
       if (editingMateria) {
-        await academiaService.atualizarMateria(editingMateria.id, {
+        await executarAtualizarMateria(editingMateria.id, {
           nome: formData.nome,
           type: formData.type,
         });
         showAlert("success", "Matéria atualizada com sucesso");
       } else {
-        await academiaService.criarMateria(payload);
+        await executarCriarMateria(payload);
         showAlert("success", "Matéria criada com sucesso");
       }
       
       resetForm();
       carregarDados();
     } catch (error: any) {
-      showAlert("error", error?.data?.error || "Erro ao salvar matéria");
+      showAlert("error", error?.message || error?.data?.error || "Erro ao salvar matéria");
     }
   };
 
@@ -168,7 +196,7 @@ export default function MateriaPainel() {
       }
       carregarDados();
     } catch (error: any) {
-      showAlert("error", error?.data?.error || "Erro ao alterar status");
+      showAlert("error", error?.message || error?.data?.error || "Erro ao alterar status");
     }
   };
 
@@ -191,8 +219,8 @@ export default function MateriaPainel() {
     setFormData({
       ...formData,
       type: newType,
-      nivel: newType === "fundamental" ? [] : [],
-      curso_id: newType === "fundamental" ? undefined : formData.curso_id,
+      nivel: [],
+      curso_id: undefined,
     });
   };
 
@@ -203,41 +231,70 @@ export default function MateriaPainel() {
   };
 
   const getCursosByType = () => {
+    if (!cursos?.cursos) return [];
+    
     if (formData.type === "medio") {
-      return cursos && cursos.total > 0 ? cursos?.cursos.filter(c => c.type === "medio") : [];
+      return cursos.cursos.filter(c => c.type === "medio" && c.status === "ativo");
     }
     if (formData.type === "superior") {
-      return cursos && cursos.total > 0 ? cursos?.cursos.filter(c => c.type === "superior") : [];
+      return cursos.cursos.filter(c => c.type === "superior" && c.status === "ativo");
     }
     return [];
   };
 
-  // Tipo está bloqueado se vier da academia ou em edição
-  const isTipoDisabled = () => {
-    return !!editingMateria || !!user?.academia;
+  // ✅ Retorna os anos disponíveis conforme o tipo
+  const getAnosDisponiveis = () => {
+    if (formData.type === "fundamental") return ANOS_FUNDAMENTAL;
+    if (formData.type === "medio") return ANOS_MEDIO;
+    if (formData.type === "superior") return ANOS_SUPERIOR;
+    return [];
   };
 
-  // ✅ Função para formatar labels dos níveis do fundamental
+  // ✅ Tipo está bloqueado se vier da academia (exceto misto) ou em edição
+  const isTipoDisabled = () => {
+    if (editingMateria) return true;
+    if (isAcademiaMista()) return false; // Misto permite escolher
+    return !!user?.academia;
+  };
+
+  // ✅ Função para formatar labels dos níveis
   const formatarNivelLabel = (nivel: string): string => {
+    // Fundamental
     if (nivel.includes('fundamental')) {
       const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto|setimo|oitavo|nono)_fundamental/);
       if (numeroMatch) {
         const numeros: Record<string, string> = {
-          'primeiro': '1º',
-          'segundo': '2º',
-          'terceiro': '3º',
-          'quarto': '4º',
-          'quinto': '5º',
-          'sexto': '6º',
-          'setimo': '7º',
-          'oitavo': '8º',
-          'nono': '9º'
+          'primeiro': '1º', 'segundo': '2º', 'terceiro': '3º',
+          'quarto': '4º', 'quinto': '5º', 'sexto': '6º',
+          'setimo': '7º', 'oitavo': '8º', 'nono': '9º'
         };
         return `${numeros[numeroMatch[1]]} Ano`;
       }
     }
     
-    // Fallback
+    // Médio
+    if (nivel.includes('medio')) {
+      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto)_medio/);
+      if (numeroMatch) {
+        const numeros: Record<string, string> = {
+          'primeiro': '1º', 'segundo': '2º', 'terceiro': '3º', 'quarto': '4º'
+        };
+        return `${numeros[numeroMatch[1]]} Médio`;
+      }
+    }
+    
+    // Superior
+    if (nivel.includes('ano') && !nivel.includes('medio') && !nivel.includes('fundamental')) {
+      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto)_ano/);
+      if (numeroMatch) {
+        const numeros: Record<string, string> = {
+          'primeiro': '1º', 'segundo': '2º', 'terceiro': '3º',
+          'quarto': '4º', 'quinto': '5º', 'sexto': '6º'
+        };
+        return `${numeros[numeroMatch[1]]} Ano`;
+      }
+    }
+    
     return nivel.replace(/_/g, ' ');
   };
 
@@ -268,14 +325,6 @@ export default function MateriaPainel() {
         />
       )}
 
-      {erroListarMaterias && (
-        <Alert variant="error" title="Erro ao litar matérias disciplinares" message={erroListarMaterias} />
-      )}
-
-      {erroListarCursos && (
-        <Alert variant="error" title="Erro ao litar cursos" message={erroListarCursos} />
-      )}
-
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -288,9 +337,13 @@ export default function MateriaPainel() {
         </div>
         <div className="flex gap-3">
           {!showForm && (
-            <Button disabled={ListandoMaterias || ListandoCursos} onClick={carregarDados}>Atualizar lista</Button>
+            <Button disabled={ListandoMaterias || ListandoCursos} onClick={carregarDados}>
+              Atualizar lista
+            </Button>
           )}
-          <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>Nova Matéria</Button>
+          <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>
+            Nova Matéria
+          </Button>
         </div>
       </div>
 
@@ -324,63 +377,123 @@ export default function MateriaPainel() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tipo *
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => handleTypeChange(e.target.value as MateriaType)}
-                disabled={isTipoDisabled()}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="fundamental">Ensino Fundamental</option>
-                <option value="medio">Ensino Médio</option>
-                <option value="superior">Ensino Superior</option>
-              </select>
-              {user?.academia && !editingMateria && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Tipo definido automaticamente pela academia ({getTipoAcademiaDescricao()})
-                </p>
-              )}
-              {editingMateria && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  O tipo não pode ser alterado após a criação
-                </p>
-              )}
-            </div>
-
-            {/* Para Fundamental: Selecionar Anos */}
-            {formData.type === "fundamental" && (
+            {/* ✅ ACADEMIA MISTA: Seletor de Nível */}
+            {isAcademiaMista() && !editingMateria && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Anos * (selecione pelo menos um)
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Nível da Matéria * (selecione primeiro)
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {ANOS_FUNDAMENTAL.map(({ value, label }) => (
-                    <label
-                      key={value}
-                      className="flex items-center gap-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.nivel.includes(value)}
-                        onChange={() => handleNivelToggle(value)}
-                        className="w-4 h-4 text-brand-500 focus:ring-brand-500"
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleTypeChange("fundamental")}
+                    className={`p-4 border-2 rounded-lg transition-all ${
+                      formData.type === "fundamental"
+                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
+                        : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon 
+                        icon="mdi:school" 
+                        width={24} 
+                        className={formData.type === "fundamental" ? "text-brand-500" : "text-gray-400"}
                       />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {label}
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        Fundamental
                       </span>
-                    </label>
-                  ))}
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 text-left">
+                      Selecionar anos (1º ao 9º)
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTypeChange("medio")}
+                    className={`p-4 border-2 rounded-lg transition-all ${
+                      formData.type === "medio"
+                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
+                        : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon 
+                        icon="mdi:book-education" 
+                        width={24} 
+                        className={formData.type === "medio" ? "text-brand-500" : "text-gray-400"}
+                      />
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        Médio
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 text-left">
+                      Selecionar anos + curso
+                    </p>
+                  </button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Matérias do Fundamental não são vinculadas a cursos
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  💡 Sua academia é mista - escolha o nível da matéria
                 </p>
               </div>
             )}
 
-            {/* Para Médio/Superior: Selecionar Curso */}
+            {/* ✅ ACADEMIAS NÃO MISTAS: Campo de tipo (desabilitado) */}
+            {!isAcademiaMista() && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Tipo *
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => handleTypeChange(e.target.value as MateriaType)}
+                  disabled={isTipoDisabled()}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="fundamental">Ensino Fundamental</option>
+                  <option value="medio">Ensino Médio</option>
+                  <option value="superior">Ensino Superior</option>
+                </select>
+                
+                {user?.academia && !editingMateria && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Tipo definido automaticamente pela academia ({getTipoAcademiaDescricao()})
+                  </p>
+                )}
+                {editingMateria && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    O tipo não pode ser alterado após a criação
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ✅ SELEÇÃO DE ANOS (TODOS OS TIPOS) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Anos/Níveis * (selecione pelo menos um)
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {getAnosDisponiveis().map(({ value, label }) => (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.nivel.includes(value)}
+                      onChange={() => handleNivelToggle(value)}
+                      className="w-4 h-4 text-brand-500 focus:ring-brand-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* ✅ SELEÇÃO DE CURSO (APENAS MÉDIO E SUPERIOR) */}
             {(formData.type === "medio" || formData.type === "superior") && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -413,12 +526,21 @@ export default function MateriaPainel() {
               </div>
             )}
 
+            {/* ✅ INFO PARA FUNDAMENTAL */}
+            {formData.type === "fundamental" && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  ℹ️ Matérias do Ensino Fundamental não são vinculadas a cursos
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
                 className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
               >
-                {editingMateria ? "Atualizar" : "Criar Matéria"}
+                {editingMateria ? atualizandoMateria ? "Atualizando matéria" : "Atualizar" : criandoMateria ? "Criando matéria" : "Criar Matéria"}
               </button>
               <button
                 type="button"
@@ -432,20 +554,22 @@ export default function MateriaPainel() {
         </div>
       )}
 
-      {ListandoMaterias || ListandoCursos && !showForm && (
+      {/* Loading */}
+      {(ListandoMaterias || ListandoCursos) && !showForm && (
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
         </div>
       )}
 
-      {!ListandoMaterias || ListandoCursos && !showForm && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{/* Lista de Matérias */}
-          {materias?.materias.length === 0 ? (
+      {/* Lista de Matérias */}
+      {!ListandoMaterias && !ListandoCursos && !showForm && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {materias && materias.total > 0 && materias?.materias.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
               Nenhuma matéria cadastrada
             </div>
           ) : (
-            materias?.materias.map((materia) => (
+            materias && materias.total > 0 && materias?.materias.map((materia) => (
               <div
                 key={materia.id}
                 className={`bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border-2 transition-all ${
@@ -480,8 +604,8 @@ export default function MateriaPainel() {
                   </div>
                 </div>
 
-                {/* Informações específicas por tipo */}
-                {materia.type === "fundamental" && materia.nivel && materia.nivel.length > 0 && (
+                {/* Anos/Níveis */}
+                {materia.nivel && materia.nivel.length > 0 && (
                   <div className="mb-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                       Anos:
@@ -499,6 +623,7 @@ export default function MateriaPainel() {
                   </div>
                 )}
 
+                {/* Curso (apenas para médio e superior) */}
                 {(materia.type === "medio" || materia.type === "superior") && materia.curso_id && (
                   <div className="mb-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">

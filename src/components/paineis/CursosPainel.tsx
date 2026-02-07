@@ -276,9 +276,7 @@ export default function CursosPainel() {
                 <option value="superior">Ensino Superior</option>
               </select>
               {user?.academia?.type && !editingCurso && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Tipo definido automaticamente pela academia ({user.academia.type === "superior" ? "Superior" : "Escola"})
-                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">({user.academia.type === "superior" ? "Superior" : "Escola"})</p>
               )}
               {editingCurso && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -316,7 +314,7 @@ export default function CursosPainel() {
                 type="submit"
                 className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
               >
-                {editingCurso ? "Atualizar" : "Criar Curso"}
+                {editingCurso ? AtualizandoCurso ? "Atualizando curso" : "Atualizar" : CriandoCurso ? "Criando curso" : "Criar Curso"}
               </button>
               <button
                 type="button"
