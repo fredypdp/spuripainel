@@ -17,8 +17,8 @@ export default function LoginForm() {
   const [senha, setSenha] = useState('');
   const [contaTipo, setContaTipo] = useState<'estudante' | 'academia'>('estudante');
   
-  const { loading: carregandoEstudante, error: erroEstudante, execute: executeEstudante } = useApi(estudanteService.login);
-  const { loading: carregandoAcademia, error: erroAcademia, execute: executeAcademia } = useApi(academiaService.login);
+  const { loading: carregandoEstudante, error: erroEstudante, execute: executeLoginEstudante } = useApi(estudanteService.login);
+  const { loading: carregandoAcademia, error: erroAcademia, execute: executeLoginAcademia } = useApi(academiaService.login);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -51,8 +51,8 @@ export default function LoginForm() {
     
     try {
       const result = contaTipo === 'estudante'
-        ? await executeEstudante({ usuario: codigo, senha, type: 'estudante' })
-        : await executeAcademia({ usuario: codigo, senha, type: 'academia' });
+        ? await executeLoginEstudante({ usuario: codigo, senha, type: 'estudante' })
+        : await executeLoginAcademia({ usuario: codigo, senha, type: 'academia' });
     
       if (result) {
         tokenStorage.setWithType(result.token, contaTipo);

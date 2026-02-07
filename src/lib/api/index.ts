@@ -6,8 +6,6 @@ export type { FetchOptions } from './client';
 
 // Serviços
 export {
-  healthService,
-  bootstrapService,
   academiaService,
   estudanteService,
   inscricoesService,

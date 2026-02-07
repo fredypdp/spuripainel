@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react";
-import { academiaService } from "@/lib/api";
+import { useApi, academiaService } from "@/lib/api";
 import { Curso, CursoType } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
@@ -53,6 +53,9 @@ export default function CursosPainel() {
   const [editingCurso, setEditingCurso] = useState<Curso | null>(null);
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
+
+  const {execute: executarAtivarCurso, error: erroAtivarCurso, loading: AtivandoCurso} = useApi(academiaService.ativarCurso)
+  const {execute: executarDesativarCurso, error: erroDesativarCurso, loading: DesativandoCurso} = useApi(academiaService.desativarCurso)
   
   // Tipo padrão baseado na academia
   const getDefaultType = (): CursoType => {
@@ -70,6 +73,11 @@ export default function CursosPainel() {
     carregarCursos();
   }, []);
 
+  useEffect(() => {
+    console.log(erroAtivarCurso)
+    console.log(erroDesativarCurso)
+  }, [erroAtivarCurso, erroDesativarCurso]);
+
   const showAlert = (variant: "success" | "error" | "warning" | "info", message: string) => {
     setAlert({ variant, message });
     setTimeout(() => setAlert(null), 5000);
@@ -81,7 +89,7 @@ export default function CursosPainel() {
       const response = await academiaService.listarCursos();
       setCursos(response.cursos || []);
     } catch (error: any) {
-      showAlert("error", error?.data?.error || "Erro ao carregar cursos");
+      showAlert("error", erroAtivarCurso || error?.data?.error || "Erro ao carregar cursos");
     } finally {
       setLoading(false);
     }
