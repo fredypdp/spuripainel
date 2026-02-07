@@ -13,7 +13,7 @@ import Link from "next/link";
 export default function EsqueciSenha() {
   const [codigo, setCodigo] = useState('');
   
-  const { loading, error: erroAPI } = useApi(adminService.login);
+  const { loading, error: erroLogin } = useApi(adminService.login);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [contaTipo, setContaTipo] = useState<'estudante' | 'academia'>('estudante');
 
@@ -94,10 +94,10 @@ export default function EsqueciSenha() {
                   </div>
                 )}
 
-                {erroAPI && (
+                {erroLogin && (
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                      {erroAPI}
+                      {erroLogin}
                     </p>
                   </div>
                 )}

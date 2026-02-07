@@ -25,7 +25,9 @@ export class ApiError extends Error {
     public statusText: string,
     public data?: any
   ) {
-    super(`Erro: ${status} ${statusText}`);
+    // ✅ Extrai a melhor mensagem disponível automaticamente
+    const message = extractErrorMessage(data, statusText);
+    super(message);
     this.name = 'ApiError';
   }
 }
@@ -40,6 +42,16 @@ export class SpuriApiError extends ApiError {
     super(status, statusText, data);
     this.name = 'SpuriApiError';
   }
+}
+
+/**
+ * ✅ Extrai a melhor mensagem de erro disponível
+ * Prioridade: data.message > data.error > statusText
+ */
+function extractErrorMessage(data: any, statusText: string): string {
+  if (data?.message) return data.message;
+  if (data?.error) return data.error;
+  return statusText || 'Erro desconhecido';
 }
 
 /**
@@ -93,6 +105,7 @@ async function fetchApi<T>(
       });
     }
     
+    // ✅ SpuriApiError já extrai a mensagem no construtor
     throw new SpuriApiError(response.status, response.statusText, errorData);
   }
 

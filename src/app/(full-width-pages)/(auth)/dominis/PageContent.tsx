@@ -15,7 +15,7 @@ export default function LoginAdm() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   
-  const { loading, error: erroAPI, execute } = useApi(adminService.login);
+  const { loading, error: erroLogin, execute } = useApi(adminService.login);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const validarFormulario = (): boolean => {
@@ -123,10 +123,10 @@ export default function LoginAdm() {
                   </div>
                 )}
 
-                {erroAPI && (
+                {erroLogin && (
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                      {erroAPI}
+                      {erroLogin}
                     </p>
                   </div>
                 )}

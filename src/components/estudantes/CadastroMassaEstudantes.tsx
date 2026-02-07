@@ -59,10 +59,10 @@ export default function CadastroMassaEstudantes({
   const [progresso, setProgresso] = useState({ atual: 0, total: 0 });
   
   const { user } = useUserCookie();
-  const { execute: executarCadastro } = useApi(estudanteService.criar);
-  const { execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
-  const { execute: executarAprovar } = useApi(academiaService.aprovarInscricao);
-  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
+  const { execute: executarCadastro, error: erroCadastrarEstudante} = useApi(estudanteService.criar);
+  const { execute: executarInscricao, error: erroSolicitarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
+  const { execute: executarAprovar, error: erroAprovarInscricao } = useApi(academiaService.aprovarInscricao);
+  const { data: dataCursos, execute: carregarCursos, error: erroListarCuros } = useApi(academiaService.listarCursos);
 
   const handleBaixarTemplate = () => {
     const anosEscolares = tipoTemplate === 'fundamental' 
@@ -387,12 +387,6 @@ export default function CadastroMassaEstudantes({
             inscricao: statusInscricao
           });
         } catch (error: any) {
-          resultados.erros++;
-          resultados.detalhes.push({
-            nome: estudante.nome,
-            erro: error?.data?.error || error?.message || 'Erro desconhecido',
-            status: 'erro'
-          });
         }
       });
 

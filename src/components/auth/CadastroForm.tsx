@@ -27,7 +27,7 @@ export default function CadastroForm() {
   const [copiado, setCopiado] = useState(false);
 
   const { loading: carregandoLogin, execute: executeLogin } = useApi(estudanteService.login);
-  const { loading, error: erroAPI, execute } = useApi(estudanteService.criar);
+  const { loading, error: erroCadastrarEstudante, execute } = useApi(estudanteService.criar);
 
   const [nome, setNome] = useState('');
   const [biEstudante, setBiEstudante] = useState('');
@@ -377,9 +377,9 @@ export default function CadastroForm() {
                       </div>
                     )}
 
-                    {erroAPI && (
+                    {erroCadastrarEstudante && (
                       <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                        <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroAPI}</p>
+                        <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroCadastrarEstudante}</p>
                       </div>
                     )}
 

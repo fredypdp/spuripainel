@@ -31,7 +31,7 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   
   const { isOpen, openModal, closeModal } = useModal();
   
-  const {execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
+  const {error: erroMeuPerfil, execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
   const { loading: carregandoInscricao, error: erroInscricao, execute: executarInscricao } = useApi(estudanteService.solicitarInscricaoEscola);
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
 

@@ -1,6 +1,6 @@
 // src/lib/api/services.ts
 
-import { api, tokenStorage, SpuriApiError } from './client';
+import { api, tokenStorage } from './client';
 import type {
   AuthResponse,
   CriarEscolaRequest,
@@ -63,53 +63,11 @@ import type {
   AlterarCursoResponse,
 } from '@/types/api';
 
-// ✅ Tipo de resposta de erro padronizado
 export interface ErrorResponse {
   error: string;
-  message: string;
+  message?: string;
   request_id?: string;
 }
-
-// ✅ Helper para extrair mensagem de erro
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof SpuriApiError) {
-    // Prioridade: message > error > statusText
-    return error.data?.message || error.data?.error || error.statusText;
-  }
-  
-  if (error instanceof Error) {
-    return error.message;
-  }
-  
-  return 'Erro desconhecido';
-}
-
-// =====================
-// HEALTH & SETUP
-// =====================
-
-export const healthService = {
-  check: () => 
-    api.get<{ status: string; database: string; service: string; version: string }>('/health'),
-  
-  checkDetailed: (token?: string) =>
-    api.get<any>('/health/detailed', {
-      token: token || tokenStorage.get() || undefined,
-    }),
-};
-
-// =====================
-// BOOTSTRAP
-// =====================
-
-export const bootstrapService = {
-  criarPrimeiroAdmin: (data?: CriarAdminRequest) =>
-    api.post<PrimeiroAdminResponse>('/bootstrap/admin-fpp', data),
-};
-
-// =====================
-// ACADEMIA
-// =====================
 
 export const academiaService = {
   criarEscola: (data: CriarEscolaRequest) =>
@@ -169,6 +127,7 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  // 🔥 NOVO: Cadastrar estudante já vinculado
   cadastrarEstudante: (data: CriarEstudanteRequest, token?: string) =>
     api.post<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string; status: string } }>(
       '/academia/estudante/register',
@@ -212,6 +171,10 @@ export const academiaService = {
     ),
 
   // Matérias
+  
+  /**
+   * Criar nova matéria disciplinar
+  */
   criarMateria: (data: CriarMateriaRequest, token?: string) =>
     api.post<{ message: string; data: { id: string; nome: string; type: string } }>(
       '/academia/materias',
@@ -219,12 +182,18 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Listar matérias da academia
+  */
   listarMaterias: (token?: string) =>
     api.get<ListarMateriasResponse>(
       '/academia/materias',
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Atualizar dados de uma matéria
+  */
   atualizarMateria: (materiaId: string, data: AtualizarMateriaRequest, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}`,
@@ -232,6 +201,9 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
   
+  /**
+   * Ativar matéria
+  */
   ativarMateria: (materiaId: string, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}/ativar`,
@@ -239,17 +211,34 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Desativar matéria
+  */
   desativarMateria: (materiaId: string, token?: string) =>
-    api.put<{ message: string; nome: string }>(
-      `/academia/materias/${materiaId}/desativar`,
-      undefined,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  api.put<{ message: string; nome: string }>(
+    `/academia/materias/${materiaId}/desativar`,
+    undefined,
+    { token: token || tokenStorage.get() || undefined }
+  ),
 
+  /**
+   * Alterar curso do estudante (médio ou superior)
+   * Acesso: academia
+  */
   alterarCursoEstudante: (codigoEstudante: string, data: AlterarCursoRequest, token?: string) =>
     api.put<AlterarCursoResponse>(
       `/academia/estudante/${codigoEstudante}/curso`,
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Buscar inscrições de um estudante pelo código
+   * Acesso: academia
+  */
+  getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<GetInscricoesPorCodigoResponse>(
+      `/academia/inscricoes/estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 };
@@ -268,37 +257,29 @@ export const estudanteService = {
   login: (data: LoginRequest) =>
     api.post<AuthResponse>('/login', data),
 
-  minhasInscricoes: (token?: string) =>
-    api.get<{ inscricoes: Inscricao[]; total: number }>(
-      '/estudante/minhas-inscricoes',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  meuHistorico: (token?: string) =>
-    api.get<HistoricoCompletoResponse>(
-      '/estudante/meu-historico',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  inscricoesAprovadas: (token?: string) =>
-    api.get<ListarInscricoesAprovadasResponse>(
-      '/estudante/inscricoes-aprovadas',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  inscricaoEscola: (data: SolicitarInscricaoEscolaRequest, token?: string) =>
-    api.post<InscricaoResponse>(
+  solicitarInscricaoEscola: (data: SolicitarInscricaoEscolaRequest, token?: string) =>
+    api.post<{ message: string; inscricao_id: string; academia: string; tipo: string }>(
       '/estudante/inscricao-escola',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  inscricaoUniversidade: (data: SolicitarInscricaoUniversidadeRequest, token?: string) =>
-    api.post<InscricaoResponse>(
+  solicitarInscricaoUniversidade: (data: SolicitarInscricaoUniversidadeRequest, token?: string) =>
+    api.post<{ message: string; inscricao_id: string; academia: string; tipo: string }>(
       '/estudante/inscricao-universidade',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  listarInscricoes: (token?: string) =>
+    api.get<ListarInscricoesResponse>('/estudante/minhas-inscricoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  listarInscricoesAprovadas: (token?: string) =>
+    api.get<ListarInscricoesAprovadasResponse>('/estudante/inscricoes-aprovadas', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   vincularAcademia: (data: VincularAcademiaRequest, token?: string) =>
     api.post<VincularAcademiaResponse>(
@@ -322,7 +303,7 @@ export const estudanteService = {
     ),
 
   atualizarDadosPessoais: (data: AtualizarDadosPessoaisEstudanteRequest, token?: string) =>
-    api.put<{ message: string; aviso?: string; email_verificado?: boolean }>(
+    api.put<{ message: string; aviso?: string }>(
       '/estudante/dados-pessoais',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -335,60 +316,67 @@ export const estudanteService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  meuHistorico: (token?: string) =>
+    api.get<HistoricoCompletoResponse>('/estudante/meu-historico', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
   minhasAprovacoes: (token?: string) =>
-    api.get<{ aprovacoes: any[]; total: number }>(
-      '/estudante/minhas-aprovacoes',
+    api.get<AprovacoesEstudanteResponse>('/estudante/minhas-aprovacoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  /**
+   * Buscar inscrições do próprio estudante
+   * Acesso: estudante
+  */
+  getMinhasInscricoesPorCodigo: (codigoEstudante: string, token?: string) =>
+    api.get<GetInscricoesPorCodigoResponse>(
+      `/estudante/inscricoes/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 };
 
 // =====================
-// INSCRIÇÕES
+// INSCRIÇÕES (comum)
 // =====================
 
 export const inscricoesService = {
-  listar: (params?: { 
-    status?: StatusInscricao;
-    limit?: number;
-    offset?: number;
-    token?: string;
-  }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.status) queryParams.append('status', params.status);
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
-
-    const query = queryParams.toString();
-    const url = `/inscricoes${query ? `?${query}` : ''}`;
-
-    return api.get<ListarInscricoesResponse>(url, {
-      token: params?.token || tokenStorage.get() || undefined,
+  listar: (status?: StatusInscricao, token?: string) => {
+    const query = status ? `?status=${status}` : '';
+    return api.get<ListarInscricoesResponse>(`/inscricoes${query}`, {
+      token: token || tokenStorage.get() || undefined,
     });
   },
 
-  listarPendentes: (params?: {
-    limit?: number;
-    offset?: number;
-    token?: string;
-  }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
+  listarPendentes: (token?: string) =>
+    api.get<ListarInscricoesResponse>('/inscricoes-pendentes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
-    const query = queryParams.toString();
-    const url = `/inscricoes-pendentes${query ? `?${query}` : ''}`;
-
-    return api.get<ListarInscricoesResponse>(url, {
-      token: params?.token || tokenStorage.get() || undefined,
-    });
-  },
+  detalhes: (inscricaoId: string, token?: string) =>
+    api.get<InscricaoResponse>(`/inscricoes/${inscricaoId}`, {
+      token: token || tokenStorage.get() || undefined,
+    }),
 };
 
 // =====================
-// CONSULTAS GERAIS
+// CONSULTAS (rotas compartilhadas)
 // =====================
 
 export const consultasService = {
+  estudante: (codigoEstudante: string, token?: string) =>
+    api.get<ConsultarEstudanteResponse>(
+      `/consultar-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  academia: (codigoAcademia: string, token?: string) =>
+    api.get<ConsultarAcademiaResponse>(
+      `/consultar-academia/${codigoAcademia}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   notasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<NotasEstudanteResponse>(
       `/notas-estudante/${codigoEstudante}`,
@@ -423,6 +411,10 @@ export const consultasService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
+  /**
+   * Buscar inscrições de um estudante pelo código
+   * Acesso: estudante (próprio), academia, admin
+  */
   getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
     api.get<GetInscricoesPorCodigoResponse>(
       `/inscricoes/estudante/${codigoEstudante}`,
@@ -609,7 +601,7 @@ export const adminService = {
 };
 
 // =====================
-// PERFIL E CONSULTAS
+// PERFIL E CONSULTAS PÚBLICAS
 // =====================
 
 export const perfilService = {
@@ -631,52 +623,9 @@ export const perfilService = {
     ),
 
   alterarSenha: (data: AlterarSenhaRequest, token?: string) =>
-    api.put<{ message: string }>(
-      '/alterar-senha',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-};
-
-// =====================
-// EMAIL (VERIFICAÇÃO E RECUPERAÇÃO)
-// =====================
-
-export const emailService = {
-  solicitarVerificacao: (data: SolicitarVerificacaoRequest) =>
-    api.post<{ message: string; email: string }>(
-      '/verificar-email/solicitar',
-      data
-    ),
-
-  verificarEmail: (token: string) =>
-    api.post<{ message: string; email: string }>(
-      `/verificar-email/${token}`,
-      undefined
-    ),
-
-  solicitarRecuperacao: (data: SolicitarRecuperacaoRequest) =>
-    api.post<{ message: string; email: string }>(
-      '/recuperar-senha/solicitar',
-      data
-    ),
-
-  resetarSenha: (token: string) =>
-    api.post<{ message: string; senha_padrao: string; email: string; proximos_passos: string }>(
-      `/recuperar-senha/${token}`,
-      undefined
-    ),
-
-  // Tokens para frontend enviar email
-  gerarTokenVerificacao: (data: SolicitarVerificacaoRequest) =>
-    api.post<{ success: boolean; token: string; email: string; nome: string; tipo: string; expira_em: string }>(
-      '/gerar-token/verificacao',
-      data
-    ),
-
-  gerarTokenRecuperacao: (data: SolicitarRecuperacaoRequest) =>
-    api.post<{ success: boolean; token: string; email: string; nome: string; tipo: string; expira_em: string }>(
-      '/gerar-token/recuperacao',
-      data
-    ),
+  api.put<{ message: string }>(
+    '/alterar-senha',
+    data,
+    { token: token || tokenStorage.get() || undefined }
+  ),
 };

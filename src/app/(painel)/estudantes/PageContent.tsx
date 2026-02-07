@@ -45,7 +45,7 @@ export default function Estudantes() {
     isAcademia ? academiaService.cadastrarEstudante : estudanteService.criar
   );
   
-  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
+  const { data: dataCursos, execute: carregarCursos, error: erroListarCuros } = useApi(academiaService.listarCursos);
   
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   

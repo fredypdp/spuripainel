@@ -59,6 +59,8 @@ export default function LoginForm() {
         router.push("/");
       }
     } catch (error) {
+      // ✅ Erro já tratado pelo useApi e exposto em 'erro'
+      // Nada a fazer aqui - a mensagem já está em erroEstudante ou erroAcademia
     }
   };
 

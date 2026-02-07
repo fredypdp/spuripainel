@@ -16,6 +16,7 @@ interface UseApiReturn<T> extends UseApiState<T> {
 
 /**
  * Hook para gerenciar requisições à API
+ * ✅ Simplesmente usa error.message - a extração já foi feita na API
  * 
  * @example
  * ```tsx
@@ -47,22 +48,10 @@ export function useApi<T, Args extends any[]>(
         setState({ data: result, loading: false, error: null });
         return result;
       } catch (err) {
-        let errorMessage = 'Ocorreu um erro desconhecido';
-
-        if (err instanceof ApiError) {
-          if (err.data?.error) {
-            errorMessage = err.data.error;
-          } else if (err.data?.message) {
-            errorMessage = err.data.message;
-          } else if (err.statusText) {
-            errorMessage = err.statusText;
-          }
-        } else if (err instanceof Error) {
-          errorMessage = err.message;
-        }
-
-        setState({ data: null, loading: false, error: errorMessage });
+        // ✅ SIMPLIFICADO: error.message já contém a melhor mensagem disponível
+        const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro desconhecido';
         
+        setState({ data: null, loading: false, error: errorMessage });
         throw err;
       }
     },
