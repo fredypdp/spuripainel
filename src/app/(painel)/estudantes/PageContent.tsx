@@ -437,9 +437,7 @@ export default function Estudantes() {
 
               {erroCadastro && !successMessage && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                    {erroCadastro}
-                  </p>
+                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroCadastro}</p>
                 </div>
               )}
 
@@ -556,9 +554,7 @@ export default function Estudantes() {
 
         {erroEstudantes && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-700 dark:text-red-400">
-              Erro ao carregar estudantes: {erroEstudantes}
-            </p>
+            <p className="text-sm text-red-700 dark:text-red-400">{erroEstudantes}</p>
           </div>
         )}
 

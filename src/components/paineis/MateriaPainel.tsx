@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react";
-import { academiaService } from "@/lib/api";
+import { useApi, academiaService } from "@/lib/api";
 import { Materia, Curso, MateriaType } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -43,13 +43,13 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 };
 
 export default function MateriaPainel() {
-  const [materias, setMaterias] = useState<Materia[]>([]);
-  const [cursos, setCursos] = useState<Curso[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingMateria, setEditingMateria] = useState<Materia | null>(null);
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
+
+  const {execute: executarListarMaterias, data: materias, error: erroListarMaterias, loading: ListandoMaterias} = useApi(academiaService.listarMaterias)
+  const {execute: executarListarCursos, data: cursos, error: erroListarCursos, loading: ListandoCursos} = useApi(academiaService.listarCursos)
 
   // Tipo padrão baseado na academia
   const getDefaultType = (): MateriaType => {
@@ -77,7 +77,8 @@ export default function MateriaPainel() {
   });
 
   useEffect(() => {
-    carregarDados();
+    executarListarCursos();
+    executarListarMaterias();
   }, []);
 
   const showAlert = (variant: "success" | "error" | "warning" | "info", message: string) => {
@@ -87,18 +88,9 @@ export default function MateriaPainel() {
 
   const carregarDados = async () => {
     try {
-      setLoading(true);
-      const [materiasRes, cursosRes] = await Promise.all([
-        academiaService.listarMaterias(),
-        academiaService.listarCursos(),
-      ]);
-      
-      setMaterias(materiasRes.materias || []);
-      setCursos(cursosRes.total > 0 ? cursosRes.cursos.filter(c => c.status === "ativo") : []);
+      await executarListarCursos()
+      await executarListarMaterias()
     } catch (error: any) {
-      showAlert("error", error?.data?.error || "Erro ao carregar dados");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -206,16 +198,16 @@ export default function MateriaPainel() {
 
   const getCursoNome = (cursoId?: string) => {
     if (!cursoId) return null;
-    const curso = cursos.find(c => c.id === cursoId);
+    const curso = cursos?.cursos.find(c => c.id === cursoId);
     return curso?.nome;
   };
 
   const getCursosByType = () => {
     if (formData.type === "medio") {
-      return cursos.filter(c => c.type === "medio");
+      return cursos && cursos.total > 0 ? cursos?.cursos.filter(c => c.type === "medio") : [];
     }
     if (formData.type === "superior") {
-      return cursos.filter(c => c.type === "superior");
+      return cursos && cursos.total > 0 ? cursos?.cursos.filter(c => c.type === "superior") : [];
     }
     return [];
   };
@@ -276,6 +268,14 @@ export default function MateriaPainel() {
         />
       )}
 
+      {erroListarMaterias && (
+        <Alert variant="error" title="Erro ao litar matérias disciplinares" message={erroListarMaterias} />
+      )}
+
+      {erroListarCursos && (
+        <Alert variant="error" title="Erro ao litar cursos" message={erroListarCursos} />
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -288,7 +288,7 @@ export default function MateriaPainel() {
         </div>
         <div className="flex gap-3">
           {!showForm && (
-            <Button disabled={loading} onClick={carregarDados}>Atualizar lista</Button>
+            <Button disabled={ListandoMaterias || ListandoCursos} onClick={carregarDados}>Atualizar lista</Button>
           )}
           <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>Nova Matéria</Button>
         </div>
@@ -432,20 +432,20 @@ export default function MateriaPainel() {
         </div>
       )}
 
-      {loading && !showForm && (
+      {ListandoMaterias || ListandoCursos && !showForm && (
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
         </div>
       )}
 
-      {!loading && !showForm && (
+      {!ListandoMaterias || ListandoCursos && !showForm && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{/* Lista de Matérias */}
-          {materias.length === 0 ? (
+          {materias?.materias.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
               Nenhuma matéria cadastrada
             </div>
           ) : (
-            materias.map((materia) => (
+            materias?.materias.map((materia) => (
               <div
                 key={materia.id}
                 className={`bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border-2 transition-all ${

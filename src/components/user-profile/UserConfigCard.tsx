@@ -135,8 +135,6 @@ export default function UserConfigCard() {
         }, 2000);
       }
     } catch (error: any) {
-      // O erro já será tratado pelo hook useApi e estará disponível em erroAlterarSenha
-      console.error('Erro ao alterar senha:', error);
     }
   };
 
@@ -232,11 +230,7 @@ export default function UserConfigCard() {
             {/* Erro da API */}
             {erroAlterarSenha && (
               <div className="first-letter:uppercase w-fit p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-700 dark:text-red-400">
-                  {typeof erroAlterarSenha === 'string' 
-                    ? erroAlterarSenha 
-                    : 'Erro ao alterar senha. Verifique se a senha atual está correta.'}
-                </p>
+                <p className="text-sm text-red-700 dark:text-red-400">{erroAlterarSenha}</p>
               </div>
             )}
           </form>

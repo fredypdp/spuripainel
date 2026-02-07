@@ -47,13 +47,14 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 };
 
 export default function CursosPainel() {
-  const [cursos, setCursos] = useState<Curso[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingCurso, setEditingCurso] = useState<Curso | null>(null);
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
+  const {execute: executarListarCursos, data: cursos, error: erroListarCursos, loading: ListandoCursos} = useApi(academiaService.listarCursos)
+  const {execute: executarAtualizarCurso, error: erroAtualizarCurso, loading: AtualizandoCurso} = useApi(academiaService.atualizarCurso)
+  const {execute: executarCriarCurso, error: erroCriarCurso, loading: CriandoCurso} = useApi(academiaService.criarCurso)
   const {execute: executarAtivarCurso, error: erroAtivarCurso, loading: AtivandoCurso} = useApi(academiaService.ativarCurso)
   const {execute: executarDesativarCurso, error: erroDesativarCurso, loading: DesativandoCurso} = useApi(academiaService.desativarCurso)
   
@@ -70,29 +71,12 @@ export default function CursosPainel() {
   });
 
   useEffect(() => {
-    carregarCursos();
+    executarListarCursos();
   }, []);
-
-  useEffect(() => {
-    console.log(erroAtivarCurso)
-    console.log(erroDesativarCurso)
-  }, [erroAtivarCurso, erroDesativarCurso]);
 
   const showAlert = (variant: "success" | "error" | "warning" | "info", message: string) => {
     setAlert({ variant, message });
     setTimeout(() => setAlert(null), 5000);
-  };
-
-  const carregarCursos = async () => {
-    try {
-      setLoading(true);
-      const response = await academiaService.listarCursos();
-      setCursos(response.cursos || []);
-    } catch (error: any) {
-      showAlert("error", erroAtivarCurso || error?.data?.error || "Erro ao carregar cursos");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,18 +94,18 @@ export default function CursosPainel() {
 
     try {
       if (editingCurso) {
-        await academiaService.atualizarCurso(editingCurso.id, {
+        await executarAtualizarCurso(editingCurso.id, {
           nome: formData.nome,
           type: formData.type,
         });
         showAlert("success", "Curso atualizado com sucesso");
       } else {
-        await academiaService.criarCurso(formData);
+        await executarCriarCurso(formData);
         showAlert("success", "Curso criado com sucesso");
       }
       
       resetForm();
-      carregarCursos();
+      executarListarCursos();
     } catch (error: any) {
       showAlert("error", error?.data?.error || "Erro ao salvar curso");
     }
@@ -140,15 +124,14 @@ export default function CursosPainel() {
   const handleToggleStatus = async (curso: Curso) => {
     try {
       if (curso.status === "ativo") {
-        await academiaService.desativarCurso(curso.id);
+        await executarDesativarCurso(curso.id)
         showAlert("success", "Curso desativado");
       } else {
-        await academiaService.ativarCurso(curso.id);
+        await executarAtivarCurso(curso.id);
         showAlert("success", "Curso ativado");
       }
-      carregarCursos();
+      executarListarCursos();
     } catch (error: any) {
-      showAlert("error", error?.data?.error || "Erro ao alterar status");
     }
   };
 
@@ -223,6 +206,14 @@ export default function CursosPainel() {
         />
       )}
 
+      {erroAtivarCurso && (
+        <Alert variant="error" title="Erro ao ativar curso" message={erroAtivarCurso} />
+      )}
+
+      {erroDesativarCurso && (
+        <Alert variant="error" title="Erro ao desativar curso" message={erroDesativarCurso} />
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -235,7 +226,7 @@ export default function CursosPainel() {
         </div>
         <div className="flex gap-3">
           {!showForm && (
-            <Button disabled={loading} onClick={carregarCursos}>Atualizar lista</Button>
+            <Button disabled={ListandoCursos} onClick={() => executarListarCursos()}>Atualizar lista</Button>
           )}
           <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>Novo Curso</Button>
         </div>
@@ -340,20 +331,20 @@ export default function CursosPainel() {
       )}
 
       {/* Lista de Cursos */}
-      {loading && !showForm && (
+      {ListandoCursos && !showForm && (
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
         </div>
       )}
 
-      {!loading && !showForm && (
+      {!ListandoCursos && !showForm && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cursos.length === 0 ? (
+        {cursos?.cursos.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
             Nenhum curso cadastrado
           </div>
         ) : (
-          cursos.map((curso) => (
+          cursos?.cursos.map((curso) => (
             <div
               key={curso.id}
               className={`bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border-2 transition-all ${

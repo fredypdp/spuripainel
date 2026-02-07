@@ -17,13 +17,13 @@ export default function LoginForm() {
   const [senha, setSenha] = useState('');
   const [contaTipo, setContaTipo] = useState<'estudante' | 'academia'>('estudante');
   
-  const { loading: carregandoEstudante, error: erroEstudante, execute: executeLoginEstudante } = useApi(estudanteService.login);
-  const { loading: carregandoAcademia, error: erroAcademia, execute: executeLoginAcademia } = useApi(academiaService.login);
+  const { loading: carregandoEstudante, error: erroLoginEstudante, execute: executeLoginEstudante } = useApi(estudanteService.login);
+  const { loading: carregandoAcademia, error: erroLoginAcademia, execute: executeLoginAcademia } = useApi(academiaService.login);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const loading = carregandoEstudante || carregandoAcademia;
-  const erro = contaTipo === 'estudante' ? erroEstudante : erroAcademia;
+  const erro = contaTipo === 'estudante' ? erroLoginEstudante : erroLoginAcademia;
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -60,7 +60,7 @@ export default function LoginForm() {
       }
     } catch (error) {
       // ✅ Erro já tratado pelo useApi e exposto em 'erro'
-      // Nada a fazer aqui - a mensagem já está em erroEstudante ou erroAcademia
+      // Nada a fazer aqui - a mensagem já está em erroLoginEstudante ou erroLoginAcademia
     }
   };
 

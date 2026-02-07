@@ -36,8 +36,8 @@ export default function Academias() {
   
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.criarEscola);
-  const { loading: carregandoAtivar, error: erroAtivar, execute: executarAtivar } = useApi(adminService.ativarAcademia);
-  const { loading: carregandoDesativar, error: erroDesativar, execute: executarDesativar } = useApi(adminService.desativarAcademia);
+  const { loading: carregandoAtivar, error: erroAtivarAcademia, execute: executarAtivar } = useApi(adminService.ativarAcademia);
+  const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
   
   const [showSenha, setShowSenha] = useState(false);
   const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaDetalhada | null>(null);
@@ -402,9 +402,7 @@ export default function Academias() {
 
               {erroCadastro && !successMessage && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                    {erroCadastro}
-                  </p>
+                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroCadastro}</p>
                 </div>
               )}
 
@@ -526,11 +524,15 @@ export default function Academias() {
                 />
               </div>
 
-              {erroDesativar && (
+              {erroAtivarAcademia && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                    {erroDesativar}
-                  </p>
+                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroAtivarAcademia}</p>
+                </div>
+              )}
+
+              {erroDesativarAcademia && (
+                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroDesativarAcademia}</p>
                 </div>
               )}
 
@@ -556,9 +558,7 @@ export default function Academias() {
 
         {erroAcademias && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-700 dark:text-red-400">
-              Erro ao carregar academias: {erroAcademias}
-            </p>
+            <p className="text-sm text-red-700 dark:text-red-400">{erroAcademias}</p>
           </div>
         )}
 
