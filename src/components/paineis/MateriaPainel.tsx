@@ -70,6 +70,8 @@ export default function MateriaPainel() {
   const {execute: executarAtualizarMateria, error: erroAtualizarMateria, loading: atualizandoMateria} = useApi(academiaService.atualizarMateria)
   const {execute: executarListarMaterias, data: materias, error: erroListarMaterias, loading: ListandoMaterias} = useApi(academiaService.listarMaterias)
   const {execute: executarListarCursos, data: cursos, error: erroListarCursos, loading: ListandoCursos} = useApi(academiaService.listarCursos)
+  const {execute: executarAtivarMateria, error: erroAtivarMateria, loading: AtivandoMateria} = useApi(academiaService.ativarMateria)
+    const {execute: executarDesativarMateria, error: erroDesativarMateria, loading: DesativandoMateria} = useApi(academiaService.desativarMateria)
 
   // ✅ Detecta se a academia é mista
   const isAcademiaMista = () => {
@@ -188,15 +190,14 @@ export default function MateriaPainel() {
   const handleToggleStatus = async (materia: Materia) => {
     try {
       if (materia.status === "ativo") {
-        await academiaService.desativarMateria(materia.id);
+        await executarDesativarMateria(materia.id);
         showAlert("success", "Matéria desativada");
       } else {
-        await academiaService.ativarMateria(materia.id);
+        await executarAtivarMateria(materia.id);
         showAlert("success", "Matéria ativada");
       }
-      carregarDados();
+      executarListarMaterias();
     } catch (error: any) {
-      showAlert("error", error?.message || error?.data?.error || "Erro ao alterar status");
     }
   };
 
@@ -536,10 +537,7 @@ export default function MateriaPainel() {
             )}
 
             <div className="flex gap-3 pt-4">
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
-              >
+              <button type="submit" className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors">
                 {editingMateria ? atualizandoMateria ? "Atualizando matéria" : "Atualizar" : criandoMateria ? "Criando matéria" : "Criar Matéria"}
               </button>
               <button
@@ -655,11 +653,12 @@ export default function MateriaPainel() {
                       <>
                         <Icon icon="mdi:power" width={16} />
                         Desativar
+                        {DesativandoMateria ? "Desativando" : "Desativar"}
                       </>
                     ) : (
                       <>
                         <Icon icon="mdi:power" width={16} />
-                        Ativar
+                        {DesativandoMateria ? "Ativando" : "Ativar"}
                       </>
                     )}
                   </button>

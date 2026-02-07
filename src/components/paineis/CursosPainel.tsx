@@ -408,12 +408,12 @@ export default function CursosPainel() {
                   {curso.status === "ativo" ? (
                     <>
                       <Icon icon="mdi:power" width={16} />
-                      Desativar
+                      {DesativandoCurso ? "Desativando" : "Desativar"}
                     </>
                   ) : (
                     <>
                       <Icon icon="mdi:power" width={16} />
-                      Ativar
+                      {AtivandoCurso ? "Desativando" : "Ativar"}
                     </>
                   )}
                 </button>
