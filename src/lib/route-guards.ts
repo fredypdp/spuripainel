@@ -80,6 +80,16 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     allowedTypes: ['academia', 'admin', 'estudante'],
     redirectIfUnauthorized: '/',
   },
+  {
+    path: '/notas',
+    allowedTypes: 'authenticated',
+    redirectIfUnauthorized: '/login',
+  },
+  {
+    path: '/faltas',
+    allowedTypes: 'authenticated',
+    redirectIfUnauthorized: '/login',
+  },
 
   // ==========================================
   // ROTAS PARA USUÁRIOS AUTENTICADOS
