@@ -71,7 +71,6 @@ export default function Academias() {
     }
   };
 
-  // ✅ Corrigido: useEffect agora apenas agenda a execução
   useEffect(() => {
     const loadData = async () => {
       await carregarLista();
@@ -168,7 +167,6 @@ export default function Academias() {
     openDetailsModal();
   };
 
-  // ✅ Função para ativar academia
   const handleAtivar = async (academia: AcademiaDetalhada) => {
     if (!confirm(`Tem certeza que deseja ativar a academia "${academia.nome}"?`)) {
       return;
@@ -185,14 +183,12 @@ export default function Academias() {
     }
   };
 
-  // ✅ Função para abrir modal de desativação
   const handleAbrirDesativar = (academia: AcademiaDetalhada) => {
     setAcademiaParaDesativar(academia);
     setMotivoDesativacao('');
     openDesativarModal();
   };
 
-  // ✅ Função para desativar academia
   const handleDesativar = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -562,8 +558,9 @@ export default function Academias() {
           </div>
         )}
 
+        {/* ✅ WRAPPER ATUALIZADO: overflow-x-auto sem classes conflitantes */}
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="w-full overflow-x-auto">
+          <div className="overflow-x-auto">
             <Table className="w-full">
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>

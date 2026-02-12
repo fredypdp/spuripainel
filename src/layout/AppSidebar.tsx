@@ -1,3 +1,4 @@
+// src/layout/AppSidebar.tsx
 "use client";
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
@@ -75,13 +76,11 @@ export default function AppSidebar() {
     }
   }, []);
 
-  // Filtrar navItems baseado no tipo de usuário
   const filteredNavItems = useMemo(() => {
-    if (!mounted) return navItems; // Mostrar todos antes de montar
+    if (!mounted) return navItems;
     
     return navItems.filter(item => {
       if (user?.tipo) {
-        // Verificar por path direto
         if (item.path === "/academias") {
           return user.tipo === "admin";
         }
@@ -90,7 +89,6 @@ export default function AppSidebar() {
           return user.tipo === "admin" || user.tipo === "academia";
         }
 
-        // Verificar por nome do item (para items com subItems)
         if (item.path === "/gerenciamento") {
           return user.tipo === "academia";
         }
@@ -99,7 +97,6 @@ export default function AppSidebar() {
     });
   }, [user, mounted]);
 
-  // Derive which submenu should be open based on current pathname
   const derivedOpenSubmenu = useMemo(() => {
     let result: { type: "main" | "others"; index: number } | null = null;
     
@@ -121,14 +118,12 @@ export default function AppSidebar() {
     return result;
   }, [pathname, filteredNavItems]);
 
-  // Track manual toggles separately with the pathname they were set on
   const [manualToggle, setManualToggle] = useState<{
     type: "main" | "others";
     index: number;
     pathname: string;
   } | null>(null);
 
-  // Use manual toggle only if it's for the current pathname, otherwise use derived state
   const openSubmenu = (manualToggle?.pathname === pathname ? manualToggle : null) ?? derivedOpenSubmenu;
 
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
@@ -137,7 +132,6 @@ export default function AppSidebar() {
   const isActive = useCallback((path: string) => path === pathname, [pathname]);
 
   useEffect(() => {
-    // Set the height of the submenu items when the submenu is opened
     if (openSubmenu !== null) {
       const key = `${openSubmenu.type}-${openSubmenu.index}`;
       if (subMenuRefs.current[key]) {
@@ -151,7 +145,6 @@ export default function AppSidebar() {
 
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setManualToggle((prevManualToggle) => {
-      // If clicking the same submenu, close it
       if (
         prevManualToggle &&
         prevManualToggle.type === menuType &&
@@ -160,7 +153,6 @@ export default function AppSidebar() {
       ) {
         return null;
       }
-      // Otherwise open the clicked submenu
       return { type: menuType, index, pathname };
     });
   };
