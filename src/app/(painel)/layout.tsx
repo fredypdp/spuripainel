@@ -1,3 +1,4 @@
+// src/app/(painel)/layout.tsx
 "use client"
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -69,10 +70,12 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
         <AppSidebar />
         <Backdrop />
         
-        <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
+        {/* ✅ CORRIGIDO: Adicionado max-w-full para respeitar limite com sidebar */}
+        <div className={`flex-1 max-w-full transition-all duration-300 ease-in-out ${mainContentMargin}`}>
           <AppHeader />
           
-          <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
+          {/* ✅ CORRIGIDO: Trocado max-w-(--breakpoint-2xl) por max-w-full */}
+          <div className="p-4 mx-auto max-w-full md:p-6">
             {children}
           </div>
         </div>

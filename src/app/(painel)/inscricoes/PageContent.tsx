@@ -162,7 +162,7 @@ export default function Inscricoes() {
         )}
 
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="w-full overflow-x-auto">
+          <div className="w-full max-w-full overflow-x-auto">
             <Table className="w-full min-w-max">
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
