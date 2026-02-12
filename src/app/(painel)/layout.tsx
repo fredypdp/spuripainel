@@ -1,4 +1,3 @@
-// src/app/(painel)/layout.tsx
 "use client"
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,16 +20,16 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   const { user, loading: loadingUser } = useUserCookie();  
   const {error: erroMeuPerfil, execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
 
-  // ✅ NOVO: Calcular largura da sidebar para o grid
-  const sidebarWidth = isMobileOpen
-    ? "0px"
+  const mainContentMargin = isMobileOpen
+    ? "ml-0"
     : isExpanded || isHovered
-    ? "290px"
-    : "90px";
+    ? "lg:ml-[290px]"
+    : "lg:ml-[90px]";
 
   useEffect(() => {
     const token = tokenStorage.get();
 
+    // Recarregar perfil apenas se não tiver user
     if (!loadingUser && !user && !hasLoadedProfile.current) {
       hasLoadedProfile.current = true;
       executarPegarPerfil(token).then((data) => {
@@ -41,17 +40,22 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       });
     }
     
+    // Atualizar cookie silenciosamente se user já existe
+    // (sem reload, apenas atualiza o cookie)
     if (!loadingUser && user && !hasLoadedProfile.current) {
       hasLoadedProfile.current = true;
       executarPegarPerfil(token).then((data) => {
         if (data) {
+          // Comparar se realmente mudou algo importante
           const userAtual = JSON.stringify(user);
           const userNovo = JSON.stringify(data);
           
           if (userAtual !== userNovo) {
             setCookie("user", JSON.stringify(data), 1);
+            // Apenas recarregar se mudou algo relevante
             window.location.reload();
           } else {
+            // Apenas atualiza o cookie sem reload
             setCookie("user", JSON.stringify(data), 1);
           }
         }
@@ -61,23 +65,14 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
 
   return (
     <RouteGuard>
-      {/* ✅ NOVO: Usar CSS Grid ao invés de flexbox */}
-      <div 
-        className="min-h-screen"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `${sidebarWidth} 1fr`,
-          transition: 'grid-template-columns 300ms ease-in-out',
-        }}
-      >
+      <div className="min-h-screen xl:flex">
         <AppSidebar />
         <Backdrop />
         
-        {/* ✅ NOVO: Container sem margin-left, apenas overflow-x-hidden */}
-        <div className="overflow-x-hidden">
+        <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
           <AppHeader />
           
-          <div className="p-4 mx-auto md:p-6">
+          <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
             {children}
           </div>
         </div>
