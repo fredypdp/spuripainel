@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import TableScrollWrapper from "@/components/ui/TableScrollWrapper";
 
 interface NivelAcademico {
   nome: string;

@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import TableScrollWrapper from "@/components/ui/TableScrollWrapper";
 
 const ITEMS_PER_PAGE = 20;
 
