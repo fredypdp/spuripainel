@@ -738,3 +738,107 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+
+/* Scrollbar customizada melhorada */
+
+/* Scrollbar padrão melhorada */
+.custom-scrollbar {
+  /* Chrome, Safari, Edge */
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) rgb(249 250 251);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: rgb(249 250 251);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(156 163 175);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark mode */
+.dark .custom-scrollbar {
+  scrollbar-color: rgb(75 85 99) rgb(31 41 55);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background-color: rgb(31 41 55);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(107 114 128);
+}
+
+/* Scrollbar para tabelas - mais visível */
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) rgb(249 250 251);
+  -webkit-overflow-scrolling: touch; /* Smooth scroll em iOS */
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background-color: rgb(249 250 251);
+  border-radius: 8px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
+  border-radius: 8px;
+  border: 2px solid rgb(249 250 251);
+  transition: all 0.2s ease;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(156 163 175);
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:active {
+  background-color: rgb(107 114 128);
+}
+
+/* Dark mode para scrollbar-custom */
+.dark .scrollbar-custom {
+  scrollbar-color: rgb(75 85 99) rgb(17 24 39);
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-track {
+  background-color: rgb(17 24 39);
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+  border-color: rgb(17 24 39);
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(107 114 128);
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb:active {
+  background-color: rgb(156 163 175);
+}

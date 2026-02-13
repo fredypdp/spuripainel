@@ -564,142 +564,144 @@ export default function Academias() {
 
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="w-full overflow-x-auto">
-            <Table className="w-full">
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Pendentes</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
-                </TableRow>
-              </TableHeader>
-
-              {carregandoAcademias && (
-                <TableBody>
+            <TableScrollWrapper>
+              <Table className="w-full">
+                <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                   <TableRow>
-                    <TableCell colSpan={9}>
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
-                      </div>
-                    </TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Pendentes</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
                   </TableRow>
-                </TableBody>
-              )}
+                </TableHeader>
 
-              {!carregandoAcademias && !carregado && (
-                <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={9}>
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-gray-400 dark:text-gray-500 mb-4">
-                          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Clique em &ldquo;Carregar academias&rdquo; para visualizar
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              )}
-
-              {!carregandoAcademias && carregado && dataAcademias && dataAcademias.total === 0 && (
-                <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={9}>
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-gray-400 dark:text-gray-500 mb-2">
-                          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Nenhuma academia encontrada
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              )}
-                
-              {!carregandoAcademias && dataAcademias && dataAcademias.total > 0 && (
-                <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                  {dataAcademias.academias.map((academia) => (
-                    <TableRow key={academia.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
-                      <TableCell className="max-w-[200px] capitalize truncate px-5 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">
-                        {academia.nome || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.codigo_academia || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.type || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.nivel_escolar || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.provincia || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
-                        {academia.total_estudantes}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
-                        {academia.total_inscricoes_pendentes > 0 ? (
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
-                            {academia.total_inscricoes_pendentes}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">0</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
-                          {academia.status || '-'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleVerDetalhes(academia)}>Ver detalhes</Button>
-                          {!loadingUser && user?.tipo === "admin" && (
-                            <>
-                              {academia.status === "inativo" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="primary" 
-                                  onClick={() => handleAtivar(academia)}
-                                  disabled={carregandoAtivar}
-                                >
-                                  {carregandoAtivar ? 'Ativando...' : 'Ativar'}
-                                </Button>
-                              )}
-                              {academia.status === "ativo" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="danger" 
-                                  onClick={() => handleAbrirDesativar(academia)}
-                                  disabled={carregandoDesativar}
-                                >
-                                  Desativar
-                                </Button>
-                              )}
-                            </>
-                          )}
+                {carregandoAcademias && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={9}>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              )}
-            </Table>
+                  </TableBody>
+                )}
+
+                {!carregandoAcademias && !carregado && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={9}>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <div className="text-gray-400 dark:text-gray-500 mb-4">
+                            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                            Clique em &ldquo;Carregar academias&rdquo; para visualizar
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+
+                {!carregandoAcademias && carregado && dataAcademias && dataAcademias.total === 0 && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={9}>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <div className="text-gray-400 dark:text-gray-500 mb-2">
+                            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                            Nenhuma academia encontrada
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+                  
+                {!carregandoAcademias && dataAcademias && dataAcademias.total > 0 && (
+                  <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                    {dataAcademias.academias.map((academia) => (
+                      <TableRow key={academia.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                        <TableCell className="max-w-[200px] capitalize truncate px-5 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">
+                          {academia.nome || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                          {academia.codigo_academia || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                          {academia.type || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                          {academia.nivel_escolar || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                          {academia.provincia || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
+                          {academia.total_estudantes}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
+                          {academia.total_inscricoes_pendentes > 0 ? (
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                              {academia.total_inscricoes_pendentes}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
+                            {academia.status || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => handleVerDetalhes(academia)}>Ver detalhes</Button>
+                            {!loadingUser && user?.tipo === "admin" && (
+                              <>
+                                {academia.status === "inativo" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="primary" 
+                                    onClick={() => handleAtivar(academia)}
+                                    disabled={carregandoAtivar}
+                                  >
+                                    {carregandoAtivar ? 'Ativando...' : 'Ativar'}
+                                  </Button>
+                                )}
+                                {academia.status === "ativo" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="danger" 
+                                    onClick={() => handleAbrirDesativar(academia)}
+                                    disabled={carregandoDesativar}
+                                  >
+                                    Desativar
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                )}
+              </Table>
+            </TableScrollWrapper>
           </div>
         </div>
       </div>
