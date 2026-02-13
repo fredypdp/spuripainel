@@ -20,12 +20,6 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
   const { user, loading: loadingUser } = useUserCookie();  
   const {error: erroMeuPerfil, execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
 
-  const mainContentMargin = isMobileOpen
-    ? "ml-0"
-    : isExpanded || isHovered
-    ? "lg:ml-[290px]"
-    : "lg:ml-[90px]";
-
   useEffect(() => {
     const token = tokenStorage.get();
 
@@ -41,21 +35,17 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
     }
     
     // Atualizar cookie silenciosamente se user já existe
-    // (sem reload, apenas atualiza o cookie)
     if (!loadingUser && user && !hasLoadedProfile.current) {
       hasLoadedProfile.current = true;
       executarPegarPerfil(token).then((data) => {
         if (data) {
-          // Comparar se realmente mudou algo importante
           const userAtual = JSON.stringify(user);
           const userNovo = JSON.stringify(data);
           
           if (userAtual !== userNovo) {
             setCookie("user", JSON.stringify(data), 1);
-            // Apenas recarregar se mudou algo relevante
             window.location.reload();
           } else {
-            // Apenas atualiza o cookie sem reload
             setCookie("user", JSON.stringify(data), 1);
           }
         }
@@ -63,16 +53,21 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
     }
   }, [router, user, loadingUser, executarPegarPerfil]);
 
+  // Calcula padding-left baseado no estado da sidebar
+  const contentPadding = isExpanded || isHovered
+    ? "lg:pl-[290px]"
+    : "lg:pl-[90px]";
+
   return (
     <RouteGuard>
-      <div className="min-h-screen xl:flex">
+      <div className="flex min-h-screen">
         <AppSidebar />
         <Backdrop />
         
-        <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
+        <div className={`flex flex-col flex-1 min-w-0 transition-all duration-300 ${contentPadding}`}>
           <AppHeader />
           
-          <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
+          <div className="p-4 mx-auto w-full max-w-(--breakpoint-2xl) md:p-6">
             {children}
           </div>
         </div>
