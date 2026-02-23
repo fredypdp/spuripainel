@@ -70,14 +70,14 @@ export interface ErrorResponse {
 }
 
 export const academiaService = {
-  criarEscola: (data: CriarEscolaRequest) =>
+  criarEscola: (data: CriarEscolaRequest, token?: string) =>
     api.post<{ message: string; data: { codigo_academia: string; id: string } }>(
       '/admin/academia/register',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  criarUniversidade: (data: CriarUniversidadeRequest) =>
+  criarUniversidade: (data: CriarUniversidadeRequest, token?: string) =>
     api.post<{ message: string; data: { codigo_academia: string; id: string } }>(
       '/admin/academia/register',
       data,
