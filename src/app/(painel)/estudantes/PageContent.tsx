@@ -11,7 +11,6 @@ import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { EstudanteDetalhado } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
-import CadastroMassaEstudantes from "@/components/estudantes/CadastroMassaEstudantes";
 import { useUserCookie } from '@/hooks/useUserCookie';
 import { Dropdown } from 'primereact/dropdown';
 
@@ -469,13 +468,6 @@ export default function Estudantes() {
               </div>
             </form>
           </Modal>
-
-          {/* Modal de Cadastro em Massa */}
-          <CadastroMassaEstudantes 
-            isOpen={isMassaOpen}
-            onClose={closeMassaModal}
-            onSuccess={carregarLista}
-          />
 
           {/* Modal de Detalhes */}
           <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
