@@ -73,13 +73,15 @@ export const academiaService = {
   criarEscola: (data: CriarEscolaRequest) =>
     api.post<{ message: string; data: { codigo_academia: string; id: string } }>(
       '/admin/academia/register',
-      data
+      data,
+      { token: token || tokenStorage.get() || undefined }
     ),
 
   criarUniversidade: (data: CriarUniversidadeRequest) =>
     api.post<{ message: string; data: { codigo_academia: string; id: string } }>(
       '/admin/academia/register',
-      data
+      data,
+      { token: token || tokenStorage.get() || undefined }
     ),
 
   login: (data: LoginRequest) =>
