@@ -39,14 +39,9 @@ export default function Estudantes() {
   const [carregado, setCarregado] = useState(false);
   const [cadastrandoIndividual, setCadastrandoIndividual] = useState(false);
   
-  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  
-  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(
-    isAcademia ? academiaService.cadastrarEstudante : estudanteService.criar
-  );
-  
-  const { data: dataCursos, execute: carregarCursos, error: erroListarCuros } = useApi(academiaService.listarCursos);
-  
+  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);  
+  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.cadastrarEstudante);  
+  const { data: dataCursos, execute: carregarCursos, error: erroListarCuros } = useApi(academiaService.listarCursos);  
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   
   // Campos do formulário
@@ -224,7 +219,6 @@ export default function Estudantes() {
     // 🔥 CORRIGIDO: Enviar undefined em vez de strings vazias
     const payload = {
       nome: nome.trim(),
-      senha: "spuri123",
       email: email.trim() || undefined,
       telefone: telefone.trim() || undefined,
       bilhete_identidade: bilheteIdentidade.trim(),

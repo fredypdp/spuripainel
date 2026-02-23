@@ -34,7 +34,6 @@ export type MateriaType = 'fundamental' | 'medio' | 'superior';
 
 export interface CriarEscolaRequest {
   type: 'escola';
-  senha: string;
   nome: string;
   provincia: string;
   endereco: string;
@@ -47,7 +46,6 @@ export interface CriarEscolaRequest {
 
 export interface CriarUniversidadeRequest {
   type: 'superior';
-  senha: string;
   nome: string;
   provincia: string;
   endereco: string;
@@ -70,7 +68,6 @@ export interface AdminLoginRequest {
 
 // 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
 export interface CriarEstudanteRequest {
-  senha: string;
   nome: string;
   email?: string;
   telefone?: string;
@@ -132,7 +129,6 @@ export interface ReprovarInscricaoRequest {
 export interface CriarAdminRequest {
   nome: string;
   email: string;
-  senha: string;
   role: AdminType;
 }
 

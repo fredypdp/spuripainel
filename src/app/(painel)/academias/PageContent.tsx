@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, academiaService, adminService, tokenStorage } from '@/lib/api';
-import { EyeCloseIcon, EyeIcon } from "@/icons";
 import { useUserCookie } from "@/hooks/useUserCookie";
 
 import Button from "@/components/ui/button/Button";
@@ -39,13 +38,11 @@ export default function Academias() {
   const { loading: carregandoAtivar, error: erroAtivarAcademia, execute: executarAtivar } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
   
-  const [showSenha, setShowSenha] = useState(false);
   const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaDetalhada | null>(null);
   const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao, setMotivoDesativacao] = useState('');
   
   const [nome, setNome] = useState('');
-  const [senha, setSenha] = useState('');
   const [email, setEmail] = useState('');
   const [numeroTelefone, setNumeroTelefone] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -83,7 +80,6 @@ export default function Academias() {
     const erros: string[] = [];
 
     if (!nome.trim()) erros.push('Nome da escola é obrigatório');
-    if (!senha || senha.length < 6) erros.push('Senha deve ter no mínimo 6 caracteres');
     if (!nivelEscolarSelecionado) erros.push('Selecione o nível acadêmico');
     if (!provinciaSelecionada) erros.push('Selecione a província');
     if (!numeroTelefone.trim()) {
@@ -113,7 +109,6 @@ export default function Academias() {
 
   const limparFormulario = () => {
     setNome('');
-    setSenha('');
     setEmail('');
     setNumeroTelefone('');
     setEndereco('');
@@ -133,7 +128,6 @@ export default function Academias() {
 
     try {
       const result = await executarCadastro({
-        senha,
         nome: nome.trim(),
         type: "escola",
         cursos: [],
@@ -146,7 +140,7 @@ export default function Academias() {
       });
 
       if (result?.data) {
-        setSuccessMessage(`Academia cadastrada com sucesso! Código: ${result.data.codigo_academia}`);
+        setSuccessMessage(`Academia cadastrada com sucesso! Código: ${result.data.codigo_academia} | Senha padrão: ${result.data.codigo_academia}`);
         
         setTimeout(() => {
           limparFormulario();
@@ -280,28 +274,6 @@ export default function Academias() {
                     onChange={(e) => setNome(e.target.value)} 
                     disabled={carregandoCadastro}
                   />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Senha *</Label>
-                  <div className="relative">
-                    <Input 
-                      placeholder="Mínimo 6 caracteres"
-                      type={showSenha ? "text" : "password"}
-                      onChange={(e) => setSenha(e.target.value)}
-                      disabled={carregandoCadastro}
-                    />
-                    <span
-                      onClick={() => setShowSenha(!showSenha)}
-                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
-                    >
-                      {showSenha ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
-                      )}
-                    </span>
-                  </div>
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">

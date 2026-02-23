@@ -72,13 +72,13 @@ export interface ErrorResponse {
 export const academiaService = {
   criarEscola: (data: CriarEscolaRequest) =>
     api.post<{ message: string; data: { codigo_academia: string; id: string } }>(
-      '/academia/register',
+      '/admin/academia/register',
       data
     ),
 
   criarUniversidade: (data: CriarUniversidadeRequest) =>
     api.post<{ message: string; data: { codigo_academia: string; id: string } }>(
-      '/academia/register',
+      '/admin/academia/register',
       data
     ),
 
@@ -249,7 +249,7 @@ export const academiaService = {
 
 export const estudanteService = {
   criar: (data: CriarEstudanteRequest) =>
-    api.post<{ message: string; data: { codigo_estudante: string; id: string } }>(
+    api.post<{ message: string; data: { id: string; nome: string; email: string; role: string; senha_padrao: string } }>(
       '/estudante/register',
       data
     ),

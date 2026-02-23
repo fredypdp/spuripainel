@@ -98,14 +98,16 @@ export type SenhaPadrao =
 /**
  * Helper para obter senha padrão
  */
-export function getSenhaPadrao(userType: UserType, codigo?: string): string {
+export function getSenhaPadrao(userType: UserType, codigo?: string, role?: string): string {
   switch (userType) {
     case "estudante":
       return codigo || SenhasPadrao.default;
     case "academia":
       return codigo || SenhasPadrao.default;
     case "admin":
-      return SenhasPadrao.admin;
+      if (role === "fpp") return SenhasPadrao.fpp;
+      if (role === "gerente") return SenhasPadrao.gerente;
+      return SenhasPadrao.admin; // "adm" e default
     default:
       return SenhasPadrao.default;
   }
