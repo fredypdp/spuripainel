@@ -248,12 +248,6 @@ export const academiaService = {
 // =====================
 
 export const estudanteService = {
-  criar: (data: CriarEstudanteRequest) =>
-    api.post<{ message: string; data: { id: string; nome: string; email: string; role: string; senha_padrao: string } }>(
-      '/estudante/register',
-      data
-    ),
-
   login: (data: LoginRequest) =>
     api.post<AuthResponse>('/login', data),
 

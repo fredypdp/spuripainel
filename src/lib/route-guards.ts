@@ -25,11 +25,6 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
-    path: '/cadastro',
-    allowedTypes: 'public',
-    redirectIfUnauthorized: '/',
-  },
-  {
     path: '/esqueci-senha',
     allowedTypes: 'public',
     redirectIfUnauthorized: '/',
