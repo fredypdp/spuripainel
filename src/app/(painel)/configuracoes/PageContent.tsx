@@ -120,7 +120,7 @@ export default function PageContent() {
             Definir Ano Letivo
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Selecione o ano letivo vigente. O formato é{" "}
+            Selecione o ano letivo. O formato é{" "}
             <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
               AAAA/AAAA
             </code>{" "}
