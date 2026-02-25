@@ -5,7 +5,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
 import { useUserCookie } from "@/hooks/useUserCookie";
-import { formatAnoLetivo, gerarOpcoesAnoLetivo } from "@/types/ano-letivo";
+import { formatAnoLetivo, gerarOpcoesAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
 export default function PageContent() {
