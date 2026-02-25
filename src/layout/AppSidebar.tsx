@@ -56,6 +56,11 @@ const navItems: NavItem[] = [
     name: "Inscrições",
     path: "/inscricoes",
   },
+  {
+    icon: <Icon width="24px" icon="mdi:cog-outline" />,
+    name: "Configurações",
+    path: "/configuracoes",
+  },
 ];
 
 export default function AppSidebar() {
@@ -93,6 +98,10 @@ export default function AppSidebar() {
         // Verificar por nome do item (para items com subItems)
         if (item.path === "/gerenciamento") {
           return user.tipo === "academia";
+        }
+
+        if (item.path === "/configuracoes") {
+          return user.tipo === "admin" && user.admin?.role === "fpp";
         }
       }
       return true;

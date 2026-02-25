@@ -702,3 +702,39 @@ export const Provincias: Provincia[] = [
   { nome: "UIGE", codigo: "UIG" },
   { nome: "ZAIRE", codigo: "ZAI" },
 ];
+
+export interface DefinirAnoLetivoRequest {
+  ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
+}
+
+export interface AnoLetivoResponse {
+  ano_letivo: string; // ex: "2025_2026"
+}
+
+export interface DefinirAnoLetivoResponse {
+  message: string;
+  ano_letivo: string;
+}
+
+// --- Helper ---
+
+/**
+ * Converte o formato interno "2025_2026" para exibição "2025/2026"
+ */
+export function formatAnoLetivo(valor: string): string {
+  return valor.replace('_', '/');
+}
+
+/**
+ * Gera as 2 opções de anos letivos relevantes com base no ano atual:
+ *  - Opção A: ano anterior → ano atual  (ex: 2024/2025)
+ *  - Opção B: ano atual → ano seguinte  (ex: 2025/2026)
+ */
+export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
+  const anoAtual = new Date().getFullYear();
+
+  return [
+    { valor: `${anoAtual - 1}_${anoAtual}`, label: `${anoAtual - 1}/${anoAtual}` },
+    { valor: `${anoAtual}_${anoAtual + 1}`, label: `${anoAtual}/${anoAtual + 1}` },
+  ];
+}

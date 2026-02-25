@@ -61,6 +61,9 @@ import type {
   AlterarCursoRequest,
   GetInscricoesPorCodigoResponse,
   AlterarCursoResponse,
+  DefinirAnoLetivoRequest,
+  DefinirAnoLetivoResponse,
+  AnoLetivoResponse
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -338,10 +341,14 @@ export const estudanteService = {
 // =====================
 
 export const inscricoesService = {
-  listar: (status?: StatusInscricao, token?: string) => {
-    const query = status ? `?status=${status}` : '';
+  listar: (params?: { status?: StatusInscricao; limit?: number; offset?: number; token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append('status', params.status);
+    if (params?.limit)  qs.append('limit',  params.limit.toString());
+    if (params?.offset) qs.append('offset', params.offset.toString());
+    const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarInscricoesResponse>(`/inscricoes${query}`, {
-      token: token || tokenStorage.get() || undefined,
+      token: params?.token || tokenStorage.get() || undefined,
     });
   },
 
@@ -592,6 +599,29 @@ export const adminService = {
     api.post<{ message: string }>(
       '/admin/metrics/reset',
       undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+  
+  /**
+   * Define o ano letivo atual do sistema.
+   * Exclusivo para admins FPP.
+   * POST /admin/definir-ano-letivo
+   */
+  definirAnoLetivo: (data: DefinirAnoLetivoRequest, token?: string) =>
+    api.post<DefinirAnoLetivoResponse>(
+      '/admin/definir-ano-letivo',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Retorna o ano letivo atual configurado no sistema.
+   * Acessível por qualquer usuário autenticado.
+   * GET /ano-letivo-atual
+   */
+  getAnoLetivoAtual: (token?: string) =>
+    api.get<AnoLetivoResponse>(
+      '/ano-letivo-atual',
       { token: token || tokenStorage.get() || undefined }
     ),
 };

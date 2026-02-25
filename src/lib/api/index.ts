@@ -102,4 +102,9 @@ export type {
   ProvinciaNome,
   ProvinciaCodigo,
   Provincias,
+  DefinirAnoLetivoRequest,
+  DefinirAnoLetivoResponse,
+  AnoLetivoResponse,
+  formatAnoLetivo,
+  gerarOpcoesAnoLetivo
 } from '@/types/api';
