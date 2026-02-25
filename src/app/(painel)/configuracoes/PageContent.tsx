@@ -5,7 +5,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
 import { useUserCookie } from "@/hooks/useUserCookie";
-import { formatAnoLetivo, gerarOpcoesAnoLetivo } from "@/types/api";
+import { formatAnoLetivo, gerarOpcoesAnoLetivo } from "@/types/ano-letivo";
 import Icon from "@/components/ui/Icon";
 
 export default function PageContent() {
@@ -120,7 +120,7 @@ export default function PageContent() {
             Definir Ano Letivo
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Selecione o ano letivo. O formato é{" "}
+            Selecione o ano letivo vigente. O formato é{" "}
             <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
               AAAA/AAAA
             </code>{" "}
@@ -147,9 +147,6 @@ export default function PageContent() {
                   <option key={op.valor} value={op.valor}>
                     {op.label}
                     {anoLetivoData?.ano_letivo === op.valor ? " (actual)" : ""}
-                    {op.recomendada && anoLetivoData?.ano_letivo !== op.valor
-                      ? " ★ Recomendado"
-                      : ""}
                   </option>
                 ))}
               </select>
