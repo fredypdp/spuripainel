@@ -2,6 +2,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import { Genero } from '@/types/api';
 import { useApi, consultasService, estudanteService, tokenStorage, academiaService } from '@/lib/api';
 
 import Button from "@/components/ui/button/Button";
@@ -50,6 +51,7 @@ export default function Estudantes() {
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
   const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
+  const [genero, setGenero] = useState<Genero>('masculino')
   const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -225,6 +227,7 @@ export default function Estudantes() {
       ano_escolar: anoEscolarSelecionado || undefined,  // 🔥 MUDOU: '' -> undefined
       curso_medio_id: cursoSelecionado?.id || undefined, // 🔥 MUDOU: '' -> undefined
       status_escolar: 'em_andamento',
+      genero: genero,
     };
 
     try {
@@ -335,6 +338,27 @@ export default function Estudantes() {
                     onChange={(e) => setNome(e.target.value)} 
                     disabled={cadastrandoIndividual}
                   />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Género *
+                  </label>
+                  <div className="flex gap-3">
+                    {(['masculino', 'feminino'] as const).map(g => (
+                      <button
+                        key={g} type="button"
+                        onClick={() => setGenero(g)}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                          genero === g
+                            ? 'bg-brand-500 text-white border-brand-500'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {g === 'masculino' ? 'Masculino' : 'Feminino'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">

@@ -75,24 +75,25 @@ export interface CriarEstudanteRequest {
   bilhete_identidade_responsavel?: string;
   ano_escolar?: string;
   ano_superior?: string;
-  curso_medio_id?: string;    // 🔥 MUDOU: agora é UUID
-  curso_superior_id?: string; // 🔥 MUDOU: agora é UUID
+  curso_medio_id?: string;
+  curso_superior_id?: string;
   status_escolar?: StatusEscolar;
   status_superior?: StatusSuperior;
+  genero: Genero;
 }
 
 // 🔥 ATUALIZADO: curso_medio_id agora é UUID
 export interface SolicitarInscricaoEscolaRequest {
   codigo_academia: string;
   ano_escolar_inscricao: string;
-  curso_medio_id?: string; // 🔥 MUDOU: agora é UUID
+  curso_medio_id?: string;
 }
 
 // 🔥 ATUALIZADO: curso_id agora é UUID obrigatório
 export interface SolicitarInscricaoUniversidadeRequest {
   codigo_academia: string;
   ano_inscricao: string;
-  curso_superior_id: string; // 🔥 MUDOU: agora é UUID obrigatório
+  curso_superior_id: string;
 }
 
 export interface RegistrarNotasRequest {
@@ -429,14 +430,15 @@ export interface EstudanteDetalhado {
   status_superior: StatusSuperior;
   ano_escolar?: string;
   ano_superior?: string;
-  curso_medio_id?: string;    // 🔥 MUDOU: agora é UUID
-  curso_superior_id?: string; // 🔥 MUDOU: agora é UUID
+  curso_medio_id?: string;
+  curso_superior_id?: string;
   created_at: string;
   updated_at: string;
   total_notas: number;
   total_faltas: number;
   total_inscricoes: number;
   version: number;
+  genero?: Genero;
 }
 
 export interface AcademiaDetalhada {
@@ -727,8 +729,8 @@ export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
 export type TipoNota = 'escolar' | 'superior';
 
 export type CategoriaNotaEscolar =
-  | 'nota_escola'      // nota final
-  | 'nota_professor';  // nota dada pelo professor
+  | 'nota_escola' // nota final
+  | 'nota_professor'; // nota dada pelo professor
 
 export type CategoriaNotaSuperiorFixa =
   | 'nota_pp1'    // prova parcelar 1
@@ -748,9 +750,9 @@ export interface Nota {
   ano_lectivo: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
-  materia_nome?: string;        // enriquecido em algumas queries
-  tipo: TipoNota;               // NOVO
-  categoria: CategoriaNota;     // NOVO
+  materia_nome?: string; // enriquecido em algumas queries
+  tipo: TipoNota; // NOVO
+  categoria: CategoriaNota; // NOVO
   nota: number;
   observacao?: string;
   registered_at: string;
@@ -763,20 +765,20 @@ export interface RegistrarNotasRequest {
   ano_lectivo: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
-  tipo: TipoNota;           // NOVO — obrigatório
+  tipo: TipoNota; // NOVO — obrigatório
   categoria: CategoriaNota; // NOVO — obrigatório
   nota: number;
-  observacao?: string;      // opcional no registro
+  observacao?: string; // opcional no registro
 }
 
 export interface AtualizarNotaRequest {
-  id: string;          // UUID da nota em projection_notas
+  id: string; // UUID da nota em projection_notas
   nota_nova: number;
-  observacao: string;  // obrigatória
+  observacao: string; // obrigatória
 }
 
 export interface CriarCategoriaNotaRequest {
-  nome: string;        // formato: nota_[nome]  ex: nota_trabalho
+  nome: string; // formato: nota_[nome]  ex: nota_trabalho
   descricao?: string;
 }
 
@@ -792,4 +794,41 @@ export interface CategoriaNotaItem {
 export interface ListarCategoriasNotaResponse {
   categorias: CategoriaNotaItem[];
   total: number;
+}
+
+export type Genero = 'masculino' | 'feminino';
+
+export interface Turma {
+  id: string;
+  codigo_turma: string;
+  codigo_academia: string;
+  nivel: string;
+  curso_id?: string;
+  turno: 'manha' | 'tarde' | 'noite';
+  estudantes: string[]; // array de codigo_estudante
+  status: 'ativo' | 'inativo';
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface ListarTurmasResponse {
+  turmas: Turma[];
+}
+
+export interface CriarTurmaRequest {
+  codigo_turma: string;
+  nivel: string;
+  turno: 'manha' | 'tarde' | 'noite';
+  curso_id?: string;
+}
+
+export interface AtualizarTurmaRequest {
+  nivel?: string;
+  turno?: string;
+  curso_id?: string;
+}
+
+export interface AdicionarEstudanteTurmaRequest {
+  codigo_estudante: string;
 }

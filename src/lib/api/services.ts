@@ -67,6 +67,10 @@ import type {
   AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   ListarCategoriasNotaResponse,
+  ListarTurmasResponse,
+  CriarTurmaRequest,
+  AtualizarTurmaRequest,
+  AdicionarEstudanteTurmaRequest,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -300,6 +304,40 @@ export const academiaService = {
       `/academia/inscricoes/estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  // Turmas
+criarTurma: (data: CriarTurmaRequest, token?: string) =>
+  api.post<{ message: string; id: string; codigo_turma: string }>(
+    '/academia/turmas',
+    data,
+    { token: token || tokenStorage.get() || undefined }
+  ),
+
+listarTurmas: (token?: string) =>
+  api.get<ListarTurmasResponse>(
+    '/academia/turmas',
+    { token: token || tokenStorage.get() || undefined }
+  ),
+
+atualizarTurma: (codigoTurma: string, data: AtualizarTurmaRequest, token?: string) =>
+  api.put<{ message: string }>(
+    `/academia/turmas/${codigoTurma}`,
+    data,
+    { token: token || tokenStorage.get() || undefined }
+  ),
+
+adicionarEstudanteATurma: (codigoTurma: string, data: AdicionarEstudanteTurmaRequest, token?: string) =>
+  api.post<{ message: string; codigo_turma: string; codigo_estudante: string }>(
+    `/academia/turmas/${codigoTurma}/estudantes`,
+    data,
+    { token: token || tokenStorage.get() || undefined }
+  ),
+
+removerEstudanteDaTurma: (codigoTurma: string, codigoEstudante: string, token?: string) =>
+  api.delete<{ message: string }>(
+    `/academia/turmas/${codigoTurma}/estudantes/${codigoEstudante}`,
+    { token: token || tokenStorage.get() || undefined }
+  ),
 };
 
 // =====================

@@ -220,9 +220,7 @@ export default function CursosPainel() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Cursos
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Gerencie os cursos da sua academia
-          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{`Gerencie os cursos da sua ${user?.academia?.type == "escola" ? "escola" : "universidade"}`}</p>
         </div>
         <div className="flex gap-3">
           {!showForm && (

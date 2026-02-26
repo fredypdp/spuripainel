@@ -115,4 +115,10 @@ export type {
   CriarCategoriaNotaRequest,
   CategoriaNotaItem,
   ListarCategoriasNotaResponse,
+  Genero,
+  Turma,
+  ListarTurmasResponse,
+  CriarTurmaRequest,
+  AtualizarTurmaRequest,
+  AdicionarEstudanteTurmaRequest,
 } from '@/types/api';

@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react";
 import CursosPainel from "@/components/paineis/CursosPainel";
+import TurmasPainel from "@/components/paineis/TurmasPainel";
 import MateriaPainel from "@/components/paineis/MateriaPainel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Alert from "@/components/ui/alert/Alert";
@@ -11,7 +12,7 @@ import type { MeuPerfilResponse } from '@/types/api';
 const PAINEIS = [
   { id: 'cursos' as const, label: 'Cursos' },
   { id: 'materias' as const, label: 'Matérias disciplinares' },
-  // { id: 'professores' as const, label: 'Professores' },
+  { id: 'turmas'   as const, label: 'Turmas' },
 ];
 
 type PainelId = typeof PAINEIS[number]['id'];
@@ -90,6 +91,12 @@ export default function Gerenciamento() {
         {painelEscolhido === 'materias' && (
           <div>
             <MateriaPainel />
+          </div>
+        )}
+
+        {painelEscolhido === 'turmas' && (
+          <div>
+            <TurmasPainel />
           </div>
         )}
       </div>
