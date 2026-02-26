@@ -63,7 +63,10 @@ import type {
   AlterarCursoResponse,
   DefinirAnoLetivoRequest,
   DefinirAnoLetivoResponse,
-  AnoLetivoResponse
+  AnoLetivoResponse,
+  AtualizarNotaRequest,
+  CriarCategoriaNotaRequest,
+  ListarCategoriasNotaResponse,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -104,10 +107,61 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * Registrar nota de um estudante
+   * POST /academia/registrar-nota
+   * tipo e categoria agora são obrigatórios
+   */
   registrarNotas: (data: RegistrarNotasRequest, token?: string) =>
-    api.post<{ message: string; estudante: string; materia: string; nota: number }>(
-      '/academia/notas-aluno',
+    api.post<{
+      message: string;
+      estudante: string;
+      materia: string;
+      tipo: string;
+      categoria: string;
+      nota: number;
+    }>(
+      '/academia/registrar-nota',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Atualizar nota já registrada (observacao obrigatória)
+   * PUT /academia/atualizar-nota
+   */
+  atualizarNota: (data: AtualizarNotaRequest, token?: string) =>
+    api.put<{
+      message: string;
+      estudante: string;
+      tipo: string;
+      categoria: string;
+      nota_anterior: number;
+      nota_nova: number;
+    }>(
+      '/academia/atualizar-nota',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Criar categoria adicional de nota (apenas academias tipo "superior")
+   * POST /academia/categorias-nota
+   */
+  criarCategoriaNotaSuperior: (data: CriarCategoriaNotaRequest, token?: string) =>
+    api.post<{ message: string; nome: string; descricao?: string }>(
+      '/academia/categorias-nota',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Listar categorias adicionais de nota (apenas academias tipo "superior")
+   * GET /academia/categorias-nota
+   */
+  listarCategoriasNota: (token?: string) =>
+    api.get<ListarCategoriasNotaResponse>(
+      '/academia/categorias-nota',
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -421,6 +475,16 @@ export const consultasService = {
   getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
     api.get<GetInscricoesPorCodigoResponse>(
       `/inscricoes/estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+  
+  /**
+   * Retorna o ano letivo atual configurado pelo admin
+   * GET /ano-letivo-atual
+   */
+  getAnoLetivoAtual: (token?: string) =>
+    api.get<{ ano_letivo: string }>(
+      '/ano-letivo-atual',
       { token: token || tokenStorage.get() || undefined }
     ),
 };

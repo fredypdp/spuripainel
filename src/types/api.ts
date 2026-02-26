@@ -287,21 +287,6 @@ export interface InscricaoResponse {
   academia: string;
 }
 
-export interface Nota {
-  id: string;
-  codigo_estudante: string;
-  codigo_academia: string;
-  ano_lectivo: string;
-  periodo: Periodo;
-  materia_disciplinar_id: string;
-  materia_nome: string;
-  nota: number;
-  observacao?: string;
-  registered_at: string;
-  event_id: string;
-  version: number;
-}
-
 export interface Falta {
   id: string;
   codigo_estudante: string;
@@ -737,4 +722,74 @@ export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
     { valor: `${anoAtual - 1}_${anoAtual}`, label: `${anoAtual - 1}/${anoAtual}` },
     { valor: `${anoAtual}_${anoAtual + 1}`, label: `${anoAtual}/${anoAtual + 1}` },
   ];
+}
+
+export type TipoNota = 'escolar' | 'superior';
+
+export type CategoriaNotaEscolar =
+  | 'nota_escola'      // nota final
+  | 'nota_professor';  // nota dada pelo professor
+
+export type CategoriaNotaSuperiorFixa =
+  | 'nota_pp1'    // prova parcelar 1
+  | 'nota_pp2'    // prova parcelar 2
+  | 'nota_exame'; // exame
+
+// Categoria pode ser uma das fixas ou qualquer string "nota_[nome]" para adicionais
+export type CategoriaNota =
+  | CategoriaNotaEscolar
+  | CategoriaNotaSuperiorFixa
+  | string; // categorias adicionais criadas pela universidade (formato: nota_[nome])
+
+export interface Nota {
+  id: string;
+  codigo_estudante: string;
+  codigo_academia: string;
+  ano_lectivo: string;
+  periodo: Periodo;
+  materia_disciplinar_id: string;
+  materia_nome?: string;        // enriquecido em algumas queries
+  tipo: TipoNota;               // NOVO
+  categoria: CategoriaNota;     // NOVO
+  nota: number;
+  observacao?: string;
+  registered_at: string;
+  event_id: string;
+  version: number;
+}
+
+export interface RegistrarNotasRequest {
+  codigo_estudante: string;
+  ano_lectivo: string;
+  periodo: Periodo;
+  materia_disciplinar_id: string;
+  tipo: TipoNota;           // NOVO — obrigatório
+  categoria: CategoriaNota; // NOVO — obrigatório
+  nota: number;
+  observacao?: string;      // opcional no registro
+}
+
+export interface AtualizarNotaRequest {
+  id: string;          // UUID da nota em projection_notas
+  nota_nova: number;
+  observacao: string;  // obrigatória
+}
+
+export interface CriarCategoriaNotaRequest {
+  nome: string;        // formato: nota_[nome]  ex: nota_trabalho
+  descricao?: string;
+}
+
+export interface CategoriaNotaItem {
+  id: string;
+  codigo_academia: string;
+  nome: string;
+  descricao?: string;
+  status: 'ativo' | 'inativo';
+  created_at: string;
+}
+
+export interface ListarCategoriasNotaResponse {
+  categorias: CategoriaNotaItem[];
+  total: number;
 }

@@ -106,5 +106,13 @@ export type {
   DefinirAnoLetivoResponse,
   AnoLetivoResponse,
   formatAnoLetivo,
-  gerarOpcoesAnoLetivo
+  gerarOpcoesAnoLetivo,
+  TipoNota,
+  CategoriaNota,
+  CategoriaNotaEscolar,
+  CategoriaNotaSuperiorFixa,
+  AtualizarNotaRequest,
+  CriarCategoriaNotaRequest,
+  CategoriaNotaItem,
+  ListarCategoriasNotaResponse,
 } from '@/types/api';
