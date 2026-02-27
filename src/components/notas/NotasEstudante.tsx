@@ -1,291 +1,272 @@
 // src/components/notas/NotasEstudante.tsx
 "use client"
-import { useState, useEffect } from "react";
-import { useApi, consultasService, tokenStorage } from "@/lib/api";
-import { Nota } from "@/types/api";
+import { useState, useEffect, useMemo } from "react";
+import { consultasService, tokenStorage, useApi } from "@/lib/api";
+import type { MeuPerfilResponse, Nota } from "@/types/api";
 import Icon from "@/components/ui/Icon";
-import Alert from "@/components/ui/alert/Alert";
-import Button from "@/components/ui/button/Button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useUserCookie } from "@/hooks/useUserCookie";
+import { getCookie } from "@/lib/utils/cookies";
 
-export default function NotasEstudante() {
-  const { user } = useUserCookie();
-  const [anoFiltro, setAnoFiltro] = useState<string>("todos");
-  const [periodoFiltro, setPeriodoFiltro] = useState<string>("todos");
-  
-  const { 
-    data: dataNotas, 
-    loading: carregandoNotas, 
-    error: erroNotas, 
-    execute: carregarNotas 
-  } = useApi(consultasService.notasEstudante);
+// ─── helpers ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (user?.estudante?.codigo_estudante) {
-      const token = tokenStorage.get();
-      carregarNotas(user.estudante.codigo_estudante, token || undefined);
-    }
-  }, [user]);
+function getUserFromCookie(): MeuPerfilResponse | null {
+  if (typeof window === "undefined") return null;
+  try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
+}
 
-  const notasFiltradas = dataNotas?.notas.filter(nota => {
-    const matchAno = anoFiltro === "todos" || nota.ano_lectivo === anoFiltro;
-    const matchPeriodo = periodoFiltro === "todos" || nota.periodo === periodoFiltro;
-    return matchAno && matchPeriodo;
-  }) || [];
+const PERIODOS_LABEL: Record<string, string> = {
+  "1_trimestre": "1º Trimestre", "2_trimestre": "2º Trimestre", "3_trimestre": "3º Trimestre",
+  "1_semestre": "1º Semestre",   "2_semestre": "2º Semestre",
+};
+const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
 
-  const anosDisponiveis = Array.from(
-    new Set(dataNotas?.notas.map(n => n.ano_lectivo) || [])
-  ).sort().reverse();
+function formatCategoria(c: string) {
+  const m: Record<string,string> = { nota_escola:"Nota Final", nota_professor:"Nota Professor", nota_pp1:"PP1", nota_pp2:"PP2", nota_exame:"Exame" };
+  return m[c] ?? c.replace(/^nota_/,"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase());
+}
 
-  const periodosDisponiveis = Array.from(
-    new Set(dataNotas?.notas.map(n => n.periodo) || [])
-  );
+function corNota(n: number) {
+  if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
+  if (n >= 10) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
+}
 
-  const formatarPeriodo = (periodo: string) => {
-    const periodos: Record<string, string> = {
-      "1_trimestre": "1º Trimestre",
-      "2_trimestre": "2º Trimestre",
-      "3_trimestre": "3º Trimestre",
-      "1_semestre": "1º Semestre",
-      "2_semestre": "2º Semestre",
-    };
-    return periodos[periodo] || periodo;
-  };
+function calcMedia(notas: Nota[]) {
+  if (!notas.length) return null;
+  return notas.reduce((s,n)=>s+n.nota,0)/notas.length;
+}
 
-  const getNotaColor = (nota: number) => {
-    if (nota >= 14) return "text-green-600 dark:text-green-400";
-    if (nota >= 10) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
+// ─── tipos ───────────────────────────────────────────────────────────────────
 
-  const calcularMedia = () => {
-    if (notasFiltradas.length === 0) return 0;
-    const soma = notasFiltradas.reduce((acc, nota) => acc + nota.nota, 0);
-    return (soma / notasFiltradas.length).toFixed(2);
-  };
+type AcadInfo = { codigo: string; nome: string; type: string; nivel_escolar?: string };
 
+type Layer =
+  | { type:"academias" }
+  | { type:"academia"; a: AcadInfo }
+  | { type:"ano"; a: AcadInfo; ano: string }
+  | { type:"periodo"; a: AcadInfo; ano: string; periodo: string };
+
+// ─── sub-componentes ─────────────────────────────────────────────────────────
+
+function Breadcrumb({ crumbs }: { crumbs: { label:string; onClick?:()=>void }[] }) {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Minhas Notas
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Visualize seu desempenho acadêmico
-          </p>
-        </div>
+    <nav className="flex items-center gap-1 text-sm flex-wrap mb-5">
+      {crumbs.map((c,i)=>(
+        <span key={i} className="flex items-center gap-1">
+          {i>0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400"/>}
+          {i===crumbs.length-1
+            ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
+            : <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">{c.label}</button>
+          }
+        </span>
+      ))}
+    </nav>
+  );
+}
 
-        {dataNotas && (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                <strong>Média Geral:</strong> {calcularMedia()}
-              </span>
-            </div>
-            <Button size="sm" onClick={() => carregarNotas(user!.estudante!.codigo_estudante)}>
-              <Icon icon="mdi:refresh" width={16} className="mr-2" />
-              Atualizar
-            </Button>
-          </div>
-        )}
+function CardBtn({ icon, title, subtitle, badge, onClick }: {
+  icon: string; title: string; subtitle?: string; badge?: string; onClick: ()=>void;
+}) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
+      <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+        <Icon icon={icon} width={22} className="text-brand-500"/>
       </div>
-
-      {erroNotas && (
-        <Alert variant="error" title="Erro" message={erroNotas} />
-      )}
-
-      {/* Filtros */}
-      {dataNotas && dataNotas.total > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Ano Lectivo
-              </label>
-              <select
-                value={anoFiltro}
-                onChange={(e) => setAnoFiltro(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="todos">Todos os anos</option>
-                {anosDisponiveis.map(ano => (
-                  <option key={ano} value={ano}>{ano}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Período
-              </label>
-              <select
-                value={periodoFiltro}
-                onChange={(e) => setPeriodoFiltro(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="todos">Todos os períodos</option>
-                {periodosDisponiveis.map(periodo => (
-                  <option key={periodo} value={periodo}>
-                    {formatarPeriodo(periodo)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tabela de Notas */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div className="w-full overflow-x-auto">
-          <Table className="w-full">
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                  Matéria
-                </TableCell>
-                <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">
-                  Nota
-                </TableCell>
-                <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                  Período
-                </TableCell>
-                <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                  Ano Lectivo
-                </TableCell>
-                <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                  Observação
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-
-            {carregandoNotas && (
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={5}>
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Carregando notas...
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            )}
-
-            {!carregandoNotas && (!dataNotas || dataNotas.total === 0) && (
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={5}>
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <Icon icon="mdi:file-document-outline" width={64} className="text-gray-400 dark:text-gray-500 mb-4" />
-                      <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                        Nenhuma nota registrada ainda
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            )}
-
-            {!carregandoNotas && notasFiltradas.length === 0 && dataNotas && dataNotas.total > 0 && (
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={5}>
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <Icon icon="mdi:filter-outline" width={64} className="text-gray-400 dark:text-gray-500 mb-4" />
-                      <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                        Nenhuma nota encontrada com os filtros aplicados
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            )}
-
-            {!carregandoNotas && notasFiltradas.length > 0 && (
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {notasFiltradas.map((nota) => (
-                  <TableRow key={nota.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
-                    <TableCell className="px-5 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium capitalize">
-                      {nota.materia_nome}
-                    </TableCell>
-                    <TableCell className={`px-5 py-3 text-center text-theme-lg font-bold ${getNotaColor(nota.nota)}`}>
-                      {nota.nota.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                      {formatarPeriodo(nota.periodo)}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                      {nota.ano_lectivo}
-                    </TableCell>
-                    <TableCell className="px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                      {nota.observacao || "-"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            )}
-          </Table>
-        </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
+        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
+      {badge && <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{badge}</span>}
+      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 transition-colors flex-shrink-0"/>
+    </button>
+  );
+}
 
-      {/* Estatísticas */}
-      {notasFiltradas.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <Icon icon="mdi:chart-line" width={24} className="text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Média</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {calcularMedia()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                <Icon icon="mdi:file-document" width={24} className="text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total de Notas</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {notasFiltradas.length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-                <Icon icon="mdi:star" width={24} className="text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Melhor Nota</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {Math.max(...notasFiltradas.map(n => n.nota)).toFixed(2)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+function StatsRow({ notas }: { notas: Nota[] }) {
+  const media = calcMedia(notas);
+  const aprovadas = notas.filter(n=>n.nota>=10).length;
+  return (
+    <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+      <Stat label="Notas" value={String(notas.length)}/>
+      {media!==null && <Stat label="Média" value={media.toFixed(1)} color={corNota(media)}/>}
+      <Stat label="Aprovações" value={`${aprovadas}/${notas.length}`}/>
     </div>
   );
+}
+
+function Stat({ label, value, color }: { label:string; value:string; color?:string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className={`text-2xl font-bold mt-0.5 ${color ?? "text-gray-900 dark:text-white"}`}>{value}</p>
+    </div>
+  );
+}
+
+function TabelaNotas({ notas }: { notas: Nota[] }) {
+  if (!notas.length) return (
+    <div className="text-center py-12 text-gray-400">
+      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50"/>
+      <p className="text-sm">Nenhuma nota neste período.</p>
+    </div>
+  );
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800/70">
+          <tr>
+            {["Matéria","Categoria","Nota","Observação"].map(h=>(
+              <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h==="Nota"?"text-right":"text-left"}`}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {notas.map(n=>(
+            <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{n.materia_nome ?? n.materia_disciplinar_id}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
+              <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
+              <td className="px-4 py-3 text-gray-400 text-xs">{n.observacao??"-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── componente principal ─────────────────────────────────────────────────────
+
+export default function NotasEstudante() {
+  const [user] = useState<MeuPerfilResponse|null>(getUserFromCookie);
+  const [layer, setLayer] = useState<Layer>({ type:"academias" });
+  const token = tokenStorage.get()??undefined;
+  const codigoEstudante = user?.estudante?.codigo_estudante??"";
+
+  const { data:historico, execute:carregarNotas, loading } = useApi(consultasService.notasEstudante);
+  const { data:acadList, execute:carregarAcademias } = useApi(consultasService.listarAcademias);
+
+  useEffect(()=>{
+    if(codigoEstudante){
+      carregarNotas(codigoEstudante, token);
+      carregarAcademias(token);
+    }
+  },[codigoEstudante]);
+
+  const todasNotas: Nota[] = historico?.notas??[];
+
+  // Academias únicas nas notas
+  const academias = useMemo(():AcadInfo[]=>{
+    const map = new Map<string,AcadInfo>();
+    todasNotas.forEach(n=>{
+      if(!map.has(n.codigo_academia)){
+        const info = (acadList as any)?.academias?.find((a:any)=>a.codigo_academia===n.codigo_academia);
+        map.set(n.codigo_academia,{
+          codigo: n.codigo_academia,
+          nome: info?.nome??n.codigo_academia,
+          type: info?.type??"escola",
+          nivel_escolar: info?.nivel_escolar??undefined,
+        });
+      }
+    });
+    return Array.from(map.values());
+  },[todasNotas, acadList]);
+
+  const notasDe = (codigo:string) => todasNotas.filter(n=>n.codigo_academia===codigo);
+
+  // breadcrumbs
+  const crumbs = useMemo(()=>{
+    const base = { label:"Academias", onClick:()=>setLayer({type:"academias"}) };
+    if(layer.type==="academias") return [base];
+    if(layer.type==="academia") return [base, { label:layer.a.nome }];
+    if(layer.type==="ano") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:`Ano ${layer.ano.replace(/_/g,"/")}` }];
+    if(layer.type==="periodo") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:`Ano ${layer.ano.replace(/_/g,"/")}`, onClick:()=>setLayer({type:"ano",a:layer.a,ano:layer.ano}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
+    return [base];
+  },[layer]);
+
+  if(loading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500"/>
+    </div>
+  );
+
+  // ── Academias ──
+  if(layer.type==="academias") return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Minhas Notas</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma academia</p>
+      </div>
+      {academias.length===0
+        ? <div className="text-center py-16 text-gray-400"><Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40"/><p>Nenhuma nota registrada ainda.</p></div>
+        : <div className="grid gap-3 sm:grid-cols-2">{academias.map(a=>{
+          const nts = notasDe(a.codigo);
+          const med = calcMedia(nts);
+          return <CardBtn key={a.codigo} icon={a.type==="superior"?"mdi:university":"mdi:school"} title={a.nome} subtitle={`${nts.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"academia",a})}/>;
+        })}</div>
+      }
+    </div>
+  );
+
+  // ── Academia ──
+  if(layer.type==="academia"){
+    const notas = notasDe(layer.a.codigo);
+    const anos = Array.from(new Set(notas.map(n=>n.ano_lectivo))).sort().reverse();
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={crumbs}/>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.codigo}</p>
+        </div>
+        <StatsRow notas={notas}/>
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Anos Académicos</h3>
+          <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano=>{
+            const np = notas.filter(n=>n.ano_lectivo===ano);
+            const med = calcMedia(np);
+            return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g,"/")}`} subtitle={`${np.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"ano",a:layer.a,ano})}/>;
+          })}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Ano ──
+  if(layer.type==="ano"){
+    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_lectivo===layer.ano);
+    const periodos = Array.from(new Set(notas.map(n=>n.periodo))).sort((a,b)=>ORDEM_PERIODOS.indexOf(a)-ORDEM_PERIODOS.indexOf(b));
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={crumbs}/>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano {layer.ano.replace(/_/g,"/")}</h2>
+        <StatsRow notas={notas}/>
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
+          <div className="grid gap-3 sm:grid-cols-2">{periodos.map(p=>{
+            const np = notas.filter(n=>n.periodo===p);
+            const med = calcMedia(np);
+            return <CardBtn key={p} icon="mdi:clipboard-text-clock-outline" title={PERIODOS_LABEL[p]??p} subtitle={`${np.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"periodo",a:layer.a,ano:layer.ano,periodo:p})}/>;
+          })}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Período ──
+  if(layer.type==="periodo"){
+    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_lectivo===layer.ano&&n.periodo===layer.periodo);
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={crumbs}/>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[layer.periodo]??layer.periodo}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.nome} · {layer.ano.replace(/_/g,"/")}</p>
+        </div>
+        {notas.length>0 && <StatsRow notas={notas}/>}
+        <TabelaNotas notas={notas}/>
+      </div>
+    );
+  }
+
+  return null;
 }
