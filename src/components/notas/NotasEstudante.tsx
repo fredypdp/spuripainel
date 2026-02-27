@@ -19,6 +19,14 @@ const PERIODOS_LABEL: Record<string, string> = {
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
 
+const NIVEL_LABEL: Record<string,string> = {
+  primeiro_fundamental:"1º Ano",segundo_fundamental:"2º Ano",terceiro_fundamental:"3º Ano",quarto_fundamental:"4º Ano",
+  quinto_fundamental:"5º Ano",sexto_fundamental:"6º Ano",setimo_fundamental:"7º Ano",oitavo_fundamental:"8º Ano",nono_fundamental:"9º Ano",
+  primeiro_medio:"1º Médio",segundo_medio:"2º Médio",terceiro_medio:"3º Médio",quarto_medio:"4º Médio",
+  primeiro_ano:"1º Ano",segundo_ano:"2º Ano",terceiro_ano:"3º Ano",quarto_ano:"4º Ano",quinto_ano:"5º Ano",sexto_ano:"6º Ano",
+};
+function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g," "); }
+
 function formatCategoria(c: string) {
   const m: Record<string,string> = { nota_escola:"Nota Final", nota_professor:"Nota Professor", nota_pp1:"PP1", nota_pp2:"PP2", nota_exame:"Exame" };
   return m[c] ?? c.replace(/^nota_/,"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase());
@@ -64,20 +72,28 @@ function Breadcrumb({ crumbs }: { crumbs: { label:string; onClick?:()=>void }[] 
 }
 
 function CardBtn({ icon, title, subtitle, badge, onClick }: {
-  icon: string; title: string; subtitle?: string; badge?: string; onClick: ()=>void;
+  icon: string; title: string; subtitle?: string; badge?: string; onClick?: ()=>void;
 }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
-      <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+    <button onClick={onClick} className="w-full flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-300 hover:shadow-sm transition-all text-left">
+      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
         <Icon icon={icon} width={22} className="text-brand-500"/>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
+        <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{title}</p>
         {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
-      {badge && <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{badge}</span>}
-      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 transition-colors flex-shrink-0"/>
+      {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{badge}</span>}
     </button>
+  );
+}
+
+function StatItem({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className={`text-2xl font-bold mt-0.5 ${color ?? "text-gray-900 dark:text-white"}`}>{value}</p>
+    </div>
   );
 }
 
@@ -85,19 +101,10 @@ function StatsRow({ notas }: { notas: Nota[] }) {
   const media = calcMedia(notas);
   const aprovadas = notas.filter(n=>n.nota>=10).length;
   return (
-    <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <Stat label="Notas" value={String(notas.length)}/>
-      {media!==null && <Stat label="Média" value={media.toFixed(1)} color={corNota(media)}/>}
-      <Stat label="Aprovações" value={`${aprovadas}/${notas.length}`}/>
-    </div>
-  );
-}
-
-function Stat({ label, value, color }: { label:string; value:string; color?:string }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-bold mt-0.5 ${color ?? "text-gray-900 dark:text-white"}`}>{value}</p>
+    <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+      <StatItem label="Total" value={String(notas.length)}/>
+      <StatItem label="Média" value={media!==null?media.toFixed(1):"-"} color={media!==null?corNota(media):undefined}/>
+      <StatItem label="Aprovadas" value={`${aprovadas}/${notas.length}`} color="text-emerald-600 dark:text-emerald-400"/>
     </div>
   );
 }
@@ -114,7 +121,7 @@ function TabelaNotas({ notas }: { notas: Nota[] }) {
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            {["Matéria","Categoria","Nota","Observação"].map(h=>(
+            {["Matéria","Ano Académico","Categoria","Nota","Observação"].map(h=>(
               <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h==="Nota"?"text-right":"text-left"}`}>{h}</th>
             ))}
           </tr>
@@ -123,6 +130,7 @@ function TabelaNotas({ notas }: { notas: Nota[] }) {
           {notas.map(n=>(
             <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{n.materia_nome ?? n.materia_disciplinar_id}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
               <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
               <td className="px-4 py-3 text-gray-400 text-xs">{n.observacao??"-"}</td>
@@ -178,8 +186,8 @@ export default function NotasEstudante() {
     const base = { label:"Academias", onClick:()=>setLayer({type:"academias"}) };
     if(layer.type==="academias") return [base];
     if(layer.type==="academia") return [base, { label:layer.a.nome }];
-    if(layer.type==="ano") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:`Ano ${layer.ano.replace(/_/g,"/")}` }];
-    if(layer.type==="periodo") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:`Ano ${layer.ano.replace(/_/g,"/")}`, onClick:()=>setLayer({type:"ano",a:layer.a,ano:layer.ano}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
+    if(layer.type==="ano") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:labelNivel(layer.ano) }];
+    if(layer.type==="periodo") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:labelNivel(layer.ano), onClick:()=>setLayer({type:"ano",a:layer.a,ano:layer.ano}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
     return [base];
   },[layer]);
 
@@ -210,7 +218,8 @@ export default function NotasEstudante() {
   // ── Academia ──
   if(layer.type==="academia"){
     const notas = notasDe(layer.a.codigo);
-    const anos = Array.from(new Set(notas.map(n=>n.ano_lectivo))).sort().reverse();
+    // Agrupar por ano_academico (ex: "terceiro_fundamental", "primeiro_medio")
+    const anosAcademicos = Array.from(new Set(notas.map(n=>n.ano_academico).filter(Boolean))) as string[];
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs}/>
@@ -220,25 +229,25 @@ export default function NotasEstudante() {
         </div>
         <StatsRow notas={notas}/>
         <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Anos Académicos</h3>
-          <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano=>{
-            const np = notas.filter(n=>n.ano_lectivo===ano);
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Ano</h3>
+          <div className="grid gap-3 sm:grid-cols-2">{anosAcademicos.map(anoAcademico=>{
+            const np = notas.filter(n=>n.ano_academico===anoAcademico);
             const med = calcMedia(np);
-            return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g,"/")}`} subtitle={`${np.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"ano",a:layer.a,ano})}/>;
+            return <CardBtn key={anoAcademico} icon="mdi:numeric" title={labelNivel(anoAcademico)} subtitle={`${np.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"ano",a:layer.a,ano:anoAcademico})}/>;
           })}</div>
         </div>
       </div>
     );
   }
 
-  // ── Ano ──
+  // ── Ano Académico ──
   if(layer.type==="ano"){
-    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_lectivo===layer.ano);
+    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_academico===layer.ano);
     const periodos = Array.from(new Set(notas.map(n=>n.periodo))).sort((a,b)=>ORDEM_PERIODOS.indexOf(a)-ORDEM_PERIODOS.indexOf(b));
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs}/>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano {layer.ano.replace(/_/g,"/")}</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.ano)}</h2>
         <StatsRow notas={notas}/>
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
@@ -254,13 +263,13 @@ export default function NotasEstudante() {
 
   // ── Período ──
   if(layer.type==="periodo"){
-    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_lectivo===layer.ano&&n.periodo===layer.periodo);
+    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_academico===layer.ano&&n.periodo===layer.periodo);
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs}/>
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[layer.periodo]??layer.periodo}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.nome} · {layer.ano.replace(/_/g,"/")}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.nome} · {labelNivel(layer.ano)}</p>
         </div>
         {notas.length>0 && <StatsRow notas={notas}/>}
         <TabelaNotas notas={notas}/>

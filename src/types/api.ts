@@ -773,7 +773,6 @@ export interface Nota {
 export interface RegistrarNotasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
-  ano_academico: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
   tipo: TipoNota;
@@ -783,9 +782,9 @@ export interface RegistrarNotasRequest {
 }
 
 export interface AtualizarNotaRequest {
-  id: string; // UUID da nota em projection_notas
+  id: string;
   nota_nova: number;
-  observacao: string; // obrigatória
+  observacao: string;
 }
 
 export interface CriarCategoriaNotaRequest {

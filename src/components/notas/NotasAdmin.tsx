@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useApi, consultasService, tokenStorage } from "@/lib/api";
 import type { Nota } from "@/types/api";
+import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -12,6 +13,19 @@ const PERIODOS_LABEL: Record<string,string> = {
   "1_semestre":"1º Semestre","2_semestre":"2º Semestre",
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
+
+const NIVEL_LABEL: Record<string,string> = {
+  primeiro_fundamental:"1º Ano",segundo_fundamental:"2º Ano",terceiro_fundamental:"3º Ano",quarto_fundamental:"4º Ano",
+  quinto_fundamental:"5º Ano",sexto_fundamental:"6º Ano",setimo_fundamental:"7º Ano",oitavo_fundamental:"8º Ano",nono_fundamental:"9º Ano",
+  primeiro_medio:"1º Médio",segundo_medio:"2º Médio",terceiro_medio:"3º Médio",quarto_medio:"4º Médio",
+  primeiro_ano:"1º Ano",segundo_ano:"2º Ano",terceiro_ano:"3º Ano",quarto_ano:"4º Ano",quinto_ano:"5º Ano",sexto_ano:"6º Ano",
+};
+function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g," "); }
+
+/** Converte código de província (ex: "LUA") para nome legível (ex: "LUANDA") */
+function nomeProvinciaDeCodigo(codigo: string): string {
+  return Provincias.find(p => p.codigo === codigo?.toUpperCase())?.nome ?? codigo;
+}
 
 function corNota(n: number) {
   if(n>=14) return "text-emerald-600 dark:text-emerald-400";
@@ -32,7 +46,7 @@ function formatCategoria(c: string) {
 type AcadInfo = {
   codigo_academia: string;
   nome: string;
-  provincia: string;
+  provincia: string; // código ex: "LUA"
   type: string;
   nivel_escolar?: string;
   status: string;
@@ -76,8 +90,7 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
         <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
         {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
-      {badge && <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0">{badge}</span>}
-      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0"/>
+      {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{badge}</span>}
     </button>
   );
 }
@@ -87,28 +100,24 @@ function StatsRow({ notas }: { notas:Nota[] }) {
   const aprovadas = notas.filter(n=>n.nota>=10).length;
   return (
     <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Notas</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{notas.length}</p></div>
+      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Total</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{notas.length}</p></div>
       {media!==null && <div><p className="text-xs text-gray-500 uppercase tracking-wide">Média</p><p className={`text-2xl font-bold mt-0.5 ${corNota(media)}`}>{media.toFixed(1)}</p></div>}
       <div><p className="text-xs text-gray-500 uppercase tracking-wide">Aprovações</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{aprovadas}/{notas.length}</p></div>
     </div>
   );
 }
 
-// Tabela de notas por turma (mostra estudante + código + matéria + nota)
 function TabelaNotasAdmin({ notas, estudantesMap }: { notas:Nota[]; estudantesMap:Record<string,string> }) {
   if(!notas.length) return (
-    <div className="text-center py-12 text-gray-400">
-      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40"/>
-      <p className="text-sm">Nenhuma nota neste período.</p>
-    </div>
+    <div className="text-center py-10 text-gray-400"><Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40"/><p className="text-sm">Nenhuma nota neste período.</p></div>
   );
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            {["Estudante","Código","Matéria","Categoria","Nota"].map((h,i)=>(
-              <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${i===4?"text-right":"text-left"}`}>{h}</th>
+            {["Estudante","Código","Matéria","Ano Académico","Categoria","Nota"].map(h=>(
+              <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h==="Nota"?"text-right":"text-left"}`}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -118,7 +127,8 @@ function TabelaNotasAdmin({ notas, estudantesMap }: { notas:Nota[]; estudantesMa
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudantesMap[n.codigo_estudante]??"-"}</td>
               <td className="px-4 py-3 text-gray-400 font-mono text-xs">{n.codigo_estudante}</td>
               <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{n.materia_nome??n.materia_disciplinar_id}</td>
-              <td className="px-4 py-3 text-gray-500">{formatCategoria(n.categoria)}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
               <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
             </tr>
           ))}
@@ -134,13 +144,10 @@ export default function NotasAdmin() {
   const token = tokenStorage.get()??undefined;
   const [layer, setLayer] = useState<Layer>({ type:"provincias" });
 
-  // Dados globais
   const { data:academiasData, execute:carregarAcademias, loading:loadingAcads } = useApi(consultasService.listarAcademias);
   const { data:estudantesData, execute:carregarEstudantes } = useApi(consultasService.listarEstudantes);
 
-  // Notas por academia (carregadas sob demanda)
-  const [notasCache, setNotasCache] = useState<Record<string,Nota[]>>({}); // key: codigo_academia
-  const [notasEstCache, setNotasEstCache] = useState<Record<string,Nota[]>>({}); // key: codigo_estudante
+  const [notasEstCache, setNotasEstCache] = useState<Record<string,Nota[]>>({});
   const [loadingNotas, setLoadingNotas] = useState(false);
 
   useEffect(()=>{ carregarAcademias(token); carregarEstudantes(undefined,token); },[]);
@@ -162,7 +169,7 @@ export default function NotasAdmin() {
     return m;
   },[estudantesData]);
 
-  // Agrupar academias por província
+  // provincias como códigos (para agrupar), mas exibimos o nome
   const provincias = useMemo(()=>
     Array.from(new Set(academias.map(a=>a.provincia))).sort(),
   [academias]);
@@ -171,7 +178,6 @@ export default function NotasAdmin() {
     return academias.filter(a=>a.provincia===prov);
   }
 
-  // Carregar notas de todos os estudantes de uma academia
   async function carregarNotasAcademia(academia:AcadInfo) {
     const estudantesAcad = ((estudantesData as any)?.estudantes??[]).filter((e:any)=>e.codigo_academia===academia.codigo_academia);
     if(!estudantesAcad.length) return;
@@ -187,15 +193,11 @@ export default function NotasAdmin() {
     setLoadingNotas(false);
   }
 
-  // Notas de uma academia
   function notasDeAcademia(codigoAcademia:string): Nota[] {
     const estudantesAcad = ((estudantesData as any)?.estudantes??[]).filter((e:any)=>e.codigo_academia===codigoAcademia);
     return estudantesAcad.flatMap((e:any)=>(notasEstCache[e.codigo_estudante]??[]).filter((n:Nota)=>n.codigo_academia===codigoAcademia));
   }
 
-  // Estudantes de uma academia num "nível/turma" (no admin não temos turmas direto, usamos nivel do estudante como proxy)
-  // As turmas aqui são agrupamentos by nivel dentro de uma academia
-  // Para admin, a visão é simplificada: agrupamos por ano_lectivo e período
   function anosDeAcademia(codigoAcademia:string): string[] {
     const notas = notasDeAcademia(codigoAcademia);
     return Array.from(new Set(notas.map(n=>n.ano_lectivo))).sort().reverse();
@@ -207,20 +209,14 @@ export default function NotasAdmin() {
     return ps.sort((a,b)=>ORDEM_PERIODOS.indexOf(a)-ORDEM_PERIODOS.indexOf(b));
   }
 
-  // Para "turma" no contexto admin, usamos o nivel do estudante agrupado
-  // Mas as notas têm materia_disciplinar_id — não têm turma_id.
-  // Portanto a hierarquia admin é: Ano → Período → Tabela de notas (todos os estudantes da academia)
-  // Não temos turmas nas notas, então exibimos diretamente a tabela por período.
-
-  // Breadcrumbs
   function buildCrumbs(): {label:string;onClick?:()=>void}[] {
     const provs = { label:"Províncias", onClick:()=>setLayer({type:"provincias"}) };
     if(layer.type==="provincias") return [provs];
-    if(layer.type==="academias") return [provs, { label:layer.provincia }];
-    if(layer.type==="academia_anos") return [provs, { label:layer.academia.provincia, onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome }];
-    if(layer.type==="academia_turmas") return [provs, { label:layer.academia.provincia, onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome, onClick:()=>setLayer({type:"academia_anos",academia:layer.academia}) }, { label:layer.ano }];
-    if(layer.type==="academia_periodos") return [provs, { label:layer.academia.provincia, onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome, onClick:()=>setLayer({type:"academia_anos",academia:layer.academia}) }, { label:layer.ano, onClick:()=>setLayer({type:"academia_turmas",academia:layer.academia,ano:layer.ano}) }, { label:`Turma ${layer.turma}` }];
-    if(layer.type==="academia_notas") return [provs, { label:layer.academia.provincia, onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome, onClick:()=>setLayer({type:"academia_anos",academia:layer.academia}) }, { label:layer.ano, onClick:()=>setLayer({type:"academia_turmas",academia:layer.academia,ano:layer.ano}) }, { label:`Turma ${layer.turma}`, onClick:()=>setLayer({type:"academia_periodos",academia:layer.academia,ano:layer.ano,turma:layer.turma}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
+    if(layer.type==="academias") return [provs, { label:nomeProvinciaDeCodigo(layer.provincia) }];
+    if(layer.type==="academia_anos") return [provs, { label:nomeProvinciaDeCodigo(layer.academia.provincia), onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome }];
+    if(layer.type==="academia_turmas") return [provs, { label:nomeProvinciaDeCodigo(layer.academia.provincia), onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome, onClick:()=>setLayer({type:"academia_anos",academia:layer.academia}) }, { label:layer.ano.replace(/_/g,"/") }];
+    if(layer.type==="academia_periodos") return [provs, { label:nomeProvinciaDeCodigo(layer.academia.provincia), onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome, onClick:()=>setLayer({type:"academia_anos",academia:layer.academia}) }, { label:layer.ano.replace(/_/g,"/"), onClick:()=>setLayer({type:"academia_turmas",academia:layer.academia,ano:layer.ano}) }, { label:`Turma ${layer.turma}` }];
+    if(layer.type==="academia_notas") return [provs, { label:nomeProvinciaDeCodigo(layer.academia.provincia), onClick:()=>setLayer({type:"academias",provincia:layer.academia.provincia}) }, { label:layer.academia.nome, onClick:()=>setLayer({type:"academia_anos",academia:layer.academia}) }, { label:layer.ano.replace(/_/g,"/"), onClick:()=>setLayer({type:"academia_turmas",academia:layer.academia,ano:layer.ano}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
     return [provs];
   }
 
@@ -240,7 +236,7 @@ export default function NotasAdmin() {
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
         {provincias.map(prov=>{
           const acads = academiasNaProvincia(prov);
-          return <CardBtn key={prov} icon="mdi:map-marker-radius" title={prov} subtitle={`${acads.length} academia(s)`} onClick={()=>setLayer({type:"academias",provincia:prov})}/>;
+          return <CardBtn key={prov} icon="mdi:map-marker-radius" title={nomeProvinciaDeCodigo(prov)} subtitle={`${acads.length} academia(s)`} onClick={()=>setLayer({type:"academias",provincia:prov})}/>;
         })}
       </div>
     </div>
@@ -252,7 +248,7 @@ export default function NotasAdmin() {
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()}/>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Província {layer.provincia}</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Província {nomeProvinciaDeCodigo(layer.provincia)}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {acads.map(a=>(
             <CardBtn key={a.codigo_academia} icon={a.type==="superior"?"mdi:university":"mdi:school"} title={a.nome} subtitle={`${a.codigo_academia} · ${a.status==="ativo"?"Activa":"Inactiva"}`} badge={a.type} onClick={async()=>{ await carregarNotasAcademia(a); setLayer({type:"academia_anos",academia:a}); }}/>
@@ -262,7 +258,7 @@ export default function NotasAdmin() {
     );
   }
 
-  // ── Anos de uma academia ──
+  // ── Anos lectivos de uma academia ──
   if(layer.type==="academia_anos") {
     const { academia } = layer;
     const notas = notasDeAcademia(academia.codigo_academia);
@@ -289,8 +285,7 @@ export default function NotasAdmin() {
     );
   }
 
-  // ── "Turmas" por ano (aqui são grupos de estudantes por nível, aproximado) ──
-  // Como as notas não têm turma_id no retorno da API, vamos mostrar directamente os períodos
+  // ── Períodos de um ano lectivo ──
   if(layer.type==="academia_turmas") {
     const { academia, ano } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(n=>n.ano_lectivo===ano);
@@ -314,9 +309,7 @@ export default function NotasAdmin() {
     );
   }
 
-  // Ignorar "academia_periodos" e usar "academia_notas" diretamente
   if(layer.type==="academia_periodos") {
-    // Redirect to notas view
     setLayer({ type:"academia_notas", academia:layer.academia, ano:layer.ano, turma:layer.turma, periodo:"1_trimestre" });
     return null;
   }
@@ -325,11 +318,9 @@ export default function NotasAdmin() {
   if(layer.type==="academia_notas") {
     const { academia, ano, periodo } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(n=>n.ano_lectivo===ano&&n.periodo===periodo);
-    const crumbs = buildCrumbs();
-    // Corrigir crumbs para esta layer especial
     const crumbsFinal = [
       { label:"Províncias", onClick:()=>setLayer({type:"provincias"}) },
-      { label:academia.provincia, onClick:()=>setLayer({type:"academias",provincia:academia.provincia}) },
+      { label:nomeProvinciaDeCodigo(academia.provincia), onClick:()=>setLayer({type:"academias",provincia:academia.provincia}) },
       { label:academia.nome, onClick:()=>setLayer({type:"academia_anos",academia}) },
       { label:`Ano ${ano.replace(/_/g,"/")}`, onClick:()=>setLayer({type:"academia_turmas",academia,ano}) },
       { label:PERIODOS_LABEL[periodo]??periodo },

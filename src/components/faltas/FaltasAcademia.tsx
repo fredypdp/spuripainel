@@ -218,7 +218,6 @@ export default function FaltasAcademia() {
               <Input
                 type="text"
                 placeholder="Ex: primeiro_fundamental, segundo_medio"
-                value={anoAcademico}
                 onChange={(e) => setAnoAcademico(e.target.value)}
               />
               {anoAcademico && (
@@ -262,17 +261,16 @@ export default function FaltasAcademia() {
               <Input
                 type="text"
                 placeholder="Ex: Falta justificada"
-                value={observacao}
                 onChange={(e) => setObservacao(e.target.value)}
               />
             </div>
           </div>
 
           <div className="flex gap-3 mt-6 justify-end">
-            <Button variant="outline" onClick={closeModal} type="button">
+            <Button variant="outline" onClick={closeModal}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={registrandoFalta}>
+            <Button disabled={registrandoFalta}>
               {registrandoFalta ? "Registrando..." : "Registrar Falta"}
             </Button>
           </div>
