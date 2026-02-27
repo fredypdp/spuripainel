@@ -177,11 +177,18 @@ export const academiaService = {
     ),
 
   registrarAprovacaoAno: (data: RegistrarAprovacaoAnoRequest, token?: string) =>
-    api.post<{ message: string; estudante: string; ano_lectivo: string; avancar_ano: boolean }>(
-      '/academia/aprovacao-ano',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    api.post<{
+      message: string;
+      estudante: string;
+      tipo_ensino: string;
+      nivel_atual: string;
+      proximo_nivel?: string;
+      resultado: string; // ex: "APROVADO → segundo_medio" | "REPROVADO" | "APROVADO (ciclo finalizado)"
+    }>(
+        '/academia/aprovacao-ano',
+        data,
+        { token: token || tokenStorage.get() || undefined }
+      ),
 
   atualizarDados: (data: AtualizarDadosAcademiaRequest, token?: string) =>
     api.put<{ message: string; aviso?: string; email_verificado?: boolean }>(

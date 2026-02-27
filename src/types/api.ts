@@ -42,6 +42,7 @@ export interface CriarEscolaRequest {
   website?: string;
   nivel_escolar: NivelEscolar;
   cursos?: string[];
+  anos_academicos?: string[];
 }
 
 export interface CriarUniversidadeRequest {
@@ -148,13 +149,13 @@ export interface AtualizarStatusRequest {
 export interface CriarCursoRequest {
   nome: string;
   type: CursoType;
-  nivel: string[];
+  anos_academicos: string[];
 }
 
 export interface AtualizarCursoRequest {
   nome?: string;
   type?: CursoType;
-  nivel?: string[];
+  anos_academicos?: string[];
 }
 
 export interface CriarMateriaRequest {
@@ -223,9 +224,10 @@ export interface SolicitarVerificacaoRequest {
 export interface RegistrarAprovacaoAnoRequest {
   codigo_estudante: string;
   ano_lectivo: string;
+  tipo_ensino: 'fundamental' | 'medio' | 'superior';
   nivel_atual: string;
-  nivel_seguinte?: string;
-  avancar_ano: boolean;
+  proximo_nivel?: string;
+  aprovado: boolean;
   observacao?: string;
 }
 
@@ -308,9 +310,10 @@ export interface AprovacaoAno {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
+  tipo_ensino: 'fundamental' | 'medio' | 'superior';
   nivel_atual: string;
-  nivel_seguinte?: string;
-  avancar_ano: boolean;
+  proximo_nivel?: string;
+  aprovado: boolean;
   observacao?: string;
   registered_at: string;
   event_id: string;
@@ -379,7 +382,7 @@ export interface Curso {
   id: string;
   nome: string;
   type: CursoType;
-  nivel: string[];
+  anos_academicos: string[];
   codigo_academia: string;
   status: 'ativo' | 'inativo';
   created_at: string;
@@ -453,6 +456,7 @@ export interface AcademiaDetalhada {
   email_verificado: boolean;
   website?: string;
   nivel_escolar?: NivelEscolar;
+  anos_academicos?: string[];
   status: string;
   cursos: string[];
   created_at: string;
