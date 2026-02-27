@@ -112,8 +112,8 @@ export default function TurmasPainel() {
     if (isFundamental) return ANOS_FUNDAMENTAL;
     const curso = cursos.find(c => c.id === cursoId);
     if (!curso) return isSuperior ? ANOS_SUPERIOR : [...ANOS_MEDIO, ...ANOS_SUPERIOR];
-    if (curso.type === "medio")    return ANOS_MEDIO.filter(a => curso.nivel.includes(a.value));
-    if (curso.type === "superior") return ANOS_SUPERIOR.filter(a => curso.nivel.includes(a.value));
+    if (curso.type === "medio")    return ANOS_MEDIO.filter(a => curso.anos_academicos.includes(a.value));
+    if (curso.type === "superior") return ANOS_SUPERIOR.filter(a => curso.anos_academicos.includes(a.value));
     return [];
   };
 
