@@ -1,3 +1,4 @@
+// src/app/(painel)/academias/PageContent.tsx
 "use client"
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
@@ -26,6 +27,19 @@ interface NivelAcademico {
   id: number;
 }
 
+// 🔥 NOVO: anos do ensino fundamental
+const ANOS_FUNDAMENTAL_OPCOES = [
+  { value: "primeiro_fundamental", label: "1º Ano" },
+  { value: "segundo_fundamental",  label: "2º Ano" },
+  { value: "terceiro_fundamental", label: "3º Ano" },
+  { value: "quarto_fundamental",   label: "4º Ano" },
+  { value: "quinto_fundamental",   label: "5º Ano" },
+  { value: "sexto_fundamental",    label: "6º Ano" },
+  { value: "setimo_fundamental",   label: "7º Ano" },
+  { value: "oitavo_fundamental",   label: "8º Ano" },
+  { value: "nono_fundamental",     label: "9º Ano" },
+];
+
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
   const { isOpen, openModal, closeModal } = useModal();
@@ -49,6 +63,8 @@ export default function Academias() {
   const [website, setWebsite] = useState('');
   const [provinciaSelecionada, setProvinciaSelecionada] = useState<Provincia | null>(null);
   const [nivelEscolarSelecionado, setNivelEscolarSelecionado] = useState<NivelAcademico | null>(null);
+  // 🔥 NOVO
+  const [anosAcademicosSelecionados, setAnosAcademicosSelecionados] = useState<string[]>([]);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
@@ -68,7 +84,6 @@ export default function Academias() {
     }
   };
 
-  // ✅ Corrigido: useEffect agora apenas agenda a execução
   useEffect(() => {
     const loadData = async () => {
       await carregarLista();
@@ -103,6 +118,15 @@ export default function Academias() {
       }
     }
 
+    // 🔥 NOVO: anos_academicos obrigatório para fundamental/misto
+    if (
+      nivelEscolarSelecionado &&
+      (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') &&
+      anosAcademicosSelecionados.length === 0
+    ) {
+      erros.push('Selecione pelo menos um ano académico para escolas fundamental/misto');
+    }
+
     setValidationErrors(erros);
     return erros.length === 0;
   };
@@ -115,6 +139,7 @@ export default function Academias() {
     setWebsite('');
     setProvinciaSelecionada(null);
     setNivelEscolarSelecionado(null);
+    setAnosAcademicosSelecionados([]); // 🔥 NOVO
     setValidationErrors([]);
     setSuccessMessage('');
   };
@@ -137,6 +162,8 @@ export default function Academias() {
         email: email.trim(),
         website: website.trim() || undefined,
         nivel_escolar: nivelEscolarSelecionado!.nivel,
+        // 🔥 NOVO: enviado apenas para fundamental/misto
+        ...(anosAcademicosSelecionados.length > 0 && { anos_academicos: anosAcademicosSelecionados }),
       });
 
       if (result?.data) {
@@ -162,7 +189,6 @@ export default function Academias() {
     openDetailsModal();
   };
 
-  // ✅ Função para ativar academia
   const handleAtivar = async (academia: AcademiaDetalhada) => {
     if (!confirm(`Tem certeza que deseja ativar a academia "${academia.nome}"?`)) {
       return;
@@ -171,7 +197,6 @@ export default function Academias() {
     try {
       const token = tokenStorage.get();
       await executarAtivar(academia.codigo_academia, token || undefined);
-      
       alert('Academia ativada com sucesso!');
       carregarLista();
     } catch (err) {
@@ -179,14 +204,12 @@ export default function Academias() {
     }
   };
 
-  // ✅ Função para abrir modal de desativação
   const handleAbrirDesativar = (academia: AcademiaDetalhada) => {
     setAcademiaParaDesativar(academia);
     setMotivoDesativacao('');
     openDesativarModal();
   };
 
-  // ✅ Função para desativar academia
   const handleDesativar = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -285,7 +308,7 @@ export default function Academias() {
                     disabled={carregandoCadastro}
                   />
                 </div>
-                
+
                 <div className="col-span-2 sm:col-span-1">
                   <Label>E-mail *</Label>
                   <Input 
@@ -322,7 +345,10 @@ export default function Academias() {
                   </span>
                   <Dropdown 
                     value={nivelEscolarSelecionado} 
-                    onChange={(e) => setNivelEscolarSelecionado(e.value)} 
+                    onChange={(e) => {
+                      setNivelEscolarSelecionado(e.value);
+                      setAnosAcademicosSelecionados([]); // reset ao trocar nível
+                    }} 
                     options={NiveisAcademicos} 
                     optionLabel="nome"
                     placeholder="Selecione o nível escolar" 
@@ -347,6 +373,40 @@ export default function Academias() {
                     emptyFilterMessage="Nenhuma província encontrada"
                   />
                 </div>
+
+                {/* 🔥 NOVO: Seleção de anos académicos para fundamental/misto */}
+                {nivelEscolarSelecionado &&
+                 (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') && (
+                  <div className="col-span-2">
+                    <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Selecione os anos do ensino fundamental que esta escola oferece
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
+                        <label
+                          key={value}
+                          className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={anosAcademicosSelecionados.includes(value)}
+                            onChange={() =>
+                              setAnosAcademicosSelecionados(prev =>
+                                prev.includes(value)
+                                  ? prev.filter(a => a !== value)
+                                  : [...prev, value]
+                              )
+                            }
+                            disabled={carregandoCadastro}
+                            className="w-4 h-4 text-brand-500 focus:ring-brand-500"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {successMessage && (
@@ -359,38 +419,25 @@ export default function Academias() {
 
               {validationErrors.length > 0 && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
-                    Corrija os seguintes erros:
-                  </h3>
                   <ul className="list-disc list-inside space-y-1">
-                    {validationErrors.map((erro, index) => (
-                      <li key={index} className="text-sm text-red-700 dark:text-red-400">
-                        {erro}
-                      </li>
+                    {validationErrors.map((erro, i) => (
+                      <li key={i} className="text-sm text-red-700 dark:text-red-400">{erro}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {erroCadastro && !successMessage && (
+              {erroCadastro && (
                 <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroCadastro}</p>
                 </div>
               )}
 
               <div className="flex items-center justify-end w-full gap-3 mt-6">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={handleCloseModal}
-                  disabled={carregandoCadastro}
-                >
-                  Fechar
+                <Button size="sm" variant="outline" onClick={handleCloseModal} disabled={carregandoCadastro}>
+                  Cancelar
                 </Button>
-                <Button 
-                  size="sm"
-                  disabled={carregandoCadastro}
-                >
+                <Button size="sm" disabled={carregandoCadastro}>
                   {carregandoCadastro ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -433,6 +480,24 @@ export default function Academias() {
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível Escolar</p>
                       <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p>
                     </div>
+
+                    {/* 🔥 NOVO: exibir anos académicos */}
+                    {academiaSelecionada.anos_academicos && academiaSelecionada.anos_academicos.length > 0 && (
+                      <div className="col-span-2">
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Anos Académicos</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {academiaSelecionada.anos_academicos.map(ano => (
+                            <span
+                              key={ano}
+                              className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
+                            >
+                              {ano.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Província</p>
                       <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p>
@@ -509,7 +574,9 @@ export default function Academias() {
               )}
 
               <div className="flex items-center justify-end w-full gap-3 mt-6">
-                <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>Cancelar</Button>
+                <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>
+                  Cancelar
+                </Button>
                 <Button size="sm" variant="danger" disabled={carregandoDesativar}>
                   {carregandoDesativar ? (
                     <>
@@ -569,106 +636,90 @@ export default function Academias() {
                   <TableRow>
                     <TableCell colSpan={9}>
                       <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-gray-400 dark:text-gray-500 mb-4">
-                          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Clique em &ldquo;Carregar academias&rdquo; para visualizar
-                        </p>
+                        <p className="text-gray-400 text-sm">Clique em "Atualizar lista" para carregar as academias</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 </TableBody>
               )}
 
-              {!carregandoAcademias && carregado && dataAcademias && dataAcademias.total === 0 && (
+              {!carregandoAcademias && carregado && dataAcademias && (
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={9}>
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <div className="text-gray-400 dark:text-gray-500 mb-2">
-                          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Nenhuma academia encontrada
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              )}
-                
-              {!carregandoAcademias && dataAcademias && dataAcademias.total > 0 && (
-                <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                  {dataAcademias.academias.map((academia) => (
-                    <TableRow key={academia.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
-                      <TableCell className="max-w-[200px] capitalize truncate px-5 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">
-                        {academia.nome || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.codigo_academia || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.type || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.nivel_escolar || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap capitalize px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                        {academia.provincia || '-'}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
-                        {academia.total_estudantes}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
-                        {academia.total_inscricoes_pendentes > 0 ? (
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
-                            {academia.total_inscricoes_pendentes}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">0</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
-                          {academia.status || '-'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleVerDetalhes(academia)}>Ver detalhes</Button>
-                          {!loadingUser && user?.tipo === "admin" && (
-                            <>
-                              {academia.status === "inativo" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="primary" 
-                                  onClick={() => handleAtivar(academia)}
-                                  disabled={carregandoAtivar}
-                                >
-                                  {carregandoAtivar ? 'Ativando...' : 'Ativar'}
-                                </Button>
-                              )}
-                              {academia.status === "ativo" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="danger" 
-                                  onClick={() => handleAbrirDesativar(academia)}
-                                  disabled={carregandoDesativar}
-                                >
-                                  Desativar
-                                </Button>
-                              )}
-                            </>
-                          )}
+                  {dataAcademias.academias.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9}>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <p className="text-gray-400 text-sm">Nenhuma academia encontrada</p>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    dataAcademias.academias.map((academia) => (
+                      <TableRow key={academia.id}>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">
+                          {academia.nome}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">
+                          {academia.codigo_academia}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {academia.type}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {academia.nivel_escolar || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {academia.provincia}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                          {academia.total_estudantes}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm">
+                          {academia.total_inscricoes_pendentes > 0 ? (
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                              {academia.total_inscricoes_pendentes}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
+                            {academia.status || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => handleVerDetalhes(academia)}>Ver detalhes</Button>
+                            {!loadingUser && user?.tipo === "admin" && (
+                              <>
+                                {academia.status === "inativo" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="primary" 
+                                    onClick={() => handleAtivar(academia)}
+                                    disabled={carregandoAtivar}
+                                  >
+                                    {carregandoAtivar ? 'Ativando...' : 'Ativar'}
+                                  </Button>
+                                )}
+                                {academia.status === "ativo" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="danger" 
+                                    onClick={() => handleAbrirDesativar(academia)}
+                                    disabled={carregandoDesativar}
+                                  >
+                                    Desativar
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               )}
             </Table>
