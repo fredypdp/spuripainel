@@ -6,6 +6,8 @@ export type AdminType = "gerente" | "adm" | "fpp";
 export type AcademiaType = 'escola' | 'superior';
 export type NivelEscolar = 'fundamental' | 'medio' | "misto";
 
+export type AnoAcademico = AnoEscolar | AnoSuperior;
+
 export type AnoEscolar = 
   | 'primeiro_fundamental' | 'segundo_fundamental' | 'terceiro_fundamental'
   | 'quarto_fundamental' | 'quinto_fundamental' | 'sexto_fundamental'
@@ -109,6 +111,7 @@ export interface RegistrarNotasRequest {
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
+  ano_academico: string;
   data: string;
   materia_disciplinar_id: string;
   quantidade: number;
@@ -295,6 +298,7 @@ export interface Falta {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
+  ano_academico?: string;
   data: string;
   materia_disciplinar_id: string;
   materia_nome: string;
@@ -417,7 +421,6 @@ export interface ListarMateriasResponse {
 // PERFIS E CONSULTAS
 // =====================
 
-// 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
 export interface EstudanteDetalhado {
   id: string;
   nome: string;
@@ -429,9 +432,11 @@ export interface EstudanteDetalhado {
   bilhete_identidade_responsavel?: string;
   codigo_academia?: string;
   status: StatusGeral;
-  status_escolar: StatusEscolar;
+  status_escolar_fundamental: StatusEscolar;
+  status_escolar_medio: StatusEscolar;
   status_superior: StatusSuperior;
   ano_escolar?: string;
+  ano_escolar_medio?: string;
   ano_superior?: string;
   curso_medio_id?: string;
   curso_superior_id?: string;
@@ -752,11 +757,12 @@ export interface Nota {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
+  ano_academico?: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
-  materia_nome?: string; // enriquecido em algumas queries
-  tipo: TipoNota; // NOVO
-  categoria: CategoriaNota; // NOVO
+  materia_nome?: string;
+  tipo: TipoNota;
+  categoria: CategoriaNota;
   nota: number;
   observacao?: string;
   registered_at: string;
@@ -767,12 +773,13 @@ export interface Nota {
 export interface RegistrarNotasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
+  ano_academico: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
-  tipo: TipoNota; // NOVO — obrigatório
-  categoria: CategoriaNota; // NOVO — obrigatório
+  tipo: TipoNota;
+  categoria: CategoriaNota;
   nota: number;
-  observacao?: string; // opcional no registro
+  observacao?: string;
 }
 
 export interface AtualizarNotaRequest {

@@ -255,7 +255,7 @@ export default function NotasAdmin() {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Província {layer.provincia}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {acads.map(a=>(
-            <CardBtn key={a.codigo_academia} icon={a.type==="superior"?"mdi:university":"mdi:school"} title={a.nome} subtitle={`${a.codigo_academia} · ${a.status==="ativo"?"Activa":"Inactiva"}`} badge={a.tipo_label} onClick={async()=>{ await carregarNotasAcademia(a); setLayer({type:"academia_anos",academia:a}); }}/>
+            <CardBtn key={a.codigo_academia} icon={a.type==="superior"?"mdi:university":"mdi:school"} title={a.nome} subtitle={`${a.codigo_academia} · ${a.status==="ativo"?"Activa":"Inactiva"}`} badge={a.type} onClick={async()=>{ await carregarNotasAcademia(a); setLayer({type:"academia_anos",academia:a}); }}/>
           ))}
         </div>
       </div>

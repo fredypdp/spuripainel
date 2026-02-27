@@ -23,6 +23,10 @@ function getUserFromCookie(): MeuPerfilResponse | null {
   try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
 }
 
+function getAnoAcademicoEstudante(est: EstudanteDetalhado): string {
+  return est.ano_escolar_medio ?? est.ano_escolar ?? est.ano_superior ?? "";
+}
+
 const PERIODOS_LABEL: Record<string, string> = {
   "1_trimestre":"1º Trimestre","2_trimestre":"2º Trimestre","3_trimestre":"3º Trimestre",
   "1_semestre":"1º Semestre","2_semestre":"2º Semestre",
@@ -194,9 +198,10 @@ function ModalGestao({ isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLecti
   const [mode, setMode] = useState<ModalMode>("registrar");
   const [error, setError] = useState<string|null>(null);
   // form registrar
-  const [codigoEst, setCodigoEst] = useState(""); const [periodo, setPeriodo] = useState(""); const [materiaId, setMateriaId] = useState(""); const [categoria, setCategoria] = useState(""); const [nota, setNota] = useState(""); const [obs, setObs] = useState("");
+  const [anoAcademico, setAnoAcademico] = useState("");
+  const [codigoEst, setCodigoEst] = useState(""); const [periodo, setPeriodo] = useState(""); const [materiaId, setMateriaId] = useState(""); const [categoria, setCategoria] = useState(""); const [nota, setNota] = useState<number|"">("");  const [obs, setObs] = useState("");
   // form atualizar
-  const [estAtualizar, setEstAtualizar] = useState(""); const [notaId, setNotaId] = useState(""); const [notaNova, setNotaNova] = useState(""); const [obsAtualizar, setObsAtualizar] = useState("");
+  const [estAtualizar, setEstAtualizar] = useState(""); const [notaId, setNotaId] = useState(""); const [notaNova, setNotaNova] = useState<number|"">("");  const [obsAtualizar, setObsAtualizar] = useState("");
   const [notasEstudante, setNotasEstudante] = useState<Nota[]>([]);
   const { execute:carregarNotasEst } = useApi(consultasService.notasEstudante);
   // form categoria
@@ -207,19 +212,19 @@ function ModalGestao({ isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLecti
 
   async function handleRegistrar(e:React.FormEvent) {
     e.preventDefault(); setError(null);
-    if(!codigoEst||!periodo||!materiaId||!categoria||!nota){ setError("Preencha todos os campos obrigatórios."); return; }
-    const n = parseFloat(nota);
+    if(!codigoEst||!anoAcademico||!periodo||!materiaId||!categoria||nota===""){ setError("Preencha todos os campos obrigatórios."); return; }
+    const n = Number(nota);
     if(isNaN(n)||n<0||n>20){ setError("Nota deve estar entre 0 e 20."); return; }
     try {
-      await onRegistrar({ codigo_estudante:codigoEst, ano_lectivo:anoLectivo, periodo:periodo as any, materia_disciplinar_id:materiaId, tipo:tipoNota, categoria, nota:n, observacao:obs||undefined });
+      await onRegistrar({ codigo_estudante:codigoEst, ano_lectivo:anoLectivo, ano_academico:anoAcademico, periodo:periodo as any, materia_disciplinar_id:materiaId, tipo:tipoNota, categoria, nota:n, observacao:obs||undefined });
       onClose();
     } catch(err:any) { setError(err?.message??"Erro ao registar nota."); }
   }
 
   async function handleAtualizar(e:React.FormEvent) {
     e.preventDefault(); setError(null);
-    if(!notaId||!notaNova||!obsAtualizar){ setError("Preencha todos os campos."); return; }
-    const n = parseFloat(notaNova);
+    if(!notaId||notaNova===""||!obsAtualizar){ setError("Preencha todos os campos."); return; }
+    const n = Number(notaNova);
     if(isNaN(n)||n<0||n>20){ setError("Nota deve estar entre 0 e 20."); return; }
     try {
       await onAtualizar({ id:notaId, nota_nova:n, observacao:obsAtualizar }, estAtualizar);
@@ -241,6 +246,12 @@ function ModalGestao({ isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLecti
     setNotasEstudante((res as any)?.notas??[]);
   }
 
+  function handleSelecionarEst(codigo: string) {
+    setCodigoEst(codigo);
+    const est = estudantes.find(e => e.codigo_estudante === codigo);
+    setAnoAcademico(est ? getAnoAcademicoEstudante(est) : "");
+  }
+
   if(!isOpen) return null;
 
   return (
@@ -257,7 +268,16 @@ function ModalGestao({ isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLecti
           <h4 className="font-semibold text-gray-900 dark:text-white">Registar Nota</h4>
           <div>
             <Label>Estudante *</Label>
-            <Dropdown value={codigoEst} options={estudantes.map(e=>({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))} onChange={e=>setCodigoEst(e.value)} placeholder="Selecione" className="w-full" filter/>
+            <Dropdown value={codigoEst} options={estudantes.map(e=>({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))} onChange={e=>handleSelecionarEst(e.value)} placeholder="Selecione" className="w-full" filter/>
+          </div>
+          <div>
+            <Label>Ano Académico *</Label>
+            <Input onChange={e => setAnoAcademico(e.target.value)}
+              placeholder="Ex: primeiro_fundamental, segundo_medio"
+            />
+            {anoAcademico && (
+              <p className="text-xs text-gray-500 mt-1">Preenchido automaticamente com base no estudante.</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Período *</Label><Dropdown value={periodo} options={PERIODOS} onChange={e=>setPeriodo(e.value)} placeholder="Selecione" className="w-full"/></div>
@@ -265,10 +285,10 @@ function ModalGestao({ isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLecti
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Categoria *</Label><Dropdown value={categoria} options={todasCats} onChange={e=>setCategoria(e.value)} placeholder="Selecione" className="w-full"/></div>
-            <div><Label>Nota (0–20) *</Label><Input type="number" min="0" max="20" step="0.01" value={nota} onChange={e=>setNota(e.target.value)} placeholder="Ex: 15"/></div>
+            <div><Label>Nota (0–20) *</Label><Input type="number" min="0" max="20" step={0.01} onChange={e=>setNota(e.target.value===""?"":Number(e.target.value))} placeholder="Ex: 15"/></div>
           </div>
-          <div><Label>Observação</Label><Input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Opcional"/></div>
-          <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose} type="button">Cancelar</Button><Button type="submit">Registar</Button></div>
+          <div><Label>Observação</Label><Input onChange={e=>setObs(e.target.value)} placeholder="Opcional"/></div>
+          <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose}>Cancelar</Button><button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Registar</button></div>
         </form>
       )}
 
@@ -279,18 +299,18 @@ function ModalGestao({ isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLecti
           {estAtualizar && notasEstudante.length>0 && (
             <div><Label>Nota a corrigir *</Label><Dropdown value={notaId} options={notasEstudante.map(n=>({ label:`${n.materia_nome??n.materia_disciplinar_id} · ${PERIODOS_LABEL[n.periodo]??n.periodo} · ${formatCategoria(n.categoria)} → ${n.nota}`, value:n.id }))} onChange={e=>setNotaId(e.value)} placeholder="Selecione" className="w-full" filter/></div>
           )}
-          <div><Label>Nova nota (0–20) *</Label><Input type="number" min="0" max="20" step="0.01" value={notaNova} onChange={e=>setNotaNova(e.target.value)} placeholder="Ex: 14"/></div>
-          <div><Label>Justificação *</Label><Input value={obsAtualizar} onChange={e=>setObsAtualizar(e.target.value)} placeholder="Obrigatório"/></div>
-          <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose} type="button">Cancelar</Button><Button type="submit">Atualizar</Button></div>
+          <div><Label>Nova nota (0–20) *</Label><Input type="number" min="0" max="20" step={0.01} onChange={e=>setNotaNova(e.target.value===""?"":Number(e.target.value))} placeholder="Ex: 14"/></div>
+          <div><Label>Justificação *</Label><Input onChange={e=>setObsAtualizar(e.target.value)} placeholder="Obrigatório"/></div>
+          <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose}>Cancelar</Button><button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Atualizar</button></div>
         </form>
       )}
 
       {mode==="categoria" && (
         <form onSubmit={handleCriarCategoria} className="space-y-4">
           <h4 className="font-semibold text-gray-900 dark:text-white">Nova Categoria</h4>
-          <div><Label>Nome *</Label><Input value={nomeCateg} onChange={e=>setNomeCateg(e.target.value)} placeholder="Ex: nota_trabalho"/><p className="text-xs text-gray-500 mt-1">Será prefixado com nota_ se necessário.</p></div>
-          <div><Label>Descrição</Label><Input value={descCateg} onChange={e=>setDescCateg(e.target.value)} placeholder="Opcional"/></div>
-          <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose} type="button">Cancelar</Button><Button type="submit">Criar</Button></div>
+          <div><Label>Nome *</Label><Input onChange={e=>setNomeCateg(e.target.value)} placeholder="Ex: nota_trabalho"/><p className="text-xs text-gray-500 mt-1">Será prefixado com nota_ se necessário.</p></div>
+          <div><Label>Descrição</Label><Input onChange={e=>setDescCateg(e.target.value)} placeholder="Opcional"/></div>
+          <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose}>Cancelar</Button><button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Criar</button></div>
         </form>
       )}
     </Modal>
@@ -352,7 +372,6 @@ export default function NotasAcademia() {
 
   // Carregar notas de todos estudantes de uma turma
   async function carregarNotasTurma(turma:Turma) {
-    const { execute } = useApi(consultasService.notasEstudante);
     const promises = turma.estudantes.map(async codigo=>{
       if(notasCache[codigo]) return;
       try {
@@ -377,7 +396,7 @@ export default function NotasAcademia() {
 
   // Anos fundamentais com turmas
   const anosFundamentais = useMemo(()=>{
-    const niveisCom = ANOS_FUNDAMENTAL.filter(a=>turmasPorNivel(a).length>0);
+    const niveisCom = ANOS_FUNDAMENTAL.filter(a=>turmas.some(t=>t.nivel===a&&t.status==="ativo"));
     return niveisCom.length>0 ? niveisCom : ANOS_FUNDAMENTAL;
   },[turmas]);
 
