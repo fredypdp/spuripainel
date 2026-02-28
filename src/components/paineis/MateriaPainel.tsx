@@ -11,7 +11,7 @@ import type { MeuPerfilResponse } from '@/types/api';
 interface MateriaFormData {
   nome: string;
   type: MateriaType;
-  nivel: string[];
+  anos_academicos: string[];
   curso_id?: string;
 }
 
@@ -48,12 +48,11 @@ const ANOS_SUPERIOR = [
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
   if (typeof window === 'undefined') return null;
-  
   const userCookie = getCookie("user");
   if (userCookie) {
     try {
       return JSON.parse(userCookie);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -66,12 +65,12 @@ export default function MateriaPainel() {
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
-  const {execute: executarCriarMateria, error: erroCriarMateria, loading: criandoMateria} = useApi(academiaService.criarMateria)
-  const {execute: executarAtualizarMateria, error: erroAtualizarMateria, loading: atualizandoMateria} = useApi(academiaService.atualizarMateria)
-  const {execute: executarListarMaterias, data: materias, error: erroListarMaterias, loading: ListandoMaterias} = useApi(academiaService.listarMaterias)
-  const {execute: executarListarCursos, data: cursos, error: erroListarCursos, loading: ListandoCursos} = useApi(academiaService.listarCursos)
-  const {execute: executarAtivarMateria, error: erroAtivarMateria, loading: AtivandoMateria} = useApi(academiaService.ativarMateria)
-    const {execute: executarDesativarMateria, error: erroDesativarMateria, loading: DesativandoMateria} = useApi(academiaService.desativarMateria)
+  const { execute: executarCriarMateria, loading: criandoMateria } = useApi(academiaService.criarMateria);
+  const { execute: executarAtualizarMateria, loading: atualizandoMateria } = useApi(academiaService.atualizarMateria);
+  const { execute: executarListarMaterias, data: materias, loading: ListandoMaterias } = useApi(academiaService.listarMaterias);
+  const { execute: executarListarCursos, data: cursos, loading: ListandoCursos } = useApi(academiaService.listarCursos);
+  const { execute: executarAtivarMateria } = useApi(academiaService.ativarMateria);
+  const { execute: executarDesativarMateria } = useApi(academiaService.desativarMateria);
 
   // ✅ Detecta se a academia é mista
   const isAcademiaMista = () => {
@@ -81,26 +80,19 @@ export default function MateriaPainel() {
   // Tipo padrão baseado na academia
   const getDefaultType = (): MateriaType => {
     if (!user?.academia) return "fundamental";
-    
     const academiaNivel = user.academia.nivel_escolar;
     const academiaType = user.academia.type;
-    
-    // Se for superior, tipo é superior
     if (academiaType === "superior") return "superior";
-    
-    // Se for escola
     if (academiaNivel === "fundamental") return "fundamental";
     if (academiaNivel === "medio") return "medio";
-    if (academiaNivel === "misto") return "fundamental"; // Padrão para misto
-    
-    // Default
+    if (academiaNivel === "misto") return "fundamental";
     return "fundamental";
   };
 
   const [formData, setFormData] = useState<MateriaFormData>({
     nome: "",
     type: getDefaultType(),
-    nivel: [],
+    anos_academicos: [],
     curso_id: undefined,
   });
 
@@ -116,34 +108,31 @@ export default function MateriaPainel() {
 
   const carregarDados = async () => {
     try {
-      await executarListarCursos()
-      await executarListarMaterias()
-    } catch (error: any) {
-    }
+      await executarListarCursos();
+      await executarListarMaterias();
+    } catch {}
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nome.trim()) {
       showAlert("error", "Nome da matéria é obrigatório");
       return;
     }
 
-    if (formData.nivel.length === 0) {
+    if (formData.anos_academicos.length === 0) {
       showAlert("error", "Selecione pelo menos um ano/nível");
       return;
     }
 
     // ✅ Validações específicas por tipo
     if (formData.type === "fundamental") {
-      // Fundamental: apenas anos, sem curso
       if (formData.curso_id) {
         showAlert("error", "Matérias do Fundamental não devem ter curso vinculado");
         return;
       }
     } else {
-      // Médio ou Superior: anos + 1 curso obrigatório
       if (!formData.curso_id) {
         showAlert("error", `Matérias do tipo ${formData.type === 'medio' ? 'Médio' : 'Superior'} devem estar vinculadas a um curso`);
         return;
@@ -154,7 +143,7 @@ export default function MateriaPainel() {
       const payload = {
         nome: formData.nome,
         type: formData.type,
-        nivel: formData.nivel,
+        anos_academicos: formData.anos_academicos,
         ...(formData.curso_id && { curso_id: formData.curso_id }),
       };
 
@@ -168,7 +157,7 @@ export default function MateriaPainel() {
         await executarCriarMateria(payload);
         showAlert("success", "Matéria criada com sucesso");
       }
-      
+
       resetForm();
       carregarDados();
     } catch (error: any) {
@@ -181,7 +170,7 @@ export default function MateriaPainel() {
     setFormData({
       nome: materia.nome,
       type: materia.type,
-      nivel: materia.nivel || [],
+      anos_academicos: materia.anos_academicos || [],
       curso_id: materia.curso_id,
     });
     setShowForm(true);
@@ -197,22 +186,21 @@ export default function MateriaPainel() {
         showAlert("success", "Matéria ativada");
       }
       executarListarMaterias();
-    } catch (error: any) {
-    }
+    } catch {}
   };
 
   const resetForm = () => {
-    setFormData({ nome: "", type: getDefaultType(), nivel: [], curso_id: undefined });
+    setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], curso_id: undefined });
     setEditingMateria(null);
     setShowForm(false);
   };
 
-  const handleNivelToggle = (ano: string) => {
+  const handleAnosToggle = (ano: string) => {
     setFormData(prev => ({
       ...prev,
-      nivel: prev.nivel.includes(ano)
-        ? prev.nivel.filter(a => a !== ano)
-        : [...prev.nivel, ano]
+      anos_academicos: prev.anos_academicos.includes(ano)
+        ? prev.anos_academicos.filter(a => a !== ano)
+        : [...prev.anos_academicos, ano],
     }));
   };
 
@@ -220,7 +208,7 @@ export default function MateriaPainel() {
     setFormData({
       ...formData,
       type: newType,
-      nivel: [],
+      anos_academicos: [],
       curso_id: undefined,
     });
   };
@@ -233,13 +221,8 @@ export default function MateriaPainel() {
 
   const getCursosByType = () => {
     if (!cursos?.cursos) return [];
-    
-    if (formData.type === "medio") {
-      return cursos.cursos.filter(c => c.type === "medio" && c.status === "ativo");
-    }
-    if (formData.type === "superior") {
-      return cursos.cursos.filter(c => c.type === "superior" && c.status === "ativo");
-    }
+    if (formData.type === "medio") return cursos.cursos.filter(c => c.type === "medio" && c.status === "ativo");
+    if (formData.type === "superior") return cursos.cursos.filter(c => c.type === "superior" && c.status === "ativo");
     return [];
   };
 
@@ -254,64 +237,50 @@ export default function MateriaPainel() {
   // ✅ Tipo está bloqueado se vier da academia (exceto misto) ou em edição
   const isTipoDisabled = () => {
     if (editingMateria) return true;
-    if (isAcademiaMista()) return false; // Misto permite escolher
-    return !!user?.academia;
+    if (isAcademiaMista()) return false;
+    return !user?.academia;
   };
 
-  // ✅ Função para formatar labels dos níveis
-  const formatarNivelLabel = (nivel: string): string => {
-    // Fundamental
-    if (nivel.includes('fundamental')) {
-      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto|setimo|oitavo|nono)_fundamental/);
-      if (numeroMatch) {
-        const numeros: Record<string, string> = {
-          'primeiro': '1º', 'segundo': '2º', 'terceiro': '3º',
-          'quarto': '4º', 'quinto': '5º', 'sexto': '6º',
-          'setimo': '7º', 'oitavo': '8º', 'nono': '9º'
+  // ✅ Função para formatar labels dos anos académicos
+  const formatarAnoLabel = (ano: string): string => {
+    if (ano.includes('fundamental')) {
+      const m = ano.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto|setimo|oitavo|nono)_fundamental/);
+      if (m) {
+        const nums: Record<string, string> = {
+          primeiro: '1º', segundo: '2º', terceiro: '3º', quarto: '4º', quinto: '5º',
+          sexto: '6º', setimo: '7º', oitavo: '8º', nono: '9º',
         };
-        return `${numeros[numeroMatch[1]]} Ano`;
+        return `${nums[m[1]]} Ano`;
       }
     }
-    
-    // Médio
-    if (nivel.includes('medio')) {
-      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto)_medio/);
-      if (numeroMatch) {
-        const numeros: Record<string, string> = {
-          'primeiro': '1º', 'segundo': '2º', 'terceiro': '3º', 'quarto': '4º'
-        };
-        return `${numeros[numeroMatch[1]]} Médio`;
+    if (ano.includes('medio')) {
+      const m = ano.match(/(primeiro|segundo|terceiro|quarto)_medio/);
+      if (m) {
+        const nums: Record<string, string> = { primeiro: '1º', segundo: '2º', terceiro: '3º', quarto: '4º' };
+        return `${nums[m[1]]} Médio`;
       }
     }
-    
-    // Superior
-    if (nivel.includes('ano') && !nivel.includes('medio') && !nivel.includes('fundamental')) {
-      const numeroMatch = nivel.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto)_ano/);
-      if (numeroMatch) {
-        const numeros: Record<string, string> = {
-          'primeiro': '1º', 'segundo': '2º', 'terceiro': '3º',
-          'quarto': '4º', 'quinto': '5º', 'sexto': '6º'
+    if (ano.includes('ano') && !ano.includes('medio') && !ano.includes('fundamental')) {
+      const m = ano.match(/(primeiro|segundo|terceiro|quarto|quinto|sexto)_ano/);
+      if (m) {
+        const nums: Record<string, string> = {
+          primeiro: '1º', segundo: '2º', terceiro: '3º', quarto: '4º', quinto: '5º', sexto: '6º',
         };
-        return `${numeros[numeroMatch[1]]} Ano`;
+        return `${nums[m[1]]} Ano`;
       }
     }
-    
-    return nivel.replace(/_/g, ' ');
+    return ano.replace(/_/g, ' ');
   };
 
   // ✅ Obter descrição do tipo de academia
   const getTipoAcademiaDescricao = (): string => {
     if (!user?.academia) return '';
-    
     const academiaType = user.academia.type;
     const academiaNivel = user.academia.nivel_escolar;
-    
     if (academiaType === 'superior') return 'Superior';
-    
     if (academiaNivel === 'fundamental') return 'Fundamental';
     if (academiaNivel === 'medio') return 'Médio';
     if (academiaNivel === 'misto') return 'Misto (Fundamental e Médio)';
-    
     return '';
   };
 
@@ -332,115 +301,43 @@ export default function MateriaPainel() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Matérias Disciplinares
           </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{`Gerencie as matérias da sua ${user?.academia?.type == "escola" ? "escola" : "universidade"}`}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            {`Gerencie as matérias da sua ${user?.academia?.type === "escola" ? "Escola" : "Universidade"}`}
+          </p>
         </div>
-        <div className="flex gap-3">
-          {!showForm && (
-            <Button disabled={ListandoMaterias || ListandoCursos} onClick={carregarDados}>
-              Atualizar lista
-            </Button>
-          )}
-          <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>
+        {!showForm && (
+          <Button size="sm" onClick={() => setShowForm(true)}>
+            <Icon icon="mdi:plus" width={16} />
             Nova Matéria
           </Button>
-        </div>
+        )}
       </div>
 
       {/* Formulário */}
       {showForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            {editingMateria ? "Editar Matéria" : "Nova Matéria"}
+          </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingMateria ? "Editar Matéria" : "Nova Matéria"}
-              </h3>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <Icon icon="mdi:close" width={20} />
-              </button>
-            </div>
-
+            {/* Nome */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Nome da Matéria *
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Nome *
               </label>
               <input
                 type="text"
                 value={formData.nome}
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                placeholder="Ex: Matemática"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-                placeholder="Ex: Matemática, Português, Biologia"
               />
             </div>
 
-            {/* ✅ ACADEMIA MISTA: Seletor de Nível */}
-            {isAcademiaMista() && !editingMateria && (
+            {/* Tipo */}
+            {isAcademiaMista() && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Nível da Matéria * (selecione primeiro)
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange("fundamental")}
-                    className={`p-4 border-2 rounded-lg transition-all ${
-                      formData.type === "fundamental"
-                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
-                        : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon 
-                        icon="mdi:school" 
-                        width={24} 
-                        className={formData.type === "fundamental" ? "text-brand-500" : "text-gray-400"}
-                      />
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        Fundamental
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 text-left">
-                      Selecionar anos (1º ao 9º)
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange("medio")}
-                    className={`p-4 border-2 rounded-lg transition-all ${
-                      formData.type === "medio"
-                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
-                        : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon 
-                        icon="mdi:book-education" 
-                        width={24} 
-                        className={formData.type === "medio" ? "text-brand-500" : "text-gray-400"}
-                      />
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        Médio
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 text-left">
-                      Selecionar anos + curso
-                    </p>
-                  </button>
-                </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                  💡 Sua academia é mista - escolha o nível da matéria
-                </p>
-              </div>
-            )}
-
-            {/* ✅ ACADEMIAS NÃO MISTAS: Campo de tipo (desabilitado) */}
-            {!isAcademiaMista() && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Tipo *
                 </label>
                 <select
@@ -453,7 +350,6 @@ export default function MateriaPainel() {
                   <option value="medio">Ensino Médio</option>
                   <option value="superior">Ensino Superior</option>
                 </select>
-                
                 {user?.academia && !editingMateria && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Tipo definido automaticamente pela academia ({getTipoAcademiaDescricao()})
@@ -467,10 +363,10 @@ export default function MateriaPainel() {
               </div>
             )}
 
-            {/* ✅ SELEÇÃO DE ANOS (TODOS OS TIPOS) */}
+            {/* ✅ SELEÇÃO DE ANOS ACADÉMICOS (TODOS OS TIPOS) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Anos/Níveis * (selecione pelo menos um)
+                Anos Académicos * (selecione pelo menos um)
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {getAnosDisponiveis().map(({ value, label }) => (
@@ -480,8 +376,8 @@ export default function MateriaPainel() {
                   >
                     <input
                       type="checkbox"
-                      checked={formData.nivel.includes(value)}
-                      onChange={() => handleNivelToggle(value)}
+                      checked={formData.anos_academicos.includes(value)}
+                      onChange={() => handleAnosToggle(value)}
                       className="w-4 h-4 text-brand-500 focus:ring-brand-500"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -513,7 +409,7 @@ export default function MateriaPainel() {
                 </select>
                 {getCursosByType().length === 0 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                    ⚠️ Nenhum curso {formData.type === "medio" ? "de Ensino Médio" : "Superior"} ativo disponível. 
+                    ⚠️ Nenhum curso {formData.type === "medio" ? "de Ensino Médio" : "Superior"} ativo disponível.
                     Crie um curso primeiro na aba &quot;Cursos&quot;.
                   </p>
                 )}
@@ -535,8 +431,13 @@ export default function MateriaPainel() {
             )}
 
             <div className="flex gap-3 pt-4">
-              <button type="submit" className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors">
-                {editingMateria ? atualizandoMateria ? "Atualizando matéria" : "Atualizar" : criandoMateria ? "Criando matéria" : "Criar Matéria"}
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+              >
+                {editingMateria
+                  ? atualizandoMateria ? "Atualizando matéria..." : "Atualizar"
+                  : criandoMateria ? "Criando matéria..." : "Criar Matéria"}
               </button>
               <button
                 type="button"
@@ -584,8 +485,8 @@ export default function MateriaPainel() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs px-2 py-1 rounded-full bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300">
-                        {materia.type === "fundamental" ? "Fundamental" : 
-                        materia.type === "medio" ? "Médio" : "Superior"}
+                        {materia.type === "fundamental" ? "Fundamental" :
+                          materia.type === "medio" ? "Médio" : "Superior"}
                       </span>
                       <span
                         className={`text-xs px-2 py-1 rounded-full ${
@@ -600,19 +501,19 @@ export default function MateriaPainel() {
                   </div>
                 </div>
 
-                {/* Anos/Níveis */}
-                {materia.nivel && materia.nivel.length > 0 && (
+                {/* Anos Académicos */}
+                {materia.anos_academicos && materia.anos_academicos.length > 0 && (
                   <div className="mb-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      Anos:
+                      Anos académicos:
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {materia.nivel.map((n) => (
+                      {materia.anos_academicos.map((ano) => (
                         <span
-                          key={n}
+                          key={ano}
                           className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
                         >
-                          {formatarNivelLabel(n)}
+                          {formatarAnoLabel(ano)}
                         </span>
                       ))}
                     </div>
@@ -647,22 +548,18 @@ export default function MateriaPainel() {
                         : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
                     }`}
                   >
-                    {materia.status === "ativo" ? (
-                      <>
-                        <Icon icon="mdi:power" width={16} />
-                        Desativar
-                        {DesativandoMateria ? "Desativando" : "Desativar"}
-                      </>
-                    ) : (
-                      <>
-                        <Icon icon="mdi:power" width={16} />
-                        {DesativandoMateria ? "Ativando" : "Ativar"}
-                      </>
-                    )}
+                    <Icon icon={materia.status === "ativo" ? "mdi:eye-off" : "mdi:eye"} width={16} />
+                    {materia.status === "ativo" ? "Desativar" : "Ativar"}
                   </button>
                 </div>
               </div>
             ))
+          )}
+
+          {(!materias || materias.total === 0) && (
+            <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+              Nenhuma matéria cadastrada ainda
+            </div>
           )}
         </div>
       )}

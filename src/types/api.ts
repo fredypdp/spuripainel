@@ -99,19 +99,9 @@ export interface SolicitarInscricaoUniversidadeRequest {
   curso_superior_id: string;
 }
 
-export interface RegistrarNotasRequest {
-  codigo_estudante: string;
-  ano_lectivo: string;
-  periodo: Periodo;
-  materia_disciplinar_id: string;
-  nota: number;
-  observacao?: string;
-}
-
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
-  ano_academico: string;
   data: string;
   materia_disciplinar_id: string;
   quantidade: number;
@@ -161,10 +151,11 @@ export interface AtualizarCursoRequest {
   anos_academicos?: string[];
 }
 
+// 🔥 ATUALIZADO: nivel → anos_academicos
 export interface CriarMateriaRequest {
   nome: string;
   type: MateriaType;
-  nivel?: string[];
+  anos_academicos?: string[];
   curso_id?: string;
 }
 
@@ -394,11 +385,12 @@ export interface Curso {
   version: number;
 }
 
+// 🔥 ATUALIZADO: nivel → anos_academicos
 export interface Materia {
   id: string;
   nome: string;
   type: MateriaType;
-  nivel?: string[];
+  anos_academicos?: string[];
   codigo_academia: string;
   curso_id?: string;
   status: 'ativo' | 'inativo';

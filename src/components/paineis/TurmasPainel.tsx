@@ -102,6 +102,7 @@ export default function TurmasPainel() {
   const academiaType  = user?.academia?.type;
   const nivelEscolar  = user?.academia?.nivel_escolar;
   const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
+  const isMisto = academiaType === "escola" && nivelEscolar === "misto";
   const isSuperior    = academiaType === "superior";
 
   const turmas:     Turma[]              = dataTurmas?.turmas ?? [];
@@ -549,7 +550,7 @@ export default function TurmasPainel() {
             Turmas
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {`Gerencie as matérias da sua ${user?.academia?.type == "escola" ? "escola" : "universidade"}. Elas estão organizadas ${isFundamental ? "por ano escolar" : "por curso → ano"}.`}
+            {`Gerencie as matérias da sua ${user?.academia?.type == "escola" ? "escola" : "universidade"}. ${isMisto ? "" : `Elas estão organizadas ${isFundamental ? "por ano escolar" : "por curso → ano"}.`}`}
           </p>
         </div>
         <div className="flex gap-3">
