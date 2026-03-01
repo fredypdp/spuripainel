@@ -12,6 +12,8 @@ import type {
   SolicitarInscricaoUniversidadeRequest,
   RegistrarNotasRequest,
   RegistrarFaltasRequest,
+  RegistrarAprovacaoAnoRequest,
+  RegistrarAvaliacaoFinalRequest,
   AprovarInscricaoRequest,
   ReprovarInscricaoRequest,
   CriarAdminRequest,
@@ -54,7 +56,6 @@ import type {
   RegistroCompleto,
   RegistrosPorEstudanteResponse,
   RegistrosPorAcademiaResponse,
-  RegistrarAprovacaoAnoRequest,
   AprovacoesEstudanteResponse,
   ListarAdminsResponse,
   Inscricao,
@@ -71,6 +72,11 @@ import type {
   CriarTurmaRequest,
   AtualizarTurmaRequest,
   AdicionarEstudanteTurmaRequest,
+  // 🔥 NOVO
+  ListarAvaliacoesResponse,
+  AvaliacoesEstudanteResponse,
+  ListarAprovacoesResponse,
+  ListarReprovacoesResponse,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -176,6 +182,30 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * 🔥 NOVO: Registrar avaliação final anual do estudante (aprovação/reprovação)
+   * POST /academia/avaliacao-final
+   *
+   * Inclui validação de notas obrigatórias, validação de níveis, remoção de turmas
+   * e geração do evento AprovacaoAnoRegistrada.
+   */
+  registrarAvaliacaoFinal: (data: RegistrarAvaliacaoFinalRequest, token?: string) =>
+    api.post<{
+      message: string;
+      codigo_estudante: string;
+      resultado: string; // "reprovado" | "aprovado → <nivel>" | "aprovado (ciclo finalizado)"
+      codigo_turma?: string;
+      turmas_removidas: string[];
+    }>(
+      '/academia/avaliacao-final',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * @deprecated Use registrarAvaliacaoFinal (POST /academia/avaliacao-final)
+   * Mantido para compatibilidade com código existente
+   */
   registrarAprovacaoAno: (data: RegistrarAprovacaoAnoRequest, token?: string) =>
     api.post<{
       message: string;
@@ -183,12 +213,12 @@ export const academiaService = {
       tipo_ensino: string;
       nivel_atual: string;
       proximo_nivel?: string;
-      resultado: string; // ex: "APROVADO → segundo_medio" | "REPROVADO" | "APROVADO (ciclo finalizado)"
+      resultado: string;
     }>(
-        '/academia/aprovacao-ano',
-        data,
-        { token: token || tokenStorage.get() || undefined }
-      ),
+      '/academia/aprovacao-ano',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 
   atualizarDados: (data: AtualizarDadosAcademiaRequest, token?: string) =>
     api.put<{ message: string; aviso?: string; email_verificado?: boolean }>(
@@ -207,7 +237,7 @@ export const academiaService = {
 
   // Cursos
   criarCurso: (data: CriarCursoRequest, token?: string) =>
-    api.post<{ message: string; data: { id: string; nome: string; type: string } }>(
+    api.post<{ message: string; data: { id: string; nome: string; type: string; periodos?: string[] } }>(
       '/academia/cursos',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -241,10 +271,10 @@ export const academiaService = {
     ),
 
   // Matérias
-  
+
   /**
    * Criar nova matéria disciplinar
-  */
+   */
   criarMateria: (data: CriarMateriaRequest, token?: string) =>
     api.post<{ message: string; data: { id: string; nome: string; type: string } }>(
       '/academia/materias',
@@ -254,26 +284,20 @@ export const academiaService = {
 
   /**
    * Listar matérias da academia
-  */
+   */
   listarMaterias: (token?: string) =>
     api.get<ListarMateriasResponse>(
       '/academia/materias',
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * Atualizar dados de uma matéria
-  */
   atualizarMateria: (materiaId: string, data: AtualizarMateriaRequest, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
-  
-  /**
-   * Ativar matéria
-  */
+
   ativarMateria: (materiaId: string, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}/ativar`,
@@ -281,20 +305,53 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * Desativar matéria
-  */
   desativarMateria: (materiaId: string, token?: string) =>
-  api.put<{ message: string; nome: string }>(
-    `/academia/materias/${materiaId}/desativar`,
-    undefined,
-    { token: token || tokenStorage.get() || undefined }
-  ),
+    api.put<{ message: string; nome: string }>(
+      `/academia/materias/${materiaId}/desativar`,
+      undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 
-  /**
-   * Alterar curso do estudante (médio ou superior)
-   * Acesso: academia
-  */
+  // Turmas
+  criarTurma: (data: CriarTurmaRequest, token?: string) =>
+    api.post<{ message: string; data: { id: string; codigo_turma: string } }>(
+      '/academia/turmas',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarTurmas: (token?: string) =>
+    api.get<ListarTurmasResponse>(
+      '/academia/turmas',
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  getTurma: (codigoTurma: string, token?: string) =>
+    api.get<{ turma: import('@/types/api').Turma }>(
+      `/academia/turmas/${codigoTurma}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarTurma: (codigoTurma: string, data: AtualizarTurmaRequest, token?: string) =>
+    api.put<{ message: string }>(
+      `/academia/turmas/${codigoTurma}`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  adicionarEstudanteATurma: (codigoTurma: string, data: AdicionarEstudanteTurmaRequest, token?: string) =>
+    api.post<{ message: string }>(
+      `/academia/turmas/${codigoTurma}/estudantes`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  removerEstudanteDaTurma: (codigoTurma: string, codigoEstudante: string, token?: string) =>
+    api.delete<{ message: string }>(
+      `/academia/turmas/${codigoTurma}/estudantes/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   alterarCursoEstudante: (codigoEstudante: string, data: AlterarCursoRequest, token?: string) =>
     api.put<AlterarCursoResponse>(
       `/academia/estudante/${codigoEstudante}/curso`,
@@ -302,49 +359,11 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * Buscar inscrições de um estudante pelo código
-   * Acesso: academia
-  */
   getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
     api.get<GetInscricoesPorCodigoResponse>(
       `/academia/inscricoes/estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
-
-  // Turmas
-criarTurma: (data: CriarTurmaRequest, token?: string) =>
-  api.post<{ message: string; id: string; codigo_turma: string }>(
-    '/academia/turmas',
-    data,
-    { token: token || tokenStorage.get() || undefined }
-  ),
-
-listarTurmas: (token?: string) =>
-  api.get<ListarTurmasResponse>(
-    '/academia/turmas',
-    { token: token || tokenStorage.get() || undefined }
-  ),
-
-atualizarTurma: (codigoTurma: string, data: AtualizarTurmaRequest, token?: string) =>
-  api.put<{ message: string }>(
-    `/academia/turmas/${codigoTurma}`,
-    data,
-    { token: token || tokenStorage.get() || undefined }
-  ),
-
-adicionarEstudanteATurma: (codigoTurma: string, data: AdicionarEstudanteTurmaRequest, token?: string) =>
-  api.post<{ message: string; codigo_turma: string; codigo_estudante: string }>(
-    `/academia/turmas/${codigoTurma}/estudantes`,
-    data,
-    { token: token || tokenStorage.get() || undefined }
-  ),
-
-removerEstudanteDaTurma: (codigoTurma: string, codigoEstudante: string, token?: string) =>
-  api.delete<{ message: string }>(
-    `/academia/turmas/${codigoTurma}/estudantes/${codigoEstudante}`,
-    { token: token || tokenStorage.get() || undefined }
-  ),
 };
 
 // =====================
@@ -356,28 +375,18 @@ export const estudanteService = {
     api.post<AuthResponse>('/login', data),
 
   solicitarInscricaoEscola: (data: SolicitarInscricaoEscolaRequest, token?: string) =>
-    api.post<{ message: string; inscricao_id: string; academia: string; tipo: string }>(
+    api.post<{ message: string; inscricao_id: string }>(
       '/estudante/inscricao-escola',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
   solicitarInscricaoUniversidade: (data: SolicitarInscricaoUniversidadeRequest, token?: string) =>
-    api.post<{ message: string; inscricao_id: string; academia: string; tipo: string }>(
+    api.post<{ message: string; inscricao_id: string }>(
       '/estudante/inscricao-universidade',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
-
-  listarInscricoes: (token?: string) =>
-    api.get<ListarInscricoesResponse>('/estudante/minhas-inscricoes', {
-      token: token || tokenStorage.get() || undefined,
-    }),
-
-  listarInscricoesAprovadas: (token?: string) =>
-    api.get<ListarInscricoesAprovadasResponse>('/estudante/inscricoes-aprovadas', {
-      token: token || tokenStorage.get() || undefined,
-    }),
 
   vincularAcademia: (data: VincularAcademiaRequest, token?: string) =>
     api.post<VincularAcademiaResponse>(
@@ -386,7 +395,19 @@ export const estudanteService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  atualizarStatusEscolar: (data: AtualizarStatusRequest, token?: string) =>
+  listarInscricoesAprovadas: (token?: string) =>
+    api.get<ListarInscricoesAprovadasResponse>('/estudante/inscricoes-aprovadas', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  atualizarStatusEscolarFundamental: (data: AtualizarStatusRequest, token?: string) =>
+    api.put<AtualizarStatusResponse>(
+      '/estudante/status-escolar-fundamental',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarStatusEscolarMedio: (data: AtualizarStatusRequest, token?: string) =>
     api.put<AtualizarStatusResponse>(
       '/estudante/status-escolar',
       data,
@@ -425,9 +446,18 @@ export const estudanteService = {
     }),
 
   /**
+   * 🔥 NOVO: Avaliações finais do próprio estudante
+   * GET /estudante/minhas-avaliacoes
+   */
+  minhasAvaliacoes: (token?: string) =>
+    api.get<ListarAvaliacoesResponse>('/estudante/minhas-avaliacoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  /**
    * Buscar inscrições do próprio estudante
    * Acesso: estudante
-  */
+   */
   getMinhasInscricoesPorCodigo: (codigoEstudante: string, token?: string) =>
     api.get<GetInscricoesPorCodigoResponse>(
       `/estudante/inscricoes/${codigoEstudante}`,
@@ -516,13 +546,13 @@ export const consultasService = {
   /**
    * Buscar inscrições de um estudante pelo código
    * Acesso: estudante (próprio), academia, admin
-  */
+   */
   getInscricoesPorCodigoEstudante: (codigoEstudante: string, token?: string) =>
     api.get<GetInscricoesPorCodigoResponse>(
       `/inscricoes/estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
-  
+
   /**
    * Retorna o ano letivo atual configurado pelo admin
    * GET /ano-letivo-atual
@@ -532,6 +562,57 @@ export const consultasService = {
       '/ano-letivo-atual',
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  /**
+   * 🔥 NOVO: Listar avaliações finais (resolve por tipo de utilizador)
+   * GET /avaliacoes?tipo_ensino=fundamental|medio|superior
+   * Estudante → suas avaliações
+   * Academia  → todas da academia
+   * Admin     → todas do sistema
+   */
+  listarAvaliacoes: (params?: { tipoEnsino?: string; token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.tipoEnsino) qs.append('tipo_ensino', params.tipoEnsino);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<ListarAvaliacoesResponse>(`/avaliacoes${query}`, {
+      token: params?.token || tokenStorage.get() || undefined,
+    });
+  },
+
+  /**
+   * 🔥 NOVO: Avaliações finais de um estudante específico
+   * GET /avaliacoes-estudante/:codigo
+   * Acesso: academia (verifica pertença) e admin
+   */
+  avaliacoesEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<AvaliacoesEstudanteResponse>(
+      `/avaliacoes-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * 🔥 NOVO: Listar aprovações (resolve por tipo de utilizador)
+   * GET /aprovacoes
+   * Estudante → suas aprovações
+   * Academia  → aprovações dos estudantes da academia
+   * Admin     → todas do sistema
+   */
+  listarAprovacoes: (token?: string) =>
+    api.get<ListarAprovacoesResponse>('/aprovacoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  /**
+   * 🔥 NOVO: Listar reprovações (resolve por tipo de utilizador)
+   * GET /reprovacoes
+   * Estudante → suas reprovações
+   * Academia  → reprovações dos estudantes da academia
+   * Admin     → todas do sistema
+   */
+  listarReprovacoes: (token?: string) =>
+    api.get<ListarReprovacoesResponse>('/reprovacoes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 };
 
 // =====================
@@ -560,183 +641,92 @@ export const adminService = {
   login: (data: AdminLoginRequest) =>
     api.post<AuthResponse>('/admin/login', data),
 
-  criar: (data: CriarAdminRequest, token?: string) =>
-    api.post<{ message: string; data: { id: string; nome: string; email: string; role: string } }>(
-      '/admin/register',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
   listarAdmins: (token?: string) =>
-    api.get<ListarAdminsResponse>(
-      '/admin/admins',
+    api.get<ListarAdminsResponse>('/admin/listar-admins', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  criarAdmin: (data: CriarAdminRequest, token?: string) =>
+    api.post<{ message: string; data: AdminDetalhado }>(
+      '/admin/criar-admin',
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  atualizarDados: (adminId: string, data: AtualizarDadosAdminRequest, token?: string) =>
+  desativarEstudante: (codigoEstudante: string, data: DesativarRequest, token?: string) =>
     api.put<{ message: string }>(
-      `/admin/dados/${adminId}`,
+      `/admin/estudante/${codigoEstudante}/desativar`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  atualizarRole: (adminId: string, data: AtualizarRoleAdminRequest, token?: string) =>
-    api.put<{ message: string; role_anterior: string; novo_role: string }>(
-      `/admin/role/${adminId}`,
+  desativarAcademia: (codigoAcademia: string, data: DesativarRequest, token?: string) =>
+    api.put<{ message: string }>(
+      `/admin/academia/${codigoAcademia}/desativar`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  ativarAcademia: (codigo: string, token?: string) =>
-    api.put<{ message: string; codigo_academia: string; nome: string }>(
-      `/admin/academia/${codigo}/ativar`,
+  ativarEstudante: (codigoEstudante: string, token?: string) =>
+    api.put<{ message: string }>(
+      `/admin/estudante/${codigoEstudante}/ativar`,
       undefined,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  desativarAcademia: (codigo: string, data: DesativarRequest, token?: string) =>
-    api.put<{ message: string; codigo_academia: string; nome: string; motivo: string }>(
-      `/admin/academia/${codigo}/desativar`,
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  ativarAdmin: (id: string, token?: string) =>
-    api.put<{ message: string; email: string }>(
-      `/admin/admin/${id}/ativar`,
+  ativarAcademia: (codigoAcademia: string, token?: string) =>
+    api.put<{ message: string }>(
+      `/admin/academia/${codigoAcademia}/ativar`,
       undefined,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  desativarAdmin: (id: string, data: DesativarRequest, token?: string) =>
-    api.put<{ message: string; email: string }>(
-      `/admin/admin/${id}/desativar`,
+  atualizarDadosAdmin: (data: AtualizarDadosAdminRequest, token?: string) =>
+    api.put<{ message: string }>(
+      '/admin/dados',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  consultarAdminPorEmail: (email: string, token?: string) =>
-    api.get<ConsultarAdminResponse>(
-      `/admin/consultar-admin/${email}`,
+  atualizarRoleAdmin: (adminId: string, data: AtualizarRoleAdminRequest, token?: string) =>
+    api.put<{ message: string }>(
+      `/admin/${adminId}/role`,
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  buscarUsuario: (tipo: 'estudante' | 'academia' | 'admin', id: string, token?: string) =>
-    api.get<BuscarUsuarioResponse>(
-      `/admin/buscar-usuario?tipo=${tipo}&id=${id}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  // Projeções
-  rebuildProjection: (name: string, token?: string) =>
-    api.post<{ message: string; projection: string }>(
-      `/admin/rebuild-projection/${name}`,
-      undefined,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  getProjectionStatus: (name: string, token?: string) =>
-    api.get<any>(
-      `/admin/projection-status/${name}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  getAllProjectionStatuses: (token?: string) =>
-    api.get<{ projections: any[]; total: number }>(
-      '/admin/projections-status',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  getLedgerStats: (token?: string) =>
-    api.get<any>(
-      '/admin/ledger-stats',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  verifyAllIntegrity: (token?: string) =>
-    api.get<any>(
-      '/admin/verify-all-integrity',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  // Registros
-  listarTodosRegistros: (params?: {
-    tipo?: 'notas' | 'faltas';
-    limit?: number;
-    offset?: number;
-    token?: string;
-  }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.tipo) queryParams.append('tipo', params.tipo);
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
-
-    const query = queryParams.toString();
-    const url = `/admin/todos-registros${query ? `?${query}` : ''}`;
-
-    return api.get<RegistroCompleto>(url, {
+  listarTodosRegistros: (params?: { limit?: number; offset?: number; token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit)  qs.append('limit',  params.limit.toString());
+    if (params?.offset) qs.append('offset', params.offset.toString());
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<RegistroCompleto>(`/admin/todos-registros${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },
 
-  listarRegistrosPorEstudante: (codigo: string, token?: string) =>
+  registrosPorEstudante: (codigoEstudante: string, token?: string) =>
     api.get<RegistrosPorEstudanteResponse>(
-      `/admin/registros/estudante/${codigo}`,
+      `/admin/registros/estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarRegistrosPorAcademia: (codigo: string, token?: string) =>
+  registrosPorAcademia: (codigoAcademia: string, token?: string) =>
     api.get<RegistrosPorAcademiaResponse>(
-      `/admin/registros/academia/${codigo}`,
+      `/admin/registros/academia/${codigoAcademia}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // Métricas
-  getMetrics: (token?: string) =>
-    api.get<any>(
-      '/admin/metrics',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  getSystemStats: (token?: string) =>
-    api.get<any>(
-      '/admin/system-stats',
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  resetMetrics: (token?: string) =>
-    api.post<{ message: string }>(
-      '/admin/metrics/reset',
-      undefined,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-  
-  /**
-   * Define o ano letivo atual do sistema.
-   * Exclusivo para admins FPP.
-   * POST /admin/definir-ano-letivo
-   */
   definirAnoLetivo: (data: DefinirAnoLetivoRequest, token?: string) =>
     api.post<DefinirAnoLetivoResponse>(
-      '/admin/definir-ano-letivo',
+      '/admin/ano-letivo',
       data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  /**
-   * Retorna o ano letivo atual configurado no sistema.
-   * Acessível por qualquer usuário autenticado.
-   * GET /ano-letivo-atual
-   */
-  getAnoLetivoAtual: (token?: string) =>
-    api.get<AnoLetivoResponse>(
-      '/ano-letivo-atual',
       { token: token || tokenStorage.get() || undefined }
     ),
 };
 
 // =====================
-// PERFIL E CONSULTAS PÚBLICAS
+// PERFIL
 // =====================
 
 export const perfilService = {
@@ -745,22 +735,13 @@ export const perfilService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  consultarEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<ConsultarEstudanteResponse>(
-      `/consultar-estudante/${codigoEstudante}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  consultarAcademia: (codigoAcademia: string, token?: string) =>
-    api.get<ConsultarAcademiaResponse>(
-      `/consultar-academia/${codigoAcademia}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
   alterarSenha: (data: AlterarSenhaRequest, token?: string) =>
-  api.put<{ message: string }>(
-    '/alterar-senha',
-    data,
-    { token: token || tokenStorage.get() || undefined }
-  ),
+    api.put<{ message: string }>(
+      '/alterar-senha',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
+
+// Re-export AdminDetalhado for use in admin service (avoids circular import)
+import type { AdminDetalhado } from '@/types/api';

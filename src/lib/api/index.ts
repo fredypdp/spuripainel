@@ -78,6 +78,14 @@ export type {
   RegistrarNotasRequest,
   RegistrarFaltasRequest,
   RegistrarAprovacaoAnoRequest,
+  // 🔥 NOVO
+  RegistrarAvaliacaoFinalRequest,
+  AvaliacaoFinal,
+  ListarAvaliacoesResponse,
+  AvaliacoesEstudanteResponse,
+  ListarAprovacoesResponse,
+  ListarReprovacoesResponse,
+  // fim novo
   CriarAdminRequest,
   DesativarRequest,
   VincularAcademiaRequest,

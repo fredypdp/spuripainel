@@ -143,12 +143,14 @@ export interface CriarCursoRequest {
   nome: string;
   type: CursoType;
   anos_academicos: string[];
+  // 🔥 NOVO: obrigatório para superior, ausente/vazio para medio
+  periodos?: string[];
 }
 
 export interface AtualizarCursoRequest {
   nome?: string;
-  type?: CursoType;
   anos_academicos?: string[];
+  periodos?: string[];
 }
 
 // 🔥 ATUALIZADO: nivel → anos_academicos
@@ -161,7 +163,6 @@ export interface CriarMateriaRequest {
 
 export interface AtualizarMateriaRequest {
   nome?: string;
-  type?: MateriaType;
 }
 
 export interface AtualizarDadosPessoaisEstudanteRequest {
@@ -172,12 +173,11 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   bilhete_identidade_responsavel?: string;
 }
 
-// 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
 export interface AtualizarDadosAcademicosEstudanteRequest {
   ano_escolar?: string;
   ano_superior?: string;
-  curso_medio_id?: string;    // 🔥 MUDOU: agora é UUID
-  curso_superior_id?: string; // 🔥 MUDOU: agora é UUID
+  curso_medio_id?: string;
+  curso_superior_id?: string;
 }
 
 export interface AtualizarDadosAcademiaRequest {
@@ -207,14 +207,39 @@ export interface AlterarSenhaRequest {
 
 export interface SolicitarRecuperacaoRequest {
   identificador: string;
-  tipo: 'estudante' | 'academia' | 'admin';
+  tipo: UserType;
 }
 
 export interface SolicitarVerificacaoRequest {
   identificador: string;
-  tipo: 'estudante' | 'academia' | 'admin';
+  tipo: UserType;
 }
 
+export interface AlterarCursoRequest {
+  novo_curso_id: string;
+}
+
+/**
+ * 🔥 NOVO: Request para registrar avaliação final do estudante
+ * Substitui a lógica anterior de RegistrarAprovacaoAnoRequest para o endpoint /academia/avaliacao-final
+ */
+export interface RegistrarAvaliacaoFinalRequest {
+  codigo_estudante: string;
+  ano_lectivo: string;
+  tipo_ensino: 'fundamental' | 'medio' | 'superior';
+  /** Nível/ano académico atual do estudante */
+  nivel_ano_academico_atual: string;
+  /** Próximo nível — obrigatório se aprovado e não for o último ano; ausente se reprovado ou ciclo finalizado */
+  proximo_ano_academico?: string;
+  aprovado: boolean;
+  /** Permite forçar aprovação mesmo com notas em falta */
+  observacao?: string;
+}
+
+/**
+ * @deprecated Use RegistrarAvaliacaoFinalRequest para o endpoint /academia/avaliacao-final
+ * Mantido para compatibilidade com código existente que usa /academia/aprovacao-ano (rota antiga)
+ */
 export interface RegistrarAprovacaoAnoRequest {
   codigo_estudante: string;
   ano_lectivo: string;
@@ -225,63 +250,60 @@ export interface RegistrarAprovacaoAnoRequest {
   observacao?: string;
 }
 
-export interface AlterarCursoRequest {
-  tipo_ensino: 'medio' | 'superior';
-  curso_id: string;
-}
-
 // =====================
 // RESPONSE TYPES
 // =====================
 
-export interface ApiResponse<T = any> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-}
-
 export interface AuthResponse {
   token: string;
-  codigo?: string;
-  nome: string;
   type: UserType;
-  role?: AdminType;
+  id: string;
 }
 
-// 🔥 ATUALIZADO: curso_id agora é UUID
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+}
+
 export interface Inscricao {
   id: string;
-  estudante_id: string;
   codigo_estudante: string;
-  academia_id: string;
   codigo_academia: string;
   tipo: 'escola' | 'superior';
-  ano_inscricao: string;
-  curso_id?: string; // 🔥 MUDOU: agora é UUID
   status: StatusInscricao;
-  status_usado: boolean;
+  ano_inscricao: string;
+  curso_id?: string;
+  motivo_reprovacao?: string;
   created_at: string;
   updated_at: string;
-  event_id: string;
   version: number;
 }
 
 export interface ListarInscricoesResponse {
   inscricoes: Inscricao[];
   total: number;
-  total_geral: number;
-  limit: number;
-  offset: number;
-  has_next: boolean;
-  status_filter?: string;
-  user_type: UserType;
 }
 
 export interface InscricaoResponse {
-  message: string;
-  status: string;
-  academia: string;
+  inscricao: Inscricao;
+}
+
+export interface Nota {
+  id: string;
+  codigo_estudante: string;
+  codigo_academia: string;
+  ano_lectivo: string;
+  ano_academico?: string;
+  periodo: Periodo;
+  materia_disciplinar_id: string;
+  materia_nome?: string;
+  tipo: TipoNota;
+  categoria: CategoriaNota;
+  nota: number;
+  observacao?: string;
+  registered_at: string;
+  event_id: string;
+  version: number;
 }
 
 export interface Falta {
@@ -289,7 +311,6 @@ export interface Falta {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
-  ano_academico?: string;
   data: string;
   materia_disciplinar_id: string;
   materia_nome: string;
@@ -315,6 +336,27 @@ export interface AprovacaoAno {
   version: number;
 }
 
+/**
+ * 🔥 NOVO: Avaliação final registrada pelo evento AprovacaoAnoRegistrada
+ * Retornada pelas rotas /avaliacoes, /avaliacoes-estudante/:codigo
+ */
+export interface AvaliacaoFinal {
+  id: string;
+  codigo_estudante: string;
+  nome_estudante?: string;
+  codigo_academia: string;
+  ano_lectivo: string;
+  tipo_ensino: 'fundamental' | 'medio' | 'superior';
+  nivel_ano_academico_atual: string;
+  proximo_ano_academico?: string;
+  aprovado: boolean;
+  observacao?: string;
+  turma_removida?: string;
+  registered_at: string;
+  event_id: string;
+  version: number;
+}
+
 export interface NotasEstudanteResponse {
   codigo_estudante: string;
   nome: string;
@@ -333,6 +375,40 @@ export interface AprovacoesEstudanteResponse {
   codigo_estudante: string;
   nome: string;
   aprovacoes: AprovacaoAno[];
+  total: number;
+}
+
+/**
+ * 🔥 NOVO: Response de GET /avaliacoes e GET /estudante/minhas-avaliacoes
+ */
+export interface ListarAvaliacoesResponse {
+  avaliacoes: AvaliacaoFinal[];
+  total: number;
+}
+
+/**
+ * 🔥 NOVO: Response de GET /avaliacoes-estudante/:codigo
+ */
+export interface AvaliacoesEstudanteResponse {
+  codigo_estudante: string;
+  nome: string;
+  avaliacoes: AvaliacaoFinal[];
+  total: number;
+}
+
+/**
+ * 🔥 NOVO: Response de GET /aprovacoes
+ */
+export interface ListarAprovacoesResponse {
+  aprovacoes: AvaliacaoFinal[];
+  total: number;
+}
+
+/**
+ * 🔥 NOVO: Response de GET /reprovacoes
+ */
+export interface ListarReprovacoesResponse {
+  reprovacoes: AvaliacaoFinal[];
   total: number;
 }
 
@@ -378,6 +454,8 @@ export interface Curso {
   nome: string;
   type: CursoType;
   anos_academicos: string[];
+  // 🔥 NOVO: períodos do curso — obrigatório para superior, ausente/vazio para medio
+  periodos?: string[];
   codigo_academia: string;
   status: 'ativo' | 'inativo';
   created_at: string;
@@ -552,59 +630,42 @@ export interface ListarAdminsResponse {
 }
 
 export interface PrimeiroAdminResponse {
-  success: boolean;
   message: string;
-  data: {
-    id: string;
-    nome: string;
-    email: string;
-    role: AdminType;
-  };
-  credentials: {
-    email: string;
-    senha: string;
-  };
-  next_steps: string[];
-  test_login: {
-    url: string;
-    method: string;
-    body: {
-      email: string;
-      senha: string;
-    };
-  };
+  admin: AdminDetalhado;
 }
 
 export interface ListarInscricoesAprovadasResponse {
   inscricoes: Inscricao[];
   total: number;
-  mensagem: string;
 }
 
 export interface GetInscricoesPorCodigoResponse {
-  codigo_estudante: string;
-  nome: string;
   inscricoes: Inscricao[];
   total: number;
 }
 
 export interface AlterarCursoResponse {
   message: string;
-  codigo_estudante: string;
-  tipo_ensino: 'medio' | 'superior';
-  curso_id: string;
-  curso_nome: string;
+  estudante: string;
+  curso_anterior?: string;
+  curso_novo: string;
 }
 
 export interface VincularAcademiaResponse {
   message: string;
-  status: string;
+  estudante: string;
+  academia: string;
 }
 
 export interface AtualizarStatusResponse {
   message: string;
+  estudante: string;
   novo_status: string;
 }
+
+// =====================
+// EVENT SOURCING
+// =====================
 
 export interface RegistroCompleto {
   notas?: Nota[];
@@ -743,24 +804,6 @@ export type CategoriaNota =
   | CategoriaNotaEscolar
   | CategoriaNotaSuperiorFixa
   | string; // categorias adicionais criadas pela universidade (formato: nota_[nome])
-
-export interface Nota {
-  id: string;
-  codigo_estudante: string;
-  codigo_academia: string;
-  ano_lectivo: string;
-  ano_academico?: string;
-  periodo: Periodo;
-  materia_disciplinar_id: string;
-  materia_nome?: string;
-  tipo: TipoNota;
-  categoria: CategoriaNota;
-  nota: number;
-  observacao?: string;
-  registered_at: string;
-  event_id: string;
-  version: number;
-}
 
 export interface RegistrarNotasRequest {
   codigo_estudante: string;
