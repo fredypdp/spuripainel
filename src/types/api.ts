@@ -171,6 +171,11 @@ export interface AtualizarMateriaRequest {
   nome?: string;
 }
 
+/** PUT /academia/materias/:id/periodo — exclusivo para matérias do tipo 'superior' */
+export interface DefinirPeriodoMateriaRequest {
+  periodo: string; // deve estar na lista de periodos do curso vinculado
+}
+
 export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
@@ -478,7 +483,6 @@ export interface Curso {
   version: number;
 }
 
-// 🔥 ATUALIZADO: nivel → anos_academicos
 export interface Materia {
   id: string;
   nome: string;
@@ -486,6 +490,8 @@ export interface Materia {
   anos_academicos?: string[];
   codigo_academia: string;
   curso_id?: string;
+  /** Apenas matérias do tipo 'superior'. Preenchido via PUT /materias/:id/periodo */
+  periodo?: string;
   status: 'ativo' | 'inativo';
   created_at: string;
   updated_at: string;

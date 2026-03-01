@@ -1,5 +1,3 @@
-// src/lib/api/services.ts
-
 import { api, tokenStorage } from './client';
 import type {
   AuthResponse,
@@ -77,6 +75,7 @@ import type {
   AvaliacoesEstudanteResponse,
   ListarAprovacoesResponse,
   ListarReprovacoesResponse,
+  DefinirPeriodoMateriaRequest,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -276,7 +275,18 @@ export const academiaService = {
    * Criar nova matéria disciplinar
    */
   criarMateria: (data: CriarMateriaRequest, token?: string) =>
-    api.post<{ message: string; data: { id: string; nome: string; type: string } }>(
+    api.post<{
+      message: string;
+      data: {
+        id: string;
+        nome: string;
+        type: string;
+        /** 'inativo' para tipo='superior'; 'ativo' para fundamental/medio */
+        status: string;
+        /** Presente apenas para type='superior' — instrução de próximo passo */
+        proximo_passo?: string;
+      };
+    }>(
       '/academia/materias',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -309,6 +319,27 @@ export const academiaService = {
     api.put<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}/desativar`,
       undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Definir período de uma matéria superior (obrigatório antes de ativar)
+   * PUT /academia/materias/:id/periodo
+   */
+  definirPeriodoMateria: (materiaId: string, data: DefinirPeriodoMateriaRequest, token?: string) =>
+    api.put<{ message: string; nome: string; periodo: string }>(
+      `/academia/materias/${materiaId}/periodo`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Deletar matéria (deve estar inativa; ledger preservado)
+   * DELETE /academia/materias/:id
+   */
+  deletarMateria: (materiaId: string, token?: string) =>
+    api.delete<{ message: string; nome: string }>(
+      `/academia/materias/${materiaId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 

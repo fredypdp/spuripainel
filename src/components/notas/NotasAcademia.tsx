@@ -222,12 +222,12 @@ function ModalGestao({
   const [error, setError] = useState<string|null>(null);
 
   // form registrar — ano_academico omitido (backend preenche automaticamente)
-  const [codigoEst, setCodigoEst]   = useState("");
-  const [periodo, setPeriodo]       = useState("");
-  const [materiaId, setMateriaId]   = useState("");
-  const [categoria, setCategoria]   = useState("");
-  const [nota, setNota]             = useState<number|"">("");
-  const [obs, setObs]               = useState("");
+  const [codigoEst, setCodigoEst] = useState("");
+  const [periodo, setPeriodo] = useState("");
+  const [materiaId, setMateriaId] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [nota, setNota] = useState<number|"">("");
+  const [obs, setObs] = useState("");
 
   // form atualizar
   const [estAtualizar, setEstAtualizar]   = useState("");
@@ -316,7 +316,16 @@ function ModalGestao({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Período *</Label><Dropdown value={periodo} options={PERIODOS} onChange={e=>setPeriodo(e.value)} placeholder="Selecione" className="w-full"/></div>
-            <div><Label>Matéria *</Label><Dropdown value={materiaId} options={materias.map(m=>({ label:m.nome, value:m.id }))} onChange={e=>setMateriaId(e.value)} placeholder="Selecione" className="w-full" filter/></div>
+            <div><Label>Matéria *</Label>
+            <Dropdown value={materiaId} options={materias.map(m=>({ label:m.nome, value:m.id }))}
+              onChange={e => {
+                const id = e.value;
+                setMateriaId(id);
+                if (isSuperior) {
+                  const mat = (materias as any[]).find((m: any) => m.id === id);
+                  setPeriodo(mat?.periodo ?? "");
+                }
+              }} placeholder="Selecione" className="w-full" filter/></div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Categoria *</Label><Dropdown value={categoria} options={todasCats} onChange={e=>setCategoria(e.value)} placeholder="Selecione" className="w-full"/></div>
