@@ -102,6 +102,12 @@ export interface SolicitarInscricaoUniversidadeRequest {
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
   ano_lectivo: string;
+  /**
+   * Inferido automaticamente pelo backend (estudante fundamental → ano_escolar;
+   * médio/superior → nivel da matéria). Pode ser enviado pelo frontend como
+   * sugestão, mas o backend ignora este campo e o calcula internamente.
+   */
+  ano_academico?: string;
   data: string;
   materia_disciplinar_id: string;
   quantidade: number;
