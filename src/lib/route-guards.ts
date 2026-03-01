@@ -41,7 +41,7 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
   {
     path: '/verificar-email',
-    allowedTypes: 'public', // Permite acesso mesmo logado
+    allowedTypes: 'public',
   },
   {
     path: '/error-404',
@@ -92,6 +92,20 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
 
   // ==========================================
+  // ROTAS DE AVALIAÇÕES
+  // ==========================================
+  {
+    path: '/avaliacoes',
+    allowedTypes: 'authenticated',
+    redirectIfUnauthorized: '/login',
+  },
+  {
+    path: '/avaliacoes/avaliacoes-finais',
+    allowedTypes: 'authenticated',
+    redirectIfUnauthorized: '/login',
+  },
+
+  // ==========================================
   // ROTAS PARA USUÁRIOS AUTENTICADOS
   // ==========================================
   {
@@ -101,75 +115,6 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
   {
     path: '/',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-
-  // ==========================================
-  // ROTAS DE UI ELEMENTS (qualquer autenticado)
-  // ==========================================
-  {
-    path: '/alerts',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/avatars',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/badge',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/buttons',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/images',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/modals',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/videos',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/calendar',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/form-elements',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/basic-tables',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/bar-chart',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/line-chart',
-    allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
-  },
-  {
-    path: '/blank',
     allowedTypes: 'authenticated',
     redirectIfUnauthorized: '/login',
   },
@@ -187,20 +132,16 @@ export function checkRoutePermission(
   redirectTo?: string;
 } {
   // Normalizar o pathname removendo trailing slashes
-  const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
-    ? pathname.slice(0, -1) 
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/'
+    ? pathname.slice(0, -1)
     : pathname;
 
   // Encontrar a configuração da rota
   const routeConfig = ROUTE_PERMISSIONS.find(route => {
-    // Verificar correspondência exata
     if (route.path === normalizedPath) return true;
-    
-    // Verificar se é uma rota dinâmica (como /verificar-email/[token])
     if (route.path.includes('[') && normalizedPath.startsWith(route.path.split('[')[0])) {
       return true;
     }
-    
     return false;
   });
 
@@ -217,7 +158,6 @@ export function checkRoutePermission(
 
   // Rotas públicas
   if (routeConfig.allowedTypes === 'public') {
-    // Se está autenticado e a rota tem redirectIfUnauthorized, redirecionar
     if (isAuthenticated && routeConfig.redirectIfUnauthorized) {
       return {
         allowed: false,
@@ -268,8 +208,8 @@ export function checkRoutePermission(
  * Hook helper para obter informações de permissão de rota
  */
 export function getRouteInfo(pathname: string): RouteConfig | null {
-  const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
-    ? pathname.slice(0, -1) 
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/'
+    ? pathname.slice(0, -1)
     : pathname;
 
   return ROUTE_PERMISSIONS.find(route => {

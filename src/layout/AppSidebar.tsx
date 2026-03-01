@@ -1,3 +1,4 @@
+// src/layout/AppSidebar.tsx
 "use client";
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
@@ -34,7 +35,17 @@ const navItems: NavItem[] = [
   {
     name: "Registros",
     icon: <Icon width="24px" icon="vaadin:records" />,
-    subItems: [{ name: "Notas", path: "/notas"}, {name: "Faltas", path: "/faltas"}],
+    subItems: [
+      { name: "Notas", path: "/notas" },
+      { name: "Faltas", path: "/faltas" },
+    ],
+  },
+  {
+    name: "Avaliações",
+    icon: <Icon width="24px" icon="mdi:clipboard-check-outline" />,
+    subItems: [
+      { name: "Avaliações Finais", path: "/avaliacoes/avaliacoes-finais" },
+    ],
   },
   {
     name: "Gerenciamento",
@@ -75,27 +86,24 @@ export default function AppSidebar() {
     if (userCookie) {
       try {
         setUser(JSON.parse(userCookie));
-      } catch (error) {
-      }
+      } catch (error) {}
     }
   }, []);
 
   // Filtrar navItems baseado no tipo de usuário
   const filteredNavItems = useMemo(() => {
-    if (!mounted) return navItems; // Mostrar todos antes de montar
-    
+    if (!mounted) return navItems;
+
     return navItems.filter(item => {
       if (user?.tipo) {
-        // Verificar por path direto
         if (item.path === "/academias") {
           return user.tipo === "admin";
         }
-        
+
         if (item.path === "/estudantes" || item.path === "/inscricoes") {
           return user.tipo === "admin" || user.tipo === "academia";
         }
 
-        // Verificar por nome do item (para items com subItems)
         if (item.path === "/gerenciamento") {
           return user.tipo === "academia";
         }
@@ -111,7 +119,7 @@ export default function AppSidebar() {
   // Derive which submenu should be open based on current pathname
   const derivedOpenSubmenu = useMemo(() => {
     let result: { type: "main" | "others"; index: number } | null = null;
-    
+
     ["main", "others"].forEach((menuType) => {
       filteredNavItems.forEach((nav, index) => {
         if (nav.subItems) {
@@ -126,18 +134,16 @@ export default function AppSidebar() {
         }
       });
     });
-    
+
     return result;
   }, [pathname, filteredNavItems]);
 
-  // Track manual toggles separately with the pathname they were set on
   const [manualToggle, setManualToggle] = useState<{
     type: "main" | "others";
     index: number;
     pathname: string;
   } | null>(null);
 
-  // Use manual toggle only if it's for the current pathname, otherwise use derived state
   const openSubmenu = (manualToggle?.pathname === pathname ? manualToggle : null) ?? derivedOpenSubmenu;
 
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
@@ -146,7 +152,6 @@ export default function AppSidebar() {
   const isActive = useCallback((path: string) => path === pathname, [pathname]);
 
   useEffect(() => {
-    // Set the height of the submenu items when the submenu is opened
     if (openSubmenu !== null) {
       const key = `${openSubmenu.type}-${openSubmenu.index}`;
       if (subMenuRefs.current[key]) {
@@ -160,7 +165,6 @@ export default function AppSidebar() {
 
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setManualToggle((prevManualToggle) => {
-      // If clicking the same submenu, close it
       if (
         prevManualToggle &&
         prevManualToggle.type === menuType &&
@@ -169,7 +173,6 @@ export default function AppSidebar() {
       ) {
         return null;
       }
-      // Otherwise open the clicked submenu
       return { type: menuType, index, pathname };
     });
   };
@@ -327,15 +330,15 @@ export default function AppSidebar() {
                 className="dark:hidden"
                 src="/images/logo/logo.svg"
                 alt="Logo"
-                width={150}
-                height={40}
+                width={154}
+                height={32}
               />
               <Image
                 className="hidden dark:block"
                 src="/images/logo/logo-dark.svg"
                 alt="Logo"
-                width={150}
-                height={40}
+                width={154}
+                height={32}
               />
             </>
           ) : (
@@ -369,6 +372,7 @@ export default function AppSidebar() {
             </div>
           </div>
         </nav>
+        {/* {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null} */}
       </div>
     </aside>
   );
