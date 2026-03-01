@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi } from "@/hooks/useApi";
-import { adminService } from "@/lib/api/services";
+import { adminService, consultasService } from "@/lib/api/services";
 import { useUserCookie } from "@/hooks/useUserCookie";
 import { formatAnoLetivo, gerarOpcoesAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -12,12 +12,12 @@ export default function PageContent() {
   const { user } = useUserCookie();
   const isFPP = user?.admin?.role === "fpp";
 
-  // Buscar ano letivo atual
+  // Buscar ano letivo atual  ← corrigido: consultasService em vez de adminService
   const {
     data: anoLetivoData,
     loading: loadingAtual,
     execute: buscarAnoLetivo,
-  } = useApi(adminService.getAnoLetivoAtual);
+  } = useApi(consultasService.getAnoLetivoAtual);
 
   // Definir ano letivo
   const {
