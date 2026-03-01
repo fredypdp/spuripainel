@@ -70,12 +70,13 @@ import type {
   CriarTurmaRequest,
   AtualizarTurmaRequest,
   AdicionarEstudanteTurmaRequest,
-  // 🔥 NOVO
   ListarAvaliacoesResponse,
   AvaliacoesEstudanteResponse,
   ListarAprovacoesResponse,
   ListarReprovacoesResponse,
   DefinirPeriodoMateriaRequest,
+  DeletarTurmaResponse,
+  DeletarCursoResponse,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -268,6 +269,16 @@ export const academiaService = {
       undefined,
       { token: token || tokenStorage.get() || undefined }
     ),
+  
+  /**
+   * Deletar curso em cascata (matérias inativas + turmas inativas)
+   * DELETE /academia/cursos/:id
+   */
+  deletarCurso: (cursoId: string, token?: string) =>
+    api.delete<DeletarCursoResponse>(
+      `/academia/cursos/${cursoId}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 
   // Matérias
 
@@ -340,6 +351,16 @@ export const academiaService = {
   deletarMateria: (materiaId: string, token?: string) =>
     api.delete<{ message: string; nome: string }>(
       `/academia/materias/${materiaId}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+  
+  /**
+   * Deletar turma (deve estar inativa e sem estudantes; ledger preservado)
+   * DELETE /academia/turmas/:codigo
+   */
+  deletarTurma: (codigoTurma: string, token?: string) =>
+    api.delete<DeletarTurmaResponse>(
+      `/academia/turmas/${codigoTurma}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 

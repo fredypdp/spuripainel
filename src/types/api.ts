@@ -477,7 +477,8 @@ export interface Curso {
   // 🔥 NOVO: períodos do curso — obrigatório para superior, ausente/vazio para medio
   periodos?: string[];
   codigo_academia: string;
-  status: 'ativo' | 'inativo';
+  status: 'ativo' | 'inativo' | 'deletado';
+  deleted_at?: string;
   created_at: string;
   updated_at: string;
   version: number;
@@ -492,7 +493,8 @@ export interface Materia {
   curso_id?: string;
   /** Apenas matérias do tipo 'superior'. Preenchido via PUT /materias/:id/periodo */
   periodo?: string;
-  status: 'ativo' | 'inativo';
+  status: 'ativo' | 'inativo' | 'deletado';
+  deleted_at?: string;
   created_at: string;
   updated_at: string;
   version: number;
@@ -871,10 +873,11 @@ export interface Turma {
   nivel: string;
   curso_id?: string;
   turno: 'manha' | 'tarde' | 'noite';
-  estudantes: string[]; // array de codigo_estudante
-  status: 'ativo' | 'inativo';
+  estudantes: string[];
+  status: 'ativo' | 'inativo' | 'deletado';  // ← adicionar 'deletado'
   created_at: string;
   updated_at: string;
+  deleted_at?: string;  // ← novo campo
   version: number;
 }
 
@@ -897,4 +900,21 @@ export interface AtualizarTurmaRequest {
 
 export interface AdicionarEstudanteTurmaRequest {
   codigo_estudante: string;
+}
+
+/** Response de DELETE /academia/turmas/:codigo */
+export interface DeletarTurmaResponse {
+  message: string;
+  codigo_turma: string;
+  auditavel: true;
+}
+
+/** Response de DELETE /academia/cursos/:id */
+export interface DeletarCursoResponse {
+  message: string;
+  curso_id: string;
+  nome: string;
+  materias_deletadas: string[];
+  turmas_deletadas: string[];
+  auditavel: true;
 }

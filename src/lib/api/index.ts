@@ -78,14 +78,12 @@ export type {
   RegistrarNotasRequest,
   RegistrarFaltasRequest,
   RegistrarAprovacaoAnoRequest,
-  // 🔥 NOVO
   RegistrarAvaliacaoFinalRequest,
   AvaliacaoFinal,
   ListarAvaliacoesResponse,
   AvaliacoesEstudanteResponse,
   ListarAprovacoesResponse,
   ListarReprovacoesResponse,
-  // fim novo
   CriarAdminRequest,
   DesativarRequest,
   VincularAcademiaRequest,
@@ -130,4 +128,6 @@ export type {
   CriarTurmaRequest,
   AtualizarTurmaRequest,
   AdicionarEstudanteTurmaRequest,
+  DeletarTurmaResponse,
+  DeletarCursoResponse,
 } from '@/types/api';
