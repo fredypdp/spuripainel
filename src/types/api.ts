@@ -281,7 +281,16 @@ export interface Inscricao {
 
 export interface ListarInscricoesResponse {
   inscricoes: Inscricao[];
+  /** Número de inscrições na página actual */
   total: number;
+  /** Total geral (para paginação) */
+  total_geral: number;
+  limit?: number;
+  offset?: number;
+  has_next?: boolean;
+  status_filter?: string;
+  /** Tipo do utilizador autenticado */
+  user_type?: string;
 }
 
 export interface InscricaoResponse {
