@@ -19,6 +19,9 @@ export type AnoSuperior =
   | 'quarto_ano' | 'quinto_ano' | 'sexto_ano';
 
 export type StatusEscolar = 'inativo' | 'em_andamento' | 'finalizado';
+// 🔥 Aliases explícitos para os dois ciclos escolares divididos no backend
+export type StatusEscolarFundamental = StatusEscolar;
+export type StatusEscolarMedio = StatusEscolar;
 export type StatusSuperior = 'inativo' | 'em_andamento' | 'finalizado';
 export type StatusGeral = 'inativo' | 'ativo' | 'finalizado';
 export type StatusInscricao = 'espera' | 'aprovado' | 'reprovado';
@@ -69,20 +72,25 @@ export interface AdminLoginRequest {
   senha: string;
 }
 
-// 🔥 ATUALIZADO: curso_medio_id e curso_superior_id agora são UUID
+// 🔥 ATUALIZADO: campos separados para fundamental/medio/superior
 export interface CriarEstudanteRequest {
   nome: string;
+  genero: Genero;
   email?: string;
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
+  // Fundamental
   ano_escolar?: string;
+  status_escolar_fundamental?: StatusEscolarFundamental;
+  // Médio
+  ano_escolar_medio?: string;
+  status_escolar_medio?: StatusEscolarMedio;
+  curso_medio_id?: string; // UUID
+  // Superior
   ano_superior?: string;
-  curso_medio_id?: string;
-  curso_superior_id?: string;
-  status_escolar?: StatusEscolar;
   status_superior?: StatusSuperior;
-  genero: Genero;
+  curso_superior_id?: string; // UUID
 }
 
 // 🔥 ATUALIZADO: curso_medio_id agora é UUID
@@ -186,6 +194,7 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
 
 export interface AtualizarDadosAcademicosEstudanteRequest {
   ano_escolar?: string;
+  ano_escolar_medio?: string;
   ano_superior?: string;
   curso_medio_id?: string;
   curso_superior_id?: string;
@@ -208,7 +217,8 @@ export interface AtualizarDadosAdminRequest {
 }
 
 export interface AtualizarRoleAdminRequest {
-  novo_role: AdminType;
+  // 🔥 CORRIGIDO: o backend espera "role", não "novo_role"
+  role: AdminType;
 }
 
 export interface AlterarSenhaRequest {
@@ -226,8 +236,10 @@ export interface SolicitarVerificacaoRequest {
   tipo: UserType;
 }
 
+// 🔥 CORRIGIDO: backend espera curso_id (UUID) + tipo_ensino
 export interface AlterarCursoRequest {
-  novo_curso_id: string;
+  curso_id: string; // UUID
+  tipo_ensino: 'medio' | 'superior';
 }
 
 /**
@@ -331,9 +343,11 @@ export interface Falta {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
+  // 🔥 NOVO: ano acadêmico inferido pelo backend
+  ano_academico: string;
   data: string;
   materia_disciplinar_id: string;
-  materia_nome: string;
+  materia_nome?: string;
   quantidade: number;
   observacao?: string;
   registered_at: string;
@@ -693,8 +707,11 @@ export interface AtualizarStatusResponse {
 export interface RegistroCompleto {
   notas?: Nota[];
   total_notas?: number;
+  // 🔥 NOVO: total geral (sem paginação) retornado pelo backend
+  total_notas_geral?: number;
   faltas?: Falta[];
   total_faltas?: number;
+  total_faltas_geral?: number;
   estatisticas?: {
     total_estudantes: number;
     total_academias: number;
@@ -707,14 +724,31 @@ export interface RegistroCompleto {
 }
 
 export interface RegistrosPorEstudanteResponse {
-  estudante: {
-    codigo: string;
-    nome: string;
+  // 🔥 CORRIGIDO: backend retorna codigo_estudante flat, não objeto estudante
+  codigo_estudante: string;
+  notas: Array<{
     id: string;
-  };
-  notas: Nota[];
+    codigo_academia: string;
+    ano_lectivo: string;
+    periodo: string;
+    materia_disciplinar_id: string;
+    materia_nome: string;
+    nota: number;
+    observacao?: string;
+    registered_at: string;
+  }>;
   total_notas: number;
-  faltas: Falta[];
+  faltas: Array<{
+    id: string;
+    codigo_academia: string;
+    ano_lectivo: string;
+    data: string;
+    materia_disciplinar_id: string;
+    materia_nome: string;
+    quantidade: number;
+    observacao?: string;
+    registered_at: string;
+  }>;
   total_faltas: number;
 }
 
@@ -731,7 +765,8 @@ export interface RegistrosPorAcademiaResponse {
 }
 
 // =====================
-// PROVÍNCIAS (Nova administração territorial de 2025, 21 províncias), não mexer nas províncias
+// PROVÍNCIAS 
+// Nota: Nova administração territorial de 2025, 21 províncias, não mexer nas províncias
 // =====================
 
 export interface Provincia {
@@ -845,6 +880,15 @@ export interface AtualizarNotaRequest {
   observacao: string;
 }
 
+// 🔥 NOVO: Request para PUT /academia/atualizar-falta
+export interface AtualizarFaltaRequest {
+  id: string;
+  data?: string;                   // formato AAAA-MM-DD
+  materia_disciplinar_id?: string; // UUID
+  quantidade?: number;
+  observacao?: string;
+}
+
 export interface CriarCategoriaNotaRequest {
   nome: string; // formato: nota_[nome]  ex: nota_trabalho
   descricao?: string;
@@ -855,8 +899,11 @@ export interface CategoriaNotaItem {
   codigo_academia: string;
   nome: string;
   descricao?: string;
+  // 🔥 NOVO: UUID do admin/academia que criou (pode ser null)
+  adicionado_por?: string;
   status: 'ativo' | 'inativo';
   created_at: string;
+  version: number;
 }
 
 export interface ListarCategoriasNotaResponse {
@@ -874,10 +921,13 @@ export interface Turma {
   curso_id?: string;
   turno: 'manha' | 'tarde' | 'noite';
   estudantes: string[];
-  status: 'ativo' | 'inativo' | 'deletado';  // ← adicionar 'deletado'
+  status: 'ativo' | 'inativo' | 'deletado';
+  // 🔥 NOVO: auditoria de mudança de status
+  status_alterado_por?: string;
+  status_alterado_em?: string;
   created_at: string;
   updated_at: string;
-  deleted_at?: string;  // ← novo campo
+  deleted_at?: string;
   version: number;
 }
 
