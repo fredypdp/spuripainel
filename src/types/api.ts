@@ -731,7 +731,7 @@ export interface RegistrosPorAcademiaResponse {
 }
 
 // =====================
-// PROVÍNCIAS
+// PROVÍNCIAS (Nova administração territorial de 2025, 21 províncias), não mexer nas províncias
 // =====================
 
 export interface Provincia {
