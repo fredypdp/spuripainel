@@ -72,12 +72,12 @@ export default function LoginForm() {
           <form onSubmit={handleLogin}>
             <div className="space-y-6">
               <div>
-                <Label>Identificador</Label>
+                <Label>Usuário</Label>
                 <Input
                   disabled={loading}
                   id="identificador"
                   name="identificador"
-                  placeholder="Código de estudante, academia ou e-mail"
+                  placeholder="Digite o seu código"
                   type="text"
                   onChange={(e) => setIdentificador(e.target.value)}
                 />

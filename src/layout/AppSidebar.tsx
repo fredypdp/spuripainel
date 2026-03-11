@@ -63,11 +63,6 @@ const navItems: NavItem[] = [
     path: "/estudantes",
   },
   {
-    icon: <Icon width="24px" icon="map:school" />,
-    name: "Inscrições",
-    path: "/inscricoes",
-  },
-  {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
     name: "Configurações",
     path: "/configuracoes",
@@ -100,7 +95,7 @@ export default function AppSidebar() {
           return user.tipo === "admin";
         }
 
-        if (item.path === "/estudantes" || item.path === "/inscricoes") {
+        if (item.path === "/estudantes") {
           return user.tipo === "admin" || user.tipo === "academia";
         }
 

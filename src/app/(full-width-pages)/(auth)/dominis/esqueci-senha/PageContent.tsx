@@ -156,7 +156,7 @@ export default function EsqueciSenhaAdm() {
             </form>
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                <Link href="/dominis" className="text-brand-500 hover:text-brand-600 dark:text-brand-400">Fazer login</Link>
+                <Link href="/login" className="text-brand-500 hover:text-brand-600 dark:text-brand-400">Fazer login</Link>
               </p>
             </div>
           </div>
