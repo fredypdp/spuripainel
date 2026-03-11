@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi } from "@/hooks/useApi";
 import { adminService, consultasService } from "@/lib/api/services";
@@ -15,8 +15,12 @@ export default function PageContent() {
   const {
     data: anoLetivoData,
     loading: loadingAtual,
-    execute: buscarAnoLetivo,
-  } = useApi(consultasService.getAnoLetivoAtual);
+    execute: _buscarAnoLetivo,
+  } = useApi(consultasService.anoLetivoAtual);
+
+  const buscarAnoLetivo = useCallback(() => {
+    _buscarAnoLetivo();
+  }, [_buscarAnoLetivo]);
 
   const {
     loading: definindo,
@@ -36,7 +40,7 @@ export default function PageContent() {
 
   useEffect(() => {
     buscarAnoLetivo();
-  }, []);
+  }, [buscarAnoLetivo]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

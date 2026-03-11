@@ -403,7 +403,7 @@ export default function NotasAcademia() {
   const { data:dataEstudantes, execute:carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data:dataMaterias,   execute:carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data:dataCategorias, execute:carregarCategorias } = useApi(academiaService.listarCategoriasNota);
-  const { data:dataAnoLetivo,  execute:buscarAnoLetivo    } = useApi(consultasService.getAnoLetivoAtual);
+  const { data:dataAnoLetivo,  execute:buscarAnoLetivo    } = useApi(consultasService.anoLetivoAtual);
 
   const [notasCache, setNotasCache] = useState<Record<string, Nota[]>>({});
   const { isOpen, openModal, closeModal } = useModal();
@@ -415,9 +415,10 @@ export default function NotasAcademia() {
     carregarMaterias(token);
     buscarAnoLetivo(token);
     if (isSuperior) carregarCategorias(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const turmas: Turma[]                  = (dataTurmas as any)?.turmas ?? [];
+  const turmas: Turma[] = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[]                  = dataCursos?.cursos?.filter((c: any) => c.status === "ativo") ?? [];
   const estudantes: EstudanteDetalhado[] = (dataEstudantes as any)?.estudantes ?? [];
   const materias                         = (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [];
@@ -456,7 +457,7 @@ export default function NotasAcademia() {
   }, [turmas]);
 
   async function handleRegistrar(d: RegistrarNotasRequest) {
-    await academiaService.registrarNotas(d, token);
+    await academiaService.registrarNota(d, token);
     showAlert("success", "Nota registada com sucesso.");
   }
   async function handleAtualizar(d: AtualizarNotaRequest) {
@@ -464,7 +465,7 @@ export default function NotasAcademia() {
     showAlert("success", "Nota atualizada com sucesso.");
   }
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
-    await academiaService.criarCategoriaNotaSuperior(d, token);
+    await academiaService.criarCategoriaNota(d, token);
     carregarCategorias(token);
     showAlert("success", "Categoria criada.");
   }

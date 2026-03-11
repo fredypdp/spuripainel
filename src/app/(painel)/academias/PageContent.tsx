@@ -1,6 +1,6 @@
 // src/app/(painel)/academias/PageContent.tsx
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, academiaService, adminService, tokenStorage } from '@/lib/api';
 import { useUserCookie } from "@/hooks/useUserCookie";
@@ -48,7 +48,7 @@ export default function Academias() {
   const [carregado, setCarregado] = useState(false);
   
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
-  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.criarEscola);
+  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(adminService.registrarAcademia);
   const { loading: carregandoAtivar, error: erroAtivarAcademia, execute: executarAtivar } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
   
@@ -75,21 +75,18 @@ export default function Academias() {
     { nome: "Fundamental e Médio", nivel: "misto", id: 3 },
   ];
 
-  const carregarLista = async () => {
+  const carregarLista = useCallback(async () => {
     try {
       const token = tokenStorage.get();
       await carregarAcademias(token || undefined);
       setCarregado(true);
     } catch (err) {
     }
-  };
+  }, [carregarAcademias]);
 
   useEffect(() => {
-    const loadData = async () => {
-      await carregarLista();
-    };
-    loadData();
-  }, []);
+    carregarLista();
+  }, [carregarLista]);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -636,7 +633,7 @@ export default function Academias() {
                   <TableRow>
                     <TableCell colSpan={9}>
                       <div className="flex flex-col items-center justify-center py-12">
-                        <p className="text-gray-400 text-sm">Clique em "Atualizar lista" para carregar as academias</p>
+                        <p className="text-gray-400 text-sm">Clique em &quot;Atualizar lista&quot; para carregar as academias</p>
                       </div>
                     </TableCell>
                   </TableRow>
