@@ -8,20 +8,6 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useApi, authService, tokenStorage } from "@/lib/api";
-import type { UserType } from "@/lib/api";
-
-/**
- * Detecta o tipo de utilizador pelo formato do identificador:
- * - Contém "@"                          → admin  (email)
- * - Começa com letras maiúsculas + ano  → academia  (ex: LDA20261)
- * - Qualquer outra coisa                → estudante
- */
-function detectarTipo(identificador: string): UserType {
-  const val = identificador.trim();
-  if (val.includes("@")) return "admin";
-  if (/^[A-Z]{2,3}\d{4,}/.test(val)) return "academia";
-  return "estudante";
-}
 
 export default function LoginForm() {
   const router = useRouter();
@@ -34,7 +20,7 @@ export default function LoginForm() {
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
-    if (!identificador.trim()) erros.push("Identificador é obrigatório");
+    if (!identificador.trim()) erros.push("Usuário é obrigatório");
     if (!senha.trim()) erros.push("Senha é obrigatória");
     setValidationErrors(erros);
     return erros.length === 0;
@@ -47,8 +33,10 @@ export default function LoginForm() {
     if (!validarFormulario()) return;
 
     try {
-      const type = detectarTipo(identificador);
-      const result = await executeLogin({ usuario: identificador.trim(), senha, type });
+      const result = await executeLogin({
+        usuario: identificador.trim(),
+        senha,
+      });
 
       if (result) {
         tokenStorage.setWithType(result.token, result.type);
@@ -77,7 +65,7 @@ export default function LoginForm() {
                   disabled={loading}
                   id="identificador"
                   name="identificador"
-                  placeholder="Digite o seu código"
+                  placeholder="Código, e-mail ou telefone"
                   type="text"
                   onChange={(e) => setIdentificador(e.target.value)}
                 />

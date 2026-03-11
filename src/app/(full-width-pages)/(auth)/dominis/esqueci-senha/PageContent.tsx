@@ -3,24 +3,20 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import React, { useState } from "react";
-import { useRouter } from 'next/navigation';
 
-import { useApi, adminService, tokenStorage } from '@/lib/api';
-import { RecuperarSenhaComFrontend } from "@/lib/utils/email"
+import { RecuperarSenhaComFrontend } from "@/lib/utils/email";
 import Alert from "@/components/ui/alert/Alert";
 import Link from "next/link";
 
 export default function EsqueciSenhaAdm() {
   const [email, setEmail] = useState('');
-  
-  const { loading, error: erroLogin } = useApi(adminService.login);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const [EnviandoEmailRecurepacao, setEnviandoEmailRecurepacao] = useState(false);
   const [EmailEnviado, setEmailEnviado] = useState(false);
   const [EmailErro, setEmailErro] = useState(false);
   const [EmailNaoVerificado, setEmailNaoVerificado] = useState(false);
-  const [MensagemErro, setMensagemErro] = useState<string>(''); // ✅ Mensagem de erro específica
+  const [MensagemErro, setMensagemErro] = useState<string>('');
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -52,7 +48,7 @@ export default function EsqueciSenhaAdm() {
                 <div>
                   <Label htmlFor="email">E-mail</Label>
                   <Input 
-                    disabled={loading} 
+                    disabled={EnviandoEmailRecurepacao} 
                     id="email" 
                     name="email" 
                     placeholder="Digite o seu e-mail" 
@@ -76,15 +72,6 @@ export default function EsqueciSenhaAdm() {
                   </div>
                 )}
 
-                {erroLogin && (
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">
-                      {erroLogin}
-                    </p>
-                  </div>
-                )}
-
-                {/* ✅ Alert para email não verificado */}
                 {EmailNaoVerificado && (
                   <Alert 
                     title="Email não verificado!" 
@@ -98,21 +85,19 @@ export default function EsqueciSenhaAdm() {
                     setValidationErrors([]);
                     setEmailNaoVerificado(false);
                     setMensagemErro('');
-                    
+
                     if (!validarFormulario()) return;
 
                     setEnviandoEmailRecurepacao(true);
                     setEmailEnviado(false);
                     setEmailErro(false);
 
-                    
                     try {
-                      let res = await RecuperarSenhaComFrontend(email, "admin")
-                      setEmailEnviado(res.success)
-                    } catch (error: any) {                      
-                      // ✅ Verificar se erro é de email não verificado
+                      const res = await RecuperarSenhaComFrontend(email, "admin");
+                      setEmailEnviado(res.success);
+                    } catch (error: any) {
                       const errorMessage = error?.message || '';
-                      
+
                       if (errorMessage.includes('Email não verificado') || 
                           errorMessage.includes('email não verificado') ||
                           errorMessage.includes('verifique seu email')) {

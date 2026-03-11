@@ -64,12 +64,6 @@ export interface CriarUniversidadeRequest {
 export interface LoginRequest {
   usuario: string;
   senha: string;
-  type: UserType;
-}
-
-export interface AdminLoginRequest {
-  email: string;
-  senha: string;
 }
 
 // 🔥 ATUALIZADO: campos separados para fundamental/medio/superior
