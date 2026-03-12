@@ -812,4 +812,29 @@ export const adminService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  /**
+   * Reconstruir todas as projeções em sequência (requer role FPP)
+   * Executa POST /dominis/projections/rebuild/:name para cada projeção,
+   * respeitando a ordem de dependências de FK definida no backend.
+   */
+  rebuildAllProjections: (token?: string) => {
+    const ordem = [
+      'admins', 'academias', 'cursos', 'materias', 'sistema_config', 'categorias_nota',
+      'estudantes', 'turmas', 'inscricoes',
+      'notas', 'faltas',
+      'aprovacao_ano', 'reprovacoes', 'avaliacao_final',
+    ];
+    return ordem.reduce(
+      (chain, name) =>
+        chain.then(() =>
+          api.post<{ message: string }>(
+            `/dominis/projections/rebuild/${name}`,
+            {},
+            { token: token || tokenStorage.get() || undefined }
+          )
+        ),
+      Promise.resolve() as Promise<unknown>
+    );
+  },
 };
