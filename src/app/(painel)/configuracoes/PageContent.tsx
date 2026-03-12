@@ -75,12 +75,6 @@ const PROJECTIONS: ProjectionMeta[] = [
     description: "Turmas com listas de estudantes matriculados.",
     tier: 2,
   },
-  {
-    name: "inscricoes",
-    label: "Inscrições",
-    description: "Pedidos de inscrição de estudantes em academias.",
-    tier: 2,
-  },
   // Tier 3 — dependem de estudantes e matérias
   {
     name: "notas",
