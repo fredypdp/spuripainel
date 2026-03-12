@@ -27,17 +27,16 @@ interface NivelAcademico {
   id: number;
 }
 
-// 🔥 NOVO: anos do ensino fundamental
 const ANOS_FUNDAMENTAL_OPCOES = [
-  { value: "primeiro_fundamental", label: "1º Ano" },
-  { value: "segundo_fundamental",  label: "2º Ano" },
-  { value: "terceiro_fundamental", label: "3º Ano" },
-  { value: "quarto_fundamental",   label: "4º Ano" },
-  { value: "quinto_fundamental",   label: "5º Ano" },
-  { value: "sexto_fundamental",    label: "6º Ano" },
-  { value: "setimo_fundamental",   label: "7º Ano" },
-  { value: "oitavo_fundamental",   label: "8º Ano" },
-  { value: "nono_fundamental",     label: "9º Ano" },
+  { value: "1_fundamental", label: "1º Ano" },
+  { value: "2_fundamental", label: "2º Ano" },
+  { value: "3_fundamental", label: "3º Ano" },
+  { value: "4_fundamental", label: "4º Ano" },
+  { value: "5_fundamental", label: "5º Ano" },
+  { value: "6_fundamental", label: "6º Ano" },
+  { value: "7_fundamental", label: "7º Ano" },
+  { value: "8_fundamental", label: "8º Ano" },
+  { value: "9_fundamental", label: "9º Ano" },
 ];
 
 export default function Academias() {
@@ -63,7 +62,6 @@ export default function Academias() {
   const [website, setWebsite] = useState('');
   const [provinciaSelecionada, setProvinciaSelecionada] = useState<Provincia | null>(null);
   const [nivelEscolarSelecionado, setNivelEscolarSelecionado] = useState<NivelAcademico | null>(null);
-  // 🔥 NOVO
   const [anosAcademicosSelecionados, setAnosAcademicosSelecionados] = useState<string[]>([]);
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -136,7 +134,7 @@ export default function Academias() {
     setWebsite('');
     setProvinciaSelecionada(null);
     setNivelEscolarSelecionado(null);
-    setAnosAcademicosSelecionados([]); // 🔥 NOVO
+    setAnosAcademicosSelecionados([]);
     setValidationErrors([]);
     setSuccessMessage('');
   };
@@ -159,7 +157,6 @@ export default function Academias() {
         email: email.trim(),
         website: website.trim() || undefined,
         nivel_escolar: nivelEscolarSelecionado!.nivel,
-        // 🔥 NOVO: enviado apenas para fundamental/misto
         ...(anosAcademicosSelecionados.length > 0 && { anos_academicos: anosAcademicosSelecionados }),
       });
 
@@ -344,7 +341,7 @@ export default function Academias() {
                     value={nivelEscolarSelecionado} 
                     onChange={(e) => {
                       setNivelEscolarSelecionado(e.value);
-                      setAnosAcademicosSelecionados([]); // reset ao trocar nível
+                      setAnosAcademicosSelecionados([]);
                     }} 
                     options={NiveisAcademicos} 
                     optionLabel="nome"
