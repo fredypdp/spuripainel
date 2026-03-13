@@ -82,13 +82,6 @@ export interface ErrorResponse {
 export const authService = {
   login: (data: LoginRequest) =>
     api.post<AuthResponse>('/login', data),
-
-  /**
-   * Criar primeiro admin FPP do sistema (bootstrap inicial)
-   * POST /bootstrap
-   */
-  bootstrap: (data: { nome: string; email: string; senha: string }) =>
-    api.post<{ message: string; data: AdminDetalhado }>('/bootstrap', data),
 };
 
 // =====================
