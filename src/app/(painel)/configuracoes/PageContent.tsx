@@ -5,7 +5,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi } from "@/hooks/useApi";
 import { adminService, consultasService } from "@/lib/api/services";
 import { useUserCookie } from "@/hooks/useUserCookie";
-import { formatAnoLetivo, gerarOpcoesAnoLetivo } from "@/types/api";
+import { formatAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
 // ============================================================================
@@ -22,13 +22,22 @@ interface ProjectionMeta {
   danger?: boolean; // true = aviso de indisponibilidade temporária
 }
 
-// Ordem e metadados das projeções — respeita dependências de FK (tier = ordem de rebuild)
+interface RebuildAllItemResult {
+  name: string;
+  label: string;
+  status: "success" | "error";
+  error?: string;
+}
+
+// Ordem e metadados das projeções — respeita dependências de FK (tier = ordem de rebuild).
+// Não existe projeção de inscrições neste sistema.
 const PROJECTIONS: ProjectionMeta[] = [
   // Tier 1 — sem dependências externas
   {
     name: "admins",
     label: "Admins",
-    description: "Administradores do sistema. Rebuild causa indisponibilidade temporária de login.",
+    description:
+      "Administradores do sistema. Rebuild causa indisponibilidade temporária de login.",
     tier: 1,
     danger: true,
   },
@@ -117,7 +126,7 @@ const TIER_LABELS: Record<number, string> = {
 };
 
 // ============================================================================
-// Hook de rebuild individual
+// Hook de rebuild
 // ============================================================================
 
 function useProjectionRebuild() {
@@ -125,27 +134,54 @@ function useProjectionRebuild() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [timestamps, setTimestamps] = useState<Record<string, Date>>({});
 
-  const rebuild = useCallback(async (name: string) => {
-    setStatuses((s) => ({ ...s, [name]: "loading" }));
-    setErrors((e) => ({ ...e, [name]: "" }));
-    try {
-      await adminService.rebuildProjection(name);
-      setStatuses((s) => ({ ...s, [name]: "success" }));
-      setTimestamps((t) => ({ ...t, [name]: new Date() }));
-      setTimeout(() => {
-        setStatuses((s) => (s[name] === "success" ? { ...s, [name]: "idle" } : s));
-      }, 6000);
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Erro desconhecido ao reconstruir projeção.";
-      setStatuses((s) => ({ ...s, [name]: "error" }));
-      setErrors((e) => ({ ...e, [name]: msg }));
-    }
-  }, []);
+  /**
+   * rebuildRaw — chama a API, actualiza statuses/errors/timestamps e
+   * devolve o resultado ao caller (usado pelo rebuild-all para colectar
+   * resultados individuais sem correr o auto-clear de success).
+   */
+  const rebuildRaw = useCallback(
+    async (
+      name: string
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      setStatuses((s) => ({ ...s, [name]: "loading" }));
+      setErrors((e) => ({ ...e, [name]: "" }));
+      try {
+        await adminService.rebuildProjection(name);
+        setStatuses((s) => ({ ...s, [name]: "success" }));
+        setTimestamps((t) => ({ ...t, [name]: new Date() }));
+        return { ok: true };
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Erro desconhecido ao reconstruir projeção.";
+        setStatuses((s) => ({ ...s, [name]: "error" }));
+        setErrors((e) => ({ ...e, [name]: msg }));
+        return { ok: false, error: msg };
+      }
+    },
+    []
+  );
 
-  return { statuses, errors, timestamps, rebuild };
+  /**
+   * rebuild — usado pelo card individual.
+   * Chama rebuildRaw e aplica auto-clear de "success" após 6 s.
+   */
+  const rebuild = useCallback(
+    async (name: string) => {
+      const result = await rebuildRaw(name);
+      if (result.ok) {
+        setTimeout(() => {
+          setStatuses((s) =>
+            s[name] === "success" ? { ...s, [name]: "idle" } : s
+          );
+        }, 6000);
+      }
+    },
+    [rebuildRaw]
+  );
+
+  return { statuses, errors, timestamps, rebuild, rebuildRaw };
 }
 
 // ============================================================================
@@ -158,20 +194,22 @@ function ProjectionCard({
   error,
   lastRebuildAt,
   onRebuild,
+  disabled,
 }: {
   projection: ProjectionMeta;
   status: RebuildStatus;
   error: string;
   lastRebuildAt?: Date;
   onRebuild: (name: string) => void;
+  disabled?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleClick() {
+    if (disabled) return;
     if (projection.danger && !confirming) {
       setConfirming(true);
-      // auto-cancel after 4s
       timerRef.current = setTimeout(() => setConfirming(false), 4000);
       return;
     }
@@ -189,6 +227,8 @@ function ProjectionCard({
   const isLoading = status === "loading";
   const isSuccess = status === "success";
   const isError = status === "error";
+  // Botões bloqueados quando o rebuild-all está em curso OU quando a projeção está individualmente a carregar
+  const isDisabled = disabled || isLoading;
 
   return (
     <div
@@ -197,7 +237,11 @@ function ProjectionCard({
         ${isLoading ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30" : ""}
         ${isSuccess ? "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30" : ""}
         ${isError ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : ""}
-        ${!isLoading && !isSuccess && !isError ? "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700" : ""}
+        ${
+          !isLoading && !isSuccess && !isError
+            ? "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700"
+            : ""
+        }
       `}
     >
       {/* Header */}
@@ -253,14 +297,16 @@ function ProjectionCard({
           <>
             <button
               onClick={handleClick}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 text-xs font-semibold transition-colors"
+              disabled={isDisabled}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 text-xs font-semibold transition-colors"
             >
               <Icon icon="mdi:alert-outline" width="14px" />
               Confirmar rebuild
             </button>
             <button
               onClick={handleCancel}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-2 text-xs transition-colors"
+              disabled={isDisabled}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-xs transition-colors"
             >
               Cancelar
             </button>
@@ -268,13 +314,20 @@ function ProjectionCard({
         ) : (
           <button
             onClick={handleClick}
-            disabled={isLoading}
+            disabled={isDisabled}
             className={`
               w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors
+              ${isDisabled && !isLoading ? "opacity-40 cursor-not-allowed" : ""}
               ${isLoading ? "bg-blue-100 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 cursor-not-allowed" : ""}
-              ${isSuccess ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50" : ""}
-              ${isError ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50" : ""}
-              ${!isLoading && !isSuccess && !isError ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700" : ""}
+              ${isSuccess && !isDisabled ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50" : ""}
+              ${isSuccess && isDisabled ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : ""}
+              ${isError && !isDisabled ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50" : ""}
+              ${isError && isDisabled ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : ""}
+              ${
+                !isLoading && !isSuccess && !isError
+                  ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  : ""
+              }
             `}
           >
             {isLoading ? (
@@ -341,7 +394,8 @@ function RebuildAllModal({
               <strong className="text-gray-700 dark:text-gray-300">
                 todas as {PROJECTIONS.length} projeções
               </strong>{" "}
-              a partir do ledger de eventos. Durante o processo:
+              a partir do ledger de eventos, uma a uma em ordem de tier.
+              Durante o processo:
             </p>
             <ul className="mt-2 space-y-1">
               {[
@@ -397,6 +451,102 @@ function RebuildAllModal({
 }
 
 // ============================================================================
+// Componente: Painel de resultados do Rebuild All
+// ============================================================================
+
+function RebuildAllResultsPanel({
+  results,
+  onDismiss,
+}: {
+  results: RebuildAllItemResult[];
+  onDismiss: () => void;
+}) {
+  const successList = results.filter((r) => r.status === "success");
+  const errorList = results.filter((r) => r.status === "error");
+  const allSuccess = errorList.length === 0;
+
+  // Extraídos para evitar parsing ambíguo de ternários aninhados em template literals dentro de JSX
+  const wrapperClass = allSuccess
+    ? "rounded-xl border p-4 flex flex-col gap-3 border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20"
+    : "rounded-xl border p-4 flex flex-col gap-3 border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20";
+
+  const iconName = allSuccess ? "mdi:check-circle-outline" : "mdi:alert-circle-outline";
+  const iconClass = allSuccess
+    ? "text-green-600 dark:text-green-400"
+    : "text-red-500 dark:text-red-400";
+  const labelClass = allSuccess
+    ? "text-sm font-semibold text-green-800 dark:text-green-300"
+    : "text-sm font-semibold text-red-700 dark:text-red-300";
+
+  const errSuffix = errorList.length > 1 ? "ões" : "";
+  const okSuffix = successList.length !== 1 ? "s" : "";
+  const summaryLabel = allSuccess
+    ? `Todas as ${results.length} projeções reconstruídas com sucesso`
+    : `${errorList.length} projeção${errSuffix} com erro — ${successList.length} concluída${okSuffix}`;
+
+  return (
+    <div className={wrapperClass}>
+      {/* Cabeçalho com resumo */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Icon icon={iconName} width="18px" className={iconClass} />
+          <span className={labelClass}>
+            {summaryLabel}
+          </span>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
+          title="Fechar resumo"
+        >
+          <Icon icon="mdi:close" width="16px" />
+        </button>
+      </div>
+
+      {/* Projeções com sucesso (apenas quando houver erros — caso contrário o cabeçalho já diz tudo) */}
+      {!allSuccess && successList.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {successList.map((r) => (
+            <span
+              key={r.name}
+              className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full"
+            >
+              <Icon icon="mdi:check" width="11px" />
+              {r.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Projeções com erro — nome + mensagem de erro */}
+      {errorList.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {errorList.map((r) => (
+            <div
+              key={r.name}
+              className="flex flex-col gap-0.5 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2"
+            >
+              <span className="text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+                <Icon icon="mdi:close-circle-outline" width="13px" className="flex-shrink-0" />
+                {r.label}
+                <span className="font-mono font-normal text-red-400 dark:text-red-500">
+                  ({r.name})
+                </span>
+              </span>
+              {r.error && (
+                <span className="text-xs text-red-600 dark:text-red-400 leading-relaxed pl-5 break-words">
+                  {r.error}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // Componente principal
 // ============================================================================
 
@@ -421,11 +571,36 @@ export default function PageContent() {
     execute: definirAnoLetivo,
   } = useApi(adminService.definirAnoLetivo);
 
-  const [anoSelecionado, setAnoSelecionado] = useState("");
   const [sucesso, setSucesso] = useState(false);
-  const opcoes = gerarOpcoesAnoLetivo();
 
-  const valorSelect = anoSelecionado || anoLetivoData?.ano_letivo || "";
+  // ── Dropdown "De" + campo "Até" calculado automaticamente ─────────────────
+  // "Até" é sempre De+1 — sem segundo dropdown.
+  const anoAtual = new Date().getFullYear();
+
+  const [anoDe, setAnoDe] = useState<string>("");
+
+  // Pré-preencher "De" quando o ano letivo actual chegar da API
+  useEffect(() => {
+    if (anoLetivoData?.ano_letivo) {
+      const partes = anoLetivoData.ano_letivo.split("_");
+      if (partes.length === 2) {
+        setAnoDe(partes[0]);
+      }
+    }
+  }, [anoLetivoData?.ano_letivo]);
+
+  // "De": do mais antigo (anoAtual - 10) ao anoAtual — nunca maior que o ano actual
+  const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 10 + i);
+
+  // "Até" é sempre anoDe + 1 (obrigatório, calculado)
+  const anoAteCalculado = anoDe ? String(parseInt(anoDe) + 1) : "";
+
+  // Valor formatado para envio ao backend: "YYYY_YYYY"
+  const valorFormatado = anoDe ? `${anoDe}_${anoAteCalculado}` : "";
+  // Valor já guardado no backend
+  const valorAtual = anoLetivoData?.ano_letivo ?? "";
+  // Formulário só submete se "De" preenchido e valor diferente do actual
+  const podeGuardar = !definindo && !!valorFormatado && valorFormatado !== valorAtual;
 
   useEffect(() => {
     buscarAnoLetivo();
@@ -434,11 +609,10 @@ export default function PageContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSucesso(false);
-    if (!valorSelect) return;
+    if (!valorFormatado) return;
     try {
-      await definirAnoLetivo({ ano_letivo: valorSelect });
+      await definirAnoLetivo({ ano_letivo: valorFormatado });
       setSucesso(true);
-      setAnoSelecionado("");
       buscarAnoLetivo();
       setTimeout(() => setSucesso(false), 4000);
     } catch {
@@ -447,16 +621,16 @@ export default function PageContent() {
   }
 
   // ── Rebuild de projeções ────────────────────────────────────────────────
-  const { statuses, errors, timestamps, rebuild } = useProjectionRebuild();
+  const { statuses, errors, timestamps, rebuild, rebuildRaw } =
+    useProjectionRebuild();
 
   const [showRebuildAllModal, setShowRebuildAllModal] = useState(false);
   const [rebuildAllLoading, setRebuildAllLoading] = useState(false);
-  const [rebuildAllResult, setRebuildAllResult] = useState<
-    "success" | "error" | null
-  >(null);
-  const [rebuildAllError, setRebuildAllError] = useState("");
+  // null = nenhuma execução ainda; array = última execução com resultado por projeção
+  const [rebuildAllResults, setRebuildAllResults] =
+    useState<RebuildAllItemResult[] | null>(null);
 
-  // Contadores para o resumo
+  // Contadores para a barra de estado em tempo real
   const loadingCount = PROJECTIONS.filter(
     (p) => statuses[p.name] === "loading"
   ).length;
@@ -467,29 +641,35 @@ export default function PageContent() {
     (p) => statuses[p.name] === "error"
   ).length;
 
+  /**
+   * handleRebuildAll — reconstrói cada projeção individualmente em sequência,
+   * respeitando a ordem de tier. Colecta o resultado de cada uma e exibe o
+   * painel de resumo ao terminar (com sucesso e erros separados).
+   */
   async function handleRebuildAll() {
     setRebuildAllLoading(true);
-    setRebuildAllResult(null);
-    setRebuildAllError("");
-    try {
-      await adminService.rebuildAllProjections();
-      setRebuildAllResult("success");
-      setTimeout(() => setRebuildAllResult(null), 8000);
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao reconstruir todas as projeções.";
-      setRebuildAllResult("error");
-      setRebuildAllError(msg);
-    } finally {
-      setRebuildAllLoading(false);
-      setShowRebuildAllModal(false);
+    setRebuildAllResults(null);
+    setShowRebuildAllModal(false);
+
+    const results: RebuildAllItemResult[] = [];
+
+    for (const projection of PROJECTIONS) {
+      const result = await rebuildRaw(projection.name);
+      results.push({
+        name: projection.name,
+        label: projection.label,
+        status: result.ok ? "success" : "error",
+        error: result.ok ? undefined : result.error,
+      });
     }
+
+    setRebuildAllResults(results);
+    setRebuildAllLoading(false);
   }
 
   // Agrupa projeções por tier
   const tiers = [1, 2, 3, 4];
-  const byTier = (tier: number) =>
-    PROJECTIONS.filter((p) => p.tier === tier);
+  const byTier = (tier: number) => PROJECTIONS.filter((p) => p.tier === tier);
 
   // ── Acesso restrito ─────────────────────────────────────────────────────
   if (!isFPP) {
@@ -555,36 +735,78 @@ export default function PageContent() {
             Definir Ano Letivo
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Selecione o ano letivo vigente. O formato é{" "}
+            Selecione o intervalo do ano letivo vigente. O formato enviado ao
+            sistema é{" "}
             <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
-              AAAA/AAAA
+              AAAA_AAAA
             </code>{" "}
-            (ex: 2025/2026).
+            (ex: 2025_2026).
           </p>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label
-                htmlFor="ano-letivo"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
-              >
-                Ano Letivo
-              </label>
-              <select
-                id="ano-letivo"
-                value={valorSelect}
-                onChange={(e) => setAnoSelecionado(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-              >
-                <option value="">Selecione um ano letivo</option>
-                {opcoes.map((op) => (
-                  <option key={op.valor} value={op.valor}>
-                    {op.label}
-                    {anoLetivoData?.ano_letivo === op.valor ? " (actual)" : ""}
-                  </option>
-                ))}
-              </select>
+            {/* Dropdown "De" + campo calculado "Até" */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* De */}
+              <div>
+                <label
+                  htmlFor="ano-letivo-de"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                >
+                  De
+                </label>
+                <select
+                  id="ano-letivo-de"
+                  value={anoDe}
+                  onChange={(e) => setAnoDe(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
+                >
+                  <option value="">Selecione</option>
+                  {opcoesAnoDe.map((ano) => (
+                    <option key={ano} value={String(ano)}>
+                      {ano}
+                      {valorAtual.startsWith(`${ano}_`) ? " (actual)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Até — sempre De+1, calculado automaticamente */}
+              <div>
+                <label
+                  htmlFor="ano-letivo-ate"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                >
+                  Até
+                  <span className="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
+                    (automático)
+                  </span>
+                </label>
+                <div
+                  id="ano-letivo-ate"
+                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 px-3 py-2.5 text-sm select-none"
+                >
+                  {anoAteCalculado || (
+                    <span className="text-gray-300 dark:text-gray-600 italic">
+                      Selecione o ano de início
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Preview do valor formatado */}
+            {valorFormatado && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                <Icon icon="mdi:arrow-right-thin" width="14px" />
+                Será enviado:{" "}
+                <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono">
+                  {valorFormatado}
+                </code>
+                <span className="text-gray-400 dark:text-gray-500">
+                  ({formatAnoLetivo(valorFormatado)})
+                </span>
+              </p>
+            )}
 
             {erroDefinir && (
               <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
@@ -608,8 +830,8 @@ export default function PageContent() {
                 />
                 <p className="text-sm text-green-700 dark:text-green-400">
                   Ano letivo{" "}
-                  <strong>{formatAnoLetivo(valorSelect)}</strong> definido com
-                  sucesso!
+                  <strong>{formatAnoLetivo(valorFormatado)}</strong> definido
+                  com sucesso!
                 </p>
               </div>
             )}
@@ -617,11 +839,7 @@ export default function PageContent() {
             <div className="flex justify-end pt-1">
               <button
                 type="submit"
-                disabled={
-                  definindo ||
-                  !valorSelect ||
-                  valorSelect === anoLetivoData?.ano_letivo
-                }
+                disabled={!podeGuardar}
                 className="inline-flex items-center gap-2 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2.5 text-sm font-medium transition-colors"
               >
                 {definindo ? (
@@ -669,14 +887,15 @@ export default function PageContent() {
               Reconstrução de Projeções
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
-              Reprocessa eventos do ledger para reconstruir as tabelas de leitura.
-              Use quando uma projeção estiver inconsistente com o estado do ledger.
+              Reprocessa eventos do ledger para reconstruir as tabelas de
+              leitura. Use quando uma projeção estiver inconsistente com o
+              estado do ledger.
             </p>
           </div>
 
-          {/* Barra de estado + botão rebuild all */}
+          {/* Barra de estado em tempo real + botão rebuild all */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            {/* Contadores */}
+            {/* Contadores de progresso (visíveis durante rebuild individual ou all) */}
             {(loadingCount > 0 || successCount > 0 || errorCount > 0) && (
               <div className="flex items-center gap-3 text-xs">
                 {loadingCount > 0 && (
@@ -700,30 +919,35 @@ export default function PageContent() {
               </div>
             )}
 
-            {/* Resultado do rebuild all */}
-            {rebuildAllResult === "success" && (
-              <div className="flex items-center gap-1.5 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded-lg">
-                <Icon icon="mdi:check-circle-outline" width="14px" />
-                Todas as projeções reconstruídas
-              </div>
-            )}
-            {rebuildAllResult === "error" && (
-              <div className="flex items-start gap-1.5 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg max-w-xs">
-                <Icon icon="mdi:alert-circle-outline" width="14px" className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{rebuildAllError}</span>
-              </div>
-            )}
-
             <button
               onClick={() => setShowRebuildAllModal(true)}
               disabled={rebuildAllLoading || loadingCount > 0}
               className="inline-flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium transition-colors"
             >
-              <Icon icon="mdi:database-refresh-outline" width="16px" />
-              Reconstruir todas
+              {rebuildAllLoading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                  A reconstruir...
+                </>
+              ) : (
+                <>
+                  <Icon icon="mdi:database-refresh-outline" width="16px" />
+                  Reconstruir todas
+                </>
+              )}
             </button>
           </div>
         </div>
+
+        {/* Painel de resultados do último Rebuild All */}
+        {rebuildAllResults && (
+          <div className="mb-6">
+            <RebuildAllResultsPanel
+              results={rebuildAllResults}
+              onDismiss={() => setRebuildAllResults(null)}
+            />
+          </div>
+        )}
 
         {/* Aviso de impacto */}
         <div className="mb-6 rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/10 px-5 py-3 flex items-start gap-3">
@@ -770,6 +994,7 @@ export default function PageContent() {
                       error={errors[projection.name] ?? ""}
                       lastRebuildAt={timestamps[projection.name]}
                       onRebuild={rebuild}
+                      disabled={rebuildAllLoading}
                     />
                   ))}
                 </div>

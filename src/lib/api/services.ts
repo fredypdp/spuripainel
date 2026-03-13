@@ -454,21 +454,20 @@ export const academiaService = {
 
   /** GET /academia/cursos */
   listarCursos: (token?: string) =>
-    api.get<ListarCursosResponse>(
-      '/academia/cursos',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    api.get<ListarCursosResponse>('/academia/cursos', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   /** GET /academia/curso/:id */
   getCurso: (cursoId: string, token?: string) =>
-    api.get<{ curso: Curso }>(
+    api.get<Curso>(
       `/academia/curso/${cursoId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
   /** PUT /academia/curso/:id/ativar */
   ativarCurso: (cursoId: string, token?: string) =>
-    api.put<{ message: string; nome: string }>(
+    api.put<{ message: string }>(
       `/academia/curso/${cursoId}/ativar`,
       undefined,
       { token: token || tokenStorage.get() || undefined }
@@ -476,7 +475,7 @@ export const academiaService = {
 
   /** PUT /academia/curso/:id/desativar */
   desativarCurso: (cursoId: string, token?: string) =>
-    api.put<{ message: string; nome: string }>(
+    api.put<{ message: string }>(
       `/academia/curso/${cursoId}/desativar`,
       undefined,
       { token: token || tokenStorage.get() || undefined }
@@ -484,7 +483,7 @@ export const academiaService = {
 
   /** PUT /academia/curso/:id/dados */
   atualizarCurso: (cursoId: string, data: AtualizarCursoRequest, token?: string) =>
-    api.put<{ message: string; nome: string }>(
+    api.put<{ message: string }>(
       `/academia/curso/${cursoId}/dados`,
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -497,14 +496,11 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Matérias ──────────────────────────────────────────────────────
+  // ── Matérias ────────────────────────────────────────────────────────
 
   /** POST /academia/materia */
   criarMateria: (data: CriarMateriaRequest, token?: string) =>
-    api.post<{
-      message: string;
-      data: { id: string; nome: string; type: string; status: string; proximo_passo?: string };
-    }>(
+    api.post<{ message: string; data: { id: string; nome: string } }>(
       '/academia/materia',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -512,21 +508,20 @@ export const academiaService = {
 
   /** GET /academia/materias */
   listarMaterias: (token?: string) =>
-    api.get<ListarMateriasResponse>(
-      '/academia/materias',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    api.get<ListarMateriasResponse>('/academia/materias', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   /** GET /academia/materia/:id */
   getMateria: (materiaId: string, token?: string) =>
-    api.get<{ materia: Materia }>(
+    api.get<Materia>(
       `/academia/materia/${materiaId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
   /** PUT /academia/materia/:id/ativar */
   ativarMateria: (materiaId: string, token?: string) =>
-    api.put<{ message: string; nome: string }>(
+    api.put<{ message: string }>(
       `/academia/materia/${materiaId}/ativar`,
       undefined,
       { token: token || tokenStorage.get() || undefined }
@@ -534,7 +529,7 @@ export const academiaService = {
 
   /** PUT /academia/materia/:id/desativar */
   desativarMateria: (materiaId: string, token?: string) =>
-    api.put<{ message: string; nome: string }>(
+    api.put<{ message: string }>(
       `/academia/materia/${materiaId}/desativar`,
       undefined,
       { token: token || tokenStorage.get() || undefined }
@@ -542,7 +537,7 @@ export const academiaService = {
 
   /** PUT /academia/materia/:id/periodo */
   definirPeriodoMateria: (materiaId: string, data: DefinirPeriodoMateriaRequest, token?: string) =>
-    api.put<{ message: string; nome: string; periodo: string }>(
+    api.put<{ message: string }>(
       `/academia/materia/${materiaId}/periodo`,
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -550,7 +545,7 @@ export const academiaService = {
 
   /** PUT /academia/materia/:id/dados */
   atualizarMateria: (materiaId: string, data: AtualizarMateriaRequest, token?: string) =>
-    api.put<{ message: string; nome: string }>(
+    api.put<{ message: string }>(
       `/academia/materia/${materiaId}/dados`,
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -558,7 +553,7 @@ export const academiaService = {
 
   /** DELETE /academia/materia/:id */
   deletarMateria: (materiaId: string, token?: string) =>
-    api.delete<{ message: string; nome: string }>(
+    api.delete<{ message: string }>(
       `/academia/materia/${materiaId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -567,7 +562,7 @@ export const academiaService = {
 
   /** POST /academia/turma */
   criarTurma: (data: CriarTurmaRequest, token?: string) =>
-    api.post<{ message: string; id: string; codigo_turma: string }>(
+    api.post<{ message: string; data: { codigo_turma: string } }>(
       '/academia/turma',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -575,10 +570,9 @@ export const academiaService = {
 
   /** GET /academia/turmas */
   listarTurmas: (token?: string) =>
-    api.get<ListarTurmasResponse>(
-      '/academia/turmas',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    api.get<ListarTurmasResponse>('/academia/turmas', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 
   /** GET /academia/turma/:codigo */
   getTurma: (codigoTurma: string, token?: string) =>
@@ -735,7 +729,7 @@ export const adminService = {
     }),
 
   /**
-   * Rebuild de projeção (requer role FPP)
+   * Rebuild de projeção individual (requer role FPP)
    * POST /dominis/projections/rebuild/:name
    */
   rebuildProjection: (name: string, token?: string) =>
@@ -805,29 +799,4 @@ export const adminService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
-
-  /**
-   * Reconstruir todas as projeções em sequência (requer role FPP)
-   * Executa POST /dominis/projections/rebuild/:name para cada projeção,
-   * respeitando a ordem de dependências de FK definida no backend.
-   */
-  rebuildAllProjections: (token?: string) => {
-    const ordem = [
-      'admins', 'academias', 'cursos', 'materias', 'sistema_config', 'categorias_nota',
-      'estudantes', 'turmas', 'inscricoes',
-      'notas', 'faltas',
-      'aprovacao_ano', 'reprovacoes', 'avaliacao_final',
-    ];
-    return ordem.reduce(
-      (chain, name) =>
-        chain.then(() =>
-          api.post<{ message: string }>(
-            `/dominis/projections/rebuild/${name}`,
-            {},
-            { token: token || tokenStorage.get() || undefined }
-          )
-        ),
-      Promise.resolve() as Promise<unknown>
-    );
-  },
 };
