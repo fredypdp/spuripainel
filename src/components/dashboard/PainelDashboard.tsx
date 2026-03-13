@@ -245,14 +245,10 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
   const { data: dataEstudantes, loading: loadingEstudantes, execute: fetchEstudantes } =
     useApi(consultasService.listarEstudantes);
 
-  const { data: dataAnoLetivo, execute: fetchAnoLetivo } =
-    useApi(consultasService.anoLetivoAtual);
-
   const load = useCallback(() => {
     fetchRegistros({ token, tipo: "estatisticas" });
     fetchAcademias(token);
     fetchEstudantes(undefined, token);
-    fetchAnoLetivo(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -261,7 +257,6 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
   }, [load]);
 
   const stats = (registros as RegistroCompleto)?.estatisticas;
-  const anoLetivo = (dataAnoLetivo as any)?.ano_letivo ?? null;
   const totalAcademias = (dataAcademias as any)?.total ?? stats?.total_academias;
   const academias: any[] = (dataAcademias as any)?.academias ?? [];
   const inativas = academias.filter((a) => a.status === "inativo").length;
@@ -281,27 +276,6 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
             </>
           }
           action={{ label: "Ver academias", href: "/academias" }}
-        />
-      )}
-
-      {!anoLetivo && (
-        <AlertBanner
-          variant="info"
-          icon="mdi:calendar-alert"
-          message="Nenhum ano letivo definido. Configure antes de registar notas ou faltas."
-          action={{ label: "Configurar", href: "/configuracoes" }}
-        />
-      )}
-
-      {anoLetivo && (
-        <AlertBanner
-          variant="success"
-          icon="mdi:calendar-check-outline"
-          message={
-            <>
-              Ano letivo activo: <strong>{anoLetivo}</strong>
-            </>
-          }
         />
       )}
 
@@ -387,9 +361,9 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
               <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{admin.email}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Acções realizadas</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Desde</p>
               <p className="text-sm font-semibold text-gray-800 dark:text-white">
-                {formatNumber(admin.total_acoes_realizadas)}
+                {admin.created_at ? new Date(admin.created_at).toLocaleDateString("pt-PT") : "—"}
               </p>
             </div>
             <div>
@@ -427,7 +401,7 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
     useApi(academiaService.listarCursos);
 
   const { data: dataAnoLetivo, execute: fetchAnoLetivo } =
-    useApi(consultasService.anoLetivoAtual);
+    useApi(academiaService.getAnoLetivo);
 
   const load = useCallback(() => {
     fetchEst(undefined, token);
@@ -449,15 +423,16 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
   const cursosAtivos = cursos.filter((c) => c.status === "ativo").length;
   const anoLetivo = (dataAnoLetivo as any)?.ano_letivo ?? null;
 
-  // Média de notas do total de notas dos estudantes (campo total_notas)
-  const totalNotasAcad = useMemo(
-    () => estudantes.reduce((acc, e) => acc + (e.total_notas ?? 0), 0),
-    [estudantes]
-  );
-  const totalFaltasAcad = useMemo(
-    () => estudantes.reduce((acc, e) => acc + (e.total_faltas ?? 0), 0),
-    [estudantes]
-  );
+  // Totais de notas e faltas derivados da lista de estudantes
+  const totalNotasAcad = useMemo(() => {
+    const list: any[] = (dataEstudantes as any)?.estudantes ?? [];
+    return list.reduce((acc, e) => acc + (e.total_notas ?? 0), 0);
+  }, [dataEstudantes]);
+
+  const totalFaltasAcad = useMemo(() => {
+    const list: any[] = (dataEstudantes as any)?.estudantes ?? [];
+    return list.reduce((acc, e) => acc + (e.total_faltas ?? 0), 0);
+  }, [dataEstudantes]);
 
   const loading = loadingEst || loadingTurmas || loadingCursos;
 
@@ -481,20 +456,7 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
           action={{ label: "Ir ao perfil", href: "/perfil" }}
         />
       )}
-      {academia.total_inscricoes_pendentes > 0 && (
-        <AlertBanner
-          variant="info"
-          icon="mdi:account-clock-outline"
-          message={
-            <>
-              <strong>{academia.total_inscricoes_pendentes}</strong> inscrição
-              {academia.total_inscricoes_pendentes > 1 ? "ões" : ""} pendente
-              {academia.total_inscricoes_pendentes > 1 ? "s" : ""} de aprovação.
-            </>
-          }
-          action={{ label: "Ver gerenciamento", href: "/gerenciamento" }}
-        />
-      )}
+
       {anoLetivo && (
         <AlertBanner
           variant="success"
@@ -562,15 +524,7 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
             loading={loadingEst}
             href="/estudantes"
           />
-          <StatCard
-            icon="mdi:account-clock-outline"
-            label="Inscrições pendentes"
-            value={academia.total_inscricoes_pendentes}
-            color="bg-orange-50 dark:bg-orange-500/10"
-            iconColor="text-orange-500"
-            loading={false}
-            href="/gerenciamento"
-          />
+
           <StatCard
             icon="mdi:google-classroom"
             label="Turmas activas"
@@ -675,14 +629,10 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
   const { data: dataAvaliacoes, loading: loadingAval, execute: fetchAval } =
     useApi(estudanteService.minhasAvaliacoes);
 
-  const { data: dataAnoLetivo, execute: fetchAnoLetivo } =
-    useApi(consultasService.anoLetivoAtual);
-
   const load = useCallback(() => {
     fetchNotas(token);
     fetchFaltas(token);
     fetchAval(token);
-    fetchAnoLetivo(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -690,31 +640,28 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
     load();
   }, [load]);
 
-  const notas: any[] = (dataNotas as NotasEstudanteResponse)?.notas ?? [];
-  const faltas: any[] = (dataFaltas as FaltasEstudanteResponse)?.faltas ?? [];
-  const avaliacoes: any[] = (dataAvaliacoes as any)?.avaliacoes ?? [];
-  const anoLetivo = (dataAnoLetivo as any)?.ano_letivo ?? null;
+  const notasAno = useMemo(() => {
+    const notas: any[] = (dataNotas as NotasEstudanteResponse)?.notas ?? [];
+    // Derivar ano letivo activo a partir da nota mais recente
+    const anoLetivo = notas.length > 0 ? notas[0].ano_lectivo ?? null : null;
+    return anoLetivo ? notas.filter((n) => n.ano_lectivo === anoLetivo) : notas;
+  }, [dataNotas]);
 
-  // Notas do ano letivo actual
-  const notasAno = useMemo(
-    () => (anoLetivo ? notas.filter((n) => n.ano_lectivo === anoLetivo) : notas),
-    [notas, anoLetivo]
-  );
+  const faltasAno = useMemo(() => {
+    const faltas: any[] = (dataFaltas as FaltasEstudanteResponse)?.faltas ?? [];
+    const anoLetivo = notasAno.length > 0 ? notasAno[0].ano_lectivo ?? null : null;
+    return anoLetivo ? faltas.filter((f) => f.ano_lectivo === anoLetivo) : faltas;
+  }, [dataFaltas, notasAno]);
+
+  const anoLetivo = notasAno.length > 0 ? (notasAno[0].ano_lectivo ?? null) : null;
+  const avaliacoes: any[] = (dataAvaliacoes as any)?.avaliacoes ?? [];
+  const totalFaltasAno = faltasAno.reduce((acc: number, f: any) => acc + (f.quantidade ?? 0), 0);
 
   const mediaGeral = useMemo(() => {
     if (!notasAno.length) return null;
-    const soma = notasAno.reduce((acc, n) => acc + (n.nota ?? 0), 0);
+    const soma = notasAno.reduce((acc: number, n: any) => acc + (n.nota ?? 0), 0);
     return soma / notasAno.length;
   }, [notasAno]);
-
-  const faltasAno = useMemo(
-    () =>
-      anoLetivo
-        ? faltas.filter((f) => f.ano_lectivo === anoLetivo)
-        : faltas,
-    [faltas, anoLetivo]
-  );
-  const totalFaltasAno = faltasAno.reduce((acc, f) => acc + (f.quantidade ?? 0), 0);
 
   const aprovacoes = avaliacoes.filter((a) => a.aprovado).length;
   const reprovacoes = avaliacoes.filter((a) => !a.aprovado).length;
@@ -781,10 +728,10 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
               </span>
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-gray-400 dark:text-gray-500">
-              {estudante.academia_info && (
+              {estudante.academia && (
                 <span className="flex items-center gap-1">
                   <Icon icon="fluent-emoji-high-contrast:school" width="14px" />
-                  {estudante.academia_info.nome}
+                  {estudante.academia.nome}
                 </span>
               )}
               <span

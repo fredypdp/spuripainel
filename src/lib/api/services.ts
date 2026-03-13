@@ -21,7 +21,6 @@ import type {
   MeuPerfilResponse,
   ConsultarEstudanteResponse,
   ConsultarAcademiaResponse,
-  ConsultarAdminResponse,
   ConsultarAcademiasResponse,
   ConsultarEstudantesResponse,
   NotasEstudanteResponse,
@@ -40,7 +39,6 @@ import type {
   AtualizarDadosAdminRequest,
   AtualizarRoleAdminRequest,
   RegistroCompleto,
-  RegistrosPorEstudanteResponse,
   ListarAdminsResponse,
   DefinirAnoLetivoAcademiaRequest,
   AnoLetivoAcademiaResponse,
@@ -751,7 +749,7 @@ export const adminService = {
    * GET /dominis/consultar-admin/:email
    */
   consultarAdminPorEmail: (email: string, token?: string) =>
-    api.get<ConsultarAdminResponse>(
+    api.get<AdminDetalhado>(
       `/dominis/consultar-admin/${encodeURIComponent(email)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -780,7 +778,7 @@ export const adminService = {
     if (params?.limit)  qs.append('limit',  params.limit.toString());
     if (params?.offset) qs.append('offset', params.offset.toString());
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<RegistrosPorEstudanteResponse>(`/dominis/registros/${codigoEstudante}${query}`, {
+    return api.get<RegistroCompleto>(`/dominis/registros/${codigoEstudante}${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },

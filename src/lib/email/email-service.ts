@@ -261,66 +261,6 @@ Se você não solicitou esta recuperação, entre em contato conosco imediatamen
     });
   }
 
-  /**
-   * Template para notificação de aprovação de inscrição
-   */
-  async sendInscricaoAprovadaEmail(
-    to: string,
-    estudanteNome: string,
-    academiaNome: string,
-    tipo: 'escola' | 'superior',
-    ano: string,
-    curso?: string
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    const tipoTexto = tipo === 'escola' ? 'Escola' : 'Universidade';
-
-    const html = `
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #10B981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-            .info-box { background-color: #DBEAFE; border-left: 4px solid #3B82F6; padding: 15px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎉 Inscrição Aprovada!</h1>
-            </div>
-            <div class="content">
-              <p>Parabéns, <strong>${estudanteNome}</strong>!</p>
-              <p>Sua inscrição na <strong>${academiaNome}</strong> foi aprovada!</p>
-              <div class="info-box">
-                <strong>Detalhes da Inscrição:</strong>
-                <ul style="margin: 10px 0;">
-                  <li><strong>Instituição:</strong> ${academiaNome}</li>
-                  <li><strong>Tipo:</strong> ${tipoTexto}</li>
-                  <li><strong>Ano:</strong> ${ano}</li>
-                  ${curso ? `<li><strong>Curso:</strong> ${curso}</li>` : ''}
-                </ul>
-              </div>
-              <p>Você já pode acessar o sistema e vincular sua academia para começar seus estudos.</p>
-              <p>Bem-vindo(a) e bons estudos!</p>
-            </div>
-            <div class="footer">
-              <p>© ${new Date().getFullYear()} Spuri - Todos os direitos reservados</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    return this.sendEmail({
-      to,
-      subject: `Inscrição Aprovada - ${academiaNome}`,
-      html,
-      text: `Parabéns ${estudanteNome}! Sua inscrição na ${academiaNome} foi aprovada.`,
-    });
-  }
 }
 
 // Singleton instance

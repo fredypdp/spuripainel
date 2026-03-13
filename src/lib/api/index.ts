@@ -30,7 +30,6 @@ export type {
   StatusEscolar,
   StatusSuperior,
   StatusGeral,
-  StatusInscricao,
   Periodo,
   CursoType,
   MateriaType,

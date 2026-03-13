@@ -1,37 +1,40 @@
 // src/types/api.ts
 
+// =====================
+// BASE TYPES
+// =====================
+
 export type UserType = 'academia' | 'estudante' | 'admin';
-export type AdminType = "gerente" | "adm" | "fpp";
+export type AdminType = 'gerente' | 'adm' | 'fpp';
 
 export type AcademiaType = 'escola' | 'superior';
-export type NivelEscolar = 'fundamental' | 'medio' | "misto";
+export type NivelEscolar = 'fundamental' | 'medio' | 'misto';
 
 export type AnoAcademico = AnoEscolar | AnoSuperior;
 
-export type AnoEscolar = 
+export type AnoEscolar =
   | 'primeiro_fundamental' | 'segundo_fundamental' | 'terceiro_fundamental'
-  | 'quarto_fundamental' | 'quinto_fundamental' | 'sexto_fundamental'
-  | 'setimo_fundamental' | 'oitavo_fundamental' | 'nono_fundamental'
-  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio' | "quarto_medio";
+  | 'quarto_fundamental'   | 'quinto_fundamental'  | 'sexto_fundamental'
+  | 'setimo_fundamental'   | 'oitavo_fundamental'  | 'nono_fundamental'
+  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio' | 'quarto_medio';
 
-export type AnoSuperior = 
+export type AnoSuperior =
   | 'primeiro_ano' | 'segundo_ano' | 'terceiro_ano'
-  | 'quarto_ano' | 'quinto_ano' | 'sexto_ano';
+  | 'quarto_ano'   | 'quinto_ano'  | 'sexto_ano';
 
-export type StatusEscolar = 'inativo' | 'em_andamento' | 'finalizado';
-// 🔥 Aliases explícitos para os dois ciclos escolares divididos no backend
+export type StatusEscolar            = 'inativo' | 'em_andamento' | 'finalizado';
 export type StatusEscolarFundamental = StatusEscolar;
-export type StatusEscolarMedio = StatusEscolar;
-export type StatusSuperior = 'inativo' | 'em_andamento' | 'finalizado';
-export type StatusGeral = 'inativo' | 'ativo' | 'finalizado';
-export type StatusInscricao = 'espera' | 'aprovado' | 'reprovado';
+export type StatusEscolarMedio       = StatusEscolar;
+export type StatusSuperior           = 'inativo' | 'em_andamento' | 'finalizado';
+export type StatusGeral              = 'inativo' | 'ativo' | 'finalizado';
 
-export type Periodo = 
+export type Periodo =
   | '1_trimestre' | '2_trimestre' | '3_trimestre'
-  | '1_semestre' | '2_semestre';
+  | '1_semestre'  | '2_semestre';
 
-export type CursoType = 'medio' | 'superior';
+export type CursoType   = 'medio' | 'superior';
 export type MateriaType = 'fundamental' | 'medio' | 'superior';
+export type Genero      = 'masculino' | 'feminino';
 
 // =====================
 // REQUEST TYPES
@@ -66,7 +69,10 @@ export interface LoginRequest {
   senha: string;
 }
 
-// 🔥 ATUALIZADO: campos separados para fundamental/medio/superior
+/**
+ * POST /academia/estudante/register
+ * Estudantes são registrados EXCLUSIVAMENTE pela academia (não há auto-cadastro).
+ */
 export interface CriarEstudanteRequest {
   nome: string;
   genero: Genero;
@@ -74,59 +80,27 @@ export interface CriarEstudanteRequest {
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  // Fundamental
   ano_escolar?: string;
   status_escolar_fundamental?: StatusEscolarFundamental;
-  // Médio
   ano_escolar_medio?: string;
   status_escolar_medio?: StatusEscolarMedio;
-  curso_medio_id?: string; // UUID
-  // Superior
+  curso_medio_id?: string;
   ano_superior?: string;
   status_superior?: StatusSuperior;
-  curso_superior_id?: string; // UUID
-}
-
-// 🔥 ATUALIZADO: curso_medio_id agora é UUID
-export interface SolicitarInscricaoEscolaRequest {
-  codigo_academia: string;
-  ano_escolar_inscricao: string;
-  curso_medio_id?: string;
-}
-
-// 🔥 ATUALIZADO: curso_id agora é UUID obrigatório
-export interface SolicitarInscricaoUniversidadeRequest {
-  codigo_academia: string;
-  ano_inscricao: string;
-  curso_superior_id: string;
+  curso_superior_id?: string;
 }
 
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
-  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend a partir do ano letivo ativo da academia */
   /**
-   * Inferido automaticamente pelo backend (estudante fundamental → ano_escolar;
-   * médio/superior → nivel da matéria). Pode ser enviado pelo frontend como
-   * sugestão, mas o backend ignora este campo e o calcula internamente.
+   * Opcional — o backend infere internamente a partir do ano letivo ativo
+   * e do nível do estudante.
    */
   ano_academico?: string;
   data: string;
   materia_disciplinar_id: string;
   quantidade: number;
   observacao?: string;
-}
-
-// 🔥 ATUALIZADO: curso_id agora é UUID
-export interface AprovarInscricaoRequest {
-  codigo_estudante: string;
-  tipo: 'escola' | 'superior';
-  ano_inscricao: string;
-  curso_id?: string; // 🔥 MUDOU: agora é UUID
-}
-
-export interface ReprovarInscricaoRequest {
-  codigo_estudante: string;
-  motivo: string;
 }
 
 export interface CriarAdminRequest {
@@ -139,10 +113,6 @@ export interface DesativarRequest {
   motivo: string;
 }
 
-export interface VincularAcademiaRequest {
-  inscricao_id: string;
-}
-
 export interface AtualizarStatusRequest {
   novo_status: StatusEscolar | StatusSuperior;
 }
@@ -151,7 +121,7 @@ export interface CriarCursoRequest {
   nome: string;
   type: CursoType;
   anos_academicos: string[];
-  // 🔥 NOVO: obrigatório para superior, ausente/vazio para medio
+  /** Obrigatório para superior, ausente/vazio para medio */
   periodos?: string[];
 }
 
@@ -161,7 +131,6 @@ export interface AtualizarCursoRequest {
   periodos?: string[];
 }
 
-// 🔥 ATUALIZADO: nivel → anos_academicos
 export interface CriarMateriaRequest {
   nome: string;
   type: MateriaType;
@@ -175,7 +144,7 @@ export interface AtualizarMateriaRequest {
 
 /** PUT /academia/materias/:id/periodo — exclusivo para matérias do tipo 'superior' */
 export interface DefinirPeriodoMateriaRequest {
-  periodo: string; // deve estar na lista de periodos do curso vinculado
+  periodo: string;
 }
 
 export interface AtualizarDadosPessoaisEstudanteRequest {
@@ -211,7 +180,6 @@ export interface AtualizarDadosAdminRequest {
 }
 
 export interface AtualizarRoleAdminRequest {
-  // 🔥 CORRIGIDO: o backend espera "role", não "novo_role"
   role: AdminType;
 }
 
@@ -230,37 +198,30 @@ export interface SolicitarVerificacaoRequest {
   tipo: UserType;
 }
 
-// 🔥 CORRIGIDO: backend espera curso_id (UUID) + tipo_ensino
 export interface AlterarCursoRequest {
   curso_id: string; // UUID
   tipo_ensino: 'medio' | 'superior';
 }
 
 /**
- * 🔥 ATUALIZADO: ano_lectivo removido — resolvido automaticamente pelo backend
- * a partir do ano letivo ativo da academia autenticada.
+ * POST /academia/avaliacao-final
+ * ano_lectivo resolvido automaticamente pelo backend a partir do ano letivo ativo.
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
-  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend */
   tipo_ensino: 'fundamental' | 'medio' | 'superior';
-  /** Nível/ano académico atual do estudante */
   nivel_ano_academico_atual: string;
-  /** Próximo nível — obrigatório se aprovado e não for o último ano; ausente se reprovado ou ciclo finalizado */
   proximo_ano_academico?: string;
   aprovado: boolean;
-  /** Permite forçar aprovação mesmo com notas em falta */
   observacao?: string;
 }
 
 /**
- * @deprecated Use RegistrarAvaliacaoFinalRequest para o endpoint /academia/avaliacao-final
- * Mantido para compatibilidade com código existente que usa /academia/aprovacao-ano (rota antiga)
- * 🔥 ATUALIZADO: ano_lectivo removido — resolvido automaticamente pelo backend.
+ * @deprecated Use RegistrarAvaliacaoFinalRequest.
+ * Mantido para compatibilidade com POST /academia/aprovacao-ano (rota ainda activa).
  */
 export interface RegistrarAprovacaoAnoRequest {
   codigo_estudante: string;
-  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend */
   tipo_ensino: 'fundamental' | 'medio' | 'superior';
   nivel_atual: string;
   proximo_nivel?: string;
@@ -268,14 +229,105 @@ export interface RegistrarAprovacaoAnoRequest {
   observacao?: string;
 }
 
+// ── Notas ────────────────────────────────────────────────────────────────────
+
+export type TipoNota = 'escolar' | 'superior';
+
+export type CategoriaNotaEscolar =
+  | 'nota_escola'
+  | 'nota_professor';
+
+export type CategoriaNotaSuperiorFixa =
+  | 'nota_pp1'
+  | 'nota_pp2'
+  | 'nota_exame';
+
+export type CategoriaNota =
+  | CategoriaNotaEscolar
+  | CategoriaNotaSuperiorFixa
+  | string;
+
+export interface RegistrarNotasRequest {
+  codigo_estudante: string;
+  periodo: Periodo;
+  materia_disciplinar_id: string;
+  tipo: TipoNota;
+  categoria: CategoriaNota;
+  nota: number;
+  observacao?: string;
+}
+
+export interface AtualizarNotaRequest {
+  id: string;
+  nota_nova: number;
+  observacao: string; // obrigatória na correcção (regra de negócio do aggregate)
+}
+
+export interface AtualizarFaltaRequest {
+  id: string;
+  data?: string;
+  materia_disciplinar_id?: string;
+  quantidade?: number;
+  observacao?: string;
+}
+
+export interface CriarCategoriaNotaRequest {
+  nome: string; // formato: nota_[nome]
+  descricao?: string;
+}
+
+// ── Turmas ───────────────────────────────────────────────────────────────────
+
+export interface CriarTurmaRequest {
+  codigo_turma: string;
+  nivel: string;
+  turno: 'manha' | 'tarde' | 'noite';
+  curso_id?: string;
+}
+
+export interface AtualizarTurmaRequest {
+  nivel?: string;
+  turno?: string;
+  curso_id?: string;
+}
+
+export interface AdicionarEstudanteTurmaRequest {
+  codigo_estudante: string;
+}
+
+// ── Ano Letivo ────────────────────────────────────────────────────────────────
+
+/** POST /academia/ano-letivo */
+export interface DefinirAnoLetivoAcademiaRequest {
+  ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
+  tipo: 'escola' | 'superior';
+}
+
+/**
+ * @deprecated Substituído por DefinirAnoLetivoAcademiaRequest.
+ */
+export interface DefinirAnoLetivoRequest {
+  ano_letivo: string;
+}
+
 // =====================
 // RESPONSE TYPES
 // =====================
 
+/**
+ * POST /login
+ * Handler retorna: { token, nome, type, codigo/email, role? }
+ */
 export interface AuthResponse {
   token: string;
+  nome: string;
   type: UserType;
-  id: string;
+  /** codigo_academia ou codigo_estudante (ausente para admin) */
+  codigo?: string;
+  /** e-mail (apenas para admin) */
+  email?: string;
+  /** role (apenas para admin) */
+  role?: AdminType;
 }
 
 export interface ApiResponse<T> {
@@ -283,37 +335,7 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-export interface Inscricao {
-  id: string;
-  codigo_estudante: string;
-  codigo_academia: string;
-  tipo: 'escola' | 'superior';
-  status: StatusInscricao;
-  ano_inscricao: string;
-  curso_id?: string;
-  motivo_reprovacao?: string;
-  created_at: string;
-  updated_at: string;
-  version: number;
-}
-
-export interface ListarInscricoesResponse {
-  inscricoes: Inscricao[];
-  /** Número de inscrições na página actual */
-  total: number;
-  /** Total geral (para paginação) */
-  total_geral: number;
-  limit?: number;
-  offset?: number;
-  has_next?: boolean;
-  status_filter?: string;
-  /** Tipo do utilizador autenticado */
-  user_type?: string;
-}
-
-export interface InscricaoResponse {
-  inscricao: Inscricao;
-}
+// ── Modelos de domínio ────────────────────────────────────────────────────────
 
 export interface Nota {
   id: string;
@@ -338,7 +360,6 @@ export interface Falta {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
-  // 🔥 NOVO: ano acadêmico inferido pelo backend
   ano_academico: string;
   data: string;
   materia_disciplinar_id: string;
@@ -366,24 +387,188 @@ export interface AprovacaoAno {
 }
 
 /**
- * 🔥 NOVO: Avaliação final registrada pelo evento AprovacaoAnoRegistrada
- * Retornada pelas rotas /avaliacoes, /avaliacoes-estudante/:codigo
+ * Avaliação final — projecção projection_avaliacao_final.
+ * Campos alinhados com AvaliacaoFinalDTO do backend.
  */
 export interface AvaliacaoFinal {
   id: string;
+  event_id: string;
   codigo_estudante: string;
-  nome_estudante?: string;
   codigo_academia: string;
   ano_lectivo: string;
   tipo_ensino: 'fundamental' | 'medio' | 'superior';
-  nivel_ano_academico_atual: string;
+  /** Campo real da projecção: ano_academico_atual */
+  ano_academico_atual: string;
   proximo_ano_academico?: string;
   aprovado: boolean;
   observacao?: string;
-  turma_removida?: string;
   registered_at: string;
-  event_id: string;
   version: number;
+}
+
+export interface Curso {
+  id: string;
+  nome: string;
+  type: CursoType;
+  anos_academicos: string[];
+  periodos?: string[];
+  codigo_academia: string;
+  status: 'ativo' | 'inativo' | 'deletado';
+  deleted_at?: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface Materia {
+  id: string;
+  nome: string;
+  type: MateriaType;
+  anos_academicos?: string[];
+  codigo_academia: string;
+  curso_id?: string;
+  /** Apenas para tipo 'superior'. Definido via PUT /academia/materias/:id/periodo */
+  periodo?: string;
+  status: 'ativo' | 'inativo' | 'deletado';
+  deleted_at?: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface Turma {
+  id: string;
+  codigo_turma: string;
+  codigo_academia: string;
+  nivel: string;
+  curso_id?: string;
+  turno: 'manha' | 'tarde' | 'noite';
+  estudantes: string[];
+  status: 'ativo' | 'inativo' | 'deletado';
+  status_alterado_por?: string;
+  status_alterado_em?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  version: number;
+}
+
+export interface CategoriaNotaItem {
+  id: string;
+  codigo_academia: string;
+  nome: string;
+  descricao?: string;
+  adicionado_por?: string;
+  status: 'ativo' | 'inativo';
+  created_at: string;
+  version: number;
+}
+
+export interface Evento {
+  id: number;
+  event_id: string;
+  aggregate_id: string;
+  aggregate_type: string;
+  event_type: string;
+  event_version: number;
+  payload: any;
+  metadata: any;
+  occurred_at: string;
+  recorded_at: string;
+  ledger_hash: string;
+  previous_hash?: string;
+}
+
+// ── Perfis — alinhados com EstudanteDTO / AcademiaDTO / AdminDTO ──────────────
+
+/**
+ * EstudanteDTO (projection_estudantes).
+ */
+export interface EstudanteDetalhado {
+  id: string;
+  nome: string;
+  codigo_estudante: string;
+  email?: string;
+  telefone?: string;
+  email_verificado: boolean;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
+  genero?: Genero;
+  codigo_academia?: string;
+  status: StatusGeral;
+  status_escolar_fundamental: StatusEscolar;
+  status_escolar_medio: StatusEscolar;
+  status_superior: StatusSuperior;
+  ano_escolar?: string;
+  ano_escolar_medio?: string;
+  ano_superior?: string;
+  curso_medio_id?: string;
+  curso_superior_id?: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+/**
+ * AcademiaDTO (projection_academias).
+ */
+export interface AcademiaDetalhada {
+  id: string;
+  type: AcademiaType;
+  nome: string;
+  codigo_academia: string;
+  provincia: string;
+  endereco: string;
+  numero_telefone?: string;
+  email?: string;
+  email_verificado: boolean;
+  website?: string;
+  nivel_escolar?: NivelEscolar;
+  anos_academicos?: string[];
+  status: string;
+  cursos: string[];
+  created_at: string;
+  updated_at?: string;
+  total_estudantes: number;
+  version: number;
+  /** Ano letivo ativo. undefined = não configurado (bloqueia registros) */
+  ano_letivo?: string;
+  tipo_ano_letivo?: 'escola' | 'superior';
+  ano_letivo_ativado_em?: string;
+}
+
+/**
+ * AdminDTO — campos retornados pelos handlers de perfil admin.
+ */
+export interface AdminDetalhado {
+  id: string;
+  nome: string;
+  email: string;
+  email_verificado: boolean;
+  role: AdminType;
+  status: string;
+  created_at: string;
+}
+
+// ── Respostas de listagem ─────────────────────────────────────────────────────
+
+export interface ListarCursosResponse {
+  cursos: Curso[];
+  total: number;
+}
+
+export interface ListarMateriasResponse {
+  materias: Materia[];
+  total: number;
+}
+
+export interface ListarTurmasResponse {
+  turmas: Turma[];
+}
+
+export interface ListarCategoriasNotaResponse {
+  categorias: CategoriaNotaItem[];
+  total: number;
 }
 
 export interface NotasEstudanteResponse {
@@ -407,17 +592,13 @@ export interface AprovacoesEstudanteResponse {
   total: number;
 }
 
-/**
- * 🔥 NOVO: Response de GET /avaliacoes e GET /estudante/minhas-avaliacoes
- */
+/** GET /avaliacoes e GET /estudante/minhas-avaliacoes */
 export interface ListarAvaliacoesResponse {
   avaliacoes: AvaliacaoFinal[];
   total: number;
 }
 
-/**
- * 🔥 NOVO: Response de GET /avaliacoes-estudante/:codigo
- */
+/** GET /avaliacoes-estudante/:codigo */
 export interface AvaliacoesEstudanteResponse {
   codigo_estudante: string;
   nome: string;
@@ -425,42 +606,16 @@ export interface AvaliacoesEstudanteResponse {
   total: number;
 }
 
-/**
- * 🔥 NOVO: Response de GET /aprovacoes
- */
+/** GET /aprovacoes */
 export interface ListarAprovacoesResponse {
   aprovacoes: AvaliacaoFinal[];
   total: number;
 }
 
-/**
- * 🔥 NOVO: Response de GET /reprovacoes
- */
+/** GET /reprovacoes */
 export interface ListarReprovacoesResponse {
   reprovacoes: AvaliacaoFinal[];
   total: number;
-}
-
-export interface HistoricoCompletoResponse {
-  estudante: EstudanteDetalhado;
-  notas: Nota[];
-  faltas: Falta[];
-  inscricoes: Inscricao[];
-}
-
-export interface Evento {
-  id: number;
-  event_id: string;
-  aggregate_id: string;
-  aggregate_type: string;
-  event_type: string;
-  event_version: number;
-  payload: any;
-  metadata: any;
-  occurred_at: string;
-  recorded_at: string;
-  ledger_hash: string;
-  previous_hash?: string;
 }
 
 export interface EventosEstudanteResponse {
@@ -478,123 +633,77 @@ export interface VerificarIntegridadeResponse {
   message: string;
 }
 
-export interface Curso {
-  id: string;
-  nome: string;
-  type: CursoType;
-  anos_academicos: string[];
-  // 🔥 NOVO: períodos do curso — obrigatório para superior, ausente/vazio para medio
-  periodos?: string[];
-  codigo_academia: string;
-  status: 'ativo' | 'inativo' | 'deletado';
-  deleted_at?: string;
-  created_at: string;
-  updated_at: string;
-  version: number;
+/** GET /academia/ano-letivo */
+export interface AnoLetivoAcademiaResponse {
+  ano_letivo: string;   // ex: "2025_2026"
+  tipo?: string;        // "escola" | "superior"
+  ativado_em?: string;  // ISO timestamp
 }
 
-export interface Materia {
-  id: string;
-  nome: string;
-  type: MateriaType;
-  anos_academicos?: string[];
-  codigo_academia: string;
-  curso_id?: string;
-  /** Apenas matérias do tipo 'superior'. Preenchido via PUT /materias/:id/periodo */
-  periodo?: string;
-  status: 'ativo' | 'inativo' | 'deletado';
-  deleted_at?: string;
-  created_at: string;
-  updated_at: string;
-  version: number;
+/**
+ * @deprecated Substituído por AnoLetivoAcademiaResponse.
+ */
+export interface AnoLetivoResponse {
+  ano_letivo: string;
 }
 
-export interface ListarCursosResponse {
-  cursos: Curso[];
-  total: number;
+export interface DefinirAnoLetivoResponse {
+  message: string;
+  ano_letivo: string;
+  tipo?: string;
 }
 
-export interface ListarMateriasResponse {
-  materias: Materia[];
-  total: number;
-}
-
-// =====================
-// PERFIS E CONSULTAS
-// =====================
-
-export interface EstudanteDetalhado {
-  id: string;
-  nome: string;
+export interface AlterarCursoResponse {
+  message: string;
   codigo_estudante: string;
-  email?: string;
-  telefone?: string;
-  email_verificado: boolean;
-  bilhete_identidade?: string;
-  bilhete_identidade_responsavel?: string;
-  codigo_academia?: string;
-  status: StatusGeral;
-  status_escolar_fundamental: StatusEscolar;
-  status_escolar_medio: StatusEscolar;
-  status_superior: StatusSuperior;
-  ano_escolar?: string;
-  ano_escolar_medio?: string;
-  ano_superior?: string;
-  curso_medio_id?: string;
-  curso_superior_id?: string;
-  created_at: string;
-  updated_at: string;
-  total_notas: number;
-  total_faltas: number;
-  total_inscricoes: number;
-  version: number;
-  genero?: Genero;
+  tipo_ensino: string;
+  curso_id: string;
+  curso_nome: string;
 }
 
-export interface AcademiaDetalhada {
-  id: string;
-  type: AcademiaType;
+export interface AtualizarStatusResponse {
+  message: string;
+  estudante: string;
+  novo_status: string;
+}
+
+/** DELETE /academia/turmas/:codigo */
+export interface DeletarTurmaResponse {
+  message: string;
+  codigo_turma: string;
+  auditavel: true;
+}
+
+/** DELETE /academia/cursos/:id */
+export interface DeletarCursoResponse {
+  message: string;
+  curso_id: string;
   nome: string;
-  codigo_academia: string;
-  provincia: string;
-  endereco: string;
-  numero_telefone?: string;
-  email?: string;
-  email_verificado: boolean;
-  website?: string;
-  nivel_escolar?: NivelEscolar;
-  anos_academicos?: string[];
-  status: string;
-  cursos: string[];
-  created_at: string;
-  updated_at: string;
-  total_estudantes: number;
-  total_inscricoes_pendentes: number;
-  version: number;
-  /** Ano letivo ativo da academia. null/undefined = não configurado (bloqueia registros) */
-  ano_letivo?: string;
-  tipo_ano_letivo?: 'escola' | 'superior';
-  ano_letivo_ativado_em?: string;
+  materias_deletadas: string[];
+  turmas_deletadas: string[];
+  auditavel: true;
 }
 
-export interface AdminDetalhado {
-  id: string;
-  nome: string;
-  email: string;
-  email_verificado: boolean;
-  role: AdminType;
-  status: string;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-  total_acoes_realizadas: number;
-  version: number;
+export interface ListarAdminsResponse {
+  admins: AdminDetalhado[];
+  total: number;
 }
 
+export interface PrimeiroAdminResponse {
+  message: string;
+  admin: AdminDetalhado;
+}
+
+// ── Perfil e consultas ────────────────────────────────────────────────────────
+
+/**
+ * GET /meu-perfil
+ * Retorna { tipo, academia } | { tipo, admin } | { tipo, estudante }
+ */
 export interface MeuPerfilResponse {
   tipo: UserType;
   estudante?: EstudanteDetalhado & {
-    academia_info?: {
+    academia?: {
       codigo: string;
       nome: string;
       tipo: AcademiaType;
@@ -604,46 +713,39 @@ export interface MeuPerfilResponse {
   admin?: AdminDetalhado;
 }
 
+/**
+ * GET /consultar-estudante/:codigo
+ * Handler retorna { estudante: { ...campos, academia?, curso_medio?, curso_superior? } }
+ */
 export interface ConsultarEstudanteResponse {
   estudante: EstudanteDetalhado & {
-    academia_info?: {
+    academia?: {
       codigo: string;
       nome: string;
       tipo: AcademiaType;
-      provincia: string;
-      nivel_escolar?: NivelEscolar;
+    };
+    curso_medio?: {
+      id: string;
+      nome: string;
+      type: CursoType;
+      status: string;
+    };
+    curso_superior?: {
+      id: string;
+      nome: string;
+      type: CursoType;
+      status: string;
     };
   };
-  consultado_por: 'academia' | 'admin';
 }
 
+/**
+ * GET /consultar-academia/:codigo
+ */
 export interface ConsultarAcademiaResponse {
-  academia: AcademiaDetalhada;
-  consultado_por: 'academia' | 'admin';
-  estatisticas_completas?: {
-    total_inscricoes_historico: number;
-    total_notas_registradas: number;
-    total_faltas_registradas: number;
+  academia: AcademiaDetalhada & {
+    motivo_desativacao?: string; // apenas para admin
   };
-}
-
-export interface ConsultarAdminResponse {
-  id: string;
-  nome: string;
-  email: string;
-  email_verificado: boolean;
-  role: AdminType;
-  status: string;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-  total_acoes_realizadas: number;
-  version: number;
-}
-
-export interface BuscarUsuarioResponse {
-  tipo: UserType;
-  dados: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
 }
 
 export interface ConsultarAcademiasResponse {
@@ -660,53 +762,23 @@ export interface ConsultarEstudantesResponse {
   nome_academia?: string;
 }
 
-export interface ListarAdminsResponse {
-  admins: AdminDetalhado[];
-  total: number;
+/**
+ * GET /buscar-usuario?id=UUID (admin only)
+ * Handler retorna { tipo, usuario: DTO }
+ */
+export interface BuscarUsuarioResponse {
+  tipo: UserType;
+  usuario: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
 }
 
-export interface PrimeiroAdminResponse {
-  message: string;
-  admin: AdminDetalhado;
-}
+// ── Event Sourcing / Registros (admin) ───────────────────────────────────────
 
-export interface ListarInscricoesAprovadasResponse {
-  inscricoes: Inscricao[];
-  total: number;
-}
-
-export interface GetInscricoesPorCodigoResponse {
-  inscricoes: Inscricao[];
-  total: number;
-}
-
-export interface AlterarCursoResponse {
-  message: string;
-  estudante: string;
-  curso_anterior?: string;
-  curso_novo: string;
-}
-
-export interface VincularAcademiaResponse {
-  message: string;
-  estudante: string;
-  academia: string;
-}
-
-export interface AtualizarStatusResponse {
-  message: string;
-  estudante: string;
-  novo_status: string;
-}
-
-// =====================
-// EVENT SOURCING
-// =====================
-
+/**
+ * GET /registros (admin) — notas e faltas de todos os estudantes com paginação.
+ */
 export interface RegistroCompleto {
   notas?: Nota[];
   total_notas?: number;
-  // 🔥 NOVO: total geral (sem paginação) retornado pelo backend
   total_notas_geral?: number;
   faltas?: Falta[];
   total_faltas?: number;
@@ -722,50 +794,9 @@ export interface RegistroCompleto {
   filtro_tipo?: string;
 }
 
-export interface RegistrosPorEstudanteResponse {
-  // 🔥 CORRIGIDO: backend retorna codigo_estudante flat, não objeto estudante
-  codigo_estudante: string;
-  notas: Array<{
-    id: string;
-    codigo_academia: string;
-    ano_lectivo: string;
-    periodo: string;
-    materia_disciplinar_id: string;
-    materia_nome: string;
-    nota: number;
-    observacao?: string;
-    registered_at: string;
-  }>;
-  total_notas: number;
-  faltas: Array<{
-    id: string;
-    codigo_academia: string;
-    ano_lectivo: string;
-    data: string;
-    materia_disciplinar_id: string;
-    materia_nome: string;
-    quantidade: number;
-    observacao?: string;
-    registered_at: string;
-  }>;
-  total_faltas: number;
-}
-
-export interface RegistrosPorAcademiaResponse {
-  academia: {
-    codigo: string;
-    nome: string;
-    id: string;
-  };
-  notas: Nota[];
-  total_notas: number;
-  faltas: Falta[];
-  total_faltas: number;
-}
-
 // =====================
-// PROVÍNCIAS 
-// Nota: Nova administração territorial de 2025, 21 províncias, não mexer nas províncias
+// PROVÍNCIAS
+// 21 províncias — administração territorial 2025. Não alterar.
 // =====================
 
 export interface Provincia {
@@ -774,223 +805,59 @@ export interface Provincia {
 }
 
 export type ProvinciaNome =
-  | "BENGO" | "BENGUELA" | "BIE" | "CABINDA" | "CUANDO CUBANGO"
-  | "CUANZA NORTE" | "CUANZA SUL" | "CUBANGO" | "CUNENE" | "HUAMBO"
-  | "HUILA" | "ICOLO E BENGO" | "LUANDA" | "LUNDA NORTE" | "LUNDA SUL"
-  | "MALANJE" | "MOXICO" | "MOXICO LESTE" | "NAMIBE" | "UIGE" | "ZAIRE";
+  | 'BENGO' | 'BENGUELA' | 'BIE' | 'CABINDA' | 'CUANDO CUBANGO'
+  | 'CUANZA NORTE' | 'CUANZA SUL' | 'CUBANGO' | 'CUNENE' | 'HUAMBO'
+  | 'HUILA' | 'ICOLO E BENGO' | 'LUANDA' | 'LUNDA NORTE' | 'LUNDA SUL'
+  | 'MALANJE' | 'MOXICO' | 'MOXICO LESTE' | 'NAMIBE' | 'UIGE' | 'ZAIRE';
 
 export type ProvinciaCodigo =
-  | "BGO" | "BGU" | "BIE" | "CAB" | "CND" | "CNO" | "CUS"
-  | "CBG" | "CNN" | "HUA" | "HUI" | "IBG" | "LUA"
-  | "LNO" | "LSU" | "MAL" | "MOX" | "MXL" | "NAM"
-  | "UIG" | "ZAI";
+  | 'BGO' | 'BGU' | 'BIE' | 'CAB' | 'CND' | 'CNO' | 'CUS'
+  | 'CBG' | 'CNN' | 'HUA' | 'HUI' | 'IBG' | 'LUA'
+  | 'LNO' | 'LSU' | 'MAL' | 'MOX' | 'MXL' | 'NAM'
+  | 'UIG' | 'ZAI';
 
 export const Provincias: Provincia[] = [
-  { nome: "BENGO", codigo: "BGO" },
-  { nome: "BENGUELA", codigo: "BGU" },
-  { nome: "BIE", codigo: "BIE" },
-  { nome: "CABINDA", codigo: "CAB" },
-  { nome: "CUANDO CUBANGO", codigo: "CND" },
-  { nome: "CUANZA NORTE", codigo: "CNO" },
-  { nome: "CUANZA SUL", codigo: "CUS" },
-  { nome: "CUBANGO", codigo: "CBG" },
-  { nome: "CUNENE", codigo: "CNN" },
-  { nome: "HUAMBO", codigo: "HUA" },
-  { nome: "HUILA", codigo: "HUI" },
-  { nome: "ICOLO E BENGO", codigo: "IBG" },
-  { nome: "LUANDA", codigo: "LUA" },
-  { nome: "LUNDA NORTE", codigo: "LNO" },
-  { nome: "LUNDA SUL", codigo: "LSU" },
-  { nome: "MALANJE", codigo: "MAL" },
-  { nome: "MOXICO", codigo: "MOX" },
-  { nome: "MOXICO LESTE", codigo: "MXL" },
-  { nome: "NAMIBE", codigo: "NAM" },
-  { nome: "UIGE", codigo: "UIG" },
-  { nome: "ZAIRE", codigo: "ZAI" },
+  { nome: 'BENGO',          codigo: 'BGO' },
+  { nome: 'BENGUELA',       codigo: 'BGU' },
+  { nome: 'BIE',            codigo: 'BIE' },
+  { nome: 'CABINDA',        codigo: 'CAB' },
+  { nome: 'CUANDO CUBANGO', codigo: 'CND' },
+  { nome: 'CUANZA NORTE',   codigo: 'CNO' },
+  { nome: 'CUANZA SUL',     codigo: 'CUS' },
+  { nome: 'CUBANGO',        codigo: 'CBG' },
+  { nome: 'CUNENE',         codigo: 'CNN' },
+  { nome: 'HUAMBO',         codigo: 'HUA' },
+  { nome: 'HUILA',          codigo: 'HUI' },
+  { nome: 'ICOLO E BENGO',  codigo: 'IBG' },
+  { nome: 'LUANDA',         codigo: 'LUA' },
+  { nome: 'LUNDA NORTE',    codigo: 'LNO' },
+  { nome: 'LUNDA SUL',      codigo: 'LSU' },
+  { nome: 'MALANJE',        codigo: 'MAL' },
+  { nome: 'MOXICO',         codigo: 'MOX' },
+  { nome: 'MOXICO LESTE',   codigo: 'MXL' },
+  { nome: 'NAMIBE',         codigo: 'NAM' },
+  { nome: 'UIGE',           codigo: 'UIG' },
+  { nome: 'ZAIRE',          codigo: 'ZAI' },
 ];
 
-/**
- * Request para definir o ano letivo ativo da academia autenticada.
- * POST /academia/ano-letivo
- */
-export interface DefinirAnoLetivoAcademiaRequest {
-  ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
-  tipo: 'escola' | 'superior';
-}
+// =====================
+// HELPERS
+// =====================
 
 /**
- * @deprecated Substituído por DefinirAnoLetivoAcademiaRequest.
- * Mantido para não quebrar código existente.
- */
-export interface DefinirAnoLetivoRequest {
-  ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
-}
-
-/**
- * Response de GET /academia/ano-letivo
- */
-export interface AnoLetivoAcademiaResponse {
-  ano_letivo: string;       // ex: "2025_2026"
-  tipo?: string;            // "escola" ou "superior"
-  ativado_em?: string;      // ISO timestamp
-}
-
-/**
- * @deprecated Substituído por AnoLetivoAcademiaResponse.
- * Mantido para não quebrar código existente.
- */
-export interface AnoLetivoResponse {
-  ano_letivo: string; // ex: "2025_2026"
-}
-
-export interface DefinirAnoLetivoResponse {
-  message: string;
-  ano_letivo: string;
-  tipo?: string;
-}
-
-// --- Helper ---
-
-/**
- * Converte o formato interno "2025_2026" para exibição "2025/2026"
+ * Converte o formato interno "2025_2026" para exibição "2025/2026".
  */
 export function formatAnoLetivo(valor: string): string {
   return valor.replace('_', '/');
 }
 
 /**
- * Gera as 2 opções de anos letivos relevantes com base no ano atual:
- *  - Opção A: ano anterior → ano atual  (ex: 2024/2025)
- *  - Opção B: ano atual → ano seguinte  (ex: 2025/2026)
+ * Gera as 2 opções de anos letivos relevantes com base no ano actual.
  */
 export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
   const anoAtual = new Date().getFullYear();
-
   return [
     { valor: `${anoAtual - 1}_${anoAtual}`, label: `${anoAtual - 1}/${anoAtual}` },
     { valor: `${anoAtual}_${anoAtual + 1}`, label: `${anoAtual}/${anoAtual + 1}` },
   ];
-}
-
-export type TipoNota = 'escolar' | 'superior';
-
-export type CategoriaNotaEscolar =
-  | 'nota_escola' // nota final
-  | 'nota_professor'; // nota dada pelo professor
-
-export type CategoriaNotaSuperiorFixa =
-  | 'nota_pp1'    // prova parcelar 1
-  | 'nota_pp2'    // prova parcelar 2
-  | 'nota_exame'; // exame
-
-// Categoria pode ser uma das fixas ou qualquer string "nota_[nome]" para adicionais
-export type CategoriaNota =
-  | CategoriaNotaEscolar
-  | CategoriaNotaSuperiorFixa
-  | string; // categorias adicionais criadas pela universidade (formato: nota_[nome])
-
-export interface RegistrarNotasRequest {
-  codigo_estudante: string;
-  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend a partir do ano letivo ativo da academia */
-  periodo: Periodo;
-  materia_disciplinar_id: string;
-  tipo: TipoNota;
-  categoria: CategoriaNota;
-  nota: number;
-  observacao?: string;
-}
-
-export interface AtualizarNotaRequest {
-  id: string;
-  nota_nova: number;
-  observacao: string;
-}
-
-// 🔥 NOVO: Request para PUT /academia/atualizar-falta
-export interface AtualizarFaltaRequest {
-  id: string;
-  data?: string;                   // formato AAAA-MM-DD
-  materia_disciplinar_id?: string; // UUID
-  quantidade?: number;
-  observacao?: string;
-}
-
-export interface CriarCategoriaNotaRequest {
-  nome: string; // formato: nota_[nome]  ex: nota_trabalho
-  descricao?: string;
-}
-
-export interface CategoriaNotaItem {
-  id: string;
-  codigo_academia: string;
-  nome: string;
-  descricao?: string;
-  // 🔥 NOVO: UUID do admin/academia que criou (pode ser null)
-  adicionado_por?: string;
-  status: 'ativo' | 'inativo';
-  created_at: string;
-  version: number;
-}
-
-export interface ListarCategoriasNotaResponse {
-  categorias: CategoriaNotaItem[];
-  total: number;
-}
-
-export type Genero = 'masculino' | 'feminino';
-
-export interface Turma {
-  id: string;
-  codigo_turma: string;
-  codigo_academia: string;
-  nivel: string;
-  curso_id?: string;
-  turno: 'manha' | 'tarde' | 'noite';
-  estudantes: string[];
-  status: 'ativo' | 'inativo' | 'deletado';
-  // 🔥 NOVO: auditoria de mudança de status
-  status_alterado_por?: string;
-  status_alterado_em?: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at?: string;
-  version: number;
-}
-
-export interface ListarTurmasResponse {
-  turmas: Turma[];
-}
-
-export interface CriarTurmaRequest {
-  codigo_turma: string;
-  nivel: string;
-  turno: 'manha' | 'tarde' | 'noite';
-  curso_id?: string;
-}
-
-export interface AtualizarTurmaRequest {
-  nivel?: string;
-  turno?: string;
-  curso_id?: string;
-}
-
-export interface AdicionarEstudanteTurmaRequest {
-  codigo_estudante: string;
-}
-
-/** Response de DELETE /academia/turmas/:codigo */
-export interface DeletarTurmaResponse {
-  message: string;
-  codigo_turma: string;
-  auditavel: true;
-}
-
-/** Response de DELETE /academia/cursos/:id */
-export interface DeletarCursoResponse {
-  message: string;
-  curso_id: string;
-  nome: string;
-  materias_deletadas: string[];
-  turmas_deletadas: string[];
-  auditavel: true;
 }

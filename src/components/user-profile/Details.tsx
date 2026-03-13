@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import { getCookie } from '@/lib/utils/cookies';
@@ -23,12 +23,13 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 export default function UserAddressCard() {
   const { isAcademia, isEstudante } = useUserType();
   const { isOpen, openModal, closeModal } = useModal();
-  const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    (cb) => { cb(); return () => {}; },
+    () => true,
+    () => false,
+  );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
   useEffect(() => {
     if (!mounted) return;
@@ -62,7 +63,7 @@ export default function UserAddressCard() {
   );
 
   const nomeAcademia = useMemo(() => 
-    user?.estudante?.academia_info?.nome || user?.academia?.nome || "",
+    user?.estudante?.academia?.nome || user?.academia?.nome || "",
     [user]
   );
 
@@ -131,13 +132,13 @@ export default function UserAddressCard() {
                     </p>
                   </div>
 
-                  {user.estudante?.academia_info?.tipo && (
+                  {user.estudante?.academia?.tipo && (
                     <div>
                       <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
                         Tipo de Academia
                       </p>
                       <p className="text-sm font-medium text-gray-800 dark:text-white/90 capitalize">
-                        {user.estudante.academia_info.tipo === 'escola' ? 'Escola' : 'Superior'}
+                        {user.estudante.academia.tipo === 'escola' ? 'Escola' : 'Superior'}
                       </p>
                     </div>
                   )}
@@ -256,18 +257,6 @@ export default function UserAddressCard() {
                     </div>
                   )}
 
-                  {user.academia?.total_inscricoes_pendentes !== undefined && user.academia.total_inscricoes_pendentes > 0 && (
-                    <div>
-                      <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                        Inscrições Pendentes
-                      </p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
-                          {user.academia.total_inscricoes_pendentes} pendentes
-                        </span>
-                      </p>
-                    </div>
-                  )}
                 </>
               )}
             </div>
