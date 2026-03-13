@@ -103,7 +103,7 @@ export interface SolicitarInscricaoUniversidadeRequest {
 
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
-  ano_lectivo: string;
+  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend a partir do ano letivo ativo da academia */
   /**
    * Inferido automaticamente pelo backend (estudante fundamental → ano_escolar;
    * médio/superior → nivel da matéria). Pode ser enviado pelo frontend como
@@ -237,12 +237,12 @@ export interface AlterarCursoRequest {
 }
 
 /**
- * 🔥 NOVO: Request para registrar avaliação final do estudante
- * Substitui a lógica anterior de RegistrarAprovacaoAnoRequest para o endpoint /academia/avaliacao-final
+ * 🔥 ATUALIZADO: ano_lectivo removido — resolvido automaticamente pelo backend
+ * a partir do ano letivo ativo da academia autenticada.
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
-  ano_lectivo: string;
+  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend */
   tipo_ensino: 'fundamental' | 'medio' | 'superior';
   /** Nível/ano académico atual do estudante */
   nivel_ano_academico_atual: string;
@@ -256,10 +256,11 @@ export interface RegistrarAvaliacaoFinalRequest {
 /**
  * @deprecated Use RegistrarAvaliacaoFinalRequest para o endpoint /academia/avaliacao-final
  * Mantido para compatibilidade com código existente que usa /academia/aprovacao-ano (rota antiga)
+ * 🔥 ATUALIZADO: ano_lectivo removido — resolvido automaticamente pelo backend.
  */
 export interface RegistrarAprovacaoAnoRequest {
   codigo_estudante: string;
-  ano_lectivo: string;
+  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend */
   tipo_ensino: 'fundamental' | 'medio' | 'superior';
   nivel_atual: string;
   proximo_nivel?: string;
@@ -570,6 +571,10 @@ export interface AcademiaDetalhada {
   total_estudantes: number;
   total_inscricoes_pendentes: number;
   version: number;
+  /** Ano letivo ativo da academia. null/undefined = não configurado (bloqueia registros) */
+  ano_letivo?: string;
+  tipo_ano_letivo?: 'escola' | 'superior';
+  ano_letivo_ativado_em?: string;
 }
 
 export interface AdminDetalhado {
@@ -804,10 +809,36 @@ export const Provincias: Provincia[] = [
   { nome: "ZAIRE", codigo: "ZAI" },
 ];
 
+/**
+ * Request para definir o ano letivo ativo da academia autenticada.
+ * POST /academia/ano-letivo
+ */
+export interface DefinirAnoLetivoAcademiaRequest {
+  ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
+  tipo: 'escola' | 'superior';
+}
+
+/**
+ * @deprecated Substituído por DefinirAnoLetivoAcademiaRequest.
+ * Mantido para não quebrar código existente.
+ */
 export interface DefinirAnoLetivoRequest {
   ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
 }
 
+/**
+ * Response de GET /academia/ano-letivo
+ */
+export interface AnoLetivoAcademiaResponse {
+  ano_letivo: string;       // ex: "2025_2026"
+  tipo?: string;            // "escola" ou "superior"
+  ativado_em?: string;      // ISO timestamp
+}
+
+/**
+ * @deprecated Substituído por AnoLetivoAcademiaResponse.
+ * Mantido para não quebrar código existente.
+ */
 export interface AnoLetivoResponse {
   ano_letivo: string; // ex: "2025_2026"
 }
@@ -815,6 +846,7 @@ export interface AnoLetivoResponse {
 export interface DefinirAnoLetivoResponse {
   message: string;
   ano_letivo: string;
+  tipo?: string;
 }
 
 // --- Helper ---
@@ -859,7 +891,7 @@ export type CategoriaNota =
 
 export interface RegistrarNotasRequest {
   codigo_estudante: string;
-  ano_lectivo: string;
+  /** ano_lectivo NÃO é enviado — resolvido automaticamente pelo backend a partir do ano letivo ativo da academia */
   periodo: Periodo;
   materia_disciplinar_id: string;
   tipo: TipoNota;

@@ -42,9 +42,9 @@ import type {
   RegistroCompleto,
   RegistrosPorEstudanteResponse,
   ListarAdminsResponse,
-  DefinirAnoLetivoRequest,
+  DefinirAnoLetivoAcademiaRequest,
+  AnoLetivoAcademiaResponse,
   DefinirAnoLetivoResponse,
-  AnoLetivoResponse,
   AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   ListarCategoriasNotaResponse,
@@ -184,12 +184,6 @@ export const consultasService = {
   /** GET /estudantes */
   listarEstudantes: (token?: string) =>
     api.get<ConsultarEstudantesResponse>('/estudantes', {
-      token: token || tokenStorage.get() || undefined,
-    }),
-
-  /** GET /ano-letivo-atual */
-  anoLetivoAtual: (token?: string) =>
-    api.get<AnoLetivoResponse>('/ano-letivo-atual', {
       token: token || tokenStorage.get() || undefined,
     }),
 
@@ -396,6 +390,30 @@ export const academiaService = {
     }>(
       '/academia/avaliacao-final',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // ── Ano letivo ────────────────────────────────────────────────────
+
+  /**
+   * Define ou atualiza o ano letivo ativo desta academia.
+   * Sem ano letivo ativo, registros de nota/falta/avaliação/aprovação são bloqueados.
+   * POST /academia/ano-letivo
+   */
+  definirAnoLetivo: (data: DefinirAnoLetivoAcademiaRequest, token?: string) =>
+    api.post<DefinirAnoLetivoResponse>(
+      '/academia/ano-letivo',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Consulta o ano letivo ativo da academia autenticada.
+   * GET /academia/ano-letivo
+   */
+  getAnoLetivo: (token?: string) =>
+    api.get<AnoLetivoAcademiaResponse>(
+      '/academia/ano-letivo',
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -707,17 +725,6 @@ export const adminService = {
     api.get<ListarAdminsResponse>('/dominis/admin-lista', {
       token: token || tokenStorage.get() || undefined,
     }),
-
-  /**
-   * Definir ano letivo (requer role FPP)
-   * POST /dominis/ano-letivo
-   */
-  definirAnoLetivo: (data: DefinirAnoLetivoRequest, token?: string) =>
-    api.post<DefinirAnoLetivoResponse>(
-      '/dominis/ano-letivo',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
 
   /**
    * Métricas do sistema
