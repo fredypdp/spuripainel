@@ -27,23 +27,23 @@ export default function AcademiaSection() {
 
   const [sucesso, setSucesso] = useState(false);
 
+  // ── Override state: só guarda o que o utilizador alterou explicitamente ───
+  // Enquanto null, o valor efectivo vem da API (sem useEffect de sincronização).
+  const [anoDeOverride, setAnoDeOverride] = useState<string | null>(null);
+  const [tipoOverride, setTipoOverride] = useState<
+    "escola" | "superior" | null
+  >(null);
+
+  // Valores derivados: override do utilizador > valor da API > default
+  const anoDeFromApi = anoLetivoData?.ano_letivo?.split("_")[0] ?? "";
+  const tipoFromApi =
+    (anoLetivoData?.tipo as "escola" | "superior" | undefined) ?? "escola";
+
+  const anoDe = anoDeOverride ?? anoDeFromApi;
+  const tipoSelecionado = tipoOverride ?? tipoFromApi;
+
   // ── Dropdown "De" + campo "Até" calculado automaticamente ─────────────────
   const anoAtual = new Date().getFullYear();
-  const [anoDe, setAnoDe] = useState<string>("");
-  const [tipoSelecionado, setTipoSelecionado] = useState<"escola" | "superior">("escola");
-
-  // Pré-preencher quando o ano letivo activo chegar da API
-  useEffect(() => {
-    if (anoLetivoData?.ano_letivo) {
-      const partes = anoLetivoData.ano_letivo.split("_");
-      if (partes.length === 2) setAnoDe(partes[0]);
-    }
-    if (anoLetivoData?.tipo) {
-      setTipoSelecionado(anoLetivoData.tipo as "escola" | "superior");
-    }
-  }, [anoLetivoData?.ano_letivo, anoLetivoData?.tipo]);
-
-  // "De": do anoAtual-10 ao anoAtual
   const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 10 + i);
 
   const anoAteCalculado = anoDe ? String(parseInt(anoDe) + 1) : "";
@@ -64,8 +64,14 @@ export default function AcademiaSection() {
     setSucesso(false);
     if (!valorFormatado) return;
     try {
-      await definirAnoLetivo({ ano_letivo: valorFormatado, tipo: tipoSelecionado });
+      await definirAnoLetivo({
+        ano_letivo: valorFormatado,
+        tipo: tipoSelecionado,
+      });
       setSucesso(true);
+      // Limpar overrides para que a UI mostre o valor recém-guardado vindo da API
+      setAnoDeOverride(null);
+      setTipoOverride(null);
       buscarAnoLetivo();
       setTimeout(() => setSucesso(false), 4000);
     } catch {
@@ -136,7 +142,9 @@ export default function AcademiaSection() {
           {/* Tipo */}
           {anoLetivoData?.tipo && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 dark:text-gray-500">Tipo:</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Tipo:
+              </span>
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded capitalize">
                 {anoLetivoData.tipo}
               </span>
@@ -199,7 +207,7 @@ export default function AcademiaSection() {
                 <select
                   id="al-de"
                   value={anoDe}
-                  onChange={(e) => setAnoDe(e.target.value)}
+                  onChange={(e) => setAnoDeOverride(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
                 >
                   <option value="">Selecione</option>
@@ -247,7 +255,7 @@ export default function AcademiaSection() {
                   id="al-tipo"
                   value={tipoSelecionado}
                   onChange={(e) =>
-                    setTipoSelecionado(e.target.value as "escola" | "superior")
+                    setTipoOverride(e.target.value as "escola" | "superior")
                   }
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
                 >
