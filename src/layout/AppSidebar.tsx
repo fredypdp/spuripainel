@@ -104,7 +104,7 @@ export default function AppSidebar() {
         }
 
         if (item.path === "/configuracoes") {
-          return user.tipo === "admin" && user.admin?.role === "fpp";
+          return user.tipo === "admin" && user.admin?.role === "fpp" || user.tipo === "academia";
         }
       }
       return true;
