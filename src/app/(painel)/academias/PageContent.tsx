@@ -516,10 +516,6 @@ export default function Academias() {
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Estudantes</p>
                       <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_estudantes}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Inscrições Pendentes</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_inscricoes_pendentes ?? 0}</p>
-                    </div>
                     <div className="col-span-2">
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
                       <p className="text-sm text-gray-900 dark:text-white">{formatarData(academiaSelecionada.created_at)}</p>
@@ -616,7 +612,6 @@ export default function Academias() {
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível</TableCell>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Pendentes</TableCell>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
                   <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
                 </TableRow>
@@ -625,7 +620,7 @@ export default function Academias() {
               {carregandoAcademias && (
                 <TableBody>
                   <TableRow>
-                    <TableCell colSpan={9}>
+                    <TableCell colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-12">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
@@ -638,7 +633,7 @@ export default function Academias() {
               {!carregandoAcademias && !carregado && (
                 <TableBody>
                   <TableRow>
-                    <TableCell colSpan={9}>
+                    <TableCell colSpan={8}>
                       <div className="flex flex-col items-center justify-center py-12">
                         <p className="text-gray-400 text-sm">Clique em &quot;Atualizar lista&quot; para carregar as academias</p>
                       </div>
@@ -651,7 +646,7 @@ export default function Academias() {
                 <TableBody>
                   {dataAcademias.academias.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9}>
+                      <TableCell colSpan={8}>
                         <div className="flex flex-col items-center justify-center py-12">
                           <p className="text-gray-400 text-sm">Nenhuma academia encontrada</p>
                         </div>
@@ -677,15 +672,6 @@ export default function Academias() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                           {academia.total_estudantes}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm">
-                          {(academia.total_inscricoes_pendentes ?? 0) > 0 ? (
-                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
-                              {academia.total_inscricoes_pendentes}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">0</span>
-                          )}
                         </TableCell>
                         <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
                           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
