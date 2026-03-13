@@ -504,6 +504,8 @@ export interface EstudanteDetalhado {
   ano_superior?: string;
   curso_medio_id?: string;
   curso_superior_id?: string;
+  total_notas?: number;
+  total_faltas?: number;
   created_at: string;
   updated_at: string;
   version: number;

@@ -1,6 +1,6 @@
 // src/app/(painel)/estudantes/PageContent.tsx
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Genero } from '@/types/api';
 import { useApi, consultasService, estudanteService, tokenStorage, academiaService } from '@/lib/api';
@@ -111,14 +111,14 @@ export default function Estudantes() {
     return false;
   };
 
-  const carregarLista = async () => {
+  const carregarLista = useCallback(async () => {
     try {
       const token = tokenStorage.get();
       await carregarEstudantes(token || undefined);
       setCarregado(true);
     } catch (err) {
     }
-  };
+  }, [carregarEstudantes]);
 
   useEffect(() => {
     if (isOpen && isAcademia) {
@@ -128,6 +128,7 @@ export default function Estudantes() {
         carregarCursos(token || undefined);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isAcademia, user?.academia?.nivel_escolar]);
 
   useEffect(() => {
@@ -149,12 +150,14 @@ export default function Estudantes() {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (anoEscolarSelecionado && !isAnoMedio(anoEscolarSelecionado)) {
       setCursoSelecionado(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anoEscolarSelecionado]);
 
   const validarFormulario = (): boolean => {
@@ -541,10 +544,6 @@ export default function Estudantes() {
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Faltas</p>
                       <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.total_faltas}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Inscrições</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{estudanteSelecionado.total_inscricoes}</p>
-                    </div>
                     <div className="col-span-2">
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
                       <p className="text-sm text-gray-900 dark:text-white">{formatarData(estudanteSelecionado.created_at)}</p>
@@ -660,7 +659,7 @@ export default function Estudantes() {
                           {estudante.total_notas}
                         </TableCell>
                         <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-center text-theme-sm dark:text-gray-400">
-                          {estudante.total_faltas > 0 ? (
+                          {(estudante.total_faltas ?? 0) > 0 ? (
                             <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
                               {estudante.total_faltas}
                             </span>

@@ -83,8 +83,18 @@ export default function Academias() {
   }, [carregarAcademias]);
 
   useEffect(() => {
-    carregarLista();
-  }, [carregarLista]);
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const token = tokenStorage.get();
+        await carregarAcademias(token || undefined);
+        if (isMounted) setCarregado(true);
+      } catch (err) {}
+    };
+    load();
+    return () => { isMounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -508,7 +518,7 @@ export default function Academias() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Inscrições Pendentes</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_inscricoes_pendentes}</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_inscricoes_pendentes ?? 0}</p>
                     </div>
                     <div className="col-span-2">
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
@@ -669,7 +679,7 @@ export default function Academias() {
                           {academia.total_estudantes}
                         </TableCell>
                         <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm">
-                          {academia.total_inscricoes_pendentes > 0 ? (
+                          {(academia.total_inscricoes_pendentes ?? 0) > 0 ? (
                             <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
                               {academia.total_inscricoes_pendentes}
                             </span>
