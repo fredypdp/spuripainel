@@ -181,14 +181,14 @@ export default function MateriaPainel() {
   // Modal: confirmar delete
   const [materiaParaDelete, setMateriaParaDelete] = useState<Materia | null>(null);
 
-  const { execute: executarCriarMateria,      loading: criandoMateria }    = useApi(academiaService.criarMateria);
-  const { execute: executarAtualizarMateria,  loading: atualizandoMateria } = useApi(academiaService.atualizarMateria);
-  const { execute: executarListarMaterias,    data: materias, loading: ListandoMaterias } = useApi(academiaService.listarMaterias);
-  const { execute: executarListarCursos,      data: cursos,   loading: ListandoCursos   } = useApi(academiaService.listarCursos);
-  const { execute: executarAtivarMateria }    = useApi(academiaService.ativarMateria);
+  const { execute: executarCriarMateria, loading: criandoMateria } = useApi(academiaService.criarMateria);
+  const { execute: executarAtualizarMateria, loading: atualizandoMateria } = useApi(academiaService.atualizarMateria);
+  const { execute: executarListarMaterias, data: materias, loading: ListandoMaterias } = useApi(academiaService.listarMaterias);
+  const { execute: executarListarCursos, data: cursos, loading: ListandoCursos } = useApi(academiaService.listarCursos);
+  const { execute: executarAtivarMateria } = useApi(academiaService.ativarMateria);
   const { execute: executarDesativarMateria } = useApi(academiaService.desativarMateria);
-  const { execute: executarDefinirPeriodo }   = useApi(academiaService.definirPeriodoMateria);
-  const { execute: executarDeletarMateria }   = useApi(academiaService.deletarMateria);
+  const { execute: executarDefinirPeriodo } = useApi(academiaService.definirPeriodoMateria);
+  const { execute: executarDeletarMateria } = useApi(academiaService.deletarMateria);
 
   const isAcademiaMista = () =>
     user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "misto";

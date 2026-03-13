@@ -109,32 +109,34 @@ export default function TurmasPainel() {
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
   // UI state
-  const [expandedTurma,  setExpandedTurma]  = useState<string | null>(null);
-  const [expandedNivel,  setExpandedNivel]  = useState<string | null>(null);
-  const [expandedCurso,  setExpandedCurso]  = useState<string | null>(null);
-  const [showForm,       setShowForm]       = useState(false);
-  const [editingTurma,   setEditingTurma]   = useState<Turma | null>(null);
+  const [expandedTurma, setExpandedTurma] = useState<string | null>(null);
+  const [expandedNivel, setExpandedNivel] = useState<string | null>(null);
+  const [expandedCurso, setExpandedCurso] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
   const [turmaParaDelete, setTurmaParaDelete] = useState<Turma | null>(null);
-  const [formData,       setFormData]       = useState<TurmaFormData>({ codigo_turma: "", nivel: "", turno: "manha" });
-  const [addingTo,       setAddingTo]       = useState<string | null>(null);
-  const [codigoAdd,      setCodigoAdd]      = useState("");
-  const [alert, setAlert] = useState<{ variant: "success"|"error"|"warning"|"info"; message: string }|null>(null);
+  const [formData, setFormData] = useState<TurmaFormData>({ codigo_turma: "", nivel: "", turno: "manha" });
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [codigoAdd, setCodigoAdd] = useState("");
+  const [alert, setAlert] = useState<{variant: "success"|"error"|"warning"|"info"; message: string }|null>(null);
 
   // APIs
-  const { execute: listarTurmas,       data: dataTurmas,    loading: carregando  } = useApi(academiaService.listarTurmas);
-  const { execute: listarCursos,       data: dataCursos                           } = useApi(academiaService.listarCursos);
-  const { execute: listarEstudantes,   data: dataEstudantes                       } = useApi(consultasService.listarEstudantes);
-  const { execute: criarTurma,         loading: criando     } = useApi(academiaService.criarTurma);
-  const { execute: atualizarTurma,     loading: atualizando } = useApi(academiaService.atualizarTurma);
+  const { execute: listarTurmas, data: dataTurmas, loading: carregando  } = useApi(academiaService.listarTurmas);
+  const { execute: listarCursos, data: dataCursos } = useApi(academiaService.listarCursos);
+  const { execute: listarEstudantes, data: dataEstudantes } = useApi(consultasService.listarEstudantes);
+  const { execute: criarTurma, loading: criando } = useApi(academiaService.criarTurma);
+  const { execute: atualizarTurma, loading: atualizando } = useApi(academiaService.atualizarTurma);
+  const { execute: ativarTurma } = useApi(academiaService.ativarTurma);
+  const { execute: desativarTurma } = useApi(academiaService.desativarTurma);
   const { execute: adicionarEstudante, loading: adicionando } = useApi(academiaService.adicionarEstudanteATurma);
-  const { execute: removerEstudante,   loading: removendo   } = useApi(academiaService.removerEstudanteDaTurma);
-  const { execute: executarDeletarTurma                      } = useApi(academiaService.deletarTurma);
+  const { execute: removerEstudante, loading: removendo } = useApi(academiaService.removerEstudanteDaTurma);
+  const { execute: executarDeletarTurma } = useApi(academiaService.deletarTurma);
 
   useEffect(() => {
     const t = tokenStorage.get() ?? undefined;
     listarTurmas(t);
     listarCursos(t);
-    listarEstudantes(undefined, t);
+    listarEstudantes(t);
   }, []);
 
   const showMsg = (variant: "success"|"error"|"warning"|"info", msg: string) => {
@@ -263,6 +265,22 @@ export default function TurmasPainel() {
     }
   };
 
+  const handleToggleStatus = async (turma: Turma) => {
+    const t = tokenStorage.get() ?? undefined;
+    try {
+      if (turma.status === "ativo") {
+        await desativarTurma(turma.codigo_turma, t);
+        showMsg("success", "Turma desativada");
+      } else {
+        await ativarTurma(turma.codigo_turma, t);
+        showMsg("success", "Turma ativada");
+      }
+      reload();
+    } catch (e: any) {
+      showMsg("error", e?.message ?? "Erro ao alterar status da turma");
+    }
+  };
+
   // ── TurmaCard ────────────────────────────────────────────────────────
 
   const TurmaCard = ({ turma }: { turma: Turma }) => {
@@ -296,13 +314,28 @@ export default function TurmasPainel() {
               {turma.estudantes.length}
             </span>
             {turma.status !== "deletado" && (
-              <button
-                onClick={() => handleEdit(turma)}
-                className="p-1.5 text-gray-400 hover:text-brand-500 transition-colors"
-                title="Editar"
-              >
-                <Icon icon="mdi:pencil" className="w-4 h-4" />
-              </button>
+              <>
+                {/* Ativar / Desativar */}
+                <button
+                  onClick={() => handleToggleStatus(turma)}
+                  className={`p-1.5 transition-colors ${
+                    turma.status === "ativo"
+                      ? "text-gray-400 hover:text-orange-500"
+                      : "text-gray-400 hover:text-green-500"
+                  }`}
+                  title={turma.status === "ativo" ? "Desativar turma" : "Ativar turma"}
+                >
+                  <Icon icon={turma.status === "ativo" ? "mdi:pause-circle-outline" : "mdi:play-circle-outline"} className="w-4 h-4" />
+                </button>
+                {/* Editar */}
+                <button
+                  onClick={() => handleEdit(turma)}
+                  className="p-1.5 text-gray-400 hover:text-brand-500 transition-colors"
+                  title="Editar"
+                >
+                  <Icon icon="mdi:pencil" className="w-4 h-4" />
+                </button>
+              </>
             )}
             {/* Botão Deletar — só turmas inativas sem estudantes */}
             {turma.status === "inativo" && turma.estudantes.length === 0 && (

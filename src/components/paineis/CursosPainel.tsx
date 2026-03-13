@@ -119,12 +119,12 @@ export default function CursosPainel() {
     anos_academicos: [],
   });
 
-  const { execute: executarListarCursos,   data: cursos,         loading: ListandoCursos   } = useApi(academiaService.listarCursos);
-  const { execute: executarCriarCurso,                           loading: CriandoCurso     } = useApi(academiaService.criarCurso);
-  const { execute: executarAtualizarCurso,                       loading: AtualizandoCurso } = useApi(academiaService.atualizarCurso);
-  const { execute: executarAtivarCurso,    error: erroAtivarCurso                          } = useApi(academiaService.ativarCurso);
-  const { execute: executarDesativarCurso, error: erroDesativarCurso                       } = useApi(academiaService.desativarCurso);
-  const { execute: executarDeletarCurso                                                    } = useApi(academiaService.deletarCurso);
+  const { execute: executarListarCursos, data: cursos, loading: ListandoCursos   } = useApi(academiaService.listarCursos);
+  const { execute: executarCriarCurso, loading: CriandoCurso } = useApi(academiaService.criarCurso);
+  const { execute: executarAtualizarCurso, loading: AtualizandoCurso } = useApi(academiaService.atualizarCurso);
+  const { execute: executarAtivarCurso, error: erroAtivarCurso } = useApi(academiaService.ativarCurso);
+  const { execute: executarDesativarCurso, error: erroDesativarCurso } = useApi(academiaService.desativarCurso);
+  const { execute: executarDeletarCurso } = useApi(academiaService.deletarCurso);
 
   useEffect(() => {
     executarListarCursos();
