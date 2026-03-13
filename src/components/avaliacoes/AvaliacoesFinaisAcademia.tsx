@@ -1,6 +1,6 @@
 // src/components/avaliacoes/AvaliacoesFinaisAcademia.tsx
 "use client"
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
   MeuPerfilResponse, AvaliacaoFinal, Turma, Curso,
@@ -142,7 +142,7 @@ function TabelaResultadosTurma({
     const av = avaliacoes.find(a =>
       a.codigo_estudante === cod &&
       a.ano_lectivo === anoLetivo &&
-      a.nivel_ano_academico_atual === anoAcademico
+      a.ano_academico_atual === anoAcademico
     );
     return { cod, est, av };
   });
@@ -221,12 +221,26 @@ export default function AvaliacoesFinaisAcademia() {
     carregarCursos(token);
     carregarEstudantes(undefined, token);
     carregarAvaliacoes({ token });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const turmas: Turma[] = (dataTurmas as any)?.turmas ?? [];
-  const cursos: Curso[] = (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [];
-  const estudantes: EstudanteDetalhado[] = (dataEstudantes as any)?.estudantes ?? [];
-  const todasAvaliacoes: AvaliacaoFinal[] = (dataAvaliacoes as any)?.avaliacoes ?? [];
+  const turmas: Turma[] = useMemo(
+    () => (dataTurmas as any)?.turmas ?? [],
+    [dataTurmas]
+  );
+  const cursos: Curso[] = useMemo(
+    () => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [],
+    [dataCursos]
+  );
+  const estudantes: EstudanteDetalhado[] = useMemo(
+    () => (dataEstudantes as any)?.estudantes ?? [],
+    [dataEstudantes]
+  );
+
+  const todasAvaliacoes: AvaliacaoFinal[] = useMemo(
+    () => (dataAvaliacoes as any)?.avaliacoes ?? [],
+    [dataAvaliacoes]
+  );
 
   // Carrega avaliações de todos os estudantes de uma turma se ainda não estiver em cache
   async function carregarAvalTurma(turma: Turma) {
@@ -241,11 +255,12 @@ export default function AvaliacoesFinaisAcademia() {
   }
 
   // Avaliações da academia filtradas
-  const avsDaAcademia = (anoLetivo?: string, anoAcademico?: string) =>
+  const avsDaAcademia = useCallback((anoLetivo?: string, anoAcademico?: string) =>
     todasAvaliacoes.filter(a =>
       (!anoLetivo || a.ano_lectivo === anoLetivo) &&
-      (!anoAcademico || a.nivel_ano_academico_atual === anoAcademico)
-    );
+      (!anoAcademico || a.ano_academico_atual === anoAcademico)
+    ),
+  [todasAvaliacoes]);
 
   // Anos letivos únicos (dos mais antigos aos mais recentes)
   const anosLetivos = useMemo(() => {
@@ -296,6 +311,15 @@ export default function AvaliacoesFinaisAcademia() {
     return [];
   }
 
+  // anos com turmas para o layer "fund/anos_academicos" — deve ficar no nível do componente
+  const anoLetivoPараFund = layer.mode === "fund" && layer.type === "anos_academicos" ? layer.anoLetivo : undefined;
+  const anosComTurmas = useMemo(() => {
+    if (!anoLetivoPараFund) return [];
+    const avsDoAno = avsDaAcademia(anoLetivoPараFund);
+    const niveis = new Set(avsDoAno.map(a => a.ano_academico_atual));
+    return ANOS_FUNDAMENTAL.filter(a => turmas.some(t => t.nivel === a) && niveis.has(a));
+  }, [anoLetivoPараFund, avsDaAcademia, turmas]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -344,13 +368,6 @@ export default function AvaliacoesFinaisAcademia() {
   // ── Fundamental: Anos Académicos ──
   if (layer.mode === "fund" && layer.type === "anos_academicos") {
     const { anoLetivo } = layer;
-    // Descobrir quais anos académicos têm turmas com avaliações neste ano letivo
-    const anosComTurmas = useMemo(() => {
-      const avsDoAno = avsDaAcademia(anoLetivo);
-      const niveis = new Set(avsDoAno.map(a => a.nivel_ano_academico_atual));
-      return ANOS_FUNDAMENTAL.filter(a => turmas.some(t => t.nivel === a) && niveis.has(a));
-    }, [anoLetivo, todasAvaliacoes, turmas]);
-
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
@@ -382,7 +399,7 @@ export default function AvaliacoesFinaisAcademia() {
           ? <p className="text-gray-400 text-sm">Nenhuma turma neste ano.</p>
           : <div className="grid gap-3 sm:grid-cols-2">
             {ts.map(t => {
-              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.nivel_ano_academico_atual === anoAcademico);
+              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
               const aprov = avs.filter(a => a.aprovado).length;
               return <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${aprov}/${avs.length} aprovações`} badge={t.turno} onClick={async () => { await carregarAvalTurma(t); setLayer({ mode: "fund", type: "resultados", anoLetivo, anoAcademico, turma: t }); }} />;
             })}
@@ -395,7 +412,7 @@ export default function AvaliacoesFinaisAcademia() {
   // ── Fundamental: Resultados ──
   if (layer.mode === "fund" && layer.type === "resultados") {
     const { anoLetivo, anoAcademico, turma } = layer;
-    const avs = todasAvaliacoes.filter(a => turma.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.nivel_ano_academico_atual === anoAcademico);
+    const avs = todasAvaliacoes.filter(a => turma.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
@@ -461,7 +478,7 @@ export default function AvaliacoesFinaisAcademia() {
     const turmasDoCurso = turmas.filter(t => t.curso_id === curso.id);
     const estudsDoCurso = new Set(turmasDoCurso.flatMap(t => t.estudantes));
     const anosComAvs = anosOrdenados.filter(ano =>
-      todasAvaliacoes.some(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.nivel_ano_academico_atual === ano)
+      todasAvaliacoes.some(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === ano)
     );
     const avsDoAno = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo);
     return (
@@ -473,7 +490,7 @@ export default function AvaliacoesFinaisAcademia() {
           ? <p className="text-gray-400 text-sm py-6 text-center">Nenhum ano académico com avaliações registadas.</p>
           : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anosComAvs.map(ano => {
-              const avs = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.nivel_ano_academico_atual === ano);
+              const avs = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === ano);
               const aprov = avs.filter(a => a.aprovado).length;
               return <CardBtn key={ano} icon="mdi:calendar-school" title={labelNivel(ano, !isSuperior)} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, anoLetivo, anoAcademico: ano })} />;
             })}
@@ -495,7 +512,7 @@ export default function AvaliacoesFinaisAcademia() {
           ? <p className="text-gray-400 text-sm">Nenhuma turma neste ano.</p>
           : <div className="grid gap-3 sm:grid-cols-2">
             {ts.map(t => {
-              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.nivel_ano_academico_atual === anoAcademico);
+              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
               const aprov = avs.filter(a => a.aprovado).length;
               return <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${aprov}/${avs.length} aprovações`} badge={t.turno} onClick={async () => { await carregarAvalTurma(t); setLayer({ mode: "sup", type: "resultados", curso, anoLetivo, anoAcademico, turma: t }); }} />;
             })}
@@ -508,7 +525,7 @@ export default function AvaliacoesFinaisAcademia() {
   // ── Sup/Médio: Resultados ──
   if (layer.mode === "sup" && layer.type === "resultados") {
     const { curso, anoLetivo, anoAcademico, turma } = layer;
-    const avs = todasAvaliacoes.filter(a => turma.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.nivel_ano_academico_atual === anoAcademico);
+    const avs = todasAvaliacoes.filter(a => turma.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />

@@ -252,10 +252,9 @@ function ModalGestao({
     const n = Number(nota);
     if (isNaN(n) || n < 0 || n > 20) { setError("Nota deve estar entre 0 e 20."); return; }
     try {
-      // ano_academico não enviado — backend determina com base no estudante
+      // ano_lectivo não enviado — backend determina com base no ano letivo ativo da academia
       await onRegistrar({
         codigo_estudante: codigoEst,
-        ano_lectivo: anoLectivo,
         periodo: periodo as any,
         materia_disciplinar_id: materiaId,
         tipo: tipoNota,
@@ -403,7 +402,7 @@ export default function NotasAcademia() {
   const { data:dataEstudantes, execute:carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data:dataMaterias,   execute:carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data:dataCategorias, execute:carregarCategorias } = useApi(academiaService.listarCategoriasNota);
-  const { data:dataAnoLetivo,  execute:buscarAnoLetivo    } = useApi(consultasService.anoLetivoAtual);
+  const { data:dataAnoLetivo,  execute:buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
 
   const [notasCache, setNotasCache] = useState<Record<string, Nota[]>>({});
   const { isOpen, openModal, closeModal } = useModal();
@@ -423,7 +422,7 @@ export default function NotasAcademia() {
   const estudantes: EstudanteDetalhado[] = (dataEstudantes as any)?.estudantes ?? [];
   const materias                         = (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [];
   const categorias                       = dataCategorias?.categorias ?? [];
-  const anoLectivo                       = dataAnoLetivo?.ano_letivo ?? "";
+  const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
 
   function showAlert(variant: "success"|"error", message: string) {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);

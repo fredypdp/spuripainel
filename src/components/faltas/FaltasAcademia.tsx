@@ -13,41 +13,35 @@ import { useModal } from "@/hooks/useModal";
 import { Dropdown } from 'primereact/dropdown';
 import DatePicker from "@/components/form/date-picker";
 
-/** Retorna o ano acadêmico atual do estudante conforme os campos disponíveis. */
-function getAnoAcademicoEstudante(est: EstudanteDetalhado): string {
-  return est.ano_escolar_medio ?? est.ano_escolar ?? est.ano_superior ?? "";
-}
-
 export default function FaltasAcademia() {
   const { isOpen, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [codigoEstudante, setCodigoEstudante] = useState("");
-  const [anoLectivo, setAnoLectivo] = useState(new Date().getFullYear().toString());
-  const [anoAcademico, setAnoAcademico] = useState(""); // 🆕
   const [data, setData] = useState(new Date().toISOString().split('T')[0]);
   const [materiaId, setMateriaId] = useState<string>("");
   const [quantidade, setQuantidade] = useState("");
   const [observacao, setObservacao] = useState("");
-  
-  const { 
-    execute: executarRegistrarFalta, 
-    loading: registrandoFalta 
+
+  const {
+    execute: executarRegistrarFalta,
+    loading: registrandoFalta
   } = useApi(academiaService.registrarFaltas);
-  
-  const { 
-    data: dataMaterias, 
-    execute: carregarMaterias 
+
+  const {
+    data: dataMaterias,
+    execute: carregarMaterias
   } = useApi(academiaService.listarMaterias);
-  
-  const { 
-    data: dataEstudantes, 
-    execute: carregarEstudantes 
+
+  const {
+    data: dataEstudantes,
+    execute: carregarEstudantes
   } = useApi(consultasService.listarEstudantes);
 
   useEffect(() => {
     const token = tokenStorage.get();
     carregarMaterias(token || undefined);
     carregarEstudantes(token || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showAlert = (variant: "success" | "error" | "warning" | "info", message: string) => {
@@ -55,21 +49,10 @@ export default function FaltasAcademia() {
     setTimeout(() => setAlert(null), 5000);
   };
 
-  // 🆕 Ao selecionar estudante, pré-preenche ano acadêmico
-  const handleSelecionarEstudante = (codigo: string) => {
-    setCodigoEstudante(codigo);
-    const est = dataEstudantes?.estudantes?.find(e => e.codigo_estudante === codigo);
-    if (est) {
-      setAnoAcademico(getAnoAcademicoEstudante(est));
-    } else {
-      setAnoAcademico("");
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!codigoEstudante || !anoLectivo || !anoAcademico || !data || !materiaId || !quantidade) {
+
+    if (!codigoEstudante || !data || !materiaId || !quantidade) {
       showAlert("error", "Preencha todos os campos obrigatórios");
       return;
     }
@@ -81,10 +64,9 @@ export default function FaltasAcademia() {
     }
 
     try {
+      // O backend infere ano_lectivo e ano_academico automaticamente
       const payload: RegistrarFaltasRequest = {
         codigo_estudante: codigoEstudante,
-        ano_lectivo: anoLectivo,
-        ano_academico: anoAcademico, // 🆕
         data: data,
         materia_disciplinar_id: materiaId,
         quantidade: qtd,
@@ -93,10 +75,8 @@ export default function FaltasAcademia() {
 
       await executarRegistrarFalta(payload);
       showAlert("success", "Falta registrada com sucesso!");
-      
-      // Limpar formulário
+
       setCodigoEstudante("");
-      setAnoAcademico(""); // 🆕
       setData(new Date().toISOString().split('T')[0]);
       setMateriaId("");
       setQuantidade("");
@@ -109,7 +89,6 @@ export default function FaltasAcademia() {
 
   const handleOpenModal = () => {
     setCodigoEstudante("");
-    setAnoAcademico(""); // 🆕
     setData(new Date().toISOString().split('T')[0]);
     setMateriaId("");
     setQuantidade("");
@@ -138,8 +117,8 @@ export default function FaltasAcademia() {
           </p>
         </div>
 
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           startIcon={<Icon icon="mdi:plus" />}
           onClick={handleOpenModal}
         >
@@ -159,7 +138,7 @@ export default function FaltasAcademia() {
               <li>Registre a data específica em que ocorreram as faltas</li>
               <li>Informe a quantidade de aulas faltadas naquele dia</li>
               <li>Selecione a matéria correspondente</li>
-              <li>O ano académico é preenchido automaticamente com base no estudante</li>
+              <li>O ano letivo e ano académico são inferidos automaticamente pelo sistema</li>
               <li>Adicione observações se necessário (justificativa, etc.)</li>
             </ul>
           </div>
@@ -179,7 +158,7 @@ export default function FaltasAcademia() {
               <Dropdown
                 value={codigoEstudante}
                 options={dataEstudantes?.estudantes || []}
-                onChange={(e) => handleSelecionarEstudante(e.value)} // 🆕
+                onChange={(e) => setCodigoEstudante(e.value)}
                 optionLabel="nome"
                 optionValue="codigo_estudante"
                 filter
@@ -191,16 +170,6 @@ export default function FaltasAcademia() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Ano Lectivo *</Label>
-                <Input
-                  type="text"
-                  placeholder="Ex: 2024"
-                  defaultValue={anoLectivo}
-                  onChange={(e) => setAnoLectivo(e.target.value)}
-                />
-              </div>
-
-              <div>
                 <Label>Quantidade de Aulas *</Label>
                 <Input
                   type="number"
@@ -210,35 +179,20 @@ export default function FaltasAcademia() {
                   onChange={(e) => setQuantidade(e.target.value)}
                 />
               </div>
-            </div>
 
-            {/* 🆕 Campo Ano Académico */}
-            <div>
-              <Label>Ano Académico *</Label>
-              <Input
-                type="text"
-                placeholder="Ex: primeiro_fundamental, segundo_medio"
-                onChange={(e) => setAnoAcademico(e.target.value)}
-              />
-              {anoAcademico && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Preenchido automaticamente com base no estudante. Pode ser corrigido se necessário.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <DatePicker
-                id="data-falta"
-                label="Data da Falta *"
-                placeholder="Selecione a data"
-                defaultDate={data}
-                onChange={(selectedDates) => {
-                  if (selectedDates && selectedDates.length > 0) {
-                    setData(selectedDates[0].toISOString().split('T')[0]);
-                  }
-                }}
-              />
+              <div>
+                <DatePicker
+                  id="data-falta"
+                  label="Data da Falta *"
+                  placeholder="Selecione a data"
+                  defaultDate={data}
+                  onChange={(selectedDates) => {
+                    if (selectedDates && selectedDates.length > 0) {
+                      setData(selectedDates[0].toISOString().split('T')[0]);
+                    }
+                  }}
+                />
+              </div>
             </div>
 
             <div>
