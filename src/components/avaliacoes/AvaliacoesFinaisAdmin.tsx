@@ -140,7 +140,7 @@ function AcademiaView({
     avsAcad.filter(a =>
       a.tipo_ensino === tipoEnsino &&
       (!anoLetivo || a.ano_lectivo === anoLetivo) &&
-      (!anoAcademico || a.nivel_ano_academico_atual === anoAcademico)
+      (!anoAcademico || a.ano_academico_atual === anoAcademico)
     );
 
   const tiposEnsino = useMemo(() => {
@@ -210,7 +210,7 @@ function AcademiaView({
   if (subLayer.type === "anos_academicos") {
     const { tipoEnsino, anoLetivo } = subLayer;
     const avsDoAno = avsFiltradas(tipoEnsino, anoLetivo);
-    const anos = Array.from(new Set(avsDoAno.map(a => a.nivel_ano_academico_atual)))
+    const anos = Array.from(new Set(avsDoAno.map(a => a.ano_academico_atual)))
       .sort((a, b) => ORDEM_NIVEIS.indexOf(a) - ORDEM_NIVEIS.indexOf(b));
     return (
       <div className="space-y-4">
@@ -260,7 +260,7 @@ function AcademiaView({
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                   {avs.map(a => (
                     <tr key={a.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudantesMap[a.codigo_estudante]?.nome ?? a.nome_estudante ?? a.codigo_estudante}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudantesMap[a.codigo_estudante]?.nome ?? a.codigo_estudante}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs font-mono">{a.codigo_estudante}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><BadgeResultado aprovado={a.aprovado} /></td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{a.proximo_ano_academico ? labelNivel(a.proximo_ano_academico) : (a.aprovado ? "Ciclo finalizado" : "—")}</td>

@@ -123,12 +123,12 @@ function TabelaAvaliacoes({ avaliacoes }: { avaliacoes: AvaliacaoFinal[] }) {
     );
   }
 
-  // Ordenar por nivel_ano_academico_atual usando a ordem pedagógica
+  // Ordenar por ano_academico_atual usando a ordem pedagógica
   const ordemNiveis = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO,
     "primeiro_ano","segundo_ano","terceiro_ano","quarto_ano","quinto_ano","sexto_ano"];
   const sorted = [...avaliacoes].sort((a, b) => {
-    const ia = ordemNiveis.indexOf(a.nivel_ano_academico_atual);
-    const ib = ordemNiveis.indexOf(b.nivel_ano_academico_atual);
+    const ia = ordemNiveis.indexOf(a.ano_academico_atual);
+    const ib = ordemNiveis.indexOf(b.ano_academico_atual);
     if (ia !== ib) return ia - ib;
     return new Date(a.registered_at).getTime() - new Date(b.registered_at).getTime();
   });
@@ -148,7 +148,7 @@ function TabelaAvaliacoes({ avaliacoes }: { avaliacoes: AvaliacaoFinal[] }) {
             <tr key={a.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
               <td className="px-4 py-3 text-gray-400 text-xs font-mono">{idx + 1}</td>
               <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                {labelNivel(a.nivel_ano_academico_atual)}
+                {labelNivel(a.ano_academico_atual)}
               </td>
               <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap font-mono text-xs">
                 {a.ano_lectivo.replace("_", "/")}
@@ -191,7 +191,7 @@ export default function AvaliacoesFinaisEstudante() {
   // Determinar quais níveis o estudante já fez parte
   const niveisPresentes = useMemo((): NivelEnsino[] => {
     const set = new Set<NivelEnsino>();
-    todasAvaliacoes.forEach(a => set.add(nivelTipo(a.nivel_ano_academico_atual)));
+    todasAvaliacoes.forEach(a => set.add(nivelTipo(a.ano_academico_atual)));
 
     // Também incluir o nível atual do estudante (mesmo sem avaliações ainda)
     const est = user?.estudante;
@@ -205,7 +205,7 @@ export default function AvaliacoesFinaisEstudante() {
   }, [todasAvaliacoes, user]);
 
   const avaliacoesPorNivel = (nivel: NivelEnsino) =>
-    todasAvaliacoes.filter(a => nivelTipo(a.nivel_ano_academico_atual) === nivel);
+    todasAvaliacoes.filter(a => nivelTipo(a.ano_academico_atual) === nivel);
 
   const nivelInfo: Record<NivelEnsino, { label: string; sub: string; icon: string }> = {
     fundamental: { label: "Ensino Fundamental", sub: "1º ao 9º Ano", icon: "mdi:school" },
