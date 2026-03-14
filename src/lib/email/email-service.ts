@@ -144,8 +144,8 @@ class EmailService {
               <p>Olá, <strong>${userName}</strong>!</p>
               <p>Obrigado por se registrar no Spuri. Para complementar o seu cadastro, precisamos verificar o seu endereço de e-mail.</p>
               <p>Clique no botão abaixo para verificar sua conta:</p>
-              <div style="color: #ffffff; text-align: center;">
-                <a href="${verificationUrl}" class="button">Verificar E-mail</a>
+              <div style="text-align: center;">
+                <a href="${verificationUrl}" style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: #ffffff !important; text-decoration: none; border-radius: 6px; margin: 20px 0; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold;">Verificar E-mail</a>
               </div>
               <p>Ou copie e cole este link no seu navegador:</p>
               <p style="background-color: #e5e7eb; padding: 10px; border-radius: 4px; word-break: break-all;">
