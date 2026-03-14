@@ -10,46 +10,38 @@ import type {
 } from '@/types/email-auth';
 
 class EmailAuthService {
-  /**
-   * Gera token de verificação de email
-   * Backend retorna o token para o frontend enviar o email
-   */
-  async gerarTokenVerificacao(data: GerarTokenVerificacaoRequest): Promise<TokenResponse> {
-    const payload = {
-      identificador: data.identificador,
-      tipo: data.tipo,
-    };
-    
-    return api.post<TokenResponse>('/gerar-token/verificacao', payload);
+
+  // Requer JWT — usuário logado solicitando verificação do próprio email
+  async gerarTokenVerificacao(
+    data: GerarTokenVerificacaoRequest,
+    authHeader?: string  // ← "Bearer <token>" vindo do route.ts
+  ): Promise<TokenResponse> {
+    // Extrai o token puro do header "Bearer <token>"
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader;
+
+    return api.post<TokenResponse>(
+      '/email/gerar-token/verificacao',
+      {},                  // body vazio — o backend usa o JWT para identificar o usuário
+      { token }            // ← passa via FetchOptions para o Authorization header
+    );
   }
 
-  /**
-   * Gera token de recuperação de senha
-   * Backend retorna o token para o frontend enviar o email
-   */
+  // Pública — usuário esqueceu a senha, passa identificador + tipo no body
   async gerarTokenRecuperacao(data: GerarTokenRecuperacaoRequest): Promise<TokenResponse> {
-    const payload = {
+    return api.post<TokenResponse>('/email/gerar-token/recuperacao', {
       identificador: data.identificador,
       tipo: data.tipo,
-    };
-    
-    return api.post<TokenResponse>('/gerar-token/recuperacao', payload);
+    });
   }
 
-  /**
-   * Verifica email usando o token
-   * Marca o email como verificado no banco
-   */
   async verificarEmail(token: string): Promise<VerificarEmailResponse> {
-    return api.post<VerificarEmailResponse>(`/verificar-email/${token}`, {});
+    return api.post<VerificarEmailResponse>(`/email/verificar-email/${token}`, {});
   }
-  
-  /**
-   * Reseta senha usando o token
-   * Retorna a senha padrão gerada pelo backend
-   */
+
   async resetarSenha(token: string): Promise<ResetarSenhaResponse> {
-    return api.post<ResetarSenhaResponse>(`/recuperar-senha/${token}`, {});
+    return api.post<ResetarSenhaResponse>(`/email/recuperar-senha/${token}`, {});
   }
 }
 

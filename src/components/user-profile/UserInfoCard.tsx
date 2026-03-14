@@ -108,7 +108,7 @@ export default function UserInfoCard() {
         throw new Error('Email não cadastrado');
       }
       
-      const res = await VerificarEmailComFrontend(userIdentificador, user.tipo);      
+      const res = await VerificarEmailComFrontend(userIdentificador, user.tipo);     
       setEmailEnviado(res.success || true);
       
     } catch (error: any) {

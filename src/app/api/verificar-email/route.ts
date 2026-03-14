@@ -1,4 +1,3 @@
-// app/api/verificar-email/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { emailService } from '@/lib/email/email-service';
 import { emailAuthService } from '@/lib/api/services/email.service';
@@ -8,21 +7,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { identificador, tipo } = body;
 
-    if (!identificador || !tipo) {
+    // ✅ Pegar o JWT do header enviado pelo frontend
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Identificador e tipo são obrigatórios' 
-        },
-        { status: 400 }
+        { success: false, error: 'Não autenticado' },
+        { status: 401 }
       );
     }
 
-    // 1️⃣ Gerar token no backend Go
-    const tokenResponse = await emailAuthService.gerarTokenVerificacao({
-      identificador,
-      tipo
-    });
+    // 1️⃣ Gerar token no backend Go (passa o JWT)
+    const tokenResponse = await emailAuthService.gerarTokenVerificacao(
+      { identificador, tipo },
+      authHeader
+    );
 
     // 2️⃣ Enviar email via NodeMailer
     emailService.initialize();
@@ -33,25 +31,19 @@ export async function POST(request: NextRequest) {
     );
 
     if (!emailResult.success) {
-      console.error('❌ Erro ao enviar email:', emailResult.error);
       throw new Error(emailResult.error || 'Erro ao enviar email');
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       email: tokenResponse.email,
-      messageId: emailResult.messageId,
       message: 'Email de verificação enviado com sucesso!'
     });
 
   } catch (error: any) {
     console.error('❌ Erro no route de verificação:', error);
-    
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error.message || 'Erro ao processar solicitação de verificação' 
-      },
+      { success: false, error: error.message || 'Erro ao processar solicitação' },
       { status: 500 }
     );
   }
