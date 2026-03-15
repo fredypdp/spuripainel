@@ -1,6 +1,6 @@
 // src/app/(painel)/academias/PageContent.tsx
 "use client"
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, academiaService, adminService, tokenStorage } from '@/lib/api';
 import { useUserCookie } from "@/hooks/useUserCookie";
@@ -39,6 +39,129 @@ const ANOS_FUNDAMENTAL_OPCOES = [
   { value: "9_fundamental", label: "9º Ano" },
 ];
 
+// ---------------------------------------------------------------------------
+// Dropdown de ações por linha da tabela
+// ---------------------------------------------------------------------------
+interface AcoesDropdownProps {
+  academia: AcademiaDetalhada;
+  isAdmin: boolean;
+  carregandoAtivar: boolean;
+  carregandoDesativar: boolean;
+  onVerDetalhes: (a: AcademiaDetalhada) => void;
+  onAtivar: (a: AcademiaDetalhada) => void;
+  onAbrirDesativar: (a: AcademiaDetalhada) => void;
+}
+
+function AcoesDropdown({
+  academia,
+  isAdmin,
+  carregandoAtivar,
+  carregandoDesativar,
+  onVerDetalhes,
+  onAtivar,
+  onAbrirDesativar,
+}: AcoesDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const handleItem = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div ref={containerRef} className="relative inline-block text-left">
+      {/* Botão "Ver mais" */}
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.07] transition-colors"
+      >
+        Ver mais
+        <svg
+          className={`h-3.5 w-3.5 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {/* Menu */}
+      {open && (
+        <div className="absolute right-0 z-50 mt-1.5 w-44 origin-top-right rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5 focus:outline-none">
+          <div className="py-1">
+            {/* Ver detalhes — sempre visível */}
+            <button
+              type="button"
+              onClick={() => handleItem(() => onVerDetalhes(academia))}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
+            >
+              <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Ver detalhes
+            </button>
+
+            {/* Ativar — apenas admin + academia inativa */}
+            {isAdmin && academia.status === "inativo" && (
+              <button
+                type="button"
+                onClick={() => handleItem(() => onAtivar(academia))}
+                disabled={carregandoAtivar}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {carregandoAtivar ? "Ativando..." : "Ativar"}
+              </button>
+            )}
+
+            {/* Desativar — apenas admin + academia ativa */}
+            {isAdmin && academia.status === "ativo" && (
+              <>
+                <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+                <button
+                  type="button"
+                  onClick={() => handleItem(() => onAbrirDesativar(academia))}
+                  disabled={carregandoDesativar}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                  Desativar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Página principal
+// ---------------------------------------------------------------------------
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
   const { isOpen, openModal, closeModal } = useModal();
@@ -123,7 +246,6 @@ export default function Academias() {
       }
     }
 
-    // 🔥 NOVO: anos_academicos obrigatório para fundamental/misto
     if (
       nivelEscolarSelecionado &&
       (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') &&
@@ -378,7 +500,7 @@ export default function Academias() {
                   />
                 </div>
 
-                {/* 🔥 NOVO: Seleção de anos académicos para fundamental/misto */}
+                {/* Seleção de anos académicos para fundamental/misto */}
                 {nivelEscolarSelecionado &&
                  (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') && (
                   <div className="col-span-2">
@@ -485,7 +607,6 @@ export default function Academias() {
                       <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p>
                     </div>
 
-                    {/* 🔥 NOVO: exibir anos académicos */}
                     {academiaSelecionada.anos_academicos && academiaSelecionada.anos_academicos.length > 0 && (
                       <div className="col-span-2">
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Anos Académicos</p>
@@ -678,34 +799,18 @@ export default function Academias() {
                             {academia.status || '-'}
                           </span>
                         </TableCell>
+
+                        {/* ── Coluna Ações: dropdown "Ver mais" ── */}
                         <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => handleVerDetalhes(academia)}>Ver detalhes</Button>
-                            {!loadingUser && user?.tipo === "admin" && (
-                              <>
-                                {academia.status === "inativo" && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="primary" 
-                                    onClick={() => handleAtivar(academia)}
-                                    disabled={carregandoAtivar}
-                                  >
-                                    {carregandoAtivar ? 'Ativando...' : 'Ativar'}
-                                  </Button>
-                                )}
-                                {academia.status === "ativo" && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="danger" 
-                                    onClick={() => handleAbrirDesativar(academia)}
-                                    disabled={carregandoDesativar}
-                                  >
-                                    Desativar
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                          </div>
+                          <AcoesDropdown
+                            academia={academia}
+                            isAdmin={!loadingUser && user?.tipo === "admin"}
+                            carregandoAtivar={carregandoAtivar}
+                            carregandoDesativar={carregandoDesativar}
+                            onVerDetalhes={handleVerDetalhes}
+                            onAtivar={handleAtivar}
+                            onAbrirDesativar={handleAbrirDesativar}
+                          />
                         </TableCell>
                       </TableRow>
                     ))
