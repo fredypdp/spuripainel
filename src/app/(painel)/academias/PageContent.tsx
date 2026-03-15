@@ -1,8 +1,9 @@
 // src/app/(painel)/academias/PageContent.tsx
 "use client"
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, academiaService, adminService, tokenStorage } from '@/lib/api';
+import { useApi, consultasService, adminService, tokenStorage } from '@/lib/api';
 import { useUserCookie } from "@/hooks/useUserCookie";
 
 import Button from "@/components/ui/button/Button";
@@ -21,6 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// ---------------------------------------------------------------------------
+// Tipos internos
+// ---------------------------------------------------------------------------
 interface NivelAcademico {
   nome: string;
   nivel: NivelEscolar;
@@ -40,7 +44,10 @@ const ANOS_FUNDAMENTAL_OPCOES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Dropdown de ações por linha da tabela
+// AcoesDropdown
+// O menu é renderizado via createPortal diretamente no document.body,
+// escapando de qualquer overflow-hidden/overflow-x-auto da tabela.
+// A posição é calculada com getBoundingClientRect() do botão trigger.
 // ---------------------------------------------------------------------------
 interface AcoesDropdownProps {
   academia: AcademiaDetalhada;
@@ -52,6 +59,13 @@ interface AcoesDropdownProps {
   onAbrirDesativar: (a: AcademiaDetalhada) => void;
 }
 
+interface MenuPos {
+  top: number;
+  left: number;
+}
+
+const MENU_WIDTH = 176;
+
 function AcoesDropdown({
   academia,
   isAdmin,
@@ -62,17 +76,34 @@ function AcoesDropdown({
   onAbrirDesativar,
 }: AcoesDropdownProps) {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<MenuPos>({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
 
+  // Abre o menu calculando a posição absoluta do botão na viewport + scroll
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + window.scrollY + 4,
+        // alinha a borda direita do menu com a borda direita do botão
+        left: rect.right + window.scrollX - MENU_WIDTH,
+      });
+    }
+    setOpen((prev) => !prev);
+  };
+
+  // Fecha ao clicar fora, ao rolar ou ao redimensionar
   useEffect(() => {
     if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
   const handleItem = (fn: () => void) => {
@@ -80,12 +111,80 @@ function AcoesDropdown({
     fn();
   };
 
+  // Portal: renderiza o menu fora da árvore DOM da tabela
+  const menuPortal =
+    open &&
+    typeof document !== "undefined" &&
+    createPortal(
+      // stopPropagation impede que o mousedown do overlay acima feche imediatamente
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute",
+          top: menuPos.top,
+          left: menuPos.left,
+          width: MENU_WIDTH,
+          zIndex: 9999,
+        }}
+        className="rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5"
+      >
+        <div className="py-1">
+          {/* Ver detalhes — sempre visível */}
+          <button
+            type="button"
+            onClick={() => handleItem(() => onVerDetalhes(academia))}
+            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
+          >
+            <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Ver detalhes
+          </button>
+
+          {/* Ativar — apenas admin + academia inativa */}
+          {isAdmin && academia.status === "inativo" && (
+            <button
+              type="button"
+              onClick={() => handleItem(() => onAtivar(academia))}
+              disabled={carregandoAtivar}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {carregandoAtivar ? "Ativando..." : "Ativar"}
+            </button>
+          )}
+
+          {/* Desativar — apenas admin + academia ativa */}
+          {isAdmin && academia.status === "ativo" && (
+            <>
+              <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+              <button
+                type="button"
+                onClick={() => handleItem(() => onAbrirDesativar(academia))}
+                disabled={carregandoDesativar}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                Desativar
+              </button>
+            </>
+          )}
+        </div>
+      </div>,
+      document.body
+    );
+
   return (
-    <div ref={containerRef} className="relative inline-block text-left">
-      {/* Botão "Ver mais" */}
+    <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={handleToggle}
         className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.07] transition-colors"
       >
         Ver mais
@@ -103,59 +202,8 @@ function AcoesDropdown({
         </svg>
       </button>
 
-      {/* Menu */}
-      {open && (
-        <div className="absolute right-0 z-50 mt-1.5 w-44 origin-top-right rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5 focus:outline-none">
-          <div className="py-1">
-            {/* Ver detalhes — sempre visível */}
-            <button
-              type="button"
-              onClick={() => handleItem(() => onVerDetalhes(academia))}
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
-            >
-              <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Ver detalhes
-            </button>
-
-            {/* Ativar — apenas admin + academia inativa */}
-            {isAdmin && academia.status === "inativo" && (
-              <button
-                type="button"
-                onClick={() => handleItem(() => onAtivar(academia))}
-                disabled={carregandoAtivar}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {carregandoAtivar ? "Ativando..." : "Ativar"}
-              </button>
-            )}
-
-            {/* Desativar — apenas admin + academia ativa */}
-            {isAdmin && academia.status === "ativo" && (
-              <>
-                <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
-                <button
-                  type="button"
-                  onClick={() => handleItem(() => onAbrirDesativar(academia))}
-                  disabled={carregandoDesativar}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                  Desativar
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      {menuPortal}
+    </>
   );
 }
 
@@ -168,16 +216,16 @@ export default function Academias() {
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
   const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
   const [carregado, setCarregado] = useState(false);
-  
+
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(adminService.registrarAcademia);
   const { loading: carregandoAtivar, error: erroAtivarAcademia, execute: executarAtivar } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
-  
+
   const [academiaSelecionada, setAcademiaSelecionada] = useState<AcademiaDetalhada | null>(null);
   const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao, setMotivoDesativacao] = useState('');
-  
+
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [numeroTelefone, setNumeroTelefone] = useState('');
@@ -186,10 +234,10 @@ export default function Academias() {
   const [provinciaSelecionada, setProvinciaSelecionada] = useState<Provincia | null>(null);
   const [nivelEscolarSelecionado, setNivelEscolarSelecionado] = useState<NivelAcademico | null>(null);
   const [anosAcademicosSelecionados, setAnosAcademicosSelecionados] = useState<string[]>([]);
-  
+
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
-  
+
   const NiveisAcademicos: NivelAcademico[] = [
     { nome: "Ensino Fundamental (1ª-9ª)", nivel: "fundamental", id: 1 },
     { nome: "Ensino Médio", nivel: "medio", id: 2 },
@@ -201,8 +249,7 @@ export default function Academias() {
       const token = tokenStorage.get();
       await carregarAcademias(token || undefined);
       setCarregado(true);
-    } catch (err) {
-    }
+    } catch (err) {}
   }, [carregarAcademias]);
 
   useEffect(() => {
@@ -245,7 +292,6 @@ export default function Academias() {
         erros.push('Website inválido (deve incluir http:// ou https://)');
       }
     }
-
     if (
       nivelEscolarSelecionado &&
       (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') &&
@@ -294,15 +340,13 @@ export default function Academias() {
 
       if (result?.data) {
         setSuccessMessage(`Academia cadastrada com sucesso! Código: ${result.data.codigo_academia} | Senha padrão: ${result.data.codigo_academia}`);
-        
         setTimeout(() => {
           limparFormulario();
           closeModal();
           carregarLista();
         }, 2000);
       }
-    } catch (err) {
-    }
+    } catch (err) {}
   };
 
   const handleCloseModal = () => {
@@ -316,10 +360,7 @@ export default function Academias() {
   };
 
   const handleAtivar = async (academia: AcademiaDetalhada) => {
-    if (!confirm(`Tem certeza que deseja ativar a academia "${academia.nome}"?`)) {
-      return;
-    }
-
+    if (!confirm(`Tem certeza que deseja ativar a academia "${academia.nome}"?`)) return;
     try {
       const token = tokenStorage.get();
       await executarAtivar(academia.codigo_academia, token || undefined);
@@ -343,7 +384,6 @@ export default function Academias() {
       alert('Por favor, informe o motivo da desativação.');
       return;
     }
-
     if (!academiaParaDesativar) return;
 
     try {
@@ -353,7 +393,6 @@ export default function Academias() {
         { motivo: motivoDesativacao.trim() },
         token || undefined
       );
-      
       alert('Academia desativada com sucesso!');
       closeDesativarModal();
       setAcademiaParaDesativar(null);
@@ -369,7 +408,7 @@ export default function Academias() {
       return new Date(data).toLocaleDateString("pt-BR", {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric'
+        year: 'numeric',
       });
     } catch {
       return '-';
@@ -393,74 +432,74 @@ export default function Academias() {
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={openModal}>Cadastrar uma academia</Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            disabled={carregandoAcademias} 
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={carregandoAcademias}
             onClick={carregarLista}
           >
             {carregandoAcademias ? 'Carregando...' : 'Atualizar lista'}
           </Button>
-          
+
           {dataAcademias && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
               <span className="font-medium">{dataAcademias.total}</span>
               <span className="ml-1">academias encontradas</span>
             </div>
           )}
-          
+
           {/* Modal de Cadastro */}
           <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[640px] p-5 lg:p-10">
             <form onSubmit={handleCadastro}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar escola</h4>
-              
+
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
                 <div className="col-span-2">
                   <Label>Nome da escola *</Label>
-                  <Input 
-                    type="text" 
+                  <Input
+                    type="text"
                     placeholder="Digite o nome da escola"
-                    onChange={(e) => setNome(e.target.value)} 
+                    onChange={(e) => setNome(e.target.value)}
                     disabled={carregandoCadastro}
                   />
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Telefone *</Label>
-                  <Input 
-                    type="text" 
+                  <Input
+                    type="text"
                     placeholder="+244 900 000 000"
-                    onChange={(e) => setNumeroTelefone(e.target.value)} 
+                    onChange={(e) => setNumeroTelefone(e.target.value)}
                     disabled={carregandoCadastro}
                   />
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
                   <Label>E-mail *</Label>
-                  <Input 
-                    type="email" 
+                  <Input
+                    type="email"
                     placeholder="email@escola.ao"
-                    onChange={(e) => setEmail(e.target.value)} 
+                    onChange={(e) => setEmail(e.target.value)}
                     disabled={carregandoCadastro}
                   />
                 </div>
-                
+
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Endereço *</Label>
-                  <Input 
-                    type="text" 
+                  <Input
+                    type="text"
                     placeholder="Rua, Bairro, Município"
-                    onChange={(e) => setEndereco(e.target.value)} 
+                    onChange={(e) => setEndereco(e.target.value)}
                     disabled={carregandoCadastro}
                   />
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Website (opcional)</Label>
-                  <Input 
-                    type="text" 
+                  <Input
+                    type="text"
                     placeholder="https://escola.ao"
-                    onChange={(e) => setWebsite(e.target.value)} 
+                    onChange={(e) => setWebsite(e.target.value)}
                     disabled={carregandoCadastro}
                   />
                 </div>
@@ -469,31 +508,31 @@ export default function Academias() {
                   <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                     Nível acadêmico *
                   </span>
-                  <Dropdown 
-                    value={nivelEscolarSelecionado} 
+                  <Dropdown
+                    value={nivelEscolarSelecionado}
                     onChange={(e) => {
                       setNivelEscolarSelecionado(e.value);
                       setAnosAcademicosSelecionados([]);
-                    }} 
-                    options={NiveisAcademicos} 
+                    }}
+                    options={NiveisAcademicos}
                     optionLabel="nome"
-                    placeholder="Selecione o nível escolar" 
+                    placeholder="Selecione o nível escolar"
                     className="w-full"
                     disabled={carregandoCadastro}
                   />
                 </div>
-                
+
                 <div className="col-span-2 sm:col-span-1">
                   <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                     Província *
                   </span>
-                  <Dropdown 
-                    value={provinciaSelecionada} 
-                    onChange={(e) => setProvinciaSelecionada(e.value)} 
-                    options={Provincias} 
+                  <Dropdown
+                    value={provinciaSelecionada}
+                    onChange={(e) => setProvinciaSelecionada(e.value)}
+                    options={Provincias}
                     optionLabel="nome"
                     filter
-                    placeholder="Selecione a província" 
+                    placeholder="Selecione a província"
                     className="w-full"
                     disabled={carregandoCadastro}
                     emptyFilterMessage="Nenhuma província encontrada"
@@ -502,44 +541,42 @@ export default function Academias() {
 
                 {/* Seleção de anos académicos para fundamental/misto */}
                 {nivelEscolarSelecionado &&
-                 (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') && (
-                  <div className="col-span-2">
-                    <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      Selecione os anos do ensino fundamental que esta escola oferece
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
-                        <label
-                          key={value}
-                          className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={anosAcademicosSelecionados.includes(value)}
-                            onChange={() =>
-                              setAnosAcademicosSelecionados(prev =>
-                                prev.includes(value)
-                                  ? prev.filter(a => a !== value)
-                                  : [...prev, value]
-                              )
-                            }
-                            disabled={carregandoCadastro}
-                            className="w-4 h-4 text-brand-500 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                        </label>
-                      ))}
+                  (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') && (
+                    <div className="col-span-2">
+                      <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        Selecione os anos do ensino fundamental que esta escola oferece
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
+                          <label
+                            key={value}
+                            className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={anosAcademicosSelecionados.includes(value)}
+                              onChange={() =>
+                                setAnosAcademicosSelecionados((prev) =>
+                                  prev.includes(value)
+                                    ? prev.filter((a) => a !== value)
+                                    : [...prev, value]
+                                )
+                              }
+                              disabled={carregandoCadastro}
+                              className="w-4 h-4 text-brand-500 focus:ring-brand-500"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
 
               {successMessage && (
                 <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-sm text-green-700 dark:text-green-400 font-medium">
-                    {successMessage}
-                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-400 font-medium">{successMessage}</p>
                 </div>
               )}
 
@@ -587,7 +624,7 @@ export default function Academias() {
                 <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
                   Detalhes da Academia
                 </h4>
-                
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -611,7 +648,7 @@ export default function Academias() {
                       <div className="col-span-2">
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Anos Académicos</p>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {academiaSelecionada.anos_academicos.map(ano => (
+                          {academiaSelecionada.anos_academicos.map((ano) => (
                             <span
                               key={ano}
                               className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
@@ -657,7 +694,7 @@ export default function Academias() {
           <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
             <form onSubmit={handleDesativar}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
-              
+
               {academiaParaDesativar && (
                 <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                   <p className="text-sm text-yellow-800 dark:text-yellow-300">
@@ -800,7 +837,7 @@ export default function Academias() {
                           </span>
                         </TableCell>
 
-                        {/* ── Coluna Ações: dropdown "Ver mais" ── */}
+                        {/* ── Coluna Ações ── */}
                         <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
                           <AcoesDropdown
                             academia={academia}
