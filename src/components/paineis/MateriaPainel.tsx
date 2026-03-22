@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
-import { useApi, academiaService } from "@/lib/api";
-import { Materia, Curso, MateriaType } from "@/types/api";
+import { useApi, academiaService, tokenStorage } from "@/lib/api";
+import { Materia, MateriaType } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
@@ -151,7 +151,9 @@ function ModalConfirmarDelete({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Deletar Matéria</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Tem certeza que deseja deletar <span className="font-medium text-gray-700 dark:text-gray-200">{materia.nome}</span>? Esta ação não pode ser desfeita (o histórico é preservado no ledger).
+          Tem certeza que deseja deletar{" "}
+          <span className="font-medium text-gray-700 dark:text-gray-200">{materia.nome}</span>?
+          Esta ação não pode ser desfeita (o histórico é preservado no ledger).
         </p>
         <div className="flex gap-3 justify-end">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Cancelar</Button>
@@ -176,19 +178,23 @@ export default function MateriaPainel() {
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
-  // Modal: definir período
   const [materiaParaPeriodo, setMateriaParaPeriodo] = useState<Materia | null>(null);
-  // Modal: confirmar delete
-  const [materiaParaDelete, setMateriaParaDelete] = useState<Materia | null>(null);
+  const [materiaParaDelete, setMateriaParaDelete]   = useState<Materia | null>(null);
 
-  const { execute: executarCriarMateria, loading: criandoMateria } = useApi(academiaService.criarMateria);
-  const { execute: executarAtualizarMateria, loading: atualizandoMateria } = useApi(academiaService.atualizarMateria);
-  const { execute: executarListarMaterias, data: materias, loading: ListandoMaterias } = useApi(academiaService.listarMaterias);
-  const { execute: executarListarCursos, data: cursos, loading: ListandoCursos } = useApi(academiaService.listarCursos);
-  const { execute: executarAtivarMateria } = useApi(academiaService.ativarMateria);
+  const { execute: executarCriarMateria,     loading: criandoMateria      } = useApi(academiaService.criarMateria);
+  const { execute: executarAtualizarMateria, loading: atualizandoMateria  } = useApi(academiaService.atualizarMateria);
+  const { execute: executarListarMaterias,   data: materiasRaw, loading: ListandoMaterias } = useApi(academiaService.listarMaterias);
+  const { execute: executarListarCursos,     data: cursosRaw,   loading: ListandoCursos   } = useApi(academiaService.listarCursos);
+  const { execute: executarAtivarMateria    } = useApi(academiaService.ativarMateria);
   const { execute: executarDesativarMateria } = useApi(academiaService.desativarMateria);
-  const { execute: executarDefinirPeriodo } = useApi(academiaService.definirPeriodoMateria);
-  const { execute: executarDeletarMateria } = useApi(academiaService.deletarMateria);
+  const { execute: executarDefinirPeriodo   } = useApi(academiaService.definirPeriodoMateria);
+  const { execute: executarDeletarMateria   } = useApi(academiaService.deletarMateria);
+
+  // ── Proteção contra null vindo do backend ─────────────────────────────────
+  // O backend retorna { materias: null } quando não há registos cadastrados.
+  // O operador ?? [] garante que sempre trabalhamos com um array.
+  const listaMaterias: Materia[] = materiasRaw?.materias ?? [];
+  const listaCursos               = cursosRaw?.cursos    ?? [];
 
   const isAcademiaMista = () =>
     user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "misto";
@@ -198,9 +204,9 @@ export default function MateriaPainel() {
   const getDefaultType = (): MateriaType => {
     const t = user?.academia?.type;
     const n = user?.academia?.nivel_escolar;
-    if (t === "superior") return "superior";
+    if (t === "superior")    return "superior";
     if (n === "fundamental") return "fundamental";
-    if (n === "medio") return "medio";
+    if (n === "medio")       return "medio";
     return "fundamental";
   };
 
@@ -212,8 +218,10 @@ export default function MateriaPainel() {
   });
 
   useEffect(() => {
-    executarListarCursos();
-    executarListarMaterias();
+    const token = tokenStorage.get() ?? undefined;
+    executarListarCursos(token);
+    executarListarMaterias(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showMsg = (variant: "success" | "error" | "warning" | "info", message: string) => {
@@ -222,15 +230,25 @@ export default function MateriaPainel() {
   };
 
   const carregarDados = async () => {
-    try { await Promise.all([executarListarCursos(), executarListarMaterias()]); } catch {}
+    const token = tokenStorage.get() ?? undefined;
+    try {
+      await Promise.all([
+        executarListarCursos(token),
+        executarListarMaterias(token),
+      ]);
+    } catch {}
   };
 
-  // ── Handlers ──
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nome.trim()) { showMsg("error", "Nome da matéria é obrigatório"); return; }
-    if (formData.anos_academicos.length === 0) { showMsg("error", "Selecione pelo menos um ano/nível"); return; }
+    if (!formData.nome.trim()) {
+      showMsg("error", "Nome da matéria é obrigatório"); return;
+    }
+    if (formData.anos_academicos.length === 0) {
+      showMsg("error", "Selecione pelo menos um ano/nível"); return;
+    }
     if (formData.type !== "fundamental" && !formData.curso_id) {
       showMsg("error", `Matérias do tipo ${formData.type === "medio" ? "Médio" : "Superior"} devem estar vinculadas a um curso`);
       return;
@@ -277,7 +295,6 @@ export default function MateriaPainel() {
         await executarDesativarMateria(materia.id);
         showMsg("success", "Matéria desativada");
       } else {
-        // Superior sem período não pode ser ativada
         if (materia.type === "superior" && !materia.periodo) {
           showMsg("warning", `Defina o período de "${materia.nome}" antes de ativar`);
           return;
@@ -285,7 +302,8 @@ export default function MateriaPainel() {
         await executarAtivarMateria(materia.id);
         showMsg("success", "Matéria ativada");
       }
-      executarListarMaterias();
+      const token = tokenStorage.get() ?? undefined;
+      executarListarMaterias(token);
     } catch (e: any) {
       showMsg("error", e?.message ?? "Erro ao alterar status");
     }
@@ -322,20 +340,17 @@ export default function MateriaPainel() {
     setFormData({ ...formData, type: newType, anos_academicos: [], curso_id: undefined });
   };
 
-  const getCursosByType = () => {
-    if (!cursos?.cursos) return [];
-    return cursos.cursos.filter(c => c.type === formData.type && c.status === "ativo");
-  };
+  const getCursosByType = () =>
+    listaCursos.filter(c => c.type === formData.type && c.status === "ativo");
 
   const getCursoNome = (cursoId?: string): string => {
-    if (!cursoId || !cursos?.cursos) return "";
-    return cursos.cursos.find(c => c.id === cursoId)?.nome ?? cursoId;
+    if (!cursoId) return "";
+    return listaCursos.find(c => c.id === cursoId)?.nome ?? cursoId;
   };
 
-  /** Períodos disponíveis para a matéria, obtidos do curso vinculado */
   const getPeriodosDoCurso = (materia: Materia): string[] => {
-    if (!materia.curso_id || !cursos?.cursos) return [];
-    return cursos.cursos.find(c => c.id === materia.curso_id)?.periodos ?? [];
+    if (!materia.curso_id) return [];
+    return listaCursos.find(c => c.id === materia.curso_id)?.periodos ?? [];
   };
 
   const getAnosDisponiveis = () => {
@@ -344,7 +359,7 @@ export default function MateriaPainel() {
     return ANOS_SUPERIOR;
   };
 
-  // ── Render ──
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -397,6 +412,7 @@ export default function MateriaPainel() {
             {editingMateria ? "Editar Matéria" : "Nova Matéria"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+
             {/* Nome */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome *</label>
@@ -409,7 +425,7 @@ export default function MateriaPainel() {
               />
             </div>
 
-            {/* Tipo */}
+            {/* Tipo — apenas para academias mistas */}
             {isAcademiaMista() && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
@@ -426,16 +442,17 @@ export default function MateriaPainel() {
               </div>
             )}
 
-            {/* Aviso superior inativo */}
+            {/* Aviso matérias superiores criadas inativas */}
             {formData.type === "superior" && !editingMateria && (
               <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                 <p className="text-xs text-amber-700 dark:text-amber-300">
-                  ⚠️ Matérias do tipo Superior são criadas como <strong>inativas</strong>. Você precisará definir o período antes de ativá-las.
+                  ⚠️ Matérias do tipo Superior são criadas como <strong>inativas</strong>.
+                  Você precisará definir o período antes de ativá-las.
                 </p>
               </div>
             )}
 
-            {/* Anos Académicos */}
+            {/* Anos / Níveis */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {formData.type === "superior" ? "Ano do curso *" : "Anos/Níveis *"}
@@ -458,7 +475,7 @@ export default function MateriaPainel() {
               </div>
             </div>
 
-            {/* Curso */}
+            {/* Curso — apenas para médio e superior */}
             {formData.type !== "fundamental" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
@@ -475,18 +492,23 @@ export default function MateriaPainel() {
                 </select>
                 {getCursosByType().length === 0 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                    ⚠️ Nenhum curso {formData.type === "medio" ? "de Ensino Médio" : "Superior"} ativo. Crie um curso primeiro.
+                    ⚠️ Nenhum curso {formData.type === "medio" ? "de Ensino Médio" : "Superior"} ativo.
+                    Crie um curso primeiro.
                   </p>
                 )}
                 {editingMateria && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">O curso não pode ser alterado após a criação</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    O curso não pode ser alterado após a criação
+                  </p>
                 )}
               </div>
             )}
 
             {formData.type === "fundamental" && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-xs text-blue-700 dark:text-blue-300">ℹ️ Matérias do Ensino Fundamental não são vinculadas a cursos</p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  ℹ️ Matérias do Ensino Fundamental não são vinculadas a cursos
+                </p>
               </div>
             )}
 
@@ -497,7 +519,7 @@ export default function MateriaPainel() {
               >
                 {editingMateria
                   ? atualizandoMateria ? "Atualizando..." : "Atualizar"
-                  : criandoMateria ? "Criando..." : "Criar Matéria"}
+                  : criandoMateria     ? "Criando..."     : "Criar Matéria"}
               </button>
               <button
                 type="button"
@@ -518,20 +540,20 @@ export default function MateriaPainel() {
         </div>
       )}
 
-      {/* Lista */}
+      {/* Lista de matérias */}
       {!ListandoMaterias && !ListandoCursos && !showForm && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {materias && materias.materias.length === 0 ? (
+          {listaMaterias.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
               <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-30" />
               <p>Nenhuma matéria cadastrada</p>
             </div>
           ) : (
-            materias?.materias.map(materia => {
-              const periodosDoCurso = getPeriodosDoCurso(materia);
+            listaMaterias.map(materia => {
+              const periodosDoCurso       = getPeriodosDoCurso(materia);
               const precisaDefinirPeriodo = materia.type === "superior" && !materia.periodo;
-              const podeAtivar           = materia.type !== "superior" || !!materia.periodo;
-              const podeDelete           = materia.status === "inativo";
+              const podeAtivar            = materia.type !== "superior" || !!materia.periodo;
+              const podeDelete            = materia.status === "inativo";
 
               return (
                 <div
@@ -543,6 +565,7 @@ export default function MateriaPainel() {
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-gray-900 dark:text-white truncate">{materia.nome}</h4>
                       <div className="flex flex-wrap gap-1 mt-1">
+
                         {/* Badge tipo */}
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           materia.type === "fundamental"
@@ -551,7 +574,9 @@ export default function MateriaPainel() {
                             ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                             : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
                         }`}>
-                          {materia.type === "fundamental" ? "Fundamental" : materia.type === "medio" ? "Médio" : "Superior"}
+                          {materia.type === "fundamental" ? "Fundamental"
+                            : materia.type === "medio"    ? "Médio"
+                            : "Superior"}
                         </span>
 
                         {/* Badge período (apenas superior) */}
@@ -602,6 +627,7 @@ export default function MateriaPainel() {
 
                   {/* Ações */}
                   <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+
                     {/* Editar */}
                     <button
                       onClick={() => handleEdit(materia)}
@@ -611,7 +637,7 @@ export default function MateriaPainel() {
                       Editar
                     </button>
 
-                    {/* Definir Período (apenas superior sem período) */}
+                    {/* Definir Período */}
                     {precisaDefinirPeriodo && periodosDoCurso.length > 0 && (
                       <button
                         onClick={() => setMateriaParaPeriodo(materia)}
