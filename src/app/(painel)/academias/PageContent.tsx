@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatAnoAcademico } from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Tipos internos
@@ -32,15 +33,15 @@ interface NivelAcademico {
 }
 
 const ANOS_FUNDAMENTAL_OPCOES = [
-  { value: "1_fundamental", label: "1º Ano" },
-  { value: "2_fundamental", label: "2º Ano" },
-  { value: "3_fundamental", label: "3º Ano" },
-  { value: "4_fundamental", label: "4º Ano" },
-  { value: "5_fundamental", label: "5º Ano" },
-  { value: "6_fundamental", label: "6º Ano" },
-  { value: "7_fundamental", label: "7º Ano" },
-  { value: "8_fundamental", label: "8º Ano" },
-  { value: "9_fundamental", label: "9º Ano" },
+  { value: "1_ano_fundamental", label: "1º Ano" },
+  { value: "2_ano_fundamental", label: "2º Ano" },
+  { value: "3_ano_fundamental", label: "3º Ano" },
+  { value: "4_ano_fundamental", label: "4º Ano" },
+  { value: "5_ano_fundamental", label: "5º Ano" },
+  { value: "6_ano_fundamental", label: "6º Ano" },
+  { value: "7_ano_fundamental", label: "7º Ano" },
+  { value: "8_ano_fundamental", label: "8º Ano" },
+  { value: "9_ano_fundamental", label: "9º Ano" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -329,7 +330,7 @@ export default function Academias() {
         nome: nome.trim(),
         type: "escola",
         cursos: [],
-        provincia: provinciaSelecionada!.nome,
+        provincia: provinciaSelecionada!.nome.toLowerCase(),
         endereco: endereco.trim(),
         numero_telefone: numeroTelefone.trim(),
         email: email.trim(),
@@ -653,7 +654,7 @@ export default function Academias() {
                               key={ano}
                               className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
                             >
-                              {ano.replace(/_/g, ' ')}
+                              {formatAnoAcademico(ano)}
                             </span>
                           ))}
                         </div>

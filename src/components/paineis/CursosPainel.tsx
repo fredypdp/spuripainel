@@ -10,19 +10,19 @@ import { getCookie } from "@/lib/utils/cookies";
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const ANOS_MEDIO = [
-  { value: "primeiro_medio",  label: "1º Ano Médio" },
-  { value: "segundo_medio",   label: "2º Ano Médio" },
-  { value: "terceiro_medio",  label: "3º Ano Médio" },
-  { value: "quarto_medio",    label: "4º Ano Médio" },
+  { value: "1_ano_medio", label: "1º Ano Médio" },
+  { value: "2_ano_medio", label: "2º Ano Médio" },
+  { value: "3_ano_medio", label: "3º Ano Médio" },
+  { value: "4_ano_medio", label: "4º Ano Médio" },
 ];
 
 const ANOS_SUPERIOR = [
-  { value: "primeiro_ano", label: "1º Ano" },
-  { value: "segundo_ano",  label: "2º Ano" },
-  { value: "terceiro_ano", label: "3º Ano" },
-  { value: "quarto_ano",   label: "4º Ano" },
-  { value: "quinto_ano",   label: "5º Ano" },
-  { value: "sexto_ano",    label: "6º Ano" },
+  { value: "1_ano_superior", label: "1º Ano" },
+  { value: "2_ano_superior", label: "2º Ano" },
+  { value: "3_ano_superior", label: "3º Ano" },
+  { value: "4_ano_superior", label: "4º Ano" },
+  { value: "5_ano_superior", label: "5º Ano" },
+  { value: "6_ano_superior", label: "6º Ano" },
 ];
 
 interface CursoFormData {
@@ -39,11 +39,16 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 
 const formatarNivelLabel = (nivel: string): string => {
   const map: Record<string, string> = {
-    primeiro_medio: "1º Médio",   segundo_medio: "2º Médio",
-    terceiro_medio: "3º Médio",   quarto_medio:  "4º Médio",
-    primeiro_ano:   "1º Ano",     segundo_ano:   "2º Ano",
-    terceiro_ano:   "3º Ano",     quarto_ano:    "4º Ano",
-    quinto_ano:     "5º Ano",     sexto_ano:     "6º Ano",
+    "1_ano_medio":    "1º Médio",
+    "2_ano_medio":    "2º Médio",
+    "3_ano_medio":    "3º Médio",
+    "4_ano_medio":    "4º Médio",
+    "1_ano_superior": "1º Ano",
+    "2_ano_superior": "2º Ano",
+    "3_ano_superior": "3º Ano",
+    "4_ano_superior": "4º Ano",
+    "5_ano_superior": "5º Ano",
+    "6_ano_superior": "6º Ano",
   };
   return map[nivel] ?? nivel.replace(/_/g, " ");
 };

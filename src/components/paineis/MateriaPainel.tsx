@@ -16,31 +16,31 @@ interface MateriaFormData {
 }
 
 const ANOS_FUNDAMENTAL = [
-  { value: "primeiro_fundamental", label: "1º Ano" },
-  { value: "segundo_fundamental",  label: "2º Ano" },
-  { value: "terceiro_fundamental", label: "3º Ano" },
-  { value: "quarto_fundamental",   label: "4º Ano" },
-  { value: "quinto_fundamental",   label: "5º Ano" },
-  { value: "sexto_fundamental",    label: "6º Ano" },
-  { value: "setimo_fundamental",   label: "7º Ano" },
-  { value: "oitavo_fundamental",   label: "8º Ano" },
-  { value: "nono_fundamental",     label: "9º Ano" },
+  { value: "1_ano_fundamental", label: "1º Ano" },
+  { value: "2_ano_fundamental", label: "2º Ano" },
+  { value: "3_ano_fundamental", label: "3º Ano" },
+  { value: "4_ano_fundamental", label: "4º Ano" },
+  { value: "5_ano_fundamental", label: "5º Ano" },
+  { value: "6_ano_fundamental", label: "6º Ano" },
+  { value: "7_ano_fundamental", label: "7º Ano" },
+  { value: "8_ano_fundamental", label: "8º Ano" },
+  { value: "9_ano_fundamental", label: "9º Ano" },
 ];
 
 const ANOS_MEDIO = [
-  { value: "primeiro_medio",  label: "1º Ano Médio" },
-  { value: "segundo_medio",   label: "2º Ano Médio" },
-  { value: "terceiro_medio",  label: "3º Ano Médio" },
-  { value: "quarto_medio",    label: "4º Ano Médio" },
+  { value: "1_ano_medio", label: "1º Ano Médio" },
+  { value: "2_ano_medio", label: "2º Ano Médio" },
+  { value: "3_ano_medio", label: "3º Ano Médio" },
+  { value: "4_ano_medio", label: "4º Ano Médio" },
 ];
 
 const ANOS_SUPERIOR = [
-  { value: "primeiro_ano", label: "1º Ano" },
-  { value: "segundo_ano",  label: "2º Ano" },
-  { value: "terceiro_ano", label: "3º Ano" },
-  { value: "quarto_ano",   label: "4º Ano" },
-  { value: "quinto_ano",   label: "5º Ano" },
-  { value: "sexto_ano",    label: "6º Ano" },
+  { value: "1_ano_superior", label: "1º Ano" },
+  { value: "2_ano_superior", label: "2º Ano" },
+  { value: "3_ano_superior", label: "3º Ano" },
+  { value: "4_ano_superior", label: "4º Ano" },
+  { value: "5_ano_superior", label: "5º Ano" },
+  { value: "6_ano_superior", label: "6º Ano" },
 ];
 
 const PERIODOS_LABEL: Record<string, string> = {

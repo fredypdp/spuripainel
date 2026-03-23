@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
-import { EstudanteDetalhado } from '@/types/api';
+import { EstudanteDetalhado, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import { Dropdown } from 'primereact/dropdown';
@@ -58,22 +58,22 @@ export default function Estudantes() {
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   const anosFundamental: AnoEscolar[] = [
-    { label: '1º Ano Fundamental', value: 'primeiro_fundamental' },
-    { label: '2º Ano Fundamental', value: 'segundo_fundamental' },
-    { label: '3º Ano Fundamental', value: 'terceiro_fundamental' },
-    { label: '4º Ano Fundamental', value: 'quarto_fundamental' },
-    { label: '5º Ano Fundamental', value: 'quinto_fundamental' },
-    { label: '6º Ano Fundamental', value: 'sexto_fundamental' },
-    { label: '7º Ano Fundamental', value: 'setimo_fundamental' },
-    { label: '8º Ano Fundamental', value: 'oitavo_fundamental' },
-    { label: '9º Ano Fundamental', value: 'nono_fundamental' },
+    { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
+    { label: '2º Ano Fundamental', value: '2_ano_fundamental' },
+    { label: '3º Ano Fundamental', value: '3_ano_fundamental' },
+    { label: '4º Ano Fundamental', value: '4_ano_fundamental' },
+    { label: '5º Ano Fundamental', value: '5_ano_fundamental' },
+    { label: '6º Ano Fundamental', value: '6_ano_fundamental' },
+    { label: '7º Ano Fundamental', value: '7_ano_fundamental' },
+    { label: '8º Ano Fundamental', value: '8_ano_fundamental' },
+    { label: '9º Ano Fundamental', value: '9_ano_fundamental' },
   ];
 
   const anosMedio: AnoEscolar[] = [
-    { label: '1º Ano Médio', value: 'primeiro_medio' },
-    { label: '2º Ano Médio', value: 'segundo_medio' },
-    { label: '3º Ano Médio', value: 'terceiro_medio' },
-    { label: '4º Ano Médio', value: 'quarto_medio' },
+    { label: '1º Ano Médio', value: '1_ano_medio' },
+    { label: '2º Ano Médio', value: '2_ano_medio' },
+    { label: '3º Ano Médio', value: '3_ano_medio' },
+    { label: '4º Ano Médio', value: '4_ano_medio' },
   ];
 
   const getAnosDisponiveis = (): AnoEscolar[] => {
@@ -227,9 +227,10 @@ export default function Estudantes() {
       telefone: telefone.trim() || undefined,
       bilhete_identidade: bilheteIdentidade.trim(),
       bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
-      ano_escolar: anoEscolarSelecionado || undefined,  // 🔥 MUDOU: '' -> undefined
-      curso_medio_id: cursoSelecionado?.id || undefined, // 🔥 MUDOU: '' -> undefined
-      status_escolar: 'em_andamento',
+      ano_escolar: isAnoMedio(anoEscolarSelecionado ?? '') ? undefined : (anoEscolarSelecionado || undefined),
+      ano_escolar_medio: isAnoMedio(anoEscolarSelecionado ?? '') ? (anoEscolarSelecionado || undefined) : undefined,
+      curso_medio_id: cursoSelecionado?.id || undefined,
+      status_escolar_fundamental: 'em_andamento' as const,
       genero: genero,
     };
 
@@ -463,7 +464,7 @@ export default function Estudantes() {
 
               <div className="mt-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-blue-700 dark:text-blue-300">
-                  <strong>Informação:</strong> A senha padrão será <strong>spuri123</strong>. O estudante pode alterá-la no primeiro login.
+                  <strong>Informação:</strong> A senha padrão será o <strong>código do estudante</strong> gerado no cadastro. O estudante pode alterá-la no primeiro login.
                 </p>
               </div>
 
@@ -534,7 +535,7 @@ export default function Estudantes() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ano Escolar</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{estudanteSelecionado.ano_escolar?.replace('_', ' ') || '-'}</p>
+                      <p className="text-sm text-gray-900 dark:text-white capitalize">{estudanteSelecionado.ano_escolar ? formatAnoAcademico(estudanteSelecionado.ano_escolar) : '-'}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Notas</p>
