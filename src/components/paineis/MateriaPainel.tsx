@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import { useApi, academiaService, tokenStorage } from "@/lib/api";
-import { Materia, MateriaType } from "@/types/api";
+import { Curso, Materia, MateriaType } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
@@ -15,6 +15,7 @@ interface MateriaFormData {
   curso_id?: string;
 }
 
+// Anos fundamentais são FIXOS — definidos pelo sistema (1º a 9º)
 const ANOS_FUNDAMENTAL = [
   { value: "1_ano_fundamental", label: "1º Ano" },
   { value: "2_ano_fundamental", label: "2º Ano" },
@@ -27,28 +28,14 @@ const ANOS_FUNDAMENTAL = [
   { value: "9_ano_fundamental", label: "9º Ano" },
 ];
 
-const ANOS_MEDIO = [
-  { value: "1_ano_medio", label: "1º Ano Médio" },
-  { value: "2_ano_medio", label: "2º Ano Médio" },
-  { value: "3_ano_medio", label: "3º Ano Médio" },
-  { value: "4_ano_medio", label: "4º Ano Médio" },
-];
+// Anos de médio e superior são DINÂMICOS — vêm de curso.anos_academicos
+// Não há constante fixa para eles aqui.
 
-const ANOS_SUPERIOR = [
-  { value: "1_ano_superior", label: "1º Ano" },
-  { value: "2_ano_superior", label: "2º Ano" },
-  { value: "3_ano_superior", label: "3º Ano" },
-  { value: "4_ano_superior", label: "4º Ano" },
-  { value: "5_ano_superior", label: "5º Ano" },
-  { value: "6_ano_superior", label: "6º Ano" },
-];
-
-const PERIODOS_LABEL: Record<string, string> = {
-  "1_trimestre": "1º Trimestre",
-  "2_trimestre": "2º Trimestre",
-  "3_trimestre": "3º Trimestre",
-  "1_semestre":  "1º Semestre",
-  "2_semestre":  "2º Semestre",
+/** Formata um período dinâmico para label legível. */
+const formatarPeriodoLabel = (p: string): string => {
+  const m = p.match(/^(\d+)_semestre$/);
+  if (m) return `${m[1]}º Semestre`;
+  return p.replace(/_/g, " ");
 };
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
@@ -111,7 +98,7 @@ function ModalDefinirPeriodo({
             >
               <option value="">Selecione</option>
               {periodos.map(p => (
-                <option key={p} value={p}>{PERIODOS_LABEL[p] ?? p.replace(/_/g, " ")}</option>
+                <option key={p} value={p}>{formatarPeriodoLabel(p)}</option>
               ))}
             </select>
           </div>
@@ -180,6 +167,9 @@ export default function MateriaPainel() {
 
   const [materiaParaPeriodo, setMateriaParaPeriodo] = useState<Materia | null>(null);
   const [materiaParaDelete, setMateriaParaDelete]   = useState<Materia | null>(null);
+
+  // Para academias mistas: qual nível está sendo visualizado na lista
+  const [viewNivel, setViewNivel] = useState<"fundamental" | "medio">("fundamental");
 
   const { execute: executarCriarMateria,     loading: criandoMateria      } = useApi(academiaService.criarMateria);
   const { execute: executarAtualizarMateria, loading: atualizandoMateria  } = useApi(academiaService.atualizarMateria);
@@ -280,12 +270,8 @@ export default function MateriaPainel() {
 
   const handleEdit = (materia: Materia) => {
     setEditingMateria(materia);
-    setFormData({
-      nome: materia.nome,
-      type: materia.type,
-      anos_academicos: materia.anos_academicos || [],
-      curso_id: materia.curso_id,
-    });
+    // Apenas o nome é editável após a criação (backend: AtualizarDados só aceita nome)
+    setFormData({ nome: materia.nome, type: materia.type, anos_academicos: [], curso_id: undefined });
     setShowForm(true);
   };
 
@@ -311,7 +297,7 @@ export default function MateriaPainel() {
 
   const handleDefinirPeriodo = async (materiaId: string, periodo: string) => {
     await executarDefinirPeriodo(materiaId, { periodo });
-    showMsg("success", `Período definido: ${PERIODOS_LABEL[periodo] ?? periodo}`);
+    showMsg("success", `Período definido: ${formatarPeriodoLabel(periodo)}`);
     carregarDados();
   };
 
@@ -353,10 +339,24 @@ export default function MateriaPainel() {
     return listaCursos.find(c => c.id === materia.curso_id)?.periodos ?? [];
   };
 
+  /**
+   * Retorna os anos disponíveis para seleção no formulário de criação de matéria.
+   * - fundamental: lista fixa (ANOS_FUNDAMENTAL)
+   * - medio/superior: derivados de curso.anos_academicos — apenas os anos
+   *   que a academia definiu no curso selecionado.
+   */
   const getAnosDisponiveis = () => {
     if (formData.type === "fundamental") return ANOS_FUNDAMENTAL;
-    if (formData.type === "medio")       return ANOS_MEDIO;
-    return ANOS_SUPERIOR;
+    if (!formData.curso_id) return []; // sem curso selecionado, sem anos disponíveis
+    const curso = listaCursos.find(c => c.id === formData.curso_id);
+    if (!curso) return [];
+    // curso.anos_academicos = ex: ["1_ano_medio", "2_ano_medio", "3_ano_medio"]
+    return curso.anos_academicos.map(v => ({
+      value: v,
+      label: v.replace(/^(\d+)_ano_(.+)$/, (_, n, tipo) =>
+        `${n}º Ano ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`
+      ),
+    }));
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -398,10 +398,21 @@ export default function MateriaPainel() {
           </p>
         </div>
         {!showForm && (
-          <Button size="sm" onClick={() => setShowForm(true)}>
-            <Icon icon="mdi:plus" width={16} />
-            Nova Matéria
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={carregarDados}
+              disabled={ListandoMaterias || ListandoCursos}
+            >
+              <Icon icon="mdi:refresh" width={16} />
+              Carregar Matérias
+            </Button>
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Icon icon="mdi:plus" width={16} />
+              Nova Matéria
+            </Button>
+          </div>
         )}
       </div>
 
@@ -409,7 +420,7 @@ export default function MateriaPainel() {
       {showForm && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            {editingMateria ? "Editar Matéria" : "Nova Matéria"}
+            {editingMateria ? `Editar: ${editingMateria.nome}` : "Nova Matéria"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
 
@@ -425,91 +436,101 @@ export default function MateriaPainel() {
               />
             </div>
 
-            {/* Tipo — apenas para academias mistas */}
-            {isAcademiaMista() && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
-                <select
-                  value={formData.type}
-                  onChange={e => handleTypeChange(e.target.value as MateriaType)}
-                  disabled={isTipoDisabled()}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
-                >
-                  <option value="fundamental">Fundamental</option>
-                  <option value="medio">Médio</option>
-                  <option value="superior">Superior</option>
-                </select>
-              </div>
-            )}
-
-            {/* Aviso matérias superiores criadas inativas */}
-            {formData.type === "superior" && !editingMateria && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  ⚠️ Matérias do tipo Superior são criadas como <strong>inativas</strong>.
-                  Você precisará definir o período antes de ativá-las.
-                </p>
-              </div>
-            )}
-
-            {/* Anos / Níveis */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {formData.type === "superior" ? "Ano do curso *" : "Anos/Níveis *"}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {getAnosDisponiveis().map(a => (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => handleAnosToggle(a.value)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
-                      formData.anos_academicos.includes(a.value)
-                        ? "bg-brand-500 text-white border-brand-500"
-                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-brand-400"
-                    }`}
-                  >
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Curso — apenas para médio e superior */}
-            {formData.type !== "fundamental" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
-                <select
-                  value={formData.curso_id ?? ""}
-                  onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined })}
-                  disabled={!!editingMateria}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
-                >
-                  <option value="">Selecione um curso</option>
-                  {getCursosByType().map(c => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
-                  ))}
-                </select>
-                {getCursosByType().length === 0 && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                    ⚠️ Nenhum curso {formData.type === "medio" ? "de Ensino Médio" : "Superior"} ativo.
-                    Crie um curso primeiro.
-                  </p>
+            {/* Campos apenas para CRIAÇÃO */}
+            {!editingMateria && (
+              <>
+                {/* Tipo — apenas para academias mistas */}
+                {isAcademiaMista() && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
+                    <select
+                      value={formData.type}
+                      onChange={e => handleTypeChange(e.target.value as MateriaType)}
+                      disabled={isTipoDisabled()}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
+                    >
+                      <option value="fundamental">Fundamental</option>
+                      <option value="medio">Médio</option>
+                      <option value="superior">Superior</option>
+                    </select>
+                  </div>
                 )}
-                {editingMateria && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    O curso não pode ser alterado após a criação
-                  </p>
-                )}
-              </div>
-            )}
 
-            {formData.type === "fundamental" && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  ℹ️ Matérias do Ensino Fundamental não são vinculadas a cursos
-                </p>
-              </div>
+                {/* Aviso matérias superiores criadas inativas */}
+                {formData.type === "superior" && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      ⚠️ Matérias do tipo Superior são criadas como <strong>inativas</strong>.
+                      Você precisará definir o período antes de ativá-las.
+                    </p>
+                  </div>
+                )}
+
+                {/* Curso — antes dos anos */}
+                {formData.type !== "fundamental" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
+                    <select
+                      value={formData.curso_id ?? ""}
+                      onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, anos_academicos: [] })}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="">Selecione um curso</option>
+                      {getCursosByType().map(c => (
+                        <option key={c.id} value={c.id}>{c.nome}</option>
+                      ))}
+                    </select>
+                    {getCursosByType().length === 0 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                        ⚠️ Nenhum curso {formData.type === "medio" ? "de Ensino Médio" : "Superior"} ativo.
+                        Crie um curso primeiro.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Anos / Níveis */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {formData.type === "superior" ? "Ano do curso *" : "Anos/Níveis *"}
+                  </label>
+                  {formData.type !== "fundamental" && !formData.curso_id ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Selecione o curso acima para ver os anos disponíveis.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {getAnosDisponiveis().map(a => (
+                        <button
+                          key={a.value}
+                          type="button"
+                          onClick={() => handleAnosToggle(a.value)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                            formData.anos_academicos.includes(a.value)
+                              ? "bg-brand-500 text-white border-brand-500"
+                              : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-brand-400"
+                          }`}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                      {getAnosDisponiveis().length === 0 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          O curso selecionado não possui anos definidos.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {formData.type === "fundamental" && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      ℹ️ Matérias do Ensino Fundamental não são vinculadas a cursos
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex gap-3 pt-4">
@@ -540,145 +561,347 @@ export default function MateriaPainel() {
         </div>
       )}
 
-      {/* Lista de matérias */}
+      {/* Lista de matérias agrupada por ano académico */}
       {!ListandoMaterias && !ListandoCursos && !showForm && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {listaMaterias.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
-              <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-30" />
-              <p>Nenhuma matéria cadastrada</p>
-            </div>
-          ) : (
-            listaMaterias.map(materia => {
-              const periodosDoCurso       = getPeriodosDoCurso(materia);
-              const precisaDefinirPeriodo = materia.type === "superior" && !materia.periodo;
-              const podeAtivar            = materia.type !== "superior" || !!materia.periodo;
-              const podeDelete            = materia.status === "inativo";
-
-              return (
-                <div
-                  key={materia.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-4 flex flex-col gap-3"
+        listaMaterias.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-30" />
+            <p>Nenhuma matéria cadastrada</p>
+          </div>
+        ) : (
+          <>
+            {/* Toggle Fundamental/Médio para academias mistas */}
+            {isAcademiaMista() && (
+              <div className="flex items-center">
+                <button
+                  onClick={() => setViewNivel(v => v === "fundamental" ? "medio" : "fundamental")}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
                 >
-                  {/* Cabeçalho do card */}
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-gray-900 dark:text-white truncate">{materia.nome}</h4>
-                      <div className="flex flex-wrap gap-1 mt-1">
+                  <Icon
+                    icon={viewNivel === "fundamental" ? "mdi:school" : "mdi:book-education"}
+                    width={16}
+                  />
+                  {viewNivel === "fundamental"
+                    ? "Ver Matérias do Ensino Médio"
+                    : "Ver Matérias do Ensino Fundamental"}
+                </button>
+              </div>
+            )}
 
-                        {/* Badge tipo */}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          materia.type === "fundamental"
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                            : materia.type === "medio"
-                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                            : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                        }`}>
-                          {materia.type === "fundamental" ? "Fundamental"
-                            : materia.type === "medio"    ? "Médio"
-                            : "Superior"}
-                        </span>
+            <MateriasAgrupadas
+              materias={
+                isAcademiaMista()
+                  ? listaMaterias.filter(m => m.type === viewNivel)
+                  : listaMaterias
+              }
+              listaCursos={listaCursos}
+              getCursoNome={getCursoNome}
+              getPeriodosDoCurso={getPeriodosDoCurso}
+              onEdit={handleEdit}
+              onToggleStatus={handleToggleStatus}
+              onDefinirPeriodo={setMateriaParaPeriodo}
+              onDelete={setMateriaParaDelete}
+            />
+          </>
+        )
+      )}
+    </div>
+  );
+}
 
-                        {/* Badge período (apenas superior) */}
-                        {materia.type === "superior" && (
-                          materia.periodo ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
-                              {PERIODOS_LABEL[materia.periodo] ?? materia.periodo.replace(/_/g, " ")}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                              Período não definido
-                            </span>
-                          )
-                        )}
+// ── Helpers de formatação ─────────────────────────────────────────────────────
 
-                        {/* Badge status */}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          materia.status === "ativo"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                            : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
-                        }`}>
-                          {materia.status === "ativo" ? "Ativa" : "Inativa"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+function formatarAnoLabel(ano: string): string {
+  // "1_ano_fundamental" → "1º Fund."  |  "3_ano_medio" → "3º Méd."  |  "2_ano_superior" → "2º Sup."
+  const m = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!m) return ano.replace(/_/g, " ");
+  const abrev: Record<string, string> = { fundamental: "Fund.", medio: "Méd.", superior: "Sup." };
+  return `${m[1]}º ${abrev[m[2]] ?? m[2]}`;
+}
 
-                  {/* Info curso e anos */}
-                  {materia.curso_id && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Curso: {getCursoNome(materia.curso_id)}
-                    </p>
-                  )}
-                  {materia.anos_academicos && materia.anos_academicos.length > 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Anos: {materia.anos_academicos.join(", ")}
-                    </p>
-                  )}
+function formatarSecaoLabel(ano: string): string {
+  // Label completo para os cabeçalhos de secção
+  const m = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!m) return ano.replace(/_/g, " ");
+  const tipo: Record<string, string> = { fundamental: "Fundamental", medio: "Médio", superior: "Superior" };
+  return `${m[1]}º Ano — ${tipo[m[2]] ?? m[2]}`;
+}
 
-                  {/* Aviso superior sem período */}
-                  {precisaDefinirPeriodo && (
-                    <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        ⚠️ Defina o período para poder ativar esta matéria
-                      </p>
-                    </div>
-                  )}
+// ── Chips de anos (com ver mais/menos) ───────────────────────────────────────
 
-                  {/* Ações */}
-                  <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+const CHIPS_LIMIT = 4;
 
-                    {/* Editar */}
-                    <button
-                      onClick={() => handleEdit(materia)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-brand-500 transition-colors"
-                    >
-                      <Icon icon="mdi:pencil" width={14} />
-                      Editar
-                    </button>
+function AnosChips({ anos }: { anos: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!anos || anos.length === 0) return null;
 
-                    {/* Definir Período */}
-                    {precisaDefinirPeriodo && periodosDoCurso.length > 0 && (
-                      <button
-                        onClick={() => setMateriaParaPeriodo(materia)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 transition-colors"
-                      >
-                        <Icon icon="mdi:calendar-check" width={14} />
-                        Definir Período
-                      </button>
-                    )}
+  const visible = expanded ? anos : anos.slice(0, CHIPS_LIMIT);
+  const hasMore = anos.length > CHIPS_LIMIT;
 
-                    {/* Ativar / Desativar */}
-                    <button
-                      onClick={() => handleToggleStatus(materia)}
-                      disabled={materia.status === "inativo" && !podeAtivar}
-                      className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                        materia.status === "ativo"
-                          ? "text-orange-600 dark:text-orange-400 hover:text-orange-700"
-                          : "text-green-600 dark:text-green-400 hover:text-green-700"
-                      }`}
-                    >
-                      <Icon icon={materia.status === "ativo" ? "mdi:pause-circle" : "mdi:play-circle"} width={14} />
-                      {materia.status === "ativo" ? "Desativar" : "Ativar"}
-                    </button>
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {visible.map(a => (
+        <span
+          key={a}
+          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+        >
+          {formatarAnoLabel(a)}
+        </span>
+      ))}
+      {hasMore && (
+        <button
+          onClick={() => setExpanded(p => !p)}
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 transition-colors"
+        >
+          {expanded ? "▲ menos" : `+${anos.length - CHIPS_LIMIT} mais`}
+        </button>
+      )}
+    </div>
+  );
+}
 
-                    {/* Deletar (apenas inativas) */}
-                    {podeDelete && (
-                      <button
-                        onClick={() => setMateriaParaDelete(materia)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 transition-colors ml-auto"
-                      >
-                        <Icon icon="mdi:delete-outline" width={14} />
-                        Deletar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
+// ── Card de matéria ───────────────────────────────────────────────────────────
+
+function MateriaCard({
+  materia,
+  getCursoNome,
+  periodosDoCurso,
+  onEdit,
+  onToggleStatus,
+  onDefinirPeriodo,
+  onDelete,
+}: {
+  materia: Materia;
+  getCursoNome: (id?: string) => string;
+  periodosDoCurso: string[];
+  onEdit: (m: Materia) => void;
+  onToggleStatus: (m: Materia) => void;
+  onDefinirPeriodo: (m: Materia) => void;
+  onDelete: (m: Materia) => void;
+}) {
+  const precisaDefinirPeriodo = materia.type === "superior" && !materia.periodo;
+  const podeAtivar            = materia.type !== "superior" || !!materia.periodo;
+  const podeDelete            = materia.status === "inativo";
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-4 flex flex-col gap-3">
+      {/* Cabeçalho */}
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-gray-900 dark:text-white truncate">{materia.nome}</h4>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {/* Badge tipo */}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+              materia.type === "fundamental"
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                : materia.type === "medio"
+                ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+            }`}>
+              {materia.type === "fundamental" ? "Fundamental" : materia.type === "medio" ? "Médio" : "Superior"}
+            </span>
+
+            {/* Badge período (superior) */}
+            {materia.type === "superior" && (
+              materia.periodo ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                  {formatarPeriodoLabel(materia.periodo)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  Período não definido
+                </span>
+              )
+            )}
+
+            {/* Badge status */}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+              materia.status === "ativo"
+                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+            }`}>
+              {materia.status === "ativo" ? "Ativa" : "Inativa"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Curso (médio/superior) */}
+      {materia.curso_id && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Curso: <span className="font-medium">{getCursoNome(materia.curso_id)}</span>
+        </p>
+      )}
+
+      {/* Anos como chips */}
+      {materia.anos_academicos && materia.anos_academicos.length > 0 && (
+        <AnosChips anos={materia.anos_academicos} />
+      )}
+
+      {/* Aviso superior sem período */}
+      {precisaDefinirPeriodo && (
+        <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            ⚠️ Defina o período para poder ativar esta matéria
+          </p>
         </div>
       )}
+
+      {/* Ações */}
+      <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+        <button
+          onClick={() => onEdit(materia)}
+          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-brand-500 transition-colors"
+        >
+          <Icon icon="mdi:pencil" width={14} />
+          Editar
+        </button>
+
+        {precisaDefinirPeriodo && periodosDoCurso.length > 0 && (
+          <button
+            onClick={() => onDefinirPeriodo(materia)}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 transition-colors"
+          >
+            <Icon icon="mdi:calendar-check" width={14} />
+            Definir Período
+          </button>
+        )}
+
+        <button
+          onClick={() => onToggleStatus(materia)}
+          disabled={materia.status === "inativo" && !podeAtivar}
+          className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            materia.status === "ativo"
+              ? "text-orange-600 dark:text-orange-400 hover:text-orange-700"
+              : "text-green-600 dark:text-green-400 hover:text-green-700"
+          }`}
+        >
+          <Icon icon={materia.status === "ativo" ? "mdi:pause-circle" : "mdi:play-circle"} width={14} />
+          {materia.status === "ativo" ? "Desativar" : "Ativar"}
+        </button>
+
+        {podeDelete && (
+          <button
+            onClick={() => onDelete(materia)}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 transition-colors ml-auto"
+          >
+            <Icon icon="mdi:delete-outline" width={14} />
+            Deletar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Agrupamento por ano académico ─────────────────────────────────────────────
+
+function MateriasAgrupadas({
+  materias,
+  listaCursos,
+  getCursoNome,
+  getPeriodosDoCurso,
+  onEdit,
+  onToggleStatus,
+  onDefinirPeriodo,
+  onDelete,
+}: {
+  materias: Materia[];
+  listaCursos: Curso[];
+  getCursoNome: (id?: string) => string;
+  getPeriodosDoCurso: (m: Materia) => string[];
+  onEdit: (m: Materia) => void;
+  onToggleStatus: (m: Materia) => void;
+  onDefinirPeriodo: (m: Materia) => void;
+  onDelete: (m: Materia) => void;
+}) {
+  const [secaoAberta, setSecaoAberta] = useState<Record<string, boolean>>({});
+
+  // Construir mapa: ano → [matérias]
+  // Matérias com múltiplos anos aparecem em cada secção correspondente.
+  // Matérias sem anos_academicos ficam numa secção "Sem ano definido".
+  const grupos: Record<string, Materia[]> = {};
+
+  for (const m of materias) {
+    const anos = m.anos_academicos && m.anos_academicos.length > 0
+      ? m.anos_academicos
+      : ["__sem_ano__"];
+    for (const ano of anos) {
+      if (!grupos[ano]) grupos[ano] = [];
+      // Evitar duplicata na mesma secção (matéria pode pertencer a vários anos)
+      if (!grupos[ano].find(x => x.id === m.id)) {
+        grupos[ano].push(m);
+      }
+    }
+  }
+
+  // Ordenar secções: fundamentais (1→9), médios, superiores, sem ano
+  const ordenarAno = (a: string): number => {
+    const m = a.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+    if (!m) return 9999;
+    const peso: Record<string, number> = { fundamental: 0, medio: 100, superior: 200 };
+    return (peso[m[2]] ?? 300) + parseInt(m[1]);
+  };
+
+  const secoes = Object.keys(grupos).sort((a, b) => {
+    if (a === "__sem_ano__") return 1;
+    if (b === "__sem_ano__") return -1;
+    return ordenarAno(a) - ordenarAno(b);
+  });
+
+  const toggleSecao = (ano: string) =>
+    setSecaoAberta(p => ({ ...p, [ano]: !p[ano] }));
+
+  // Por omissão, abrir todas as secções
+  const isAberta = (ano: string) => secaoAberta[ano] !== false;
+
+  return (
+    <div className="space-y-4">
+      {secoes.map(ano => {
+        const lista   = grupos[ano];
+        const aberta  = isAberta(ano);
+        const heading = ano === "__sem_ano__" ? "Sem ano definido" : formatarSecaoLabel(ano);
+
+        return (
+          <section key={ano}>
+            {/* Cabeçalho da secção — clicável para colapsar */}
+            <button
+              onClick={() => toggleSecao(ano)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Icon icon="mdi:school-outline" className="w-4 h-4 text-brand-500" />
+                <span className="font-semibold text-sm text-gray-800 dark:text-white">{heading}</span>
+                <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">
+                  {lista.length} matéria{lista.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <Icon
+                icon={aberta ? "mdi:chevron-up" : "mdi:chevron-down"}
+                className="w-5 h-5 text-gray-400"
+              />
+            </button>
+
+            {/* Grid de cards */}
+            {aberta && (
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {lista.map(materia => (
+                  <MateriaCard
+                    key={materia.id}
+                    materia={materia}
+                    getCursoNome={getCursoNome}
+                    periodosDoCurso={getPeriodosDoCurso(materia)}
+                    onEdit={onEdit}
+                    onToggleStatus={onToggleStatus}
+                    onDefinirPeriodo={onDefinirPeriodo}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

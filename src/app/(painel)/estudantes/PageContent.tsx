@@ -57,6 +57,7 @@ export default function Estudantes() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
 
+  // Anos fundamentais são FIXOS
   const anosFundamental: AnoEscolar[] = [
     { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
     { label: '2º Ano Fundamental', value: '2_ano_fundamental' },
@@ -69,45 +70,63 @@ export default function Estudantes() {
     { label: '9º Ano Fundamental', value: '9_ano_fundamental' },
   ];
 
-  const anosMedio: AnoEscolar[] = [
-    { label: '1º Ano Médio', value: '1_ano_medio' },
-    { label: '2º Ano Médio', value: '2_ano_medio' },
-    { label: '3º Ano Médio', value: '3_ano_medio' },
-    { label: '4º Ano Médio', value: '4_ano_medio' },
-  ];
+  /**
+   * Anos do médio são DINÂMICOS — vêm de curso.anos_academicos do curso selecionado.
+   * Se não houver curso selecionado, retorna lista vazia.
+   */
+  const getAnosMedioFromCurso = (): AnoEscolar[] => {
+    if (!cursoSelecionado?.anos_academicos) return [];
+    return (cursoSelecionado.anos_academicos as string[]).map((v: string) => {
+      const m = v.match(/^(\d+)_ano_medio$/);
+      return { value: v, label: m ? `${m[1]}º Ano Médio` : v.replace(/_/g, ' ') };
+    });
+  };
 
+  /**
+   * Verifica se um valor de ano pertence ao médio (formato n_ano_medio).
+   * Dinâmico — não precisa de array fixo.
+   */
+  const isAnoMedio = (anoValue: string | undefined): boolean => {
+    if (!anoValue) return false;
+    return /^\d+_ano_medio$/.test(anoValue);
+  };
+
+  /**
+   * Retorna os anos disponíveis para seleção no cadastro de estudante.
+   * - fundamental: lista fixa
+   * - medio: deriva de curso.anos_academicos (requer curso selecionado)
+   * - misto: fundamental fixo + médio do curso (se selecionado)
+   */
   const getAnosDisponiveis = (): AnoEscolar[] => {
     const nivelAcademia = user?.academia?.nivel_escolar;
-    
+    const anosMedioFromCurso = getAnosMedioFromCurso();
+
     if (nivelAcademia === 'fundamental') {
       return anosFundamental;
     }
-    
+
     if (nivelAcademia === 'medio') {
-      return anosMedio;
+      // Só mostra anos do médio se um curso estiver selecionado
+      return anosMedioFromCurso;
     }
-    
+
     if (nivelAcademia === 'misto') {
-      return [...anosFundamental, ...anosMedio];
+      return [...anosFundamental, ...anosMedioFromCurso];
     }
-    
+
     return anosFundamental;
   };
 
-  const isAnoMedio = (anoValue: string | undefined): boolean => {
-    if (!anoValue) return false;
-    return anosMedio.some(ano => ano.value === anoValue);
-  };
 
   const deveMostrarCurso = (): boolean => {
     const nivelAcademia = user?.academia?.nivel_escolar;
-    
+
     if (nivelAcademia === 'medio') return true;
-    
+
     if (nivelAcademia === 'misto' && anoEscolarSelecionado) {
       return isAnoMedio(anoEscolarSelecionado);
     }
-    
+
     return false;
   };
 
@@ -365,25 +384,20 @@ export default function Estudantes() {
                   </div>
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Ano Escolar *</Label>
-                  <Dropdown
-                    value={anoEscolarSelecionado}
-                    options={getAnosDisponiveis()}
-                    onChange={(e) => setAnoEscolarSelecionado(e.value)}
-                    placeholder="Selecione o ano"
-                    disabled={cadastrandoIndividual}
-                    className="w-full"
-                  />
-                </div>
-
-                {deveMostrarCurso() && (
+                {/* Curso — para médio/misto deve vir ANTES do ano escolar */}
+                {(user?.academia?.nivel_escolar === 'medio' || user?.academia?.nivel_escolar === 'misto') && (
                   <div className="col-span-2 sm:col-span-1">
-                    <Label>Curso * (Obrigatório para Ensino Médio)</Label>
+                    <Label>Curso {user?.academia?.nivel_escolar === 'medio' ? '* (Obrigatório)' : '(Opcional - para alunos do Médio)'}</Label>
                     <Dropdown
                       value={cursoSelecionado}
                       options={dataCursos?.cursos || []}
-                      onChange={(e) => setCursoSelecionado(e.value)}
+                      onChange={(e) => {
+                        setCursoSelecionado(e.value);
+                        // Limpar ano quando o curso muda (anos são dependentes do curso)
+                        if (isAnoMedio(anoEscolarSelecionado ?? '')) {
+                          setAnoEscolarSelecionado(null);
+                        }
+                      }}
                       optionLabel="nome"
                       placeholder="Selecione o curso"
                       disabled={cadastrandoIndividual}
@@ -391,6 +405,35 @@ export default function Estudantes() {
                     />
                   </div>
                 )}
+
+                <div className="col-span-2 sm:col-span-1">
+                  <Label>Ano Escolar *</Label>
+                  <Dropdown
+                    value={anoEscolarSelecionado}
+                    options={getAnosDisponiveis()}
+                    onChange={(e) => setAnoEscolarSelecionado(e.value)}
+                    placeholder={
+                      (user?.academia?.nivel_escolar === 'medio' || (user?.academia?.nivel_escolar === 'misto' && deveMostrarCurso()))
+                        && !cursoSelecionado
+                        ? "Selecione o curso primeiro"
+                        : "Selecione o ano"
+                    }
+                    disabled={
+                      cadastrandoIndividual ||
+                      (
+                        (user?.academia?.nivel_escolar === 'medio' ||
+                          (user?.academia?.nivel_escolar === 'misto' && deveMostrarCurso()))
+                        && !cursoSelecionado
+                      )
+                    }
+                    className="w-full"
+                  />
+                  {user?.academia?.nivel_escolar === 'medio' && !cursoSelecionado && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Selecione o curso para ver os anos disponíveis
+                    </p>
+                  )}
+                </div>
                 
                 <div className="col-span-2 sm:col-span-1">
                   <Label>E-mail (opcional)</Label>

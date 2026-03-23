@@ -9,6 +9,7 @@ import { getCookie } from "@/lib/utils/cookies";
 
 // ── Constantes ─────────────────────────────────────────────────────────────
 
+// Anos fundamentais são FIXOS — definidos pelo sistema
 const ANOS_FUNDAMENTAL = [
   { value: "1_ano_fundamental", label: "1º Ano" },
   { value: "2_ano_fundamental", label: "2º Ano" },
@@ -20,28 +21,26 @@ const ANOS_FUNDAMENTAL = [
   { value: "8_ano_fundamental", label: "8º Ano" },
   { value: "9_ano_fundamental", label: "9º Ano" },
 ];
-const ANOS_MEDIO = [
-  { value: "1_ano_medio", label: "1º Ano Médio" },
-  { value: "2_ano_medio", label: "2º Ano Médio" },
-  { value: "3_ano_medio", label: "3º Ano Médio" },
-  { value: "4_ano_medio", label: "4º Ano Médio" },
-];
-const ANOS_SUPERIOR = [
-  { value: "1_ano_superior", label: "1º Ano" },
-  { value: "2_ano_superior", label: "2º Ano" },
-  { value: "3_ano_superior", label: "3º Ano" },
-  { value: "4_ano_superior", label: "4º Ano" },
-  { value: "5_ano_superior", label: "5º Ano" },
-  { value: "6_ano_superior", label: "6º Ano" },
-];
+// Anos de médio e superior são DINÂMICOS — vêm de curso.anos_academicos
 const TURNOS = [
   { value: "manha", label: "Manhã"  },
   { value: "tarde", label: "Tarde"  },
   { value: "noite", label: "Noite"  },
 ];
 
-const labelNivel = (v: string) =>
-  [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO, ...ANOS_SUPERIOR].find(a => a.value === v)?.label ?? v;
+/** Formata um valor de nível para label legível — suporta valores dinâmicos. */
+const labelNivel = (v: string): string => {
+  // Fixos: fundamentais
+  const fixo = ANOS_FUNDAMENTAL.find(a => a.value === v);
+  if (fixo) return fixo.label;
+  // Dinâmicos: ex "3_ano_medio" → "3º Médio" | "2_ano_superior" → "2º Superior"
+  const m = v.match(/^(\d+)_ano_(medio|superior)$/);
+  if (m) {
+    const tipo = m[2] === "medio" ? "Médio" : "Superior";
+    return `${m[1]}º ${tipo}`;
+  }
+  return v.replace(/_/g, " ");
+};
 
 const labelTurno = (t: string) => TURNOS.find(x => x.value === t)?.label ?? t;
 
@@ -119,6 +118,8 @@ export default function TurmasPainel() {
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [codigoAdd, setCodigoAdd] = useState("");
   const [alert, setAlert] = useState<{variant: "success"|"error"|"warning"|"info"; message: string }|null>(null);
+  // Para academias mistas: qual secção está visível (fundamental vs médio/cursos)
+  const [viewNivelTurmas, setViewNivelTurmas] = useState<"fundamental" | "cursos">("fundamental");
 
   // APIs
   const { execute: listarTurmas, data: dataTurmas, loading: carregando  } = useApi(academiaService.listarTurmas);
@@ -158,30 +159,43 @@ export default function TurmasPainel() {
   const cursos:     Curso[]              = dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [];
   const estudantes: EstudanteDetalhado[] = dataEstudantes?.estudantes ?? [];
 
+  /**
+   * Retorna as opções de nível para o select do formulário.
+   * - fundamental: lista fixa (ANOS_FUNDAMENTAL)
+   * - médio/superior: derivados de curso.anos_academicos (dinâmico)
+   *
+   * Sem curso selecionado (médio/superior) retorna [] — o select fica desabilitado
+   * até o utilizador escolher um curso.
+   */
   const getNivelOptions = (cursoId?: string) => {
     if (isFundamental) return ANOS_FUNDAMENTAL;
+    if (!cursoId) return []; // obriga escolher curso primeiro
     const curso = cursos.find(c => c.id === cursoId);
-    if (!curso) return isSuperior ? ANOS_SUPERIOR : [...ANOS_MEDIO, ...ANOS_SUPERIOR];
-    if (curso.type === "medio")    return ANOS_MEDIO.filter(a => curso.anos_academicos.includes(a.value));
-    if (curso.type === "superior") return ANOS_SUPERIOR.filter(a => curso.anos_academicos.includes(a.value));
-    return [];
+    if (!curso) return [];
+    // curso.anos_academicos = ["1_ano_medio","2_ano_medio",...] ou ["1_ano_superior",...]
+    return curso.anos_academicos.map(v => ({
+      value: v,
+      label: labelNivel(v),
+    }));
   };
 
   // ── Agrupamentos ─────────────────────────────────────────────────────
 
-  const turmasPorNivel = () => {
+  const turmasPorNivel = (lista?: Turma[]) => {
+    const source = lista ?? turmas;
     const map: Record<string, Turma[]> = {};
-    for (const t of turmas) {
+    for (const t of source) {
       if (!map[t.nivel]) map[t.nivel] = [];
       map[t.nivel].push(t);
     }
     return map;
   };
 
-  const turmasPorCurso = () => {
+  const turmasPorCurso = (lista?: Turma[]) => {
     type G = { curso: Curso | null; niveis: Record<string, Turma[]> };
+    const source = lista ?? turmas;
     const map: Record<string, G> = {};
-    for (const t of turmas) {
+    for (const t of source) {
       const key = t.curso_id ?? "__sem_curso__";
       if (!map[key]) {
         map[key] = { curso: cursos.find(c => c.id === t.curso_id) ?? null, niveis: {} };
@@ -191,6 +205,11 @@ export default function TurmasPainel() {
     }
     return map;
   };
+
+  // Para academias mistas: turmas de fundamental têm nivel matching /fundamental/
+  // turmas de médio/superior têm nivel matching /medio|superior/
+  const turmasFundamental = turmas.filter(t => t.nivel.includes("fundamental"));
+  const turmasCursos      = turmas.filter(t => !t.nivel.includes("fundamental"));
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
@@ -550,15 +569,15 @@ export default function TurmasPainel() {
 
   // ── Vista fundamental (ano → turmas) ────────────────────────────────
 
-  const ViewFundamental = () => {
-    const porNivel = turmasPorNivel();
+  const ViewFundamental = ({ lista }: { lista?: Turma[] }) => {
+    const porNivel = turmasPorNivel(lista);
     const niveisComTurmas = ANOS_FUNDAMENTAL.filter(a => porNivel[a.value]?.length > 0);
     if (niveisComTurmas.length === 0) return <Empty />;
     return (
       <div className="space-y-3">
         {niveisComTurmas.map(ano => {
           const isOpen = expandedNivel === ano.value;
-          const lista  = porNivel[ano.value] ?? [];
+          const listaAno  = porNivel[ano.value] ?? [];
           return (
             <div key={ano.value} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <button
@@ -569,14 +588,14 @@ export default function TurmasPainel() {
                   <Icon icon="mdi:school" className="text-brand-500 w-5 h-5" />
                   <span className="font-semibold text-gray-800 dark:text-white">{ano.label}</span>
                   <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">
-                    {lista.length} turma{lista.length !== 1 ? "s" : ""}
+                    {listaAno.length} turma{listaAno.length !== 1 ? "s" : ""}
                   </span>
                 </div>
                 <Icon icon={isOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
               </button>
               {isOpen && (
                 <div className="p-3 space-y-2">
-                  {lista.map(t => <TurmaCard key={t.codigo_turma} turma={t} />)}
+                  {listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} />)}
                 </div>
               )}
             </div>
@@ -588,8 +607,8 @@ export default function TurmasPainel() {
 
   // ── Vista médio/superior (curso → ano → turmas) ──────────────────────
 
-  const ViewCursos = () => {
-    const porCurso = turmasPorCurso();
+  const ViewCursos = ({ lista }: { lista?: Turma[] }) => {
+    const porCurso = turmasPorCurso(lista);
     if (Object.keys(porCurso).length === 0) return <Empty />;
     return (
       <div className="space-y-3">
@@ -615,7 +634,7 @@ export default function TurmasPainel() {
               </button>
               {isCursoOpen && (
                 <div className="p-3 space-y-2">
-                  {Object.entries(niveis).map(([nivel, lista]) => {
+                  {Object.entries(niveis).map(([nivel, listaLocal]) => {
                     const nivelKey = `${cursoKey}__${nivel}`;
                     const isNivel  = expandedNivel === nivelKey;
                     return (
@@ -630,14 +649,14 @@ export default function TurmasPainel() {
                               {labelNivel(nivel)}
                             </span>
                             <span className="text-xs text-gray-400 dark:text-gray-500">
-                              · {lista.length} turma{lista.length !== 1 ? "s" : ""}
+                              · {listaLocal.length} turma{listaLocal.length !== 1 ? "s" : ""}
                             </span>
                           </div>
                           <Icon icon={isNivel ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-gray-400" />
                         </button>
                         {isNivel && (
                           <div className="p-2 space-y-2">
-                            {lista.map(t => <TurmaCard key={t.codigo_turma} turma={t} />)}
+                            {listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} />)}
                           </div>
                         )}
                       </div>
@@ -710,7 +729,35 @@ export default function TurmasPainel() {
       )}
 
       {!carregando && !showForm && (
-        isFundamental ? <ViewFundamental /> : <ViewCursos />
+        <div className="space-y-4">
+          {/* Toggle Fundamental/Médio para academias mistas */}
+          {isMisto && turmas.length > 0 && (
+            <div className="flex items-center">
+              <button
+                onClick={() => setViewNivelTurmas(v => v === "fundamental" ? "cursos" : "fundamental")}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
+              >
+                <Icon
+                  icon={viewNivelTurmas === "fundamental" ? "mdi:book-education" : "mdi:school"}
+                  width={16}
+                />
+                {viewNivelTurmas === "fundamental"
+                  ? "Ver Turmas do Ensino Médio"
+                  : "Ver Turmas do Ensino Fundamental"}
+              </button>
+            </div>
+          )}
+
+          {isMisto ? (
+            viewNivelTurmas === "fundamental"
+              ? <ViewFundamental lista={turmasFundamental} />
+              : <ViewCursos lista={turmasCursos} />
+          ) : isFundamental ? (
+            <ViewFundamental />
+          ) : (
+            <ViewCursos />
+          )}
+        </div>
       )}
     </div>
   );

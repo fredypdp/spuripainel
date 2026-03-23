@@ -7,28 +7,43 @@ import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 import { getCookie } from "@/lib/utils/cookies";
 
-// ── Constantes ────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const ANOS_MEDIO = [
-  { value: "1_ano_medio", label: "1º Ano Médio" },
-  { value: "2_ano_medio", label: "2º Ano Médio" },
-  { value: "3_ano_medio", label: "3º Ano Médio" },
-  { value: "4_ano_medio", label: "4º Ano Médio" },
-];
+/**
+ * Anos de médio e superior são DINÂMICOS — definidos pela academia.
+ * Gera a lista a partir do número de anos escolhido no formulário.
+ */
+const gerarAnosMedio = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({
+    value: `${i + 1}_ano_medio`,
+    label: `${i + 1}º Ano Médio`,
+  }));
 
-const ANOS_SUPERIOR = [
-  { value: "1_ano_superior", label: "1º Ano" },
-  { value: "2_ano_superior", label: "2º Ano" },
-  { value: "3_ano_superior", label: "3º Ano" },
-  { value: "4_ano_superior", label: "4º Ano" },
-  { value: "5_ano_superior", label: "5º Ano" },
-  { value: "6_ano_superior", label: "6º Ano" },
-];
+const gerarAnosSuperior = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({
+    value: `${i + 1}_ano_superior`,
+    label: `${i + 1}º Ano Superior`,
+  }));
+
+/**
+ * Semestres do superior também são DINÂMICOS.
+ * O número total de semestres é definido pela academia (ex: curso de 4 anos = 8 semestres).
+ */
+const gerarSemestres = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({
+    value: `${i + 1}_semestre`,
+    label: `${i + 1}º Semestre`,
+  }));
 
 interface CursoFormData {
   nome: string;
   type: CursoType;
   anos_academicos: string[];
+  /** Quantidade de anos — usada para gerar anos_academicos dinamicamente. */
+  numAnos: number;
+  /** Períodos (semestres) — apenas cursos superiores; gerados a partir de numSemestres. */
+  periodos: string[];
+  numSemestres: number;
 }
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
@@ -37,20 +52,15 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
   catch { return null; }
 };
 
+/** Formata o label de um ano para exibição nos cards de cursos. */
 const formatarNivelLabel = (nivel: string): string => {
-  const map: Record<string, string> = {
-    "1_ano_medio":    "1º Médio",
-    "2_ano_medio":    "2º Médio",
-    "3_ano_medio":    "3º Médio",
-    "4_ano_medio":    "4º Médio",
-    "1_ano_superior": "1º Ano",
-    "2_ano_superior": "2º Ano",
-    "3_ano_superior": "3º Ano",
-    "4_ano_superior": "4º Ano",
-    "5_ano_superior": "5º Ano",
-    "6_ano_superior": "6º Ano",
-  };
-  return map[nivel] ?? nivel.replace(/_/g, " ");
+  // ex: "3_ano_medio" → "3º Médio"  |  "2_ano_superior" → "2º Superior"
+  const m = nivel.match(/^(\d+)_ano_(medio|superior)$/);
+  if (m) {
+    const tipo = m[2] === "medio" ? "Médio" : "Superior";
+    return `${m[1]}º ${tipo}`;
+  }
+  return nivel.replace(/_/g, " ");
 };
 
 // ── Modal: Confirmar Deleção de Curso ─────────────────────────────────────────
@@ -122,6 +132,9 @@ export default function CursosPainel() {
     nome: "",
     type: getDefaultType(),
     anos_academicos: [],
+    numAnos: 3,
+    periodos: [],
+    numSemestres: 6,
   });
 
   const { execute: executarListarCursos, data: cursos, loading: ListandoCursos   } = useApi(academiaService.listarCursos);
@@ -130,6 +143,19 @@ export default function CursosPainel() {
   const { execute: executarAtivarCurso, error: erroAtivarCurso } = useApi(academiaService.ativarCurso);
   const { execute: executarDesativarCurso, error: erroDesativarCurso } = useApi(academiaService.desativarCurso);
   const { execute: executarDeletarCurso } = useApi(academiaService.deletarCurso);
+
+  // Para academias mistas: qual tipo de curso está visível na lista
+  const [viewTipoCurso, setViewTipoCurso] = useState<"medio" | "superior">("medio");
+  // Controlo de quais secções estão abertas
+  const [secaoAberta, setSecaoAberta] = useState<Record<string, boolean>>({});
+
+  const isAcademiaMista = () =>
+    user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "misto";
+
+  const toggleSecao = (key: string) =>
+    setSecaoAberta(p => ({ ...p, [key]: p[key] === false ? true : false }));
+
+  const isSecaoAberta = (key: string) => secaoAberta[key] !== false;
 
   useEffect(() => {
     executarListarCursos();
@@ -149,10 +175,6 @@ export default function CursosPainel() {
       showAlert("error", "Nome do curso é obrigatório");
       return;
     }
-    if (!editingCurso && formData.anos_academicos.length === 0) {
-      showAlert("error", "Selecione pelo menos um ano");
-      return;
-    }
 
     try {
       if (editingCurso) {
@@ -162,10 +184,20 @@ export default function CursosPainel() {
         });
         showAlert("success", "Curso atualizado com sucesso");
       } else {
+        // Gerar anos_academicos e periodos dinamicamente a partir dos contadores
+        const anosGerados = formData.type === "medio"
+          ? gerarAnosMedio(formData.numAnos).map(a => a.value)
+          : gerarAnosSuperior(formData.numAnos).map(a => a.value);
+
+        const periodosGerados = formData.type === "superior"
+          ? gerarSemestres(formData.numSemestres).map(s => s.value)
+          : undefined;
+
         await executarCriarCurso({
           nome: formData.nome,
           type: formData.type,
-          anos_academicos: formData.anos_academicos,
+          anos_academicos: anosGerados,
+          ...(periodosGerados && { periodos: periodosGerados }),
         });
         showAlert("success", "Curso criado com sucesso");
       }
@@ -178,7 +210,14 @@ export default function CursosPainel() {
 
   const handleEdit = (curso: Curso) => {
     setEditingCurso(curso);
-    setFormData({ nome: curso.nome, type: curso.type, anos_academicos: curso.anos_academicos });
+    setFormData({
+      nome: curso.nome,
+      type: curso.type,
+      anos_academicos: curso.anos_academicos,
+      numAnos: curso.anos_academicos.length || 3,
+      periodos: curso.periodos ?? [],
+      numSemestres: curso.periodos?.length || 6,
+    });
     setShowForm(true);
   };
 
@@ -211,7 +250,7 @@ export default function CursosPainel() {
   };
 
   const resetForm = () => {
-    setFormData({ nome: "", type: getDefaultType(), anos_academicos: [] });
+    setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6 });
     setEditingCurso(null);
     setShowForm(false);
   };
@@ -225,7 +264,6 @@ export default function CursosPainel() {
     }));
   };
 
-  const getAnosDisponiveis = () => formData.type === "medio" ? ANOS_MEDIO : ANOS_SUPERIOR;
   const isTipoDisabled = () => !!editingCurso || !!user?.academia?.type;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -261,10 +299,21 @@ export default function CursosPainel() {
           </p>
         </div>
         {!showForm && (
-          <Button size="sm" onClick={() => setShowForm(true)}>
-            <Icon icon="mdi:plus" width={16} />
-            Novo Curso
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => executarListarCursos()}
+              disabled={ListandoCursos}
+            >
+              <Icon icon="mdi:refresh" width={16} />
+              Carregar Cursos
+            </Button>
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Icon icon="mdi:plus" width={16} />
+              Novo Curso
+            </Button>
+          </div>
         )}
       </div>
 
@@ -310,29 +359,76 @@ export default function CursosPainel() {
               )}
             </div>
 
-            {/* Anos/Níveis — apenas na criação */}
+            {/* Anos — apenas na criação, gerados dinamicamente */}
             {!editingCurso && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Anos/Níveis * (selecione pelo menos um)
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {getAnosDisponiveis().map(({ value, label }) => (
-                    <label
-                      key={value}
-                      className="flex items-center gap-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.anos_academicos.includes(value)}
-                        onChange={() => handleAnoToggle(value)}
-                        className="w-4 h-4 text-brand-500 focus:ring-brand-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                    </label>
-                  ))}
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Número de anos *
+                    <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                      (gera automaticamente: 1º…{formData.numAnos}º {formData.type === "medio" ? "Médio" : "Superior"})
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, numAnos: Math.max(1, p.numAnos - 1) }))}
+                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >−</button>
+                    <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">
+                      {formData.numAnos}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, numAnos: Math.min(10, p.numAnos + 1) }))}
+                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >+</button>
+                    <div className="flex flex-wrap gap-1 ml-2">
+                      {(formData.type === "medio"
+                        ? gerarAnosMedio(formData.numAnos)
+                        : gerarAnosSuperior(formData.numAnos)
+                      ).map(a => (
+                        <span key={a.value} className="text-xs px-2 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded border border-brand-200 dark:border-brand-800">
+                          {a.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+
+                {formData.type === "superior" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Número de semestres *
+                      <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                        (gera: 1º…{formData.numSemestres}º Semestre)
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(p => ({ ...p, numSemestres: Math.max(1, p.numSemestres - 1) }))}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >−</button>
+                      <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">
+                        {formData.numSemestres}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(p => ({ ...p, numSemestres: Math.min(20, p.numSemestres + 1) }))}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >+</button>
+                      <div className="flex flex-wrap gap-1 ml-2">
+                        {gerarSemestres(formData.numSemestres).map(s => (
+                          <span key={s.value} className="text-xs px-2 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">
+                            {s.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex gap-3 pt-4">
@@ -363,104 +459,167 @@ export default function CursosPainel() {
         </div>
       )}
 
-      {/* Lista de cursos */}
-      {!ListandoCursos && !showForm && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cursos?.cursos.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
-              Nenhum curso cadastrado
+      {/* Lista de cursos agrupada por tipo */}
+      {!ListandoCursos && !showForm && (() => {
+        const listaCursos = cursos?.cursos ?? [];
+
+        if (listaCursos.length === 0) {
+          return (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <Icon icon="mdi:book-education-outline" width={48} className="mx-auto mb-3 opacity-30" />
+              <p>Nenhum curso cadastrado</p>
             </div>
-          ) : (
-            cursos?.cursos.map((curso) => (
-              <div
-                key={curso.id}
-                className={`bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border-2 transition-all ${
-                  curso.status === "ativo"
-                    ? "border-green-200 dark:border-green-800"
-                    : curso.status === "deletado"
-                    ? "border-red-200 dark:border-red-900 opacity-40 pointer-events-none"
-                    : "border-gray-200 dark:border-gray-700 opacity-60"
-                }`}
-              >
-                {/* Cabeçalho do card */}
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white">{curso.nome}</h3>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                      {curso.type === "medio" ? "Ensino Médio" : "Ensino Superior"}
+          );
+        }
+
+        // Para academias mistas: filtrar por tipo seleccionado
+        const cursosVisiveis = isAcademiaMista()
+          ? listaCursos.filter(c => c.type === viewTipoCurso)
+          : listaCursos;
+
+        // Agrupar por tipo para academias com ambos (superior puro ou escola pura)
+        const tiposPresentes = Array.from(new Set(cursosVisiveis.map(c => c.type))) as Array<"medio" | "superior">;
+        const mostrarSecoes = !isAcademiaMista() && tiposPresentes.length > 1;
+
+        const labelTipo = (t: string) => t === "medio" ? "Ensino Médio" : "Ensino Superior";
+        const iconeTipo = (t: string) => t === "medio" ? "mdi:school" : "mdi:book-education";
+
+        const CursoCard = ({ curso }: { curso: Curso }) => (
+          <div
+            className={`bg-white dark:bg-gray-800 rounded-lg shadow-theme-xs p-6 border-2 transition-all ${
+              curso.status === "ativo"
+                ? "border-green-200 dark:border-green-800"
+                : curso.status === "deletado"
+                ? "border-red-200 dark:border-red-900 opacity-40 pointer-events-none"
+                : "border-gray-200 dark:border-gray-700 opacity-60"
+            }`}
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{curso.nome}</h3>
+                <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  {curso.type === "medio" ? "Ensino Médio" : "Ensino Superior"}
+                </span>
+              </div>
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                curso.status === "ativo"
+                  ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
+                  : curso.status === "deletado"
+                  ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+              }`}>
+                {curso.status}
+              </span>
+            </div>
+
+            {curso.anos_academicos.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Anos:</p>
+                <div className="flex flex-wrap gap-1">
+                  {curso.anos_academicos.map((n) => (
+                    <span key={n} className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
+                      {formatarNivelLabel(n)}
                     </span>
-                  </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {curso.status !== "deletado" && (
+              <>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(curso)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Icon icon="mdi:pencil" width={16} />
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleToggleStatus(curso)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                       curso.status === "ativo"
-                        ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
-                        : curso.status === "deletado"
-                        ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                        ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100"
+                        : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100"
                     }`}
                   >
-                    {curso.status}
+                    <Icon icon={curso.status === "ativo" ? "mdi:eye-off" : "mdi:eye"} width={16} />
+                    {curso.status === "ativo" ? "Desativar" : "Ativar"}
+                  </button>
+                </div>
+                {curso.status === "inativo" && (
+                  <button
+                    onClick={() => setCursoParaDelete(curso)}
+                    className="mt-2 w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:text-red-700 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <Icon icon="mdi:delete-outline" width={14} />
+                    Deletar curso
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+
+        const SecaoCursos = ({ tipo, lista }: { tipo: string; lista: Curso[] }) => {
+          const key = tipo;
+          const aberta = isSecaoAberta(key);
+          return (
+            <section>
+              <button
+                onClick={() => toggleSecao(key)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors mb-3"
+              >
+                <div className="flex items-center gap-3">
+                  <Icon icon={iconeTipo(tipo)} className="w-4 h-4 text-brand-500" />
+                  <span className="font-semibold text-sm text-gray-800 dark:text-white">{labelTipo(tipo)}</span>
+                  <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">
+                    {lista.length} curso{lista.length !== 1 ? "s" : ""}
                   </span>
                 </div>
+                <Icon icon={aberta ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
+              </button>
+              {aberta && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {lista.map(curso => <CursoCard key={curso.id} curso={curso} />)}
+                </div>
+              )}
+            </section>
+          );
+        };
 
-                {/* Anos acadêmicos */}
-                {curso.anos_academicos.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Anos:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {curso.anos_academicos.map((n) => (
-                        <span
-                          key={n}
-                          className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
-                        >
-                          {formatarNivelLabel(n)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Ações — ocultas para deletados */}
-                {curso.status !== "deletado" && (
-                  <>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(curso)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <Icon icon="mdi:pencil" width={16} />
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(curso)}
-                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
-                          curso.status === "ativo"
-                            ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100"
-                            : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100"
-                        }`}
-                      >
-                        <Icon icon={curso.status === "ativo" ? "mdi:eye-off" : "mdi:eye"} width={16} />
-                        {curso.status === "ativo" ? "Desativar" : "Ativar"}
-                      </button>
-                    </div>
-
-                    {/* Botão Deletar — apenas cursos inativos */}
-                    {curso.status === "inativo" && (
-                      <button
-                        onClick={() => setCursoParaDelete(curso)}
-                        className="mt-2 w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:text-red-700 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      >
-                        <Icon icon="mdi:delete-outline" width={14} />
-                        Deletar curso
-                      </button>
-                    )}
-                  </>
-                )}
+        return (
+          <div className="space-y-4">
+            {/* Toggle Médio/Superior para academias mistas */}
+            {isAcademiaMista() && (
+              <div className="flex items-center">
+                <button
+                  onClick={() => setViewTipoCurso(v => v === "medio" ? "superior" : "medio")}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
+                >
+                  <Icon icon={viewTipoCurso === "medio" ? "mdi:book-education" : "mdi:school"} width={16} />
+                  {viewTipoCurso === "medio" ? "Ver Cursos do Ensino Superior" : "Ver Cursos do Ensino Médio"}
+                </button>
               </div>
-            ))
-          )}
-        </div>
-      )}
+            )}
+
+            {mostrarSecoes ? (
+              tiposPresentes.map(tipo => (
+                <SecaoCursos
+                  key={tipo}
+                  tipo={tipo}
+                  lista={cursosVisiveis.filter(c => c.type === tipo)}
+                />
+              ))
+            ) : (
+              <SecaoCursos
+                tipo={cursosVisiveis[0]?.type ?? "medio"}
+                lista={cursosVisiveis}
+              />
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
