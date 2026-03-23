@@ -10,17 +10,34 @@ export type AdminType = 'gerente' | 'adm' | 'fpp';
 export type AcademiaType = 'escola' | 'superior';
 export type NivelEscolar = 'fundamental' | 'medio' | 'misto';
 
-export type AnoAcademico = AnoEscolar | AnoSuperior;
+export type AnoAcademico = AnoFundamental | AnoMedio | AnoSuperior;
 
-export type AnoEscolar =
-  | 'primeiro_fundamental' | 'segundo_fundamental' | 'terceiro_fundamental'
-  | 'quarto_fundamental'   | 'quinto_fundamental'  | 'sexto_fundamental'
-  | 'setimo_fundamental'   | 'oitavo_fundamental'  | 'nono_fundamental'
-  | 'primeiro_medio' | 'segundo_medio' | 'terceiro_medio' | 'quarto_medio';
+/**
+ * Anos do ensino fundamental. Formato: [1-9]_ano_fundamental
+ * Subconjunto configurado por cada academia em anos_academicos.
+ */
+export type AnoFundamental =
+  | '1_ano_fundamental' | '2_ano_fundamental' | '3_ano_fundamental'
+  | '4_ano_fundamental' | '5_ano_fundamental' | '6_ano_fundamental'
+  | '7_ano_fundamental' | '8_ano_fundamental' | '9_ano_fundamental';
 
+/**
+ * Anos do ensino médio. Formato: [n]_ano_medio
+ * Definidos pela academia em Curso.anos_academicos.
+ */
+export type AnoMedio =
+  | '1_ano_medio' | '2_ano_medio' | '3_ano_medio' | '4_ano_medio';
+
+/**
+ * Anos do ensino superior. Formato: [n]_ano_superior
+ * Definidos pela academia em Curso.anos_academicos.
+ */
 export type AnoSuperior =
-  | 'primeiro_ano' | 'segundo_ano' | 'terceiro_ano'
-  | 'quarto_ano'   | 'quinto_ano'  | 'sexto_ano';
+  | '1_ano_superior' | '2_ano_superior' | '3_ano_superior'
+  | '4_ano_superior' | '5_ano_superior' | '6_ano_superior';
+
+/** @deprecated Use AnoFundamental | AnoMedio | AnoSuperior separadamente. */
+export type AnoEscolar = AnoFundamental | AnoMedio;
 
 export type StatusEscolar            = 'inativo' | 'em_andamento' | 'finalizado';
 export type StatusEscolarFundamental = StatusEscolar;
@@ -28,9 +45,15 @@ export type StatusEscolarMedio       = StatusEscolar;
 export type StatusSuperior           = 'inativo' | 'em_andamento' | 'finalizado';
 export type StatusGeral              = 'inativo' | 'ativo' | 'finalizado';
 
+/**
+ * Períodos letivos.
+ * - Escolar (fixo): 1_trimestre, 2_trimestre, 3_trimestre
+ * - Superior (dinâmico): [n]_semestre onde n ≥ 1 (ex: 1_semestre, 2_semestre, 8_semestre…)
+ * O `string` no union permite semestres além do 2.º sem perder type-safety nos fixos.
+ */
 export type Periodo =
   | '1_trimestre' | '2_trimestre' | '3_trimestre'
-  | '1_semestre'  | '2_semestre';
+  | `${number}_semestre`;
 
 export type CursoType   = 'medio' | 'superior';
 export type MateriaType = 'fundamental' | 'medio' | 'superior';
@@ -862,4 +885,48 @@ export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
     { valor: `${anoAtual - 1}_${anoAtual}`, label: `${anoAtual - 1}/${anoAtual}` },
     { valor: `${anoAtual}_${anoAtual + 1}`, label: `${anoAtual}/${anoAtual + 1}` },
   ];
+}
+
+// ── Helpers de validação de anos académicos ───────────────────────────────────
+
+/** Valida se uma string segue o formato [1-9]_ano_fundamental */
+export function isAnoFundamentalValido(ano: string): ano is AnoFundamental {
+  return /^[1-9]_ano_fundamental$/.test(ano);
+}
+
+/** Valida se uma string segue o formato [n]_ano_medio (n ≥ 1) */
+export function isAnoMedioValido(ano: string): ano is AnoMedio {
+  return /^[1-9]\d*_ano_medio$/.test(ano);
+}
+
+/** Valida se uma string segue o formato [n]_ano_superior (n ≥ 1) */
+export function isAnoSuperiorValido(ano: string): ano is AnoSuperior {
+  return /^[1-9]\d*_ano_superior$/.test(ano);
+}
+
+/** Valida formato [n]_semestre (n ≥ 1) */
+export function isSemestreValido(periodo: string): boolean {
+  return /^[1-9]\d*_semestre$/.test(periodo);
+}
+
+/**
+ * Gera a lista de anos fundamentais (1_ano_fundamental … 9_ano_fundamental).
+ * Útil para popular selects.
+ */
+export function gerarAnosFundamentais(): AnoFundamental[] {
+  return Array.from({ length: 9 }, (_, i) => `${i + 1}_ano_fundamental` as AnoFundamental);
+}
+
+/**
+ * Formata um ano académico para exibição legível.
+ * Ex: "1_ano_fundamental" → "1.º Ano (Fundamental)"
+ *     "2_ano_medio"       → "2.º Ano (Médio)"
+ *     "3_ano_superior"    → "3.º Ano (Superior)"
+ */
+export function formatAnoAcademico(ano: string): string {
+  const match = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return ano;
+  const [, n, tipo] = match;
+  const label = { fundamental: 'Fundamental', medio: 'Médio', superior: 'Superior' }[tipo] ?? tipo;
+  return `${n}.º Ano (${label})`;
 }
