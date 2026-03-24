@@ -95,10 +95,16 @@ export interface LoginRequest {
 /**
  * POST /academia/estudante/register
  * Estudantes são registrados EXCLUSIVAMENTE pela academia (não há auto-cadastro).
+ *
+ * data_nascimento — obrigatório. Formato ISO: "YYYY-MM-DD".
+ * genero          — obrigatório. "masculino" | "feminino".
  */
 export interface CriarEstudanteRequest {
   nome: string;
+  /** Obrigatório. "masculino" | "feminino" */
   genero: Genero;
+  /** Obrigatório. Formato ISO: "YYYY-MM-DD". Deve ser anterior à data actual. */
+  data_nascimento: string;
   email?: string;
   telefone?: string;
   bilhete_identidade?: string;
@@ -170,12 +176,19 @@ export interface DefinirPeriodoMateriaRequest {
   periodo: string;
 }
 
+/**
+ * PUT /estudante/dados-pessoais
+ * Todos os campos são opcionais — enviar apenas o que se pretende alterar.
+ * Genero NÃO pode ser alterado após o cadastro.
+ */
 export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
+  /** Formato ISO: "YYYY-MM-DD". Deve ser anterior à data actual. */
+  data_nascimento?: string;
 }
 
 export interface AtualizarDadosAcademicosEstudanteRequest {
@@ -202,8 +215,12 @@ export interface AtualizarDadosAdminRequest {
   email?: string;
 }
 
+/**
+ * PUT /admin/:id/role
+ * Backend espera o campo `novo_role` (não `role`).
+ */
 export interface AtualizarRoleAdminRequest {
-  role: AdminType;
+  novo_role: AdminType;
 }
 
 export interface AlterarSenhaRequest {
@@ -506,6 +523,8 @@ export interface Evento {
 
 /**
  * EstudanteDTO (projection_estudantes).
+ *
+ * genero e data_nascimento são sempre preenchidos no backend (NOT NULL).
  */
 export interface EstudanteDetalhado {
   id: string;
@@ -516,7 +535,10 @@ export interface EstudanteDetalhado {
   email_verificado: boolean;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  genero?: Genero;
+  /** Sempre preenchido. "masculino" | "feminino" */
+  genero: Genero;
+  /** Sempre preenchido. Formato "YYYY-MM-DD" */
+  data_nascimento: string;
   codigo_academia?: string;
   status: StatusGeral;
   status_escolar_fundamental: StatusEscolar;
@@ -660,9 +682,9 @@ export interface VerificarIntegridadeResponse {
 
 /** GET /academia/ano-letivo */
 export interface AnoLetivoAcademiaResponse {
-  ano_letivo: string;   // ex: "2025_2026"
-  tipo?: string;        // "escola" | "superior"
-  ativado_em?: string;  // ISO timestamp
+  ano_letivo: string;             // ex: "2025_2026"
+  tipo?: 'escola' | 'superior';  // tipo do ano letivo
+  ativado_em?: string;            // ISO timestamp
 }
 
 /**
@@ -732,6 +754,18 @@ export interface MeuPerfilResponse {
       codigo: string;
       nome: string;
       tipo: AcademiaType;
+    };
+    curso_medio?: {
+      id: string;
+      nome: string;
+      type: CursoType;
+      status: string;
+    };
+    curso_superior?: {
+      id: string;
+      nome: string;
+      type: CursoType;
+      status: string;
     };
   };
   academia?: AcademiaDetalhada;
@@ -929,4 +963,22 @@ export function formatAnoAcademico(ano: string): string {
   const [, n, tipo] = match;
   const label = { fundamental: 'Fundamental', medio: 'Médio', superior: 'Superior' }[tipo] ?? tipo;
   return `${n}.º Ano (${label})`;
+}
+
+/**
+ * Formata uma data ISO "YYYY-MM-DD" para exibição localizada "DD/MM/YYYY".
+ * Útil para mostrar data_nascimento em formulários e tabelas.
+ */
+export function formatDataNascimento(iso: string): string {
+  if (!iso) return '';
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Converte um objecto Date para o formato ISO "YYYY-MM-DD"
+ * esperado pela API em campos de data_nascimento.
+ */
+export function dateToIso(date: Date): string {
+  return date.toISOString().split('T')[0];
 }
