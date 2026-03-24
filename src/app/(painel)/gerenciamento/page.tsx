@@ -1,11 +1,12 @@
+// src/app/(painel)/gerenciamento/page.tsx
 import React from "react";
 import { Metadata } from "next";
-import PageContent from "./PageContent";
+import GerenciamentoIndex from "./GerenciamentoIndex";
 
 export const metadata: Metadata = {
   title: "Gerenciamento",
 };
 
-export default function login() {
-  return <PageContent />;
+export default function GerenciamentoPage() {
+  return <GerenciamentoIndex />;
 }
