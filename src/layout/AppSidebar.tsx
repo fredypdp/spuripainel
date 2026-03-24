@@ -50,7 +50,11 @@ const navItems: NavItem[] = [
   {
     name: "Gerenciamento",
     icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
-    path: "/gerenciamento",
+    subItems: [
+      { name: "Cursos", path: "/gerenciamento/cursos" },
+      { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
+      { name: "Turmas", path: "/gerenciamento/turmas" },
+    ],
   },
   {
     icon: <Icon width="24px" icon="fluent-emoji-high-contrast:school" />,
@@ -89,26 +93,41 @@ export default function AppSidebar() {
   const filteredNavItems = useMemo(() => {
     if (!mounted) return navItems;
 
-    return navItems.filter(item => {
-      if (user?.tipo) {
-        if (item.path === "/academias") {
-          return user.tipo === "admin";
-        }
+    const isFundamental =
+      user?.academia?.type === "escola" &&
+      user?.academia?.nivel_escolar === "fundamental";
 
-        if (item.path === "/estudantes") {
-          return user.tipo === "admin" || user.tipo === "academia";
+    return navItems
+      .filter(item => {
+        if (user?.tipo) {
+          if (item.path === "/academias") {
+            return user.tipo === "admin";
+          }
+          if (item.path === "/estudantes") {
+            return user.tipo === "admin" || user.tipo === "academia";
+          }
+          if (item.name === "Gerenciamento") {
+            return user.tipo === "academia";
+          }
+          if (item.path === "/configuracoes") {
+            return (
+              (user.tipo === "admin" && user.admin?.role === "fpp") ||
+              user.tipo === "academia"
+            );
+          }
         }
-
-        if (item.path === "/gerenciamento") {
-          return user.tipo === "academia";
+        return true;
+      })
+      .map(item => {
+        // Para academias do ensino fundamental, remover "Cursos" do submenu
+        if (item.name === "Gerenciamento" && item.subItems && isFundamental) {
+          return {
+            ...item,
+            subItems: item.subItems.filter(sub => sub.path !== "/gerenciamento/cursos"),
+          };
         }
-
-        if (item.path === "/configuracoes") {
-          return user.tipo === "admin" && user.admin?.role === "fpp" || user.tipo === "academia";
-        }
-      }
-      return true;
-    });
+        return item;
+      });
   }, [user, mounted]);
 
   // Derive which submenu should be open based on current pathname

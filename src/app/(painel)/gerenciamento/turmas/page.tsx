@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import TurmasPainel from "@/components/paineis/TurmasPainel";
 
 export const metadata: Metadata = {
-  title: "Turmas — Gerenciamento",
+  title: "Gerenciamento de Turmas",
 };
 
 export default function TurmasPage() {

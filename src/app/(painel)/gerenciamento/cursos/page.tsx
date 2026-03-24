@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import CursosPainel from "@/components/paineis/CursosPainel";
 
 export const metadata: Metadata = {
-  title: "Cursos — Gerenciamento",
+  title: "Gerenciamento de Cursos",
 };
 
 export default function CursosPage() {
