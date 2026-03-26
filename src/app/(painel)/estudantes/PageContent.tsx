@@ -8,6 +8,7 @@ import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
+import DatePicker from "@/components/form/date-picker";
 import { useModal } from "@/hooks/useModal";
 import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
@@ -53,8 +54,6 @@ const ANOS_FUNDAMENTAL_LIST = [
   { label: '9º Ano Fundamental', value: '9_ano_fundamental' },
 ];
 
-const ANOS_FUNDAMENTAL_VALUES = ANOS_FUNDAMENTAL_LIST.map(a => a.value);
-
 function calcularIdade(dataNascimento: string): number | null {
   if (!dataNascimento) return null;
   try {
@@ -71,7 +70,6 @@ function calcularIdade(dataNascimento: string): number | null {
 
 function formatarDataNasc(data: string): string {
   if (!data) return '-';
-  // data vem como "YYYY-MM-DD"
   try {
     const [year, month, day] = data.split('T')[0].split('-');
     return `${day}/${month}/${year}`;
@@ -92,10 +90,10 @@ function formatarDataISO(data: string): string {
 
 function getStatusBadgeClass(status: string) {
   switch (status?.toLowerCase()) {
-    case 'ativo':     return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-    case 'inativo':   return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-    case 'finalizado':return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
-    default:          return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    case 'ativo':      return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    case 'inativo':    return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+    case 'finalizado': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+    default:           return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
   }
 }
 
@@ -270,7 +268,7 @@ interface TabelaEstudantesProps {
   estudantes: EstudanteDetalhado[];
   isAdmin: boolean;
   onVerDetalhes: (e: EstudanteDetalhado) => void;
-  academias?: Record<string, string>; // codigo_academia → nome
+  academias?: Record<string, string>;
 }
 
 function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias }: TabelaEstudantesProps) {
@@ -542,11 +540,10 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
   }, [estudantes]);
 
   const cursosAtivos = cursos.filter(c => c.status === 'ativo');
-  const isMisto = nivelAcademia === 'misto';
+  const isMisto      = nivelAcademia === 'misto';
   const isFundamental = nivelAcademia === 'fundamental';
-  const isSuperior = nivelAcademia === 'superior' || (!isFundamental && !isMisto);
+  const isSuperior   = nivelAcademia === 'superior' || (!isFundamental && !isMisto);
 
-  // ── Fundamental ──
   const SecaoFundamental = () => (
     <div className="space-y-2">
       {ANOS_FUNDAMENTAL_LIST.map(ano => {
@@ -564,14 +561,12 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           />
         );
       })}
-      {/* Mostrar anos sem turmas como placeholders */}
       {ANOS_FUNDAMENTAL_LIST.every(a => !turmas.some(t => t.nivel === a.value)) && (
         <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>
       )}
     </div>
   );
 
-  // ── Cursos (médio/superior) ──
   const SecaoCursos = ({ tipo }: { tipo?: 'medio' | 'superior' }) => {
     const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
     if (lista.length === 0) return (
@@ -594,7 +589,6 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
     );
   };
 
-  // ── Misto: 2 colapsáveis raiz ──
   if (isMisto) {
     return (
       <div className="space-y-3">
@@ -767,7 +761,7 @@ export default function Estudantes() {
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
-  // Form
+  // Form state
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -783,7 +777,7 @@ export default function Estudantes() {
   const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
   const tipoAcademia  = user?.academia?.type ?? 'escola';
 
-  const isAnoMedio = (v: string | undefined | null) => !!v && /^\d+_ano_medio$/.test(v);
+  const isAnoMedio    = (v: string | undefined | null) => !!v && /^\d+_ano_medio$/.test(v);
   const isAnoSuperior = (v: string | undefined | null) => !!v && /^\d+_ano_superior$/.test(v);
 
   const getAnosMedioFromCurso = (): AnoEscolar[] => {
@@ -855,7 +849,6 @@ export default function Estudantes() {
     }
   }, [anoEscolarSelecionado]);
 
-  // Estudantes filtrados para a vista em tabela (admin ou não-escala)
   const estudantesFiltrados = useMemo(() => {
     const lista = dataEstudantes?.estudantes ?? [];
     return aplicarFiltros(lista, filtros);
@@ -864,12 +857,7 @@ export default function Estudantes() {
   const turmas: Turma[] = (dataTurmas as any)?.turmas ?? [];
   const cursos: Curso[]  = dataCursos?.cursos ?? [];
 
-  // Mapa de academias para admin
-  const academiasMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    // dataEstudantes can contain academia info — we just use codigo for now
-    return m;
-  }, []);
+  const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
   const limparFormulario = () => {
     setNome(''); setEmail(''); setTelefone('');
@@ -932,7 +920,7 @@ export default function Estudantes() {
   };
 
   const totalFiltrado = estudantesFiltrados.length;
-  const totalGeral   = dataEstudantes?.total ?? 0;
+  const totalGeral    = dataEstudantes?.total ?? 0;
 
   return (
     <div>
@@ -986,15 +974,25 @@ export default function Estudantes() {
           />
         )}
 
-        {/* Modal Cadastro */}
-        <Modal isOpen={isOpen} onClose={() => { limparFormulario(); closeModal(); }} className="max-w-[640px] p-5 lg:p-10">
+        {/* ── Modal Cadastro ─────────────────────────────────────────────── */}
+        <Modal
+          isOpen={isOpen}
+          onClose={() => { limparFormulario(); closeModal(); }}
+          className="max-w-[640px] p-5 lg:p-10"
+        >
           <form onSubmit={handleCadastroIndividual}>
             <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar estudante</h4>
             <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+
               {/* Nome */}
               <div className="col-span-2">
                 <Label>Nome completo *</Label>
-                <Input type="text" placeholder="Nome do estudante" onChange={e => setNome(e.target.value)} disabled={cadastrandoIndividual} />
+                <Input
+                  type="text"
+                  placeholder="Nome do estudante"
+                  onChange={e => setNome(e.target.value)}
+                  disabled={cadastrandoIndividual}
+                />
               </div>
 
               {/* Género */}
@@ -1002,9 +1000,14 @@ export default function Estudantes() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Género *</label>
                 <div className="flex gap-3">
                   {(['masculino', 'feminino'] as const).map(g => (
-                    <button key={g} type="button" onClick={() => setGenero(g)}
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setGenero(g)}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                        genero === g ? 'bg-brand-500 text-white border-brand-500' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        genero === g
+                          ? 'bg-brand-500 text-white border-brand-500'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
                       {g === 'masculino' ? 'Masculino' : 'Feminino'}
@@ -1013,29 +1016,37 @@ export default function Estudantes() {
                 </div>
               </div>
 
-              {/* Data de Nascimento */}
+              {/* ── Data de Nascimento — DatePicker ── */}
               <div className="col-span-2 sm:col-span-1">
-                <Label>Data de Nascimento *</Label>
-                <input
-                  type="date"
-                  value={dataNascimento}
-                  onChange={e => setDataNascimento(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  disabled={cadastrandoIndividual}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white text-sm"
+                {/*
+                  key={isOpen ? 'open' : 'closed'} garante que o flatpickr é
+                  reiniciado quando o modal é fechado/aberto, evitando que
+                  um valor residual fique visível após limparFormulario().
+                */}
+                <DatePicker
+                  key={isOpen ? 'picker-open' : 'picker-closed'}
+                  id="data-nascimento-picker"
+                  label="Data de Nascimento *"
+                  placeholder="Selecione a data de nascimento"
+                  defaultDate={dataNascimento || undefined}
+                  maxDate={new Date()}
+                  onChange={(_dates, dateStr) => setDataNascimento(dateStr)}
                 />
               </div>
 
-              {/* Curso — médio/misto/superior antes do ano */}
+              {/* Curso — médio / misto / superior (antes do ano) */}
               {(tipoAcademia === 'superior' || nivelAcademia === 'medio' || nivelAcademia === 'misto') && (
                 <div className="col-span-2 sm:col-span-1">
-                  <Label>Curso {(tipoAcademia === 'superior' || nivelAcademia === 'medio') ? '* (Obrigatório)' : '(Opcional)'}</Label>
+                  <Label>
+                    Curso {(tipoAcademia === 'superior' || nivelAcademia === 'medio') ? '* (Obrigatório)' : '(Opcional)'}
+                  </Label>
                   <Dropdown
                     value={cursoSelecionado}
                     options={dataCursos?.cursos?.filter((c: any) => c.status === 'ativo') || []}
                     onChange={e => {
                       setCursoSelecionado(e.value);
-                      if (isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)) setAnoEscolarSelecionado(null);
+                      if (isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado))
+                        setAnoEscolarSelecionado(null);
                     }}
                     optionLabel="nome"
                     placeholder="Selecione o curso"
@@ -1052,7 +1063,11 @@ export default function Estudantes() {
                   value={anoEscolarSelecionado}
                   options={getAnosDisponiveis()}
                   onChange={e => setAnoEscolarSelecionado(e.value)}
-                  placeholder={deveMostrarCurso() && !cursoSelecionado ? 'Selecione o curso primeiro' : 'Selecione o ano'}
+                  placeholder={
+                    deveMostrarCurso() && !cursoSelecionado
+                      ? 'Selecione o curso primeiro'
+                      : 'Selecione o ano'
+                  }
                   disabled={cadastrandoIndividual || (deveMostrarCurso() && !cursoSelecionado)}
                   className="w-full"
                 />
@@ -1061,26 +1076,47 @@ export default function Estudantes() {
               {/* Email */}
               <div className="col-span-2 sm:col-span-1">
                 <Label>E-mail (opcional)</Label>
-                <Input type="email" placeholder="email@exemplo.com" onChange={e => setEmail(e.target.value)} disabled={cadastrandoIndividual} />
+                <Input
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  onChange={e => setEmail(e.target.value)}
+                  disabled={cadastrandoIndividual}
+                />
               </div>
 
               {/* Telefone */}
               <div className="col-span-2 sm:col-span-1">
                 <Label>Telefone (opcional)</Label>
-                <Input type="text" placeholder="Ex: 923456789" onChange={e => setTelefone(e.target.value)} disabled={cadastrandoIndividual} />
+                <Input
+                  type="text"
+                  placeholder="Ex: 923456789"
+                  onChange={e => setTelefone(e.target.value)}
+                  disabled={cadastrandoIndividual}
+                />
               </div>
 
-              {/* Bilhete */}
+              {/* Bilhetes */}
               <div className="col-span-2 sm:col-span-1">
                 <Label>Bilhete do Estudante</Label>
-                <Input type="text" placeholder="Ex: 123456789012AB" onChange={e => setBilheteIdentidade(e.target.value)} disabled={cadastrandoIndividual} />
+                <Input
+                  type="text"
+                  placeholder="Ex: 123456789012AB"
+                  onChange={e => setBilheteIdentidade(e.target.value)}
+                  disabled={cadastrandoIndividual}
+                />
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <Label>Bilhete do Responsável</Label>
-                <Input type="text" placeholder="Ex: 123456789012AB" onChange={e => setBilheteResponsavel(e.target.value)} disabled={cadastrandoIndividual} />
+                <Input
+                  type="text"
+                  placeholder="Ex: 123456789012AB"
+                  onChange={e => setBilheteResponsavel(e.target.value)}
+                  disabled={cadastrandoIndividual}
+                />
               </div>
             </div>
 
+            {/* Feedback */}
             {successMessage && (
               <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-400 font-medium">{successMessage}</p>
@@ -1090,7 +1126,9 @@ export default function Estudantes() {
               <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">Corrija os seguintes erros:</h3>
                 <ul className="list-disc list-inside space-y-1">
-                  {validationErrors.map((erro, i) => <li key={i} className="text-sm text-red-700 dark:text-red-400">{erro}</li>)}
+                  {validationErrors.map((erro, i) => (
+                    <li key={i} className="text-sm text-red-700 dark:text-red-400">{erro}</li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -1099,13 +1137,22 @@ export default function Estudantes() {
                 <p className="text-sm text-red-700 dark:text-red-400 first-letter:uppercase">{erroCadastro}</p>
               </div>
             )}
+
             <div className="mt-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-xs text-blue-700 dark:text-blue-300">
                 <strong>Informação:</strong> A senha padrão será o <strong>código do estudante</strong> gerado no cadastro.
               </p>
             </div>
+
             <div className="flex items-center justify-end gap-3 mt-6">
-              <Button size="sm" variant="outline" onClick={() => { limparFormulario(); closeModal(); }} disabled={cadastrandoIndividual}>Fechar</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { limparFormulario(); closeModal(); }}
+                disabled={cadastrandoIndividual}
+              >
+                Fechar
+              </Button>
               <Button size="sm" disabled={cadastrandoIndividual}>
                 {cadastrandoIndividual ? 'Cadastrando...' : 'Cadastrar'}
               </Button>
@@ -1120,7 +1167,7 @@ export default function Estudantes() {
           )}
         </Modal>
 
-        {/* Erros */}
+        {/* Erros de listagem */}
         {erroEstudantes && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-700 dark:text-red-400">{erroEstudantes}</p>
@@ -1142,7 +1189,6 @@ export default function Estudantes() {
         {/* Vista tabela */}
         {!vistaEscala && (
           <>
-            {/* Loading */}
             {carregandoEstudantes && (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" />
@@ -1150,7 +1196,6 @@ export default function Estudantes() {
               </div>
             )}
 
-            {/* Não carregado ainda */}
             {!carregandoEstudantes && !carregado && (
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
@@ -1160,7 +1205,6 @@ export default function Estudantes() {
               </div>
             )}
 
-            {/* Lista vazia */}
             {!carregandoEstudantes && carregado && totalGeral === 0 && (
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
@@ -1168,7 +1212,6 @@ export default function Estudantes() {
               </div>
             )}
 
-            {/* Tabela */}
             {!carregandoEstudantes && carregado && totalGeral > 0 && (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
                 <div className="w-full overflow-x-auto">
