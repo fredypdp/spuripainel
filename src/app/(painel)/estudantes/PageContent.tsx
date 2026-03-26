@@ -530,21 +530,18 @@ function CursoColapsavel({
   );
 }
 
-function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVerDetalhes }: VistaEscalaProps) {
-  const [secaoAberta, setSecaoAberta] = useState<'fundamental' | 'cursos' | null>(null);
+// ─── SecaoFundamental — declarado fora de VistaEscala para não ser recriado a cada render ──
 
-  const estudantesMapa = useMemo(() => {
-    const m = new Map<string, EstudanteDetalhado>();
-    estudantes.forEach(e => m.set(e.codigo_estudante, e));
-    return m;
-  }, [estudantes]);
+interface SecaoFundamentalProps {
+  turmas: Turma[];
+  estudantesMapa: Map<string, EstudanteDetalhado>;
+  filtros: FiltrosState;
+  onVerDetalhes: (e: EstudanteDetalhado) => void;
+}
 
-  const cursosAtivos = cursos.filter(c => c.status === 'ativo');
-  const isMisto      = nivelAcademia === 'misto';
-  const isFundamental = nivelAcademia === 'fundamental';
-  const isSuperior   = nivelAcademia === 'superior' || (!isFundamental && !isMisto);
-
-  const SecaoFundamental = () => (
+function SecaoFundamental({ turmas, estudantesMapa, filtros, onVerDetalhes }: SecaoFundamentalProps) {
+  const semTurmas = ANOS_FUNDAMENTAL_LIST.every(a => !turmas.some(t => t.nivel === a.value));
+  return (
     <div className="space-y-2">
       {ANOS_FUNDAMENTAL_LIST.map(ano => {
         const turmasDoAno = turmas.filter(t => t.nivel === ano.value);
@@ -561,33 +558,61 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           />
         );
       })}
-      {ANOS_FUNDAMENTAL_LIST.every(a => !turmas.some(t => t.nivel === a.value)) && (
+      {semTurmas && (
         <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>
       )}
     </div>
   );
+}
 
-  const SecaoCursos = ({ tipo }: { tipo?: 'medio' | 'superior' }) => {
-    const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
-    if (lista.length === 0) return (
-      <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>
-    );
-    return (
-      <div className="space-y-2">
-        {lista.map(c => (
-          <CursoColapsavel
-            key={c.id}
-            curso={c}
-            turmas={turmas}
-            estudantesMapa={estudantesMapa}
-            filtros={filtros}
-            isSuperior={c.type === 'superior'}
-            onVerDetalhes={onVerDetalhes}
-          />
-        ))}
-      </div>
-    );
-  };
+// ─── SecaoCursos — declarado fora de VistaEscala para não ser recriado a cada render ──
+
+interface SecaoCursosProps {
+  cursosAtivos: Curso[];
+  tipo?: 'medio' | 'superior';
+  turmas: Turma[];
+  estudantesMapa: Map<string, EstudanteDetalhado>;
+  filtros: FiltrosState;
+  onVerDetalhes: (e: EstudanteDetalhado) => void;
+}
+
+function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, onVerDetalhes }: SecaoCursosProps) {
+  const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
+  if (lista.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {lista.map(c => (
+        <CursoColapsavel
+          key={c.id}
+          curso={c}
+          turmas={turmas}
+          estudantesMapa={estudantesMapa}
+          filtros={filtros}
+          isSuperior={c.type === 'superior'}
+          onVerDetalhes={onVerDetalhes}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── VistaEscala ──────────────────────────────────────────────────────────────
+
+function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVerDetalhes }: VistaEscalaProps) {
+  const [secaoAberta, setSecaoAberta] = useState<'fundamental' | 'cursos' | null>(null);
+
+  const estudantesMapa = useMemo(() => {
+    const m = new Map<string, EstudanteDetalhado>();
+    estudantes.forEach(e => m.set(e.codigo_estudante, e));
+    return m;
+  }, [estudantes]);
+
+  const cursosAtivos  = cursos.filter(c => c.status === 'ativo');
+  const isMisto       = nivelAcademia === 'misto';
+  const isFundamental = nivelAcademia === 'fundamental';
+  const isSuperior    = nivelAcademia === 'superior' || (!isFundamental && !isMisto);
 
   if (isMisto) {
     return (
@@ -607,7 +632,12 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           </button>
           {secaoAberta === 'fundamental' && (
             <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
-              <SecaoFundamental />
+              <SecaoFundamental
+                turmas={turmas}
+                estudantesMapa={estudantesMapa}
+                filtros={filtros}
+                onVerDetalhes={onVerDetalhes}
+              />
             </div>
           )}
         </div>
@@ -629,7 +659,14 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           </button>
           {secaoAberta === 'cursos' && (
             <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
-              <SecaoCursos tipo="medio" />
+              <SecaoCursos
+                cursosAtivos={cursosAtivos}
+                tipo="medio"
+                turmas={turmas}
+                estudantesMapa={estudantesMapa}
+                filtros={filtros}
+                onVerDetalhes={onVerDetalhes}
+              />
             </div>
           )}
         </div>
@@ -637,9 +674,27 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
     );
   }
 
-  if (isFundamental) return <SecaoFundamental />;
+  if (isFundamental) {
+    return (
+      <SecaoFundamental
+        turmas={turmas}
+        estudantesMapa={estudantesMapa}
+        filtros={filtros}
+        onVerDetalhes={onVerDetalhes}
+      />
+    );
+  }
 
-  return <SecaoCursos tipo={isSuperior ? 'superior' : undefined} />;
+  return (
+    <SecaoCursos
+      cursosAtivos={cursosAtivos}
+      tipo={isSuperior ? 'superior' : undefined}
+      turmas={turmas}
+      estudantesMapa={estudantesMapa}
+      filtros={filtros}
+      onVerDetalhes={onVerDetalhes}
+    />
+  );
 }
 
 // ─── Modal de Detalhes ────────────────────────────────────────────────────────
@@ -815,6 +870,8 @@ export default function Estudantes() {
     setCarregado(true);
   }, [carregarEstudantes]);
 
+  // Carga inicial de estudantes — executa uma única vez na montagem.
+  // carregarEstudantes é estável (useCallback no useApi), por isso é seguro omitir do array.
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -824,8 +881,11 @@ export default function Estudantes() {
     };
     load();
     return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Carrega cursos quando o modal de cadastro é aberto — executa quando isOpen/isAcademia muda.
+  // carregarCursos é estável; nivelAcademia e tipoAcademia são strings derivadas de user (cookie).
   useEffect(() => {
     if (isOpen && isAcademia) {
       const token = tokenStorage.get();
@@ -833,14 +893,18 @@ export default function Estudantes() {
         carregarCursos(token || undefined);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isAcademia, nivelAcademia, tipoAcademia]);
 
+  // Carrega turmas e cursos quando a vista em escala é activada.
+  // carregarTurmas e carregarCursos são estáveis; incluí-los causaria loop.
   useEffect(() => {
     if (vistaEscala && isAcademia) {
       const token = tokenStorage.get();
       carregarTurmas(token || undefined);
       carregarCursos(token || undefined);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
   useEffect(() => {
@@ -1029,7 +1093,6 @@ export default function Estudantes() {
                   label="Data de Nascimento *"
                   placeholder="Selecione a data de nascimento"
                   defaultDate={dataNascimento || undefined}
-                  maxDate={new Date()}
                   onChange={(_dates, dateStr) => setDataNascimento(dateStr)}
                 />
               </div>
