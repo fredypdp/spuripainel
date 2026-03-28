@@ -2,7 +2,8 @@
 "use client"
 import { useState, useEffect, useCallback, useMemo } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { Genero, formatDataNascimento } from '@/types/api';
+import { formatDataNascimento } from '@/types/api';
+import type { Genero } from '@/types/api';
 import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
@@ -530,7 +531,7 @@ function CursoColapsavel({
   );
 }
 
-// ─── SecaoFundamental — declarado fora de VistaEscala para não ser recriado a cada render ──
+// ─── SecaoFundamental ─────────────────────────────────────────────────────────
 
 interface SecaoFundamentalProps {
   turmas: Turma[];
@@ -565,7 +566,7 @@ function SecaoFundamental({ turmas, estudantesMapa, filtros, onVerDetalhes }: Se
   );
 }
 
-// ─── SecaoCursos — declarado fora de VistaEscala para não ser recriado a cada render ──
+// ─── SecaoCursos ──────────────────────────────────────────────────────────────
 
 interface SecaoCursosProps {
   cursosAtivos: Curso[];
@@ -822,7 +823,8 @@ export default function Estudantes() {
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  const [dataNascimento, setDataNascimento] = useState('');
+  // ── CORRIGIDO: Date | null em vez de string ──────────────────────────────
+  const [dataNascimento, setDataNascimento] = useState<Date | null>(null);
   const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
   const [genero, setGenero] = useState<Genero>('masculino');
   const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
@@ -870,8 +872,7 @@ export default function Estudantes() {
     setCarregado(true);
   }, [carregarEstudantes]);
 
-  // Carga inicial de estudantes — executa uma única vez na montagem.
-  // carregarEstudantes é estável (useCallback no useApi), por isso é seguro omitir do array.
+  // Carga inicial
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -884,8 +885,7 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Carrega cursos quando o modal de cadastro é aberto — executa quando isOpen/isAcademia muda.
-  // carregarCursos é estável; nivelAcademia e tipoAcademia são strings derivadas de user (cookie).
+  // Carrega cursos quando o modal de cadastro é aberto
   useEffect(() => {
     if (isOpen && isAcademia) {
       const token = tokenStorage.get();
@@ -896,8 +896,7 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isAcademia, nivelAcademia, tipoAcademia]);
 
-  // Carrega turmas e cursos quando a vista em escala é activada.
-  // carregarTurmas e carregarCursos são estáveis; incluí-los causaria loop.
+  // Carrega turmas e cursos quando a vista em escala é activada
   useEffect(() => {
     if (vistaEscala && isAcademia) {
       const token = tokenStorage.get();
@@ -923,16 +922,19 @@ export default function Estudantes() {
 
   const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
+  // ── CORRIGIDO: limpar reseta para null ───────────────────────────────────
   const limparFormulario = () => {
     setNome(''); setEmail(''); setTelefone('');
     setBilheteIdentidade(''); setBilheteResponsavel('');
-    setDataNascimento(''); setAnoEscolarSelecionado(null);
+    setDataNascimento(null);
+    setAnoEscolarSelecionado(null);
     setCursoSelecionado(null); setValidationErrors([]); setSuccessMessage('');
   };
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
+    // ── CORRIGIDO: verifica Date | null ─────────────────────────────────
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
     if (!bilheteIdentidade.trim() && !bilheteResponsavel.trim())
@@ -949,10 +951,14 @@ export default function Estudantes() {
     if (!validarFormulario()) return;
     setCadastrandoIndividual(true);
     setValidationErrors([]); setSuccessMessage('');
+
+    // ── CORRIGIDO: envia ISO string (RFC3339) para o backend ─────────────
+    const dataNascimentoISO = dataNascimento ? dataNascimento.toISOString() : '';
+
     const payload = {
       nome: nome.trim(),
       genero,
-      data_nascimento: dataNascimento,
+      data_nascimento: dataNascimentoISO,
       email: email.trim() || undefined,
       telefone: telefone.trim() || undefined,
       bilhete_identidade: bilheteIdentidade.trim() || undefined,
@@ -969,7 +975,9 @@ export default function Estudantes() {
       setSuccessMessage('Estudante cadastrado com sucesso!');
       setNome(''); setEmail(''); setTelefone('');
       setBilheteIdentidade(''); setBilheteResponsavel('');
-      setDataNascimento(''); setAnoEscolarSelecionado(null); setCursoSelecionado(null);
+      // ── CORRIGIDO: reseta para null ──────────────────────────────────
+      setDataNascimento(null);
+      setAnoEscolarSelecionado(null); setCursoSelecionado(null);
       setTimeout(() => { closeModal(); setSuccessMessage(''); }, 2000);
     } catch (err: any) {
       setValidationErrors([err?.message || 'Erro ao cadastrar estudante']);
@@ -1080,20 +1088,26 @@ export default function Estudantes() {
                 </div>
               </div>
 
-              {/* ── Data de Nascimento — DatePicker ── */}
+              {/* ── Data de Nascimento — DatePicker com Date | null ── */}
               <div className="col-span-2 sm:col-span-1">
                 {/*
                   key={isOpen ? 'open' : 'closed'} garante que o flatpickr é
-                  reiniciado quando o modal é fechado/aberto, evitando que
-                  um valor residual fique visível após limparFormulario().
+                  reiniciado quando o modal é fechado/aberto, evitando valor residual.
+
+                  onChange recebe (dates: Date[], dateStr: string) do flatpickr.
+                  Usamos dates[0] (objeto Date nativo) para manter o estado como Date.
+                  O payload envia dataNascimento.toISOString() → RFC3339 → Go deserializa time.Time corretamente.
+
+                  defaultDate aceita Date diretamente (DateOption = Date | string | number).
+                  Passamos dataNascimento ?? undefined para não forçar valor residual.
                 */}
                 <DatePicker
                   key={isOpen ? 'picker-open' : 'picker-closed'}
                   id="data-nascimento-picker"
                   label="Data de Nascimento *"
                   placeholder="Selecione a data de nascimento"
-                  defaultDate={dataNascimento || undefined}
-                  onChange={(_dates, dateStr) => setDataNascimento(dateStr)}
+                  defaultDate={dataNascimento ?? undefined}
+                  onChange={(dates) => setDataNascimento(dates[0] ?? null)}
                 />
               </div>
 
