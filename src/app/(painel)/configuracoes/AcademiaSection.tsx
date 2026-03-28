@@ -69,7 +69,7 @@ export default function AcademiaSection() {
       });
       setSucesso(true);
       setAnoDeOverride(null);
-      buscarAnoLetivo();
+      setTimeout(() => buscarAnoLetivo(), 3000);
       setTimeout(() => setSucesso(false), 4000);
     } catch {
       // erroDefinir disponível via hook
