@@ -1,12 +1,18 @@
+// AcademiaSection.tsx
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
+import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService } from "@/lib/api/services";
 import { formatAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
 export default function AcademiaSection() {
+  // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
+  const { user } = useUserType();
+  const tipoAcademia = (user?.academia?.type ?? "escola") as "escola" | "superior";
+
   // ── Buscar ano letivo actual da academia ──────────────────────────────────
   const {
     data: anoLetivoData,
@@ -28,19 +34,11 @@ export default function AcademiaSection() {
   const [sucesso, setSucesso] = useState(false);
 
   // ── Override state: só guarda o que o utilizador alterou explicitamente ───
-  // Enquanto null, o valor efectivo vem da API (sem useEffect de sincronização).
   const [anoDeOverride, setAnoDeOverride] = useState<string | null>(null);
-  const [tipoOverride, setTipoOverride] = useState<
-    "escola" | "superior" | null
-  >(null);
 
-  // Valores derivados: override do utilizador > valor da API > default
+  // Valores derivados
   const anoDeFromApi = anoLetivoData?.ano_letivo?.split("_")[0] ?? "";
-  const tipoFromApi =
-    (anoLetivoData?.tipo as "escola" | "superior" | undefined) ?? "escola";
-
   const anoDe = anoDeOverride ?? anoDeFromApi;
-  const tipoSelecionado = tipoOverride ?? tipoFromApi;
 
   // ── Dropdown "De" + campo "Até" calculado automaticamente ─────────────────
   const anoAtual = new Date().getFullYear();
@@ -51,8 +49,9 @@ export default function AcademiaSection() {
   const valorAtual = anoLetivoData?.ano_letivo ?? "";
   const tipoAtual = anoLetivoData?.tipo ?? "";
 
+  // Considera mudança no ano OU se o tipo guardado na API difere do tipo da academia
   const mudou =
-    valorFormatado !== valorAtual || tipoSelecionado !== tipoAtual;
+    valorFormatado !== valorAtual || tipoAcademia !== tipoAtual;
   const podeGuardar = !definindo && !!valorFormatado && mudou;
 
   useEffect(() => {
@@ -66,12 +65,10 @@ export default function AcademiaSection() {
     try {
       await definirAnoLetivo({
         ano_letivo: valorFormatado,
-        tipo: tipoSelecionado,
+        tipo: tipoAcademia,          // sempre usa o tipo da academia
       });
       setSucesso(true);
-      // Limpar overrides para que a UI mostre o valor recém-guardado vindo da API
       setAnoDeOverride(null);
-      setTipoOverride(null);
       buscarAnoLetivo();
       setTimeout(() => setSucesso(false), 4000);
     } catch {
@@ -186,7 +183,7 @@ export default function AcademiaSection() {
             {valorAtual ? "Actualizar Ano Letivo" : "Definir Ano Letivo"}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Selecione o intervalo e o tipo. O formato enviado ao sistema é{" "}
+            Selecione o intervalo. O formato enviado ao sistema é{" "}
             <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
               AAAA_AAAA
             </code>{" "}
@@ -194,7 +191,7 @@ export default function AcademiaSection() {
           </p>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Linha: De + Até + Tipo */}
+            {/* Linha: De + Até + Tipo (read-only) */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {/* De */}
               <div>
@@ -243,25 +240,28 @@ export default function AcademiaSection() {
                 </div>
               </div>
 
-              {/* Tipo */}
+              {/* Tipo — read-only, derivado do tipo da academia */}
               <div>
-                <label
-                  htmlFor="al-tipo"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
-                >
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Tipo
+                  <span className="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
+                    (definido pela academia)
+                  </span>
                 </label>
-                <select
-                  id="al-tipo"
-                  value={tipoSelecionado}
-                  onChange={(e) =>
-                    setTipoOverride(e.target.value as "escola" | "superior")
-                  }
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-                >
-                  <option value="escola">Escola</option>
-                  <option value="superior">Superior</option>
-                </select>
+                <div className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5 text-sm flex items-center gap-2 select-none">
+                  <Icon
+                    icon={
+                      tipoAcademia === "superior"
+                        ? "mdi:school-outline"
+                        : "mdi:book-education-outline"
+                    }
+                    width="16px"
+                    className="text-brand-500 shrink-0"
+                  />
+                  <span className="text-gray-700 dark:text-gray-300 capitalize font-medium">
+                    {tipoAcademia}
+                  </span>
+                </div>
               </div>
             </div>
 
