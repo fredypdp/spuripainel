@@ -152,6 +152,30 @@ export const perfilService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  /**
+   * Adicionar um número de telefone extra ao perfil do utilizador autenticado.
+   * Disponível para qualquer tipo de utilizador (estudante, academia, admin).
+   * Regras:
+   *   - O número não pode já estar verificado por outro utilizador.
+   *   - O mesmo utilizador não pode cadastrar o mesmo número duas vezes.
+   *   - O número retornado já está normalizado (espaços e hífens removidos).
+   * POST /adicionar-telefone-extra
+   */
+  adicionarTelefoneExtra: (
+    data: { numero_telefone: string },
+    token?: string
+  ) =>
+    api.post<{
+      message: string;
+      id: string;
+      numero_telefone: string;
+      verificado: boolean;
+    }>(
+      '/adicionar-telefone-extra',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
