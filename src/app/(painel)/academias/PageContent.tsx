@@ -1,6 +1,6 @@
 // src/app/(painel)/academias/PageContent.tsx
 "use client"
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, adminService, tokenStorage } from '@/lib/api';
@@ -24,6 +24,12 @@ import {
 import { formatAnoAcademico } from "@/types/api";
 
 // ---------------------------------------------------------------------------
+// Constantes
+// ---------------------------------------------------------------------------
+
+const ITEMS_POR_PAGINA = 50;
+
+// ---------------------------------------------------------------------------
 // Tipos internos
 // ---------------------------------------------------------------------------
 interface NivelAcademico {
@@ -45,10 +51,106 @@ const ANOS_FUNDAMENTAL_OPCOES = [
 ];
 
 // ---------------------------------------------------------------------------
+// Paginação com setas
+// ---------------------------------------------------------------------------
+
+interface PaginacaoSetasProps {
+  paginaAtual: number;
+  totalPaginas: number;
+  total: number;
+  porPagina: number;
+  onChange: (p: number) => void;
+}
+
+function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange }: PaginacaoSetasProps) {
+  if (totalPaginas <= 1) return null;
+
+  const inicio = (paginaAtual - 1) * porPagina + 1;
+  const fim = Math.min(paginaAtual * porPagina, total);
+
+  const getPages = (): (number | '...')[] => {
+    const pages: (number | '...')[] = [];
+    if (totalPaginas <= 7) {
+      for (let i = 1; i <= totalPaginas; i++) pages.push(i);
+    } else if (paginaAtual <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPaginas);
+    } else if (paginaAtual >= totalPaginas - 3) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = totalPaginas - 4; i <= totalPaginas; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push('...');
+      for (let i = paginaAtual - 1; i <= paginaAtual + 1; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPaginas);
+    }
+    return pages;
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-white/[0.03] rounded-lg border border-gray-200 dark:border-white/[0.05]">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {inicio}–{fim} de {total}
+      </p>
+
+      <div className="flex items-center gap-1">
+        {/* Seta esquerda */}
+        <button
+          onClick={() => onChange(paginaAtual - 1)}
+          disabled={paginaAtual === 1}
+          className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          aria-label="Página anterior"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {getPages().map((p, i) =>
+          p === '...' ? (
+            <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p as number)}
+              className={`min-w-[32px] h-8 rounded-md text-sm font-medium transition-colors ${
+                paginaAtual === p
+                  ? 'bg-brand-500 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.05]'
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        {/* Seta direita */}
+        <button
+          onClick={() => onChange(paginaAtual + 1)}
+          disabled={paginaAtual === totalPaginas}
+          className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          aria-label="Próxima página"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Pág. {paginaAtual}/{totalPaginas}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AcoesDropdown
 // O menu é renderizado via createPortal diretamente no document.body,
 // escapando de qualquer overflow-hidden/overflow-x-auto da tabela.
-// A posição é calculada com getBoundingClientRect() do botão trigger.
 // ---------------------------------------------------------------------------
 interface AcoesDropdownProps {
   academia: AcademiaDetalhada;
@@ -80,20 +182,17 @@ function AcoesDropdown({
   const [menuPos, setMenuPos] = useState<MenuPos>({ top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
 
-  // Abre o menu calculando a posição absoluta do botão na viewport + scroll
   const handleToggle = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       setMenuPos({
         top: rect.bottom + window.scrollY + 4,
-        // alinha a borda direita do menu com a borda direita do botão
         left: rect.right + window.scrollX - MENU_WIDTH,
       });
     }
     setOpen((prev) => !prev);
   };
 
-  // Fecha ao clicar fora, ao rolar ou ao redimensionar
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -112,12 +211,10 @@ function AcoesDropdown({
     fn();
   };
 
-  // Portal: renderiza o menu fora da árvore DOM da tabela
   const menuPortal =
     open &&
     typeof document !== "undefined" &&
     createPortal(
-      // stopPropagation impede que o mousedown do overlay acima feche imediatamente
       <div
         onMouseDown={(e) => e.stopPropagation()}
         style={{
@@ -218,6 +315,9 @@ export default function Academias() {
   const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
   const [carregado, setCarregado] = useState(false);
 
+  // Paginação
+  const [paginaAtual, setPaginaAtual] = useState(1);
+
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(adminService.registrarAcademia);
   const { loading: carregandoAtivar, error: erroAtivarAcademia, execute: executarAtivar } = useApi(adminService.ativarAcademia);
@@ -266,6 +366,22 @@ export default function Academias() {
     return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reset paginação quando os dados mudam
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [dataAcademias]);
+
+  // Dados paginados
+  const academiasList = dataAcademias?.academias ?? [];
+  const totalPaginas = Math.ceil(academiasList.length / ITEMS_POR_PAGINA);
+  const academiasPaginadas = useMemo(
+    () => academiasList.slice(
+      (paginaAtual - 1) * ITEMS_POR_PAGINA,
+      paginaAtual * ITEMS_POR_PAGINA
+    ),
+    [academiasList, paginaAtual]
+  );
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
@@ -449,7 +565,7 @@ export default function Academias() {
             </div>
           )}
 
-          {/* Modal de Cadastro */}
+          {/* ── Modal de Cadastro ── */}
           <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[640px] p-5 lg:p-10">
             <form onSubmit={handleCadastro}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar escola</h4>
@@ -618,7 +734,7 @@ export default function Academias() {
             </form>
           </Modal>
 
-          {/* Modal de Detalhes */}
+          {/* ── Modal de Detalhes ── */}
           <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
             {academiaSelecionada && (
               <div>
@@ -691,7 +807,7 @@ export default function Academias() {
             )}
           </Modal>
 
-          {/* Modal de Desativar Academia */}
+          {/* ── Modal de Desativar Academia ── */}
           <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
             <form onSubmit={handleDesativar}>
               <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
@@ -760,103 +876,117 @@ export default function Academias() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="w-full overflow-x-auto">
-            <Table className="w-full">
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
-                  <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
-                </TableRow>
-              </TableHeader>
-
-              {carregandoAcademias && (
-                <TableBody>
+        {/* ── Tabela ── */}
+        <div className="space-y-3">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+            <div className="w-full overflow-x-auto">
+              <Table className="w-full">
+                <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                   <TableRow>
-                    <TableCell colSpan={8}>
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
-                      </div>
-                    </TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
                   </TableRow>
-                </TableBody>
-              )}
+                </TableHeader>
 
-              {!carregandoAcademias && !carregado && (
-                <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={8}>
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <p className="text-gray-400 text-sm">Clique em &quot;Atualizar lista&quot; para carregar as academias</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              )}
-
-              {!carregandoAcademias && carregado && dataAcademias && (
-                <TableBody>
-                  {dataAcademias.academias.length === 0 ? (
+                {carregandoAcademias && (
+                  <TableBody>
                     <TableRow>
                       <TableCell colSpan={8}>
                         <div className="flex flex-col items-center justify-center py-12">
-                          <p className="text-gray-400 text-sm">Nenhuma academia encontrada</p>
+                          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    dataAcademias.academias.map((academia) => (
-                      <TableRow key={academia.id}>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">
-                          {academia.nome}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">
-                          {academia.codigo_academia}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
-                          {academia.type}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
-                          {academia.nivel_escolar || '-'}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
-                          {academia.provincia}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                          {academia.total_estudantes}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
-                            {academia.status || '-'}
-                          </span>
-                        </TableCell>
+                  </TableBody>
+                )}
 
-                        {/* ── Coluna Ações ── */}
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                          <AcoesDropdown
-                            academia={academia}
-                            isAdmin={!loadingUser && user?.tipo === "admin"}
-                            carregandoAtivar={carregandoAtivar}
-                            carregandoDesativar={carregandoDesativar}
-                            onVerDetalhes={handleVerDetalhes}
-                            onAtivar={handleAtivar}
-                            onAbrirDesativar={handleAbrirDesativar}
-                          />
+                {!carregandoAcademias && !carregado && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={8}>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <p className="text-gray-400 text-sm">Clique em &quot;Atualizar lista&quot; para carregar as academias</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+
+                {!carregandoAcademias && carregado && dataAcademias && (
+                  <TableBody>
+                    {academiasPaginadas.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8}>
+                          <div className="flex flex-col items-center justify-center py-12">
+                            <p className="text-gray-400 text-sm">Nenhuma academia encontrada</p>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              )}
-            </Table>
+                    ) : (
+                      academiasPaginadas.map((academia) => (
+                        <TableRow key={academia.id}>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">
+                            {academia.nome}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">
+                            {academia.codigo_academia}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                            {academia.type}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                            {academia.nivel_escolar || '-'}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                            {academia.provincia}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                            {academia.total_estudantes}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
+                              {academia.status || '-'}
+                            </span>
+                          </TableCell>
+
+                          {/* Coluna Ações */}
+                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                            <AcoesDropdown
+                              academia={academia}
+                              isAdmin={!loadingUser && user?.tipo === "admin"}
+                              carregandoAtivar={carregandoAtivar}
+                              carregandoDesativar={carregandoDesativar}
+                              onVerDetalhes={handleVerDetalhes}
+                              onAtivar={handleAtivar}
+                              onAbrirDesativar={handleAbrirDesativar}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                )}
+              </Table>
+            </div>
           </div>
+
+          {/* Paginação */}
+          {!carregandoAcademias && carregado && dataAcademias && (
+            <PaginacaoSetas
+              paginaAtual={paginaAtual}
+              totalPaginas={totalPaginas}
+              total={academiasList.length}
+              porPagina={ITEMS_POR_PAGINA}
+              onChange={setPaginaAtual}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -2,7 +2,6 @@
 "use client"
 import { useState, useEffect, useCallback, useMemo } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { formatDataNascimento } from '@/types/api';
 import type { Genero } from '@/types/api';
 import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
@@ -23,6 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
+const ITEMS_POR_PAGINA = 50;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,6 +109,118 @@ function labelNivel(v: string): string {
   return v.replace(/_/g, ' ');
 }
 
+function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): EstudanteDetalhado[] {
+  return lista.filter(e => {
+    if (filtros.genero && e.genero !== filtros.genero) return false;
+    if (filtros.idadeMin || filtros.idadeMax) {
+      const idade = calcularIdade(e.data_nascimento);
+      if (idade === null) return false;
+      if (filtros.idadeMin && idade < Number(filtros.idadeMin)) return false;
+      if (filtros.idadeMax && idade > Number(filtros.idadeMax)) return false;
+    }
+    if (filtros.status && e.status !== filtros.status) return false;
+    if (filtros.statusFundamental && e.status_escolar_fundamental !== filtros.statusFundamental) return false;
+    if (filtros.statusMedio && e.status_escolar_medio !== filtros.statusMedio) return false;
+    if (filtros.statusSuperior && e.status_superior !== filtros.statusSuperior) return false;
+    return true;
+  });
+}
+
+// ─── Paginação com setas ──────────────────────────────────────────────────────
+
+interface PaginacaoSetasProps {
+  paginaAtual: number;
+  totalPaginas: number;
+  total: number;
+  porPagina: number;
+  onChange: (p: number) => void;
+}
+
+function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange }: PaginacaoSetasProps) {
+  if (totalPaginas <= 1) return null;
+
+  const inicio = (paginaAtual - 1) * porPagina + 1;
+  const fim = Math.min(paginaAtual * porPagina, total);
+
+  const getPages = (): (number | '...')[] => {
+    const pages: (number | '...')[] = [];
+    if (totalPaginas <= 7) {
+      for (let i = 1; i <= totalPaginas; i++) pages.push(i);
+    } else if (paginaAtual <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPaginas);
+    } else if (paginaAtual >= totalPaginas - 3) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = totalPaginas - 4; i <= totalPaginas; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push('...');
+      for (let i = paginaAtual - 1; i <= paginaAtual + 1; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPaginas);
+    }
+    return pages;
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-white/[0.03] rounded-lg border border-gray-200 dark:border-white/[0.05]">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {inicio}–{fim} de {total}
+      </p>
+
+      <div className="flex items-center gap-1">
+        {/* Seta esquerda */}
+        <button
+          onClick={() => onChange(paginaAtual - 1)}
+          disabled={paginaAtual === 1}
+          className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          aria-label="Página anterior"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {getPages().map((p, i) =>
+          p === '...' ? (
+            <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p as number)}
+              className={`min-w-[32px] h-8 rounded-md text-sm font-medium transition-colors ${
+                paginaAtual === p
+                  ? 'bg-brand-500 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.05]'
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        {/* Seta direita */}
+        <button
+          onClick={() => onChange(paginaAtual + 1)}
+          disabled={paginaAtual === totalPaginas}
+          className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          aria-label="Próxima página"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Pág. {paginaAtual}/{totalPaginas}
+      </p>
+    </div>
+  );
+}
+
 // ─── Filtros ──────────────────────────────────────────────────────────────────
 
 interface FiltrosPainelProps {
@@ -116,7 +231,6 @@ interface FiltrosPainelProps {
 
 function FiltrosPanel({ filtros, setFiltros, isAdmin }: FiltrosPainelProps) {
   const [aberto, setAberto] = useState(false);
-
   const temFiltro = Object.values(filtros).some(v => v !== '');
 
   const limpar = () => setFiltros({
@@ -352,33 +466,7 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias }: Tab
   );
 }
 
-// ─── Vista em escala para Academia ───────────────────────────────────────────
-
-interface VistaEscalaProps {
-  estudantes: EstudanteDetalhado[];
-  turmas: Turma[];
-  cursos: Curso[];
-  nivelAcademia: string;
-  filtros: FiltrosState;
-  onVerDetalhes: (e: EstudanteDetalhado) => void;
-}
-
-function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): EstudanteDetalhado[] {
-  return lista.filter(e => {
-    if (filtros.genero && e.genero !== filtros.genero) return false;
-    if (filtros.idadeMin || filtros.idadeMax) {
-      const idade = calcularIdade(e.data_nascimento);
-      if (idade === null) return false;
-      if (filtros.idadeMin && idade < Number(filtros.idadeMin)) return false;
-      if (filtros.idadeMax && idade > Number(filtros.idadeMax)) return false;
-    }
-    if (filtros.status && e.status !== filtros.status) return false;
-    if (filtros.statusFundamental && e.status_escolar_fundamental !== filtros.statusFundamental) return false;
-    if (filtros.statusMedio && e.status_escolar_medio !== filtros.statusMedio) return false;
-    if (filtros.statusSuperior && e.status_superior !== filtros.statusSuperior) return false;
-    return true;
-  });
-}
+// ─── Componentes da Vista em Escala ───────────────────────────────────────────
 
 function TurmaColapsavel({
   turma, estudantesMapa, filtros, onVerDetalhes,
@@ -541,27 +629,25 @@ interface SecaoFundamentalProps {
 }
 
 function SecaoFundamental({ turmas, estudantesMapa, filtros, onVerDetalhes }: SecaoFundamentalProps) {
-  const semTurmas = ANOS_FUNDAMENTAL_LIST.every(a => !turmas.some(t => t.nivel === a.value));
+  const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a => turmas.some(t => t.nivel === a.value));
+
+  if (anosComTurmas.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
+  }
+
   return (
     <div className="space-y-2">
-      {ANOS_FUNDAMENTAL_LIST.map(ano => {
-        const turmasDoAno = turmas.filter(t => t.nivel === ano.value);
-        if (turmasDoAno.length === 0) return null;
-        return (
-          <AnoColapsavel
-            key={ano.value}
-            ano={ano.value}
-            label={ano.label.replace(' Fundamental', '')}
-            turmas={turmas}
-            estudantesMapa={estudantesMapa}
-            filtros={filtros}
-            onVerDetalhes={onVerDetalhes}
-          />
-        );
-      })}
-      {semTurmas && (
-        <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>
-      )}
+      {anosComTurmas.map(ano => (
+        <AnoColapsavel
+          key={ano.value}
+          ano={ano.value}
+          label={ano.label.replace(' Fundamental', '')}
+          turmas={turmas}
+          estudantesMapa={estudantesMapa}
+          filtros={filtros}
+          onVerDetalhes={onVerDetalhes}
+        />
+      ))}
     </div>
   );
 }
@@ -578,10 +664,13 @@ interface SecaoCursosProps {
 }
 
 function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, onVerDetalhes }: SecaoCursosProps) {
+  // Filtra por tipo se fornecido; caso contrário exibe todos os ativos
   const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
+
   if (lista.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
   }
+
   return (
     <div className="space-y-2">
       {lista.map(c => (
@@ -600,6 +689,18 @@ function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, onVe
 }
 
 // ─── VistaEscala ──────────────────────────────────────────────────────────────
+// CORREÇÃO: a lógica anterior derivava isSuperior=true para 'medio' porque usava
+// (!isFundamental && !isMisto), tornando SecaoCursos filtrar por type='superior'.
+// Agora cada nível é derivado explicitamente de nivelAcademia.
+
+interface VistaEscalaProps {
+  estudantes: EstudanteDetalhado[];
+  turmas: Turma[];
+  cursos: Curso[];
+  nivelAcademia: string;
+  filtros: FiltrosState;
+  onVerDetalhes: (e: EstudanteDetalhado) => void;
+}
 
 function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVerDetalhes }: VistaEscalaProps) {
   const [secaoAberta, setSecaoAberta] = useState<'fundamental' | 'cursos' | null>(null);
@@ -610,12 +711,62 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
     return m;
   }, [estudantes]);
 
-  const cursosAtivos  = cursos.filter(c => c.status === 'ativo');
-  const isMisto       = nivelAcademia === 'misto';
-  const isFundamental = nivelAcademia === 'fundamental';
-  const isSuperior    = nivelAcademia === 'superior' || (!isFundamental && !isMisto);
+  // Apenas cursos com status 'ativo'
+  const cursosAtivos = useMemo(
+    () => cursos.filter(c => c.status === 'ativo'),
+    [cursos]
+  );
 
+  // Derivação explícita de cada nível — sem fallback implícito que causava o bug
+  const isFundamental = nivelAcademia === 'fundamental';
+  const isMedio       = nivelAcademia === 'medio';
+  const isMisto       = nivelAcademia === 'misto';
+  const isSuperior    = nivelAcademia === 'superior';
+
+  // ── Ensino Fundamental ────────────────────────────────────────────────────
+  if (isFundamental) {
+    return (
+      <SecaoFundamental
+        turmas={turmas}
+        estudantesMapa={estudantesMapa}
+        filtros={filtros}
+        onVerDetalhes={onVerDetalhes}
+      />
+    );
+  }
+
+  // ── Ensino Médio ──────────────────────────────────────────────────────────
+  if (isMedio) {
+    return (
+      <SecaoCursos
+        cursosAtivos={cursosAtivos}
+        tipo="medio"
+        turmas={turmas}
+        estudantesMapa={estudantesMapa}
+        filtros={filtros}
+        onVerDetalhes={onVerDetalhes}
+      />
+    );
+  }
+
+  // ── Ensino Superior ───────────────────────────────────────────────────────
+  if (isSuperior) {
+    return (
+      <SecaoCursos
+        cursosAtivos={cursosAtivos}
+        tipo="superior"
+        turmas={turmas}
+        estudantesMapa={estudantesMapa}
+        filtros={filtros}
+        onVerDetalhes={onVerDetalhes}
+      />
+    );
+  }
+
+  // ── Misto (Fundamental + Médio) ───────────────────────────────────────────
   if (isMisto) {
+    const cursosMedio = cursosAtivos.filter(c => c.type === 'medio');
+
     return (
       <div className="space-y-3">
         {/* Fundamental */}
@@ -643,7 +794,7 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           )}
         </div>
 
-        {/* Cursos Médio */}
+        {/* Médio */}
         <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
           <button
             onClick={() => setSecaoAberta(p => p === 'cursos' ? null : 'cursos')}
@@ -653,7 +804,7 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
               <Icon icon="mdi:book-education" width={20} className="text-purple-600 dark:text-purple-400" />
               <span className="font-bold text-gray-800 dark:text-white">Ensino Médio</span>
               <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">
-                {cursosAtivos.filter(c => c.type === 'medio').length} curso(s)
+                {cursosMedio.length} curso{cursosMedio.length !== 1 ? 's' : ''}
               </span>
             </div>
             <Icon icon={secaoAberta === 'cursos' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
@@ -675,27 +826,8 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
     );
   }
 
-  if (isFundamental) {
-    return (
-      <SecaoFundamental
-        turmas={turmas}
-        estudantesMapa={estudantesMapa}
-        filtros={filtros}
-        onVerDetalhes={onVerDetalhes}
-      />
-    );
-  }
-
-  return (
-    <SecaoCursos
-      cursosAtivos={cursosAtivos}
-      tipo={isSuperior ? 'superior' : undefined}
-      turmas={turmas}
-      estudantesMapa={estudantesMapa}
-      filtros={filtros}
-      onVerDetalhes={onVerDetalhes}
-    />
-  );
+  // Fallback — não deve acontecer
+  return null;
 }
 
 // ─── Modal de Detalhes ────────────────────────────────────────────────────────
@@ -806,6 +938,9 @@ export default function Estudantes() {
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   const [vistaEscala, setVistaEscala] = useState(false);
 
+  // Paginação (apenas na vista tabela)
+  const [paginaAtual, setPaginaAtual] = useState(1);
+
   const [filtros, setFiltros] = useState<FiltrosState>({
     genero: '', idadeMin: '', idadeMax: '',
     status: '', statusFundamental: '', statusMedio: '', statusSuperior: ''
@@ -823,7 +958,6 @@ export default function Estudantes() {
   const [telefone, setTelefone] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  // ── CORRIGIDO: Date | null em vez de string ──────────────────────────────
   const [dataNascimento, setDataNascimento] = useState<Date | null>(null);
   const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
   const [genero, setGenero] = useState<Genero>('masculino');
@@ -906,23 +1040,43 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
+  // Reset do cursor do ano se o tipo do ano já não for médio/superior
   useEffect(() => {
     if (anoEscolarSelecionado && !isAnoMedio(anoEscolarSelecionado) && !isAnoSuperior(anoEscolarSelecionado)) {
       setCursoSelecionado(null);
     }
   }, [anoEscolarSelecionado]);
 
+  // Reset da paginação quando os filtros mudam
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [filtros]);
+
+  // Reset da paginação quando a lista recarrega
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [dataEstudantes]);
+
   const estudantesFiltrados = useMemo(() => {
     const lista = dataEstudantes?.estudantes ?? [];
     return aplicarFiltros(lista, filtros);
   }, [dataEstudantes, filtros]);
+
+  // Paginação da vista tabela
+  const totalPaginas = Math.ceil(estudantesFiltrados.length / ITEMS_POR_PAGINA);
+  const estudantesPaginados = useMemo(
+    () => estudantesFiltrados.slice(
+      (paginaAtual - 1) * ITEMS_POR_PAGINA,
+      paginaAtual * ITEMS_POR_PAGINA
+    ),
+    [estudantesFiltrados, paginaAtual]
+  );
 
   const turmas: Turma[] = (dataTurmas as any)?.turmas ?? [];
   const cursos: Curso[]  = dataCursos?.cursos ?? [];
 
   const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
-  // ── CORRIGIDO: limpar reseta para null ───────────────────────────────────
   const limparFormulario = () => {
     setNome(''); setEmail(''); setTelefone('');
     setBilheteIdentidade(''); setBilheteResponsavel('');
@@ -934,7 +1088,6 @@ export default function Estudantes() {
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
-    // ── CORRIGIDO: verifica Date | null ─────────────────────────────────
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
     if (!bilheteIdentidade.trim() && !bilheteResponsavel.trim())
@@ -952,7 +1105,6 @@ export default function Estudantes() {
     setCadastrandoIndividual(true);
     setValidationErrors([]); setSuccessMessage('');
 
-    // ── CORRIGIDO: envia ISO string (RFC3339) para o backend ─────────────
     const dataNascimentoISO = dataNascimento ? dataNascimento.toISOString() : '';
 
     const payload = {
@@ -970,12 +1122,12 @@ export default function Estudantes() {
       curso_superior_id: (tipoAcademia === 'superior') ? cursoSelecionado?.id : undefined,
       status_escolar_fundamental: 'em_andamento' as const,
     };
+
     try {
       await executarCadastro(payload);
       setSuccessMessage('Estudante cadastrado com sucesso!');
       setNome(''); setEmail(''); setTelefone('');
       setBilheteIdentidade(''); setBilheteResponsavel('');
-      // ── CORRIGIDO: reseta para null ──────────────────────────────────
       setDataNascimento(null);
       setAnoEscolarSelecionado(null); setCursoSelecionado(null);
       setTimeout(() => { closeModal(); setSuccessMessage(''); }, 2000);
@@ -1088,19 +1240,8 @@ export default function Estudantes() {
                 </div>
               </div>
 
-              {/* ── Data de Nascimento — DatePicker com Date | null ── */}
+              {/* Data de Nascimento */}
               <div className="col-span-2 sm:col-span-1">
-                {/*
-                  key={isOpen ? 'open' : 'closed'} garante que o flatpickr é
-                  reiniciado quando o modal é fechado/aberto, evitando valor residual.
-
-                  onChange recebe (dates: Date[], dateStr: string) do flatpickr.
-                  Usamos dates[0] (objeto Date nativo) para manter o estado como Date.
-                  O payload envia dataNascimento.toISOString() → RFC3339 → Go deserializa time.Time corretamente.
-
-                  defaultDate aceita Date diretamente (DateOption = Date | string | number).
-                  Passamos dataNascimento ?? undefined para não forçar valor residual.
-                */}
                 <DatePicker
                   key={isOpen ? 'picker-open' : 'picker-closed'}
                   id="data-nascimento-picker"
@@ -1290,21 +1431,32 @@ export default function Estudantes() {
             )}
 
             {!carregandoEstudantes && carregado && totalGeral > 0 && (
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                <div className="w-full overflow-x-auto">
-                  <TabelaEstudantes
-                    estudantes={estudantesFiltrados}
-                    isAdmin={!!isAdmin}
-                    onVerDetalhes={handleVerDetalhes}
-                    academias={academiasMap}
-                  />
-                </div>
-                {totalFiltrado === 0 && totalGeral > 0 && (
-                  <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-                    <Icon icon="mdi:filter-off-outline" width={32} className="mb-2 opacity-50" />
-                    <p className="text-sm">Nenhum estudante corresponde aos filtros.</p>
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                  <div className="w-full overflow-x-auto">
+                    <TabelaEstudantes
+                      estudantes={estudantesPaginados}
+                      isAdmin={!!isAdmin}
+                      onVerDetalhes={handleVerDetalhes}
+                      academias={academiasMap}
+                    />
                   </div>
-                )}
+                  {totalFiltrado === 0 && totalGeral > 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                      <Icon icon="mdi:filter-off-outline" width={32} className="mb-2 opacity-50" />
+                      <p className="text-sm">Nenhum estudante corresponde aos filtros.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Paginação */}
+                <PaginacaoSetas
+                  paginaAtual={paginaAtual}
+                  totalPaginas={totalPaginas}
+                  total={totalFiltrado}
+                  porPagina={ITEMS_POR_PAGINA}
+                  onChange={setPaginaAtual}
+                />
               </div>
             )}
           </>
