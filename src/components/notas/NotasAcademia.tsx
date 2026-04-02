@@ -387,6 +387,10 @@ export default function NotasAcademia() {
   const isSuperior    = academiaType === "superior";
   const isMisto       = academiaType === "escola" && nivelEscolar === "misto";
   const tipoNota: TipoNota = isSuperior ? "superior" : "escolar";
+
+  // PERIODOS é calculado uma vez aqui e passado para todos os lugares que precisam.
+  // - escolas (fundamental / médio / misto) → trimestres
+  // - superior → semestres
   const PERIODOS = isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA;
 
   const initLayer = (): Layer => {
@@ -452,7 +456,7 @@ export default function NotasAcademia() {
 
   const anosFundamentais = useMemo(() => {
     const comTurmas = ANOS_FUNDAMENTAL.filter(a => turmas.some(t => t.nivel === a && t.status === "ativo"));
-    return comTurmas.length > 0 ? comTurmas : ANOS_FUNDAMENTAL; // ANOS_FUNDAMENTAL já está em ordem
+    return comTurmas.length > 0 ? comTurmas : ANOS_FUNDAMENTAL;
   }, [turmas]);
 
   async function handleRegistrar(d: RegistrarNotasRequest) {
@@ -470,8 +474,6 @@ export default function NotasAcademia() {
   }
 
   // ─── Breadcrumbs ─────────────────────────────────────────────────────────────
-  // Para modo "misto": o crumb raiz é sempre "Início" (volta ao choose),
-  // seguido do sub-contexto (Fundamental / Cursos)
 
   function buildCrumbs(): { label:string; onClick?:()=>void }[] {
     const goInicio = () => setLayer({ mode:"misto", type:"choose" });
@@ -640,6 +642,8 @@ export default function NotasAcademia() {
     }
 
     // Superior/Médio: períodos
+    // FIX: usa `PERIODOS` (calculado no topo) em vez de `PERIODOS_SUPERIOR` hardcoded.
+    // Isso garante que escolas do tipo "médio" mostrem trimestres, não semestres.
     if (layer.mode === "sup" && layer.type === "periodos") {
       const { curso, ano, turma } = layer as any;
       return (
@@ -648,7 +652,7 @@ export default function NotasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
           <p className="text-sm text-gray-500">{labelNivel(ano, !isSuperior)} · {curso.nome}</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {PERIODOS_SUPERIOR.map(p => (
+            {PERIODOS.map(p => (
               <CardBtn key={p.value} icon="mdi:clipboard-text-clock-outline" title={p.label} subtitle="Ver notas"
                 onClick={async () => { await carregarNotasTurma(turma); setLayer({mode:"sup",type:"notas",curso,ano,turma,periodo:p.value}); }}/>
             ))}
