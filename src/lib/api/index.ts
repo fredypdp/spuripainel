@@ -117,3 +117,17 @@ export type {
   StatusEscolarMedio,
   AtualizarFaltaRequest,
 } from '@/types/api';
+
+// Adicionar estas exportações
+export { jobApiService, pollJob } from './job-service';
+export type {
+  JobStatus,
+  JobType,
+  JobSummary,
+  JobDetail,
+  JobItemResult,
+  AsyncBatchResponse,
+  PollOptions,
+} from './job-service';
+export { useAsyncBatch } from '@/hooks/useAsyncBatch';
+export type { AsyncBatchState, UseAsyncBatchOptions, UseAsyncBatchReturn } from '@/hooks/useAsyncBatch';

@@ -2,6 +2,7 @@
 // Rotas baseadas em: cmd/server/main.go — revisado em 2026-04
 
 import { api, tokenStorage } from './client';
+import type { AsyncBatchResponse } from '@/lib/api/job-service';
 import type {
   AuthResponse,
   CriarEscolaRequest,
@@ -745,6 +746,53 @@ export const academiaService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  /** POST /academia/estudante/register/async — até 1000 estudantes */
+  registrarNotaBatchAsync: (data: RegistrarNotasRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/notas-aluno/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** POST /academia/estudante/register/async — até 1000 estudantes */
+  cadastrarEstudanteBatchAsync: (data: CriarEstudanteRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/estudante/register/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  registrarNotaBatchAsync: (data: RegistrarNotasRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/notas-aluno/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  registrarFaltasBatchAsync: (data: RegistrarFaltasRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/faltas-aluno/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  registrarAvaliacaoFinalBatchAsync: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/avaliacao-final/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarStatusEscolarBatchAsync: (
+    data: { codigo_estudante: string; tipo: 'fundamental' | 'medio' | 'superior'; novo_status: string }[],
+    token?: string
+  ) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/estudante/status-escolar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
@@ -880,6 +928,16 @@ export const adminService = {
   ) =>
     api.put<BatchResponse>(
       '/dominis/academia/desativar/batch',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+  
+  registrarAcademiaBatchAsync: (
+    data: (CriarEscolaRequest | CriarUniversidadeRequest)[],
+    token?: string
+  ) =>
+    api.post<AsyncBatchResponse>(
+      '/dominis/academia/register/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
