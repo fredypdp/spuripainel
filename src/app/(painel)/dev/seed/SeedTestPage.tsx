@@ -56,8 +56,8 @@ const SOBRENOMES = ["Silva","Santos","Costa","Ferreira","Oliveira","Neto","Lopes
 // ─── Helpers de geração aleatória ────────────────────────────────────────────
 
 const rnd = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
-const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
-const pickN = <T>(arr: T[], n: number): T[] => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
+const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+const pickN = <T,>(arr: T[], n: number): T[] => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
 
 function gerarNome() {
   const masc = Math.random() < 0.51;
