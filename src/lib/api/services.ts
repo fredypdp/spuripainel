@@ -69,7 +69,7 @@ export interface ErrorResponse {
   request_id?: string;
 }
 
-// Resposta padrão de endpoints batch
+// Resposta padrão de endpoints batch síncronos
 export interface BatchItemResult {
   index: number;
   sucesso: boolean;
@@ -320,12 +320,8 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Avaliação Final (único mecanismo de aprovação/reprovação) ──────
+  // ── Avaliação Final ────────────────────────────────────────────────
 
-  /**
-   * POST /academia/avaliacao-final
-   * Único endpoint de avaliação de ano — cobre aprovação e reprovação.
-   */
   registrarAvaliacaoFinal: (data: RegistrarAvaliacaoFinalRequest, token?: string) =>
     api.post<{
       message: string;
@@ -553,7 +549,7 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Batch ─────────────────────────────────────────────────────────
+  // ── Batch síncronos (academia) ─────────────────────────────────────
 
   /** POST /academia/estudante/register/batch — até 100 estudantes */
   cadastrarEstudanteBatch: (data: CriarEstudanteRequest[], token?: string) =>
@@ -747,15 +743,9 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/estudante/register/async — até 1000 estudantes */
-  registrarNotaBatchAsync: (data: RegistrarNotasRequest[], token?: string) =>
-    api.post<AsyncBatchResponse>(
-      '/academia/notas-aluno/async',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  // ── Async — submissão de jobs para lotes grandes ────────────────────
 
-  /** POST /academia/estudante/register/async — até 1000 estudantes */
+  /** POST /academia/estudante/register/async — sem limite fixo, processamento assíncrono */
   cadastrarEstudanteBatchAsync: (data: CriarEstudanteRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/estudante/register/async',
@@ -763,6 +753,7 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /** POST /academia/notas-aluno/async */
   registrarNotaBatchAsync: (data: RegistrarNotasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/notas-aluno/async',
@@ -770,6 +761,22 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /** PUT /academia/atualizar-nota/async */
+  atualizarNotaBatchAsync: (data: AtualizarNotaRequest[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/atualizar-nota/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** DELETE /academia/nota/async */
+  deletarNotaBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/nota/async',
+      { token: token || tokenStorage.get() || undefined } as any
+    ),
+
+  /** POST /academia/faltas-aluno/async */
   registrarFaltasBatchAsync: (data: RegistrarFaltasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/faltas-aluno/async',
@@ -777,6 +784,22 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /** PUT /academia/atualizar-falta/async */
+  atualizarFaltaBatchAsync: (data: AtualizarFaltaRequest[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/atualizar-falta/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** DELETE /academia/falta/async */
+  deletarFaltaBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/falta/async',
+      { token: token || tokenStorage.get() || undefined } as any
+    ),
+
+  /** POST /academia/avaliacao-final/async */
   registrarAvaliacaoFinalBatchAsync: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/avaliacao-final/async',
@@ -784,12 +807,48 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /** PUT /academia/estudante/status-escolar/async */
   atualizarStatusEscolarBatchAsync: (
     data: { codigo_estudante: string; tipo: 'fundamental' | 'medio' | 'superior'; novo_status: string }[],
     token?: string
   ) =>
     api.put<AsyncBatchResponse>(
       '/academia/estudante/status-escolar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** POST /academia/curso/async */
+  criarCursoBatchAsync: (data: CriarCursoRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/curso/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** POST /academia/materia/async */
+  criarMateriaBatchAsync: (data: CriarMateriaRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/materia/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** POST /academia/turma/async */
+  criarTurmaBatchAsync: (data: CriarTurmaRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/turma/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** POST /academia/turma/estudante/async */
+  adicionarEstudanteBatchAsync: (
+    data: { codigo_turma: string; codigo_estudante: string }[],
+    token?: string
+  ) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/turma/estudante/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -900,9 +959,9 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Batch (admin) ─────────────────────────────────────────────────
+  // ── Batch síncronos (admin) ────────────────────────────────────────
 
-  /** POST /dominis/academia/register/batch — até 50 */
+  /** POST /dominis/academia/register/batch — até 5 (bcrypt) */
   registrarAcademiaBatch: (
     data: (CriarEscolaRequest | CriarUniversidadeRequest)[],
     token?: string
@@ -931,7 +990,10 @@ export const adminService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
-  
+
+  // ── Async (admin) — lotes grandes via job queue ────────────────────
+
+  /** POST /dominis/academia/register/async — sem limite, processamento assíncrono */
   registrarAcademiaBatchAsync: (
     data: (CriarEscolaRequest | CriarUniversidadeRequest)[],
     token?: string
@@ -939,6 +1001,41 @@ export const adminService = {
     api.post<AsyncBatchResponse>(
       '/dominis/academia/register/async',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** PUT /dominis/academia/ativar/async */
+  ativarAcademiaBatchAsync: (codigos: string[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/dominis/academia/ativar/async',
+      codigos.map(codigo => ({ codigo })),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** PUT /dominis/academia/desativar/async */
+  desativarAcademiaBatchAsync: (
+    data: { codigo: string; motivo: string }[],
+    token?: string
+  ) =>
+    api.put<AsyncBatchResponse>(
+      '/dominis/academia/desativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // ── Jobs — consulta de status assíncrono ─────────────────────────
+
+  /** GET /jobs — lista os jobs do usuário autenticado */
+  listarJobs: (token?: string) =>
+    api.get<{ jobs: AsyncBatchResponse[] }>(
+      '/jobs',
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** GET /jobs/:id — consulta o status de um job específico */
+  consultarJob: (jobId: string, token?: string) =>
+    api.get<AsyncBatchResponse>(
+      `/jobs/${jobId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 };
