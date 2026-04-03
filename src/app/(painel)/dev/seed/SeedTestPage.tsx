@@ -306,7 +306,7 @@ export default function SeedTestPage() {
 
       // Turmas
       const turPayloads: CriarTurmaRequest[] = [];
-      const turnos = ["manha", "tarde", "noite"] as const;
+      const turnos: ("manha" | "tarde" | "noite")[] = ["manha", "tarde", "noite"];
       if (ac.meta.nivel === "fundamental" || ac.meta.nivel === "misto") {
         ac.meta.anos.slice(0, 3).forEach((ano, idx) => {
           turPayloads.push({ codigo_turma: `F${idx + 1}A${rnd(10, 99)}`, nivel: ano, turno: pick(turnos) });
@@ -402,7 +402,7 @@ export default function SeedTestPage() {
             ["1_trimestre", "2_trimestre", "3_trimestre"].forEach(periodo => {
               notaPayloads.push({
                 codigo_estudante: e.codigo_estudante,
-                periodo,
+                periodo: periodo as import("@/types/api").Periodo,
                 materia_disciplinar_id: m.id,
                 tipo: m.type === "fundamental" ? "escolar" : "escolar",
                 categoria: "nota_escola",
