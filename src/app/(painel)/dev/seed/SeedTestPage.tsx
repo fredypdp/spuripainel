@@ -1,7 +1,6 @@
 "use client";
 import { useState, useCallback, useRef } from "react";
 import { tokenStorage } from "@/lib/api";
-import { adminService } from "@/lib/api/services";
 import type {
   CriarEscolaRequest,
   CriarEstudanteRequest,
@@ -13,16 +12,16 @@ import type {
   CriarTurmaRequest,
 } from "@/types/api";
 
-// ─── Dados estáticos (espelhados do spuri_seed.py) ───────────────────────────
+// ─── Dados estáticos ──────────────────────────────────────────────────────────
 
 const PROVINCIAS: [string, string][] = [
   ["Bengo", "bengo"], ["Benguela", "benguela"], ["Bie", "bie"],
   ["Cabinda", "cabinda"], ["Cuando Cubango", "cuando cubango"],
   ["Cuanza Norte", "cuanza norte"], ["Cuanza Sul", "cuanza sul"],
-  ["Cubango", "cuando cubango"], ["Cunene", "cunene"], ["Huambo", "huambo"],
-  ["Huila", "huila"], ["Icolo e Bengo", "bengo"], ["Luanda", "luanda"],
+  ["Cunene", "cunene"], ["Huambo", "huambo"],
+  ["Huila", "huila"], ["Luanda", "luanda"],
   ["Lunda Norte", "lunda norte"], ["Lunda Sul", "lunda sul"],
-  ["Malanje", "malanje"], ["Moxico", "moxico"], ["Moxico Leste", "moxico"],
+  ["Malanje", "malanje"], ["Moxico", "moxico"],
   ["Namibe", "namibe"], ["Uige", "uige"], ["Zaire", "zaire"],
 ];
 
@@ -31,44 +30,66 @@ const GRUPOS_FUNDAMENTAL = [
   ["1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental","6_ano_fundamental"],
   ["4_ano_fundamental","5_ano_fundamental","6_ano_fundamental"],
   ["7_ano_fundamental","8_ano_fundamental","9_ano_fundamental"],
-  ["1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental"],
+  ["1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental",
+   "6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental"],
 ];
 
 const GRUPOS_MISTO = [
   ["1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental","6_ano_fundamental"],
   ["7_ano_fundamental","8_ano_fundamental","9_ano_fundamental"],
-  ["1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental"],
+  ["1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental",
+   "6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental"],
 ];
 
-const CURSOS_MEDIO: CriarCursoRequest[] = [
-  { nome: "Ciencias e Tecnologia", type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
-  { nome: "Letras e Ciencias Humanas", type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
-  { nome: "Economico-Juridico", type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
-  { nome: "Informatica e Gestao", type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
+const CURSOS_MEDIO_TEMPLATES: CriarCursoRequest[] = [
+  { nome: "Ciências e Tecnologia",   type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
+  { nome: "Letras e Ciências Humanas", type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
+  { nome: "Económico-Jurídico",      type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
+  { nome: "Informática e Gestão",    type: "medio", anos_academicos: ["1_ano_medio","2_ano_medio","3_ano_medio"] },
 ];
 
-const MATERIAS_FUND = ["Lingua Portuguesa","Matematica","Estudo do Meio","Educacao Visual","Educacao Fisica","Musica","Lingua Inglesa","Ciencias Naturais","Historia de Angola","Formacao Civica"];
-const MATERIAS_MEDIO = ["Lingua Portuguesa","Matematica","Fisica","Quimica","Biologia","Historia","Geografia","Filosofia","Ingles","Educacao Fisica","Informatica","Economia"];
-const NOMES_M = ["Joao","Antonio","Manuel","Francisco","Domingos","Pedro","Paulo","Carlos","Luis","Miguel","Filipe","Rui","Helder","Faustino","Simao","Ezequiel","Armindo","Mario","Narciso","Sergio"];
-const NOMES_F = ["Maria","Ana","Sofia","Isabel","Filomena","Rosa","Conceicao","Graca","Fernanda","Lurdes","Beatriz","Carla","Diana","Elisa","Fatima","Gloria","Helena","Ines","Joana","Katia"];
-const SOBRENOMES = ["Silva","Santos","Costa","Ferreira","Oliveira","Neto","Lopes","Fernandes","Goncalves","Rodrigues","Monteiro","Cardoso","Marques","Correia","Mendes","Kiala","Nzinga","Mbemba","Lukamba","Tchipilica"];
+const MATERIAS_FUND = [
+  "Língua Portuguesa","Matemática","Estudo do Meio","Educação Visual",
+  "Educação Física","Música","Língua Inglesa","Ciências Naturais",
+  "História de Angola","Formação Cívica",
+];
+const MATERIAS_MEDIO = [
+  "Língua Portuguesa","Matemática","Física","Química","Biologia",
+  "História","Geografia","Filosofia","Inglês","Educação Física",
+  "Informática","Economia",
+];
 
-// ─── Helpers de geração aleatória ────────────────────────────────────────────
+const NOMES_M = ["João","António","Manuel","Francisco","Domingos","Pedro","Paulo","Carlos","Luís","Miguel","Filipe","Rui","Hélder","Faustino","Simão","Ezequiel","Armindo","Mário","Narciso","Sérgio"];
+const NOMES_F = ["Maria","Ana","Sofia","Isabel","Filomena","Rosa","Conceição","Graça","Fernanda","Lurdes","Beatriz","Carla","Diana","Elisa","Fátima","Glória","Helena","Inês","Joana","Kátia"];
+const SOBRENOMES = ["Silva","Santos","Costa","Ferreira","Oliveira","Neto","Lopes","Fernandes","Gonçalves","Rodrigues","Monteiro","Cardoso","Marques","Correia","Mendes","Kiala","Nzinga","Mbemba","Lukamba","Tchipilica"];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const rnd = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
-const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const pickN = <T,>(arr: T[], n: number): T[] => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
 
 function gerarNome() {
   const masc = Math.random() < 0.51;
-  const nome = masc ? pick(NOMES_M) : pick(NOMES_F);
-  return { nome: `${nome} ${pick(SOBRENOMES)} ${pick(SOBRENOMES)}`, genero: masc ? "masculino" as const : "feminino" as const };
+  return {
+    nome: `${pick(masc ? NOMES_M : NOMES_F)} ${pick(SOBRENOMES)} ${pick(SOBRENOMES)}`,
+    genero: masc ? "masculino" as const : "feminino" as const,
+  };
 }
 
 function gerarDataNasc(minAge = 12, maxAge = 24): string {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
   const d = new Date(Date.now() - dias * 86400000);
   return d.toISOString().split("T")[0] + "T00:00:00Z";
+}
+
+/**
+ * Senha padrão gerada pelo backend: services.GetDefaultPassword
+ * Convenção real: "{tipo}_{codigo}" em minúsculas
+ * Ex: academia LDA20261 → "academia_lda20261"
+ */
+function senhaAcademia(codigo: string): string {
+  return `academia_${codigo.toLowerCase()}`;
 }
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
@@ -88,6 +109,13 @@ interface AcademiaRegistrada {
   meta: EscolaMeta;
   codigo: string;
   token?: string;
+}
+
+interface MateriaCriada {
+  id: string;
+  type: string;
+  anos_academicos: string[];
+  nome: string;
 }
 
 interface LogEntry { ts: string; level: "ok" | "err" | "warn" | "info" | "step"; msg: string; }
@@ -121,68 +149,66 @@ export default function SeedTestPage() {
 
   const addLog = useCallback((msg: string, level: LogEntry["level"] = "info") => {
     const ts = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    setLogs(prev => {
-      const next = [...prev, { ts, level, msg }];
-      return next.slice(-500); // manter só as últimas 500 linhas
-    });
+    setLogs(prev => [...prev, { ts, level, msg }].slice(-500));
     setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, []);
 
   const setStep = (step: string, pct: number) => setProgress({ step, pct });
 
-  // ── Login numa academia ────────────────────────────────────────────────────
+  // ── Helpers de API ────────────────────────────────────────────────────────
 
-  async function loginAcademia(codigo: string): Promise<string | null> {
-    try {
-      const r = await fetch(
-        (process.env.NEXT_PUBLIC_API_URL || "") + "/login",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ usuario: codigo, senha: codigo }),
-        }
-      );
-      const data = await r.json();
-      return data?.token ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  // ── Chamada API autenticada ────────────────────────────────────────────────
+  const apiUrl = () => process.env.NEXT_PUBLIC_API_URL || "";
 
   async function callApi(
-    method: string, path: string, body: unknown, tok?: string
-  ): Promise<{ ok: boolean; data: unknown }> {
-    const url = (process.env.NEXT_PUBLIC_API_URL || "") + path;
+    method: string,
+    path: string,
+    body: unknown,
+    tok?: string
+  ): Promise<{ ok: boolean; status: number; data: unknown }> {
+    const url = apiUrl() + path;
     const token = tok || tokenStorage.get() || "";
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const r = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: body ? JSON.stringify(body) : undefined,
+        headers,
+        body: body != null ? JSON.stringify(body) : undefined,
       });
       const data = await r.json().catch(() => ({}));
-      return { ok: r.status >= 200 && r.status < 300, data };
+      return { ok: r.status >= 200 && r.status < 300, status: r.status, data };
     } catch (e) {
-      return { ok: false, data: { error: String(e) } };
+      return { ok: false, status: 0, data: { error: String(e) } };
     }
   }
 
-  // ── Batch helper ───────────────────────────────────────────────────────────
+  async function loginAcademia(codigo: string): Promise<string | null> {
+    const senha = senhaAcademia(codigo);
+    const { ok, data } = await callApi("POST", "/login", { usuario: codigo, senha });
+    if (!ok) {
+      addLog(`    Login falhou para ${codigo} (senha: ${senha}): ${JSON.stringify((data as any)?.error ?? "")}`, "warn");
+      return null;
+    }
+    return (data as any)?.token ?? null;
+  }
 
   async function apiBatch(
-    method: string, path: string, items: unknown[], chunkSize: number, tok?: string
+    method: string,
+    path: string,
+    items: unknown[],
+    chunkSize: number,
+    tok?: string
   ): Promise<{ ok: number; err: number }> {
     let ok = 0; let err = 0;
     for (let i = 0; i < items.length; i += chunkSize) {
       if (cancelRef.current) break;
       const chunk = items.slice(i, i + chunkSize);
       const { ok: rOk, data } = await callApi(method, path, chunk, tok);
-      if (!rOk) { err += chunk.length; continue; }
+      if (!rOk) {
+        err += chunk.length;
+        addLog(`    Lote falhou [${method} ${path}]: ${JSON.stringify((data as any)?.error ?? "sem detalhe")}`, "warn");
+        continue;
+      }
       const res = data as { items?: { sucesso: boolean }[] };
       if (res?.items) {
         res.items.forEach(it => it.sucesso ? ok++ : err++);
@@ -197,7 +223,7 @@ export default function SeedTestPage() {
 
   async function passo1CriarAcademias(lista: EscolaMeta[]): Promise<AcademiaRegistrada[]> {
     setStep("Passo 1 — Criar academias", 5);
-    addLog(`Criando ${lista.length} academia(s) em batch...`, "step");
+    addLog(`Criando ${lista.length} academia(s)...`, "step");
 
     const criadas: AcademiaRegistrada[] = [];
     const adminToken = tokenStorage.get() || "";
@@ -205,34 +231,42 @@ export default function SeedTestPage() {
     for (let i = 0; i < lista.length; i += 5) {
       if (cancelRef.current) break;
       const chunk = lista.slice(i, i + 5);
-      const payloads: CriarEscolaRequest[] = chunk.map(m => ({
-        type: "escola",
-        nome: m.nome,
-        provincia: m.prov_api,
-        endereco: m.endereco,
-        nivel_escolar: m.nivel as any,
-        ...(m.anos.length > 0 ? { anos_academicos: m.anos } : {}),
-      }));
+
+      const payloads: CriarEscolaRequest[] = chunk.map(m => {
+        const base: CriarEscolaRequest = {
+          type: "escola",
+          nome: m.nome,
+          provincia: m.prov_api,
+          endereco: m.endereco,
+          nivel_escolar: m.nivel as any,
+        };
+        // anos_academicos apenas para fundamental ou misto
+        if ((m.nivel === "fundamental" || m.nivel === "misto") && m.anos.length > 0) {
+          base.anos_academicos = m.anos;
+        }
+        return base;
+      });
 
       const { ok: rOk, data } = await callApi("POST", "/dominis/academia/register/batch", payloads, adminToken);
       if (!rOk) {
-        addLog(`Lote ${i / 5 + 1}: falhou (${JSON.stringify((data as any)?.error ?? "sem detalhes")})`, "err");
+        addLog(`  Lote ${Math.floor(i / 5) + 1}: falhou — ${JSON.stringify((data as any)?.error ?? "")}`, "err");
         continue;
       }
 
-      const res = data as { items: { sucesso: boolean; dados?: { data?: { codigo_academia?: string } } }[] };
+      const res = data as { items: { sucesso: boolean; dados?: { codigo_academia?: string; data?: { codigo_academia?: string } } }[] };
       res.items?.forEach((it, idx) => {
-        const codigo = it.dados?.data?.codigo_academia;
+        // O backend retorna { message, codigo_academia, data: { id, nome, provincia, codigo_academia } }
+        const codigo = it.dados?.codigo_academia ?? it.dados?.data?.codigo_academia;
         if (it.sucesso && codigo) {
           criadas.push({ meta: chunk[idx], codigo });
-          addLog(`  Academia criada: ${codigo} (${chunk[idx].nivel})`, "ok");
+          addLog(`  ✓ ${codigo} (${chunk[idx].nivel}) — ${chunk[idx].nome}`, "ok");
         } else {
-          addLog(`  Falha ao criar academia ${chunk[idx].nome}`, "err");
+          addLog(`  ✗ Falha: ${chunk[idx].nome} — ${JSON.stringify(it)}`, "err");
         }
       });
     }
 
-    addLog(`Passo 1 concluído: ${criadas.length}/${lista.length} criadas`, "ok");
+    addLog(`Passo 1: ${criadas.length}/${lista.length} academias criadas`, criadas.length === 0 ? "err" : "ok");
     return criadas;
   }
 
@@ -249,10 +283,8 @@ export default function SeedTestPage() {
 
   // ─── PASSO 3: Configurar infra por academia ───────────────────────────────
 
-  async function passo3ConfigurarInfra(
-    academias: AcademiaRegistrada[]
-  ): Promise<void> {
-    setStep("Passo 3 — Configurar infra (cursos, matérias, turmas)", 25);
+  async function passo3ConfigurarInfra(academias: AcademiaRegistrada[]): Promise<void> {
+    setStep("Passo 3 — Configurar infra", 25);
 
     for (let i = 0; i < academias.length; i++) {
       if (cancelRef.current) break;
@@ -261,168 +293,228 @@ export default function SeedTestPage() {
       addLog(`  Configurando ${ac.codigo} (${ac.meta.nivel})...`, "step");
 
       const tok = await loginAcademia(ac.codigo);
-      if (!tok) { addLog(`  Falha no login de ${ac.codigo}`, "err"); continue; }
+      if (!tok) {
+        addLog(`  Pulando ${ac.codigo} (login falhou)`, "err");
+        continue;
+      }
       ac.token = tok;
 
-      // Ano letivo
-      await callApi("POST", "/academia/ano-letivo", { ano_letivo: "2025_2026", tipo: "escola" }, tok);
-      addLog(`    Ano letivo definido`, "info");
+      // Ano letivo — obrigatório antes de qualquer registro
+      const { ok: alOk, data: alData } = await callApi("POST", "/academia/ano-letivo", { ano_letivo: "2025_2026", tipo: "escola" }, tok);
+      if (!alOk) {
+        addLog(`    Ano letivo falhou: ${JSON.stringify((alData as any)?.error ?? "")}`, "warn");
+      } else {
+        addLog(`    Ano letivo 2025_2026 definido`, "info");
+      }
 
-      // Cursos (apenas médio/misto)
+      // Cursos — apenas para médio e misto
       const cursoIds: string[] = [];
       if (ac.meta.nivel !== "fundamental") {
-        const { ok: rOk, data } = await callApi("POST", "/academia/curso/batch", CURSOS_MEDIO, tok);
-        const res = data as { items?: { sucesso: boolean; dados?: { data?: { id?: string } } }[] };
-        if (rOk && res.items) {
-          const ids = res.items.filter(it => it.sucesso).map(it => it.dados?.data?.id).filter(Boolean) as string[];
-          cursoIds.push(...ids);
-          if (ids.length > 0) {
-            await callApi("PUT", "/academia/curso/ativar/batch", ids.map(id => ({ id })), tok);
+        const { ok: rOk, data } = await callApi("POST", "/academia/curso/batch", CURSOS_MEDIO_TEMPLATES, tok);
+        if (rOk) {
+          const res = data as { items?: { sucesso: boolean; dados?: { data?: { id?: string } } }[] };
+          if (res.items) {
+            const ids = res.items
+              .filter(it => it.sucesso)
+              .map(it => it.dados?.data?.id)
+              .filter(Boolean) as string[];
+            cursoIds.push(...ids);
+            if (ids.length > 0) {
+              // Ativar cursos criados
+              await callApi("PUT", "/academia/curso/ativar/batch", ids.map(id => ({ id })), tok);
+            }
+            addLog(`    ${ids.length} cursos criados e ativados`, "info");
           }
-          addLog(`    ${ids.length} cursos criados e ativados`, "info");
+        } else {
+          addLog(`    Cursos batch falhou: ${JSON.stringify((data as any)?.error ?? "")}`, "warn");
         }
       }
 
-      // Matérias
+      // Matérias fundamentais
       const matPayloads: CriarMateriaRequest[] = [];
       if (ac.meta.nivel === "fundamental" || ac.meta.nivel === "misto") {
-        const pool = pickN(MATERIAS_FUND, 5);
-        pool.forEach(nome => {
+        pickN(MATERIAS_FUND, 5).forEach(nome => {
           const ano = pick(ac.meta.anos.length > 0 ? ac.meta.anos : ["1_ano_fundamental"]);
           const n = ano.replace("_ano_fundamental", "");
           matPayloads.push({ nome: `${nome} ${n}F`, type: "fundamental", anos_academicos: [ano] });
         });
       }
+
+      // Matérias médio — vinculadas a um curso
       if ((ac.meta.nivel === "medio" || ac.meta.nivel === "misto") && cursoIds.length > 0) {
         const cId = pick(cursoIds);
         pickN(MATERIAS_MEDIO, 4).forEach(nome => {
-          matPayloads.push({ nome: `${nome} 1M`, type: "medio", anos_academicos: ["1_ano_medio"], curso_id: cId });
+          matPayloads.push({
+            nome: `${nome} 1M`,
+            type: "medio",
+            anos_academicos: ["1_ano_medio"],
+            curso_id: cId,
+          });
         });
       }
+
       if (matPayloads.length > 0) {
-        await callApi("POST", "/academia/materia/batch", matPayloads, tok);
-        addLog(`    ${matPayloads.length} matérias criadas`, "info");
+        const { ok: mOk, data: mData } = await callApi("POST", "/academia/materia/batch", matPayloads, tok);
+        if (!mOk) {
+          addLog(`    Matérias batch falhou: ${JSON.stringify((mData as any)?.error ?? "")}`, "warn");
+        } else {
+          addLog(`    ${matPayloads.length} matérias criadas`, "info");
+        }
       }
 
       // Turmas
-      const turPayloads: CriarTurmaRequest[] = [];
       const turnos: ("manha" | "tarde" | "noite")[] = ["manha", "tarde", "noite"];
+      const turPayloads: CriarTurmaRequest[] = [];
       if (ac.meta.nivel === "fundamental" || ac.meta.nivel === "misto") {
         ac.meta.anos.slice(0, 3).forEach((ano, idx) => {
-          turPayloads.push({ codigo_turma: `F${idx + 1}A${rnd(10, 99)}`, nivel: ano, turno: pick(turnos) });
+          turPayloads.push({
+            codigo_turma: `F${idx + 1}A${rnd(10, 99)}`,
+            nivel: ano,
+            turno: pick(turnos),
+          });
         });
       }
       if ((ac.meta.nivel === "medio" || ac.meta.nivel === "misto") && cursoIds.length > 0) {
         ["1_ano_medio", "2_ano_medio"].forEach((ano, idx) => {
-          turPayloads.push({ codigo_turma: `M${idx + 1}A${rnd(10, 99)}`, nivel: ano, turno: pick(turnos), curso_id: pick(cursoIds) });
+          turPayloads.push({
+            codigo_turma: `M${idx + 1}A${rnd(10, 99)}`,
+            nivel: ano,
+            turno: pick(turnos),
+            curso_id: pick(cursoIds),
+          });
         });
       }
+
       if (turPayloads.length > 0) {
-        await callApi("POST", "/academia/turma/batch", turPayloads, tok);
-        addLog(`    ${turPayloads.length} turmas criadas`, "info");
+        const { ok: tOk, data: tData } = await callApi("POST", "/academia/turma/batch", turPayloads, tok);
+        if (!tOk) {
+          addLog(`    Turmas batch falhou: ${JSON.stringify((tData as any)?.error ?? "")}`, "warn");
+        } else {
+          addLog(`    ${turPayloads.length} turmas criadas`, "info");
+        }
       }
     }
 
     addLog("Passo 3 concluído", "ok");
   }
 
-  // ─── PASSO 4-9: Popular dados ─────────────────────────────────────────────
+  // ─── PASSOS 4–8: Popular dados ────────────────────────────────────────────
 
-  async function passos4a9PopularDados(
+  async function passos4a8PopularDados(
     academias: AcademiaRegistrada[],
-    minEst: number, maxEst: number, aprovPct: number
+    minEst: number,
+    maxEst: number,
+    aprovPct: number
   ): Promise<void> {
 
     for (let i = 0; i < academias.length; i++) {
       if (cancelRef.current) break;
       const ac = academias[i];
       const basePct = 45 + (i / academias.length) * 55;
-      setStep(`Passos 4-9 [${i + 1}/${academias.length}] — ${ac.codigo}`, basePct);
+      setStep(`Passos 4-8 [${i + 1}/${academias.length}] — ${ac.codigo}`, basePct);
       addLog(`\n  Populando ${ac.codigo}...`, "step");
 
       const tok = ac.token || (await loginAcademia(ac.codigo));
-      if (!tok) { addLog(`  Falha login ${ac.codigo}`, "err"); continue; }
+      if (!tok) {
+        addLog(`  Pulando ${ac.codigo} (login falhou)`, "err");
+        continue;
+      }
 
       // Buscar matérias
-      const { data: matData } = await callApi("GET", "/academia/materias", undefined, tok);
-      const materias = ((matData as any)?.materias ?? []) as { id: string; type: string; anos_academicos: string[]; nome: string }[];
+      const { ok: mOk, data: mData } = await callApi("GET", "/academia/materias", undefined, tok);
+      const materias: MateriaCriada[] = mOk ? ((mData as any)?.materias ?? []) : [];
+      if (!mOk || materias.length === 0) {
+        addLog(`    Nenhuma matéria encontrada, pulando registros`, "warn");
+      }
 
       // Buscar turmas
-      const { data: turData } = await callApi("GET", "/academia/turmas", undefined, tok);
-      const turmas = ((turData as any)?.turmas ?? []) as { id: string; codigo_turma: string; estudantes: string[] }[];
+      const { ok: tOk, data: tData } = await callApi("GET", "/academia/turmas", undefined, tok);
+      const turmas: { id: string; codigo_turma: string; estudantes: string[] }[] =
+        tOk ? ((tData as any)?.turmas ?? []) : [];
 
-      // Gerar estudantes
+      // PASSO 4 — Criar estudantes
       const qtd = rnd(minEst, maxEst);
       addLog(`    Criando ${qtd} estudantes...`, "info");
-      const estPayloads: CriarEstudanteRequest[] = [];
-      for (let j = 0; j < qtd; j++) {
+      const estPayloads: CriarEstudanteRequest[] = Array.from({ length: qtd }, () => {
         const { nome, genero } = gerarNome();
         const body: CriarEstudanteRequest = {
-          nome, genero,
+          nome,
+          genero,
           data_nascimento: gerarDataNasc(),
         };
         if (ac.meta.nivel === "fundamental" && ac.meta.anos.length > 0) {
           body.ano_escolar = pick(ac.meta.anos);
           body.status_escolar_fundamental = "em_andamento";
         } else if (ac.meta.nivel === "medio" || ac.meta.nivel === "misto") {
-          body.ano_escolar_medio = pick(["1_ano_medio", "2_ano_medio", "3_ano_medio"]);
+          body.ano_escolar_medio = "1_ano_medio";
           body.status_escolar_medio = "em_andamento";
         }
-        estPayloads.push(body);
-      }
+        return body;
+      });
 
-      const { ok: eOk, err: eErr } = await apiBatch("POST", "/academia/estudante/register/batch", estPayloads, 100, tok);
+      const { ok: eOk, err: eErr } = await apiBatch(
+        "POST", "/academia/estudante/register/batch", estPayloads, 100, tok
+      );
       addLog(`    Estudantes: ${eOk} criados, ${eErr} erros`, eErr > 0 ? "warn" : "ok");
 
       // Buscar estudantes criados
-      const { data: estData } = await callApi("GET", "/estudantes", undefined, tok);
-      const estudantes = ((estData as any)?.estudantes ?? []) as { codigo_estudante: string }[];
+      const { ok: estOk, data: estData } = await callApi("GET", "/estudantes", undefined, tok);
+      const estudantes: { codigo_estudante: string }[] =
+        estOk ? ((estData as any)?.estudantes ?? []) : [];
 
       if (estudantes.length === 0) {
-        addLog(`    Nenhum estudante encontrado, saltando`, "warn");
+        addLog(`    Nenhum estudante encontrado, saltando restante`, "warn");
         continue;
       }
 
-      // Vincular turmas
+      // PASSO 5 — Vincular turmas (amostra de até 50)
       if (turmas.length > 0) {
-        const vinculos = estudantes.slice(0, Math.min(50, estudantes.length)).map(e => ({
+        const amostra = estudantes.slice(0, Math.min(50, estudantes.length));
+        const vinculos = amostra.map(e => ({
           codigo_turma: pick(turmas).codigo_turma,
           codigo_estudante: e.codigo_estudante,
         }));
-        const { ok: vOk } = await apiBatch("POST", "/academia/turma/estudante/batch", vinculos, 100, tok);
-        addLog(`    ${vOk} vínculos turma criados`, "info");
+        const { ok: vOk, err: vErr } = await apiBatch(
+          "POST", "/academia/turma/estudante/batch", vinculos, 100, tok
+        );
+        addLog(`    Turmas: ${vOk} vínculos, ${vErr} erros`, vErr > 0 ? "warn" : "ok");
       }
 
-      // Registrar notas
+      // PASSO 6 — Registrar notas (amostra de até 20 estudantes, até 3 matérias cada)
       if (materias.length > 0) {
-        const notaPayloads: RegistrarNotasRequest[] = [];
+        const datas_periodos = ["1_trimestre", "2_trimestre", "3_trimestre"];
         const amostraEst = estudantes.slice(0, Math.min(20, estudantes.length));
+        const notaPayloads: RegistrarNotasRequest[] = [];
+
         amostraEst.forEach(e => {
           pickN(materias, Math.min(3, materias.length)).forEach(m => {
-            ["1_trimestre", "2_trimestre", "3_trimestre"].forEach(periodo => {
+            datas_periodos.forEach(periodo => {
               notaPayloads.push({
                 codigo_estudante: e.codigo_estudante,
                 periodo: periodo as import("@/types/api").Periodo,
                 materia_disciplinar_id: m.id,
-                tipo: m.type === "fundamental" ? "escolar" : "escolar",
+                tipo: "escolar",
                 categoria: "nota_escola",
-                nota: rnd(8, 20) + Math.random(),
+                nota: parseFloat((rnd(8, 20) + Math.random()).toFixed(1)),
               });
             });
           });
         });
 
         if (notaPayloads.length > 0) {
-          const { ok: nOk, err: nErr } = await apiBatch("POST", "/academia/notas-aluno/batch", notaPayloads, 200, tok);
+          const { ok: nOk, err: nErr } = await apiBatch(
+            "POST", "/academia/notas-aluno/batch", notaPayloads, 200, tok
+          );
           addLog(`    Notas: ${nOk} registradas, ${nErr} erros`, nErr > 0 ? "warn" : "ok");
         }
       }
 
-      // Registrar faltas
+      // PASSO 7 — Registrar faltas (amostra de até 15 estudantes)
       if (materias.length > 0) {
-        const faltaPayloads: RegistrarFaltasRequest[] = [];
-        const amostraEst = estudantes.slice(0, Math.min(15, estudantes.length));
         const datas = ["2025-03-10","2025-04-07","2025-05-05","2025-06-02","2025-07-07","2025-09-01"];
+        const amostraEst = estudantes.slice(0, Math.min(15, estudantes.length));
+        const faltaPayloads: RegistrarFaltasRequest[] = [];
+
         amostraEst.forEach(e => {
           pickN(materias, Math.min(2, materias.length)).forEach(m => {
             faltaPayloads.push({
@@ -435,49 +527,60 @@ export default function SeedTestPage() {
         });
 
         if (faltaPayloads.length > 0) {
-          const { ok: fOk, err: fErr } = await apiBatch("POST", "/academia/faltas-aluno/batch", faltaPayloads, 200, tok);
+          const { ok: fOk, err: fErr } = await apiBatch(
+            "POST", "/academia/faltas-aluno/batch", faltaPayloads, 200, tok
+          );
           addLog(`    Faltas: ${fOk} registradas, ${fErr} erros`, fErr > 0 ? "warn" : "ok");
         }
       }
 
-      // Avaliações finais
-      const nAprov = Math.floor(estudantes.slice(0, 20).length * aprovPct / 100);
+      // PASSO 8 — Avaliações finais (amostra de até 20 estudantes)
       const amostraAval = estudantes.slice(0, Math.min(20, estudantes.length));
+      const nAprov = Math.floor(amostraAval.length * aprovPct / 100);
       const avalPayloads: RegistrarAvaliacaoFinalRequest[] = [];
+
       amostraAval.forEach((e, idx) => {
         const aprovado = idx < nAprov;
         if (ac.meta.nivel === "fundamental" && ac.meta.anos.length > 0) {
           const nv = pick(ac.meta.anos);
-          const prox = ac.meta.anos[ac.meta.anos.indexOf(nv) + 1];
-          avalPayloads.push({
+          const nvIdx = ac.meta.anos.indexOf(nv);
+          const prox = nvIdx < ac.meta.anos.length - 1 ? ac.meta.anos[nvIdx + 1] : undefined;
+          const payload: RegistrarAvaliacaoFinalRequest = {
             codigo_estudante: e.codigo_estudante,
             tipo_ensino: "fundamental",
             nivel_ano_academico_atual: nv,
             aprovado,
-            observacao: "Avaliacao via painel de testes 2025_2026",
-            ...(aprovado && prox ? { proximo_ano_academico: prox } : {}),
-          });
+            observacao: "Avaliação via painel de testes 2025_2026",
+          };
+          if (aprovado && prox) payload.proximo_ano_academico = prox;
+          avalPayloads.push(payload);
         } else {
-          avalPayloads.push({
+          const payload: RegistrarAvaliacaoFinalRequest = {
             codigo_estudante: e.codigo_estudante,
             tipo_ensino: "medio",
             nivel_ano_academico_atual: "1_ano_medio",
             aprovado,
-            observacao: "Avaliacao via painel de testes 2025_2026",
-            ...(aprovado ? { proximo_ano_academico: "2_ano_medio" } : {}),
-          });
+            observacao: "Avaliação via painel de testes 2025_2026",
+          };
+          if (aprovado) payload.proximo_ano_academico = "2_ano_medio";
+          avalPayloads.push(payload);
         }
       });
 
       if (avalPayloads.length > 0) {
-        const { ok: aOk, err: aErr } = await apiBatch("POST", "/academia/avaliacao-final/batch", avalPayloads, 100, tok);
-        addLog(`    Avaliações: ${aOk} registradas, ${aErr} erros (${nAprov} aprovações)`, aErr > 0 ? "warn" : "ok");
+        const { ok: aOk, err: aErr } = await apiBatch(
+          "POST", "/academia/avaliacao-final/batch", avalPayloads, 100, tok
+        );
+        addLog(
+          `    Avaliações: ${aOk} registradas, ${aErr} erros (${nAprov} aprovações previstas)`,
+          aErr > 0 ? "warn" : "ok"
+        );
       }
 
       addLog(`  ${ac.codigo} populada ✓`, "ok");
     }
 
-    addLog("Passos 4-9 concluídos", "ok");
+    addLog("Passos 4-8 concluídos", "ok");
   }
 
   // ─── RUNNER PRINCIPAL ─────────────────────────────────────────────────────
@@ -489,14 +592,24 @@ export default function SeedTestPage() {
     setProgress({ step: "A iniciar...", pct: 0 });
 
     addLog("=== SPURI — PAINEL DE TESTES ===", "step");
-    addLog(`Config: ${config.qtdAcademias} academias | ${config.minEst}–${config.maxEst} estudantes | ${config.aprovPct}% aprovação`, "info");
+    addLog(
+      `Config: ${config.qtdAcademias} academias | ${config.minEst}–${config.maxEst} estudantes | ${config.aprovPct}% aprovação`,
+      "info"
+    );
+
+    const adminToken = tokenStorage.get();
+    if (!adminToken) {
+      addLog("ERRO: Nenhum token de admin detectado. Faça login como admin FPP/ADM antes de executar.", "err");
+      setRunning(false);
+      return;
+    }
 
     try {
-      // Construir lista de academias a criar
+      // Construir lista de academias
       const tipos: { label: NivelTipo; grupos: string[][] }[] = [
         { label: "fundamental", grupos: GRUPOS_FUNDAMENTAL },
-        { label: "misto", grupos: GRUPOS_MISTO },
-        { label: "medio", grupos: [[]] },
+        { label: "misto",       grupos: GRUPOS_MISTO },
+        { label: "medio",       grupos: [[]] },
       ];
 
       const lista: EscolaMeta[] = [];
@@ -504,30 +617,38 @@ export default function SeedTestPage() {
         ? PROVINCIAS.filter(([d]) => d.toLowerCase().includes(config.provFilter.toLowerCase()))
         : PROVINCIAS;
 
+      outer:
       for (const [prov_display, prov_api] of provs) {
         for (const tipo of tipos) {
           if (config.nivelFilter && tipo.label !== config.nivelFilter) continue;
-          if (lista.length >= config.qtdAcademias) break;
+          if (lista.length >= config.qtdAcademias) break outer;
           const anos = tipo.label === "medio" ? [] : pick(tipo.grupos);
           lista.push({
-            prov_display, prov_api,
+            prov_display,
+            prov_api,
             nivel: tipo.label,
             anos,
             nome: `Escola ${tipo.label.charAt(0).toUpperCase() + tipo.label.slice(1)} ${prov_display} ${rnd(1, 9)}`,
             endereco: `Rua ${rnd(1, 999)}, Bairro Central, ${prov_display}`,
           });
         }
-        if (lista.length >= config.qtdAcademias) break;
       }
 
       addLog(`${lista.length} academias planeadas`, "info");
+      if (lista.length === 0) {
+        addLog("Nenhuma academia planeada com os filtros actuais. Ajuste os filtros.", "err");
+        return;
+      }
 
       const registradas = await passo1CriarAcademias(lista);
-      if (registradas.length === 0) { addLog("Nenhuma academia criada. Abortar.", "err"); return; }
+      if (registradas.length === 0) {
+        addLog("Nenhuma academia criada. Verificar token de admin e configurações.", "err");
+        return;
+      }
 
       await passo2AtivarAcademias(registradas);
       await passo3ConfigurarInfra(registradas);
-      await passos4a9PopularDados(registradas, config.minEst, config.maxEst, config.aprovPct);
+      await passos4a8PopularDados(registradas, config.minEst, config.maxEst, config.aprovPct);
 
       setProgress({ step: "Concluído!", pct: 100 });
       addLog("\n=== SEEDING CONCLUÍDO ===", "ok");
@@ -552,6 +673,8 @@ export default function SeedTestPage() {
     ok: "✓", err: "✗", warn: "!", info: "·", step: "▶",
   };
 
+  const adminToken = tokenStorage.get();
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -561,9 +684,16 @@ export default function SeedTestPage() {
           <h1 className="text-2xl font-bold text-white mb-1">Painel de Testes — Spuri Seeding</h1>
           <p className="text-sm text-gray-400">
             Cria academias, configura infraestrutura e popula dados de teste directamente na API.
-            Usa o token do admin autenticado. Reproduz o comportamento do <code className="text-blue-400">spuri_seed.py</code>.
+            Requer sessão de <strong className="text-gray-300">admin FPP ou ADM</strong> activa.
           </p>
         </div>
+
+        {/* Aviso sem token */}
+        {!adminToken && (
+          <div className="border border-red-700 rounded-lg p-4 bg-red-900/20 text-red-300 text-sm">
+            ⚠ Nenhum token de admin detectado. Faça login como admin antes de executar o seeding.
+          </div>
+        )}
 
         {/* Configuração */}
         <div className="border border-gray-700 rounded-lg p-5 bg-gray-800 grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -644,10 +774,10 @@ export default function SeedTestPage() {
         </div>
 
         {/* Controles */}
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
           <button
             onClick={runSeed}
-            disabled={running}
+            disabled={running || !adminToken}
             className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
           >
             {running ? "A executar..." : "▶ Iniciar Seeding"}
@@ -662,14 +792,18 @@ export default function SeedTestPage() {
           )}
           {logs.length > 0 && !running && (
             <button
-              onClick={() => setLogs([])}
+              onClick={() => { setLogs([]); setProgress({ step: "", pct: 0 }); }}
               className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
             >
               Limpar log
             </button>
           )}
           <div className="text-xs text-gray-500 ml-auto">
-            Token: {tokenStorage.get() ? <span className="text-green-400">presente ✓</span> : <span className="text-red-400">ausente ✗</span>}
+            Token:{" "}
+            {adminToken
+              ? <span className="text-green-400">presente ✓</span>
+              : <span className="text-red-400">ausente ✗</span>
+            }
           </div>
         </div>
 
@@ -693,7 +827,7 @@ export default function SeedTestPage() {
         {logs.length > 0 && (
           <div className="border border-gray-700 rounded-lg bg-gray-950">
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
-              <span className="text-xs text-gray-400 font-mono">Log de execução ({logs.length} linhas)</span>
+              <span className="text-xs text-gray-400 font-mono">Log ({logs.length} linhas)</span>
               <div className="flex gap-2">
                 <span className="w-3 h-3 rounded-full bg-red-500" />
                 <span className="w-3 h-3 rounded-full bg-yellow-500" />
@@ -718,17 +852,19 @@ export default function SeedTestPage() {
           <h2 className="font-semibold text-gray-300 mb-3">Sequência de operações</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-400">
             {[
-              ["1", "Criar academias", "POST /dominis/academia/register/batch (lotes de 5)"],
-              ["2", "Ativar academias", "PUT /dominis/academia/ativar/batch (lotes de 50)"],
-              ["3", "Configurar infra", "Ano letivo · Cursos · Matérias · Turmas (por academia)"],
-              ["4", "Cadastrar estudantes", "POST /academia/estudante/register/batch (lotes de 100)"],
-              ["5", "Vincular turmas", "POST /academia/turma/estudante/batch (lotes de 100)"],
-              ["6", "Registrar notas", "POST /academia/notas-aluno/batch (lotes de 200)"],
-              ["7", "Registrar faltas", "POST /academia/faltas-aluno/batch (lotes de 200)"],
-              ["8", "Avaliações finais", "POST /academia/avaliacao-final/batch (lotes de 100)"],
+              ["1", "Criar academias",    "POST /dominis/academia/register/batch (lotes de 5)"],
+              ["2", "Ativar academias",   "PUT /dominis/academia/ativar/batch (lotes de 50)"],
+              ["3", "Configurar infra",   "Ano letivo · Cursos · Matérias · Turmas (por academia)"],
+              ["4", "Criar estudantes",   "POST /academia/estudante/register/batch (lotes de 100)"],
+              ["5", "Vincular turmas",    "POST /academia/turma/estudante/batch (lotes de 100)"],
+              ["6", "Registrar notas",    "POST /academia/notas-aluno/batch (lotes de 200)"],
+              ["7", "Registrar faltas",   "POST /academia/faltas-aluno/batch (lotes de 200)"],
+              ["8", "Avaliações finais",  "POST /academia/avaliacao-final/batch (lotes de 100)"],
             ].map(([n, titulo, desc]) => (
               <div key={n} className="flex gap-2">
-                <span className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 font-bold text-xs">{n}</span>
+                <span className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 font-bold text-xs">
+                  {n}
+                </span>
                 <div>
                   <div className="text-gray-200 font-medium">{titulo}</div>
                   <div className="text-gray-500">{desc}</div>
@@ -736,9 +872,17 @@ export default function SeedTestPage() {
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs text-gray-500">
-            ⚠ As operações <strong className="text-gray-400">não são atómicas</strong> — cada item é processado independentemente. Em caso de falha parcial, veja o log para detalhes. Este painel usa o token do admin actualmente autenticado.
-          </p>
+          <div className="mt-4 text-xs text-gray-500 space-y-1">
+            <p>
+              ⚠ As operações <strong className="text-gray-400">não são atómicas</strong> —
+              cada item é independente. Em caso de falha parcial, veja o log.
+            </p>
+            <p>
+              🔑 Senha das academias gerada pelo backend:{" "}
+              <code className="text-blue-400">academia_{"<codigo_em_minusculas>"}</code>{" "}
+              (ex: <code className="text-blue-400">academia_lda20261</code>)
+            </p>
+          </div>
         </div>
 
       </div>
