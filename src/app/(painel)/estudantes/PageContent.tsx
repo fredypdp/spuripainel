@@ -1,19 +1,15 @@
 // src/app/(painel)/estudantes/PageContent.tsx
 "use client"
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import type { Genero } from '@/types/api';
 import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
-import Label from "@/components/form/Label";
-import Input from "@/components/form/input/InputField";
-import DatePicker from "@/components/form/date-picker";
 import { useModal } from "@/hooks/useModal";
 import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
-import { Dropdown } from 'primereact/dropdown';
 import Icon from "@/components/ui/Icon";
 import {
   Table,
@@ -28,11 +24,6 @@ import {
 const ITEMS_POR_PAGINA = 50;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface AnoEscolar {
-  label: string;
-  value: string;
-}
 
 interface FiltrosState {
   genero: string;
@@ -169,9 +160,7 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
       <p className="text-sm text-gray-500 dark:text-gray-400">
         {inicio}–{fim} de {total}
       </p>
-
       <div className="flex items-center gap-1">
-        {/* Seta esquerda */}
         <button
           onClick={() => onChange(paginaAtual - 1)}
           disabled={paginaAtual === 1}
@@ -182,7 +171,6 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-
         {getPages().map((p, i) =>
           p === '...' ? (
             <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">…</span>
@@ -200,8 +188,6 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
             </button>
           )
         )}
-
-        {/* Seta direita */}
         <button
           onClick={() => onChange(paginaAtual + 1)}
           disabled={paginaAtual === totalPaginas}
@@ -213,7 +199,6 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
           </svg>
         </button>
       </div>
-
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Pág. {paginaAtual}/{totalPaginas}
       </p>
@@ -257,7 +242,6 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: FiltrosPainelProps) {
       {aberto && (
         <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Género */}
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Género</label>
               <select
@@ -270,53 +254,41 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: FiltrosPainelProps) {
                 <option value="feminino">Feminino</option>
               </select>
             </div>
-
-            {/* Idade mín */}
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Idade mínima</label>
               <input
-                type="number"
-                min="1" max="100"
+                type="number" min="1" max="100"
                 value={filtros.idadeMin}
                 onChange={e => setFiltros({ ...filtros, idadeMin: e.target.value })}
                 placeholder="Ex: 6"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
               />
             </div>
-
-            {/* Idade máx */}
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Idade máxima</label>
               <input
-                type="number"
-                min="1" max="100"
+                type="number" min="1" max="100"
                 value={filtros.idadeMax}
                 onChange={e => setFiltros({ ...filtros, idadeMax: e.target.value })}
                 placeholder="Ex: 18"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
               />
             </div>
-
-            {/* Status geral — apenas admin */}
-            {isAdmin && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
-                <select
-                  value={filtros.status}
-                  onChange={e => setFiltros({ ...filtros, status: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="">Todos</option>
-                  <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo</option>
-                  <option value="finalizado">Finalizado</option>
-                </select>
-              </div>
-            )}
-
-            {/* Filtros de status escolar — apenas admin */}
             {isAdmin && (
               <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
+                  <select
+                    value={filtros.status}
+                    onChange={e => setFiltros({ ...filtros, status: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="">Todos</option>
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                    <option value="finalizado">Finalizado</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
                   <select
@@ -359,7 +331,6 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: FiltrosPainelProps) {
               </>
             )}
           </div>
-
           {temFiltro && (
             <div className="mt-3 flex justify-end">
               <button
@@ -619,22 +590,16 @@ function CursoColapsavel({
   );
 }
 
-// ─── SecaoFundamental ─────────────────────────────────────────────────────────
-
-interface SecaoFundamentalProps {
+function SecaoFundamental({ turmas, estudantesMapa, filtros, onVerDetalhes }: {
   turmas: Turma[];
   estudantesMapa: Map<string, EstudanteDetalhado>;
   filtros: FiltrosState;
   onVerDetalhes: (e: EstudanteDetalhado) => void;
-}
-
-function SecaoFundamental({ turmas, estudantesMapa, filtros, onVerDetalhes }: SecaoFundamentalProps) {
+}) {
   const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a => turmas.some(t => t.nivel === a.value));
-
   if (anosComTurmas.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
   }
-
   return (
     <div className="space-y-2">
       {anosComTurmas.map(ano => (
@@ -652,25 +617,18 @@ function SecaoFundamental({ turmas, estudantesMapa, filtros, onVerDetalhes }: Se
   );
 }
 
-// ─── SecaoCursos ──────────────────────────────────────────────────────────────
-
-interface SecaoCursosProps {
+function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, onVerDetalhes }: {
   cursosAtivos: Curso[];
   tipo?: 'medio' | 'superior';
   turmas: Turma[];
   estudantesMapa: Map<string, EstudanteDetalhado>;
   filtros: FiltrosState;
   onVerDetalhes: (e: EstudanteDetalhado) => void;
-}
-
-function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, onVerDetalhes }: SecaoCursosProps) {
-  // Filtra por tipo se fornecido; caso contrário exibe todos os ativos
+}) {
   const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
-
   if (lista.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
   }
-
   return (
     <div className="space-y-2">
       {lista.map(c => (
@@ -687,11 +645,6 @@ function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, onVe
     </div>
   );
 }
-
-// ─── VistaEscala ──────────────────────────────────────────────────────────────
-// CORREÇÃO: a lógica anterior derivava isSuperior=true para 'medio' porque usava
-// (!isFundamental && !isMisto), tornando SecaoCursos filtrar por type='superior'.
-// Agora cada nível é derivado explicitamente de nivelAcademia.
 
 interface VistaEscalaProps {
   estudantes: EstudanteDetalhado[];
@@ -711,65 +664,35 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
     return m;
   }, [estudantes]);
 
-  // Apenas cursos com status 'ativo'
-  const cursosAtivos = useMemo(
-    () => cursos.filter(c => c.status === 'ativo'),
-    [cursos]
-  );
+  const cursosAtivos = useMemo(() => cursos.filter(c => c.status === 'ativo'), [cursos]);
 
-  // Derivação explícita de cada nível — sem fallback implícito que causava o bug
   const isFundamental = nivelAcademia === 'fundamental';
   const isMedio       = nivelAcademia === 'medio';
   const isMisto       = nivelAcademia === 'misto';
   const isSuperior    = nivelAcademia === 'superior';
 
-  // ── Ensino Fundamental ────────────────────────────────────────────────────
   if (isFundamental) {
     return (
-      <SecaoFundamental
-        turmas={turmas}
-        estudantesMapa={estudantesMapa}
-        filtros={filtros}
-        onVerDetalhes={onVerDetalhes}
-      />
+      <SecaoFundamental turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} onVerDetalhes={onVerDetalhes} />
     );
   }
 
-  // ── Ensino Médio ──────────────────────────────────────────────────────────
   if (isMedio) {
     return (
-      <SecaoCursos
-        cursosAtivos={cursosAtivos}
-        tipo="medio"
-        turmas={turmas}
-        estudantesMapa={estudantesMapa}
-        filtros={filtros}
-        onVerDetalhes={onVerDetalhes}
-      />
+      <SecaoCursos cursosAtivos={cursosAtivos} tipo="medio" turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} onVerDetalhes={onVerDetalhes} />
     );
   }
 
-  // ── Ensino Superior ───────────────────────────────────────────────────────
   if (isSuperior) {
     return (
-      <SecaoCursos
-        cursosAtivos={cursosAtivos}
-        tipo="superior"
-        turmas={turmas}
-        estudantesMapa={estudantesMapa}
-        filtros={filtros}
-        onVerDetalhes={onVerDetalhes}
-      />
+      <SecaoCursos cursosAtivos={cursosAtivos} tipo="superior" turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} onVerDetalhes={onVerDetalhes} />
     );
   }
 
-  // ── Misto (Fundamental + Médio) ───────────────────────────────────────────
   if (isMisto) {
     const cursosMedio = cursosAtivos.filter(c => c.type === 'medio');
-
     return (
       <div className="space-y-3">
-        {/* Fundamental */}
         <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
           <button
             onClick={() => setSecaoAberta(p => p === 'fundamental' ? null : 'fundamental')}
@@ -784,17 +707,11 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           </button>
           {secaoAberta === 'fundamental' && (
             <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
-              <SecaoFundamental
-                turmas={turmas}
-                estudantesMapa={estudantesMapa}
-                filtros={filtros}
-                onVerDetalhes={onVerDetalhes}
-              />
+              <SecaoFundamental turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} onVerDetalhes={onVerDetalhes} />
             </div>
           )}
         </div>
 
-        {/* Médio */}
         <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
           <button
             onClick={() => setSecaoAberta(p => p === 'cursos' ? null : 'cursos')}
@@ -811,14 +728,7 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
           </button>
           {secaoAberta === 'cursos' && (
             <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
-              <SecaoCursos
-                cursosAtivos={cursosAtivos}
-                tipo="medio"
-                turmas={turmas}
-                estudantesMapa={estudantesMapa}
-                filtros={filtros}
-                onVerDetalhes={onVerDetalhes}
-              />
+              <SecaoCursos cursosAtivos={cursosAtivos} tipo="medio" turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} onVerDetalhes={onVerDetalhes} />
             </div>
           )}
         </div>
@@ -826,7 +736,6 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, onVer
     );
   }
 
-  // Fallback — não deve acontecer
   return null;
 }
 
@@ -930,11 +839,9 @@ export default function Estudantes() {
   const { isAcademia, isAdmin } = useUserType();
   const { user } = useUserCookie();
 
-  const { isOpen, openModal, closeModal } = useModal();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
 
   const [carregado, setCarregado] = useState(false);
-  const [cadastrandoIndividual, setCadastrandoIndividual] = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   const [vistaEscala, setVistaEscala] = useState(false);
 
@@ -948,57 +855,11 @@ export default function Estudantes() {
 
   // APIs
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.cadastrarEstudante);
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
-  // Form state
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [bilheteIdentidade, setBilheteIdentidade] = useState('');
-  const [bilheteResponsavel, setBilheteResponsavel] = useState('');
-  const [dataNascimento, setDataNascimento] = useState<Date | null>(null);
-  const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
-  const [genero, setGenero] = useState<Genero>('masculino');
-  const [cursoSelecionado, setCursoSelecionado] = useState<any>(null);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [successMessage, setSuccessMessage] = useState('');
-
   const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
   const tipoAcademia  = user?.academia?.type ?? 'escola';
-
-  const isAnoMedio    = (v: string | undefined | null) => !!v && /^\d+_ano_medio$/.test(v);
-  const isAnoSuperior = (v: string | undefined | null) => !!v && /^\d+_ano_superior$/.test(v);
-
-  const getAnosMedioFromCurso = (): AnoEscolar[] => {
-    if (!cursoSelecionado?.anos_academicos) return [];
-    return (cursoSelecionado.anos_academicos as string[]).map((v: string) => {
-      const m = v.match(/^(\d+)_ano_medio$/);
-      return { value: v, label: m ? `${m[1]}º Ano Médio` : v.replace(/_/g, ' ') };
-    });
-  };
-
-  const getAnosDisponiveis = (): AnoEscolar[] => {
-    if (tipoAcademia === 'superior') {
-      if (!cursoSelecionado?.anos_academicos) return [];
-      return cursoSelecionado.anos_academicos.map((v: string) => {
-        const m = v.match(/^(\d+)_ano_superior$/);
-        return { value: v, label: m ? `${m[1]}º Ano` : v.replace(/_/g, ' ') };
-      });
-    }
-    if (nivelAcademia === 'fundamental') return ANOS_FUNDAMENTAL_LIST;
-    if (nivelAcademia === 'medio') return getAnosMedioFromCurso();
-    if (nivelAcademia === 'misto') return [...ANOS_FUNDAMENTAL_LIST, ...getAnosMedioFromCurso()];
-    return ANOS_FUNDAMENTAL_LIST;
-  };
-
-  const deveMostrarCurso = () => {
-    if (tipoAcademia === 'superior') return true;
-    if (nivelAcademia === 'medio') return true;
-    if (nivelAcademia === 'misto' && anoEscolarSelecionado) return isAnoMedio(anoEscolarSelecionado);
-    return false;
-  };
 
   const carregarLista = useCallback(async () => {
     const token = tokenStorage.get();
@@ -1019,17 +880,6 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Carrega cursos quando o modal de cadastro é aberto
-  useEffect(() => {
-    if (isOpen && isAcademia) {
-      const token = tokenStorage.get();
-      if (nivelAcademia === 'medio' || nivelAcademia === 'misto' || tipoAcademia === 'superior') {
-        carregarCursos(token || undefined);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, isAcademia, nivelAcademia, tipoAcademia]);
-
   // Carrega turmas e cursos quando a vista em escala é activada
   useEffect(() => {
     if (vistaEscala && isAcademia) {
@@ -1039,13 +889,6 @@ export default function Estudantes() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
-
-  // Reset do cursor do ano se o tipo do ano já não for médio/superior
-  useEffect(() => {
-    if (anoEscolarSelecionado && !isAnoMedio(anoEscolarSelecionado) && !isAnoSuperior(anoEscolarSelecionado)) {
-      setCursoSelecionado(null);
-    }
-  }, [anoEscolarSelecionado]);
 
   // Reset da paginação quando os filtros mudam
   useEffect(() => {
@@ -1077,67 +920,6 @@ export default function Estudantes() {
 
   const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
-  const limparFormulario = () => {
-    setNome(''); setEmail(''); setTelefone('');
-    setBilheteIdentidade(''); setBilheteResponsavel('');
-    setDataNascimento(null);
-    setAnoEscolarSelecionado(null);
-    setCursoSelecionado(null); setValidationErrors([]); setSuccessMessage('');
-  };
-
-  const validarFormulario = (): boolean => {
-    const erros: string[] = [];
-    if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
-    if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
-    if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
-    if (!bilheteIdentidade.trim() && !bilheteResponsavel.trim())
-      erros.push('Pelo menos um bilhete (estudante ou responsável) deve ser preenchido');
-    if (deveMostrarCurso() && !cursoSelecionado) erros.push('Para este nível, o curso é obrigatório');
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) erros.push('E-mail inválido');
-    if (telefone.trim() && telefone.replace(/\D/g, '').length < 9) erros.push('Telefone inválido (mínimo 9 dígitos)');
-    setValidationErrors(erros);
-    return erros.length === 0;
-  };
-
-  const handleCadastroIndividual = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validarFormulario()) return;
-    setCadastrandoIndividual(true);
-    setValidationErrors([]); setSuccessMessage('');
-
-    const dataNascimentoISO = dataNascimento ? dataNascimento.toISOString() : '';
-
-    const payload = {
-      nome: nome.trim(),
-      genero,
-      data_nascimento: dataNascimentoISO,
-      email: email.trim() || undefined,
-      telefone: telefone.trim() || undefined,
-      bilhete_identidade: bilheteIdentidade.trim() || undefined,
-      bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
-      ano_escolar: isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado) ? undefined : (anoEscolarSelecionado || undefined),
-      ano_escolar_medio: isAnoMedio(anoEscolarSelecionado) ? (anoEscolarSelecionado || undefined) : undefined,
-      ano_superior: isAnoSuperior(anoEscolarSelecionado) ? (anoEscolarSelecionado || undefined) : undefined,
-      curso_medio_id: (isAnoMedio(anoEscolarSelecionado) || nivelAcademia === 'medio') ? cursoSelecionado?.id : undefined,
-      curso_superior_id: (tipoAcademia === 'superior') ? cursoSelecionado?.id : undefined,
-      status_escolar_fundamental: 'em_andamento' as const,
-    };
-
-    try {
-      await executarCadastro(payload);
-      setSuccessMessage('Estudante cadastrado com sucesso!');
-      setNome(''); setEmail(''); setTelefone('');
-      setBilheteIdentidade(''); setBilheteResponsavel('');
-      setDataNascimento(null);
-      setAnoEscolarSelecionado(null); setCursoSelecionado(null);
-      setTimeout(() => { closeModal(); setSuccessMessage(''); }, 2000);
-    } catch (err: any) {
-      setValidationErrors([err?.message || 'Erro ao cadastrar estudante']);
-    } finally {
-      setCadastrandoIndividual(false);
-    }
-  };
-
   const handleVerDetalhes = (estudante: EstudanteDetalhado) => {
     setEstudanteSelecionado(estudante);
     openDetailsModal();
@@ -1154,16 +936,20 @@ export default function Estudantes() {
         {/* Header actions */}
         <div className="flex flex-wrap gap-2 items-center">
           {isAcademia && (
-            <Button size="sm" onClick={openModal}>
-              <Icon icon="mdi:account-plus" width={16} className="mr-1" />
-              Cadastrar
-            </Button>
+            <Link
+              href="/estudantes/cadastrar"
+              className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-5 py-3.5 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
+            >
+              <Icon icon="mdi:account-plus" width={16} />
+              Cadastrar Estudante
+            </Link>
           )}
+
           <Button size="sm" variant="outline" onClick={carregarLista} disabled={carregandoEstudantes}>
             {carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}
           </Button>
 
-          {/* Toggle vista */}
+          {/* Toggle vista em escala — apenas para academia */}
           {isAcademia && (
             <button
               onClick={() => setVistaEscala(p => !p)}
@@ -1197,186 +983,6 @@ export default function Estudantes() {
             isAdmin={!!isAdmin}
           />
         )}
-
-        {/* ── Modal Cadastro ─────────────────────────────────────────────── */}
-        <Modal
-          isOpen={isOpen}
-          onClose={() => { limparFormulario(); closeModal(); }}
-          className="max-w-[640px] p-5 lg:p-10"
-        >
-          <form onSubmit={handleCadastroIndividual}>
-            <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar estudante</h4>
-            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-
-              {/* Nome */}
-              <div className="col-span-2">
-                <Label>Nome completo *</Label>
-                <Input
-                  type="text"
-                  placeholder="Nome do estudante"
-                  onChange={e => setNome(e.target.value)}
-                  disabled={cadastrandoIndividual}
-                />
-              </div>
-
-              {/* Género */}
-              <div className="col-span-2 sm:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Género *</label>
-                <div className="flex gap-3">
-                  {(['masculino', 'feminino'] as const).map(g => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setGenero(g)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                        genero === g
-                          ? 'bg-brand-500 text-white border-brand-500'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {g === 'masculino' ? 'Masculino' : 'Feminino'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Data de Nascimento */}
-              <div className="col-span-2 sm:col-span-1">
-                <DatePicker
-                  key={isOpen ? 'picker-open' : 'picker-closed'}
-                  id="data-nascimento-picker"
-                  label="Data de Nascimento *"
-                  placeholder="Selecione a data de nascimento"
-                  defaultDate={dataNascimento ?? undefined}
-                  onChange={(dates) => setDataNascimento(dates[0] ?? null)}
-                />
-              </div>
-
-              {/* Curso — médio / misto / superior (antes do ano) */}
-              {(tipoAcademia === 'superior' || nivelAcademia === 'medio' || nivelAcademia === 'misto') && (
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>
-                    Curso {(tipoAcademia === 'superior' || nivelAcademia === 'medio') ? '* (Obrigatório)' : '(Opcional)'}
-                  </Label>
-                  <Dropdown
-                    value={cursoSelecionado}
-                    options={dataCursos?.cursos?.filter((c: any) => c.status === 'ativo') || []}
-                    onChange={e => {
-                      setCursoSelecionado(e.value);
-                      if (isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado))
-                        setAnoEscolarSelecionado(null);
-                    }}
-                    optionLabel="nome"
-                    placeholder="Selecione o curso"
-                    disabled={cadastrandoIndividual}
-                    className="w-full"
-                  />
-                </div>
-              )}
-
-              {/* Ano Escolar */}
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Ano Escolar *</Label>
-                <Dropdown
-                  value={anoEscolarSelecionado}
-                  options={getAnosDisponiveis()}
-                  onChange={e => setAnoEscolarSelecionado(e.value)}
-                  placeholder={
-                    deveMostrarCurso() && !cursoSelecionado
-                      ? 'Selecione o curso primeiro'
-                      : 'Selecione o ano'
-                  }
-                  disabled={cadastrandoIndividual || (deveMostrarCurso() && !cursoSelecionado)}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Email */}
-              <div className="col-span-2 sm:col-span-1">
-                <Label>E-mail (opcional)</Label>
-                <Input
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  onChange={e => setEmail(e.target.value)}
-                  disabled={cadastrandoIndividual}
-                />
-              </div>
-
-              {/* Telefone */}
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Telefone (opcional)</Label>
-                <Input
-                  type="text"
-                  placeholder="Ex: 923456789"
-                  onChange={e => setTelefone(e.target.value)}
-                  disabled={cadastrandoIndividual}
-                />
-              </div>
-
-              {/* Bilhetes */}
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Bilhete do Estudante</Label>
-                <Input
-                  type="text"
-                  placeholder="Ex: 123456789012AB"
-                  onChange={e => setBilheteIdentidade(e.target.value)}
-                  disabled={cadastrandoIndividual}
-                />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Bilhete do Responsável</Label>
-                <Input
-                  type="text"
-                  placeholder="Ex: 123456789012AB"
-                  onChange={e => setBilheteResponsavel(e.target.value)}
-                  disabled={cadastrandoIndividual}
-                />
-              </div>
-            </div>
-
-            {/* Feedback */}
-            {successMessage && (
-              <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-sm text-green-700 dark:text-green-400 font-medium">{successMessage}</p>
-              </div>
-            )}
-            {validationErrors.length > 0 && (
-              <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">Corrija os seguintes erros:</h3>
-                <ul className="list-disc list-inside space-y-1">
-                  {validationErrors.map((erro, i) => (
-                    <li key={i} className="text-sm text-red-700 dark:text-red-400">{erro}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {erroCadastro && !successMessage && (
-              <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-700 dark:text-red-400 first-letter:uppercase">{erroCadastro}</p>
-              </div>
-            )}
-
-            <div className="mt-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Informação:</strong> A senha padrão será o <strong>código do estudante</strong> gerado no cadastro.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 mt-6">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => { limparFormulario(); closeModal(); }}
-                disabled={cadastrandoIndividual}
-              >
-                Fechar
-              </Button>
-              <Button size="sm" disabled={cadastrandoIndividual}>
-                {cadastrandoIndividual ? 'Cadastrando...' : 'Cadastrar'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
 
         {/* Modal Detalhes */}
         <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
@@ -1427,6 +1033,15 @@ export default function Estudantes() {
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
                 <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Nenhum estudante encontrado</p>
+                {isAcademia && (
+                  <Link
+                    href="/estudantes/cadastrar"
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+                  >
+                    <Icon icon="mdi:account-plus" width={16} />
+                    Cadastrar primeiro estudante
+                  </Link>
+                )}
               </div>
             )}
 

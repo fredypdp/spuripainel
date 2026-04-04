@@ -59,12 +59,18 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="fluent-emoji-high-contrast:school" />,
     name: "Academias",
-    path: "/academias",
+    subItems: [
+      { name: "Listar", path: "/academias" },
+      { name: "Cadastrar", path: "/academias/cadastrar" },
+    ],
   },
   {
     icon: <Icon width="24px" icon="mdi:account-school" />,
     name: "Estudantes",
-    path: "/estudantes",
+    subItems: [
+      { name: "Listar", path: "/estudantes" },
+      { name: "Cadastrar", path: "/estudantes/cadastrar" },
+    ],
   },
   {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
@@ -97,23 +103,26 @@ export default function AppSidebar() {
       user?.academia?.type === "escola" &&
       user?.academia?.nivel_escolar === "fundamental";
 
+    const isFpp = user?.tipo === "admin" && user?.admin?.role === "fpp";
+
     return navItems
       .filter(item => {
         if (user?.tipo) {
-          if (item.path === "/academias") {
+          // Academias: apenas admin
+          if (item.name === "Academias") {
             return user.tipo === "admin";
           }
-          if (item.path === "/estudantes") {
+          // Estudantes: admin ou academia
+          if (item.name === "Estudantes") {
             return user.tipo === "admin" || user.tipo === "academia";
           }
+          // Gerenciamento: apenas academia
           if (item.name === "Gerenciamento") {
             return user.tipo === "academia";
           }
+          // Configurações: admin FPP ou academia
           if (item.path === "/configuracoes") {
-            return (
-              (user.tipo === "admin" && user.admin?.role === "fpp") ||
-              user.tipo === "academia"
-            );
+            return isFpp || user.tipo === "academia";
           }
         }
         return true;
@@ -126,6 +135,27 @@ export default function AppSidebar() {
             subItems: item.subItems.filter(sub => sub.path !== "/gerenciamento/cursos"),
           };
         }
+
+        // Academias: "Cadastrar" só para admin FPP
+        if (item.name === "Academias" && item.subItems) {
+          return {
+            ...item,
+            subItems: item.subItems.filter(sub =>
+              sub.path !== "/academias/cadastrar" || isFpp
+            ),
+          };
+        }
+
+        // Estudantes: "Cadastrar" só para academia
+        if (item.name === "Estudantes" && item.subItems) {
+          return {
+            ...item,
+            subItems: item.subItems.filter(sub =>
+              sub.path !== "/estudantes/cadastrar" || user?.tipo === "academia"
+            ),
+          };
+        }
+
         return item;
       });
   }, [user, mounted]);

@@ -2,18 +2,15 @@
 "use client"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, adminService, tokenStorage } from '@/lib/api';
 import { useUserCookie } from "@/hooks/useUserCookie";
-
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
-import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
-import { Dropdown } from 'primereact/dropdown';
-import { NivelEscolar, Provincias, Provincia, AcademiaDetalhada } from '@/types/api';
-
+import { Provincias, AcademiaDetalhada, formatAnoAcademico } from '@/types/api';
 import {
   Table,
   TableBody,
@@ -21,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatAnoAcademico } from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Constantes
@@ -30,25 +26,16 @@ import { formatAnoAcademico } from "@/types/api";
 const ITEMS_POR_PAGINA = 50;
 
 // ---------------------------------------------------------------------------
-// Tipos internos
+// Helpers
 // ---------------------------------------------------------------------------
-interface NivelAcademico {
-  nome: string;
-  nivel: NivelEscolar;
-  id: number;
-}
 
-const ANOS_FUNDAMENTAL_OPCOES = [
-  { value: "1_ano_fundamental", label: "1º Ano" },
-  { value: "2_ano_fundamental", label: "2º Ano" },
-  { value: "3_ano_fundamental", label: "3º Ano" },
-  { value: "4_ano_fundamental", label: "4º Ano" },
-  { value: "5_ano_fundamental", label: "5º Ano" },
-  { value: "6_ano_fundamental", label: "6º Ano" },
-  { value: "7_ano_fundamental", label: "7º Ano" },
-  { value: "8_ano_fundamental", label: "8º Ano" },
-  { value: "9_ano_fundamental", label: "9º Ano" },
-];
+function formatarNomeProvincia(nome: string): string {
+  return nome
+    .toLowerCase()
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 // ---------------------------------------------------------------------------
 // Paginação com setas
@@ -97,7 +84,6 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
       </p>
 
       <div className="flex items-center gap-1">
-        {/* Seta esquerda */}
         <button
           onClick={() => onChange(paginaAtual - 1)}
           disabled={paginaAtual === 1}
@@ -127,7 +113,6 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
           )
         )}
 
-        {/* Seta direita */}
         <button
           onClick={() => onChange(paginaAtual + 1)}
           disabled={paginaAtual === totalPaginas}
@@ -148,10 +133,9 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
 }
 
 // ---------------------------------------------------------------------------
-// AcoesDropdown
-// O menu é renderizado via createPortal diretamente no document.body,
-// escapando de qualquer overflow-hidden/overflow-x-auto da tabela.
+// AcoesDropdown — renderizado via createPortal para escapar de overflow-hidden
 // ---------------------------------------------------------------------------
+
 interface AcoesDropdownProps {
   academia: AcademiaDetalhada;
   isAdmin: boolean;
@@ -227,7 +211,6 @@ function AcoesDropdown({
         className="rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5"
       >
         <div className="py-1">
-          {/* Ver detalhes — sempre visível */}
           <button
             type="button"
             onClick={() => handleItem(() => onVerDetalhes(academia))}
@@ -240,7 +223,6 @@ function AcoesDropdown({
             Ver detalhes
           </button>
 
-          {/* Ativar — apenas admin + academia inativa */}
           {isAdmin && academia.status === "inativo" && (
             <button
               type="button"
@@ -255,7 +237,6 @@ function AcoesDropdown({
             </button>
           )}
 
-          {/* Desativar — apenas admin + academia ativa */}
           {isAdmin && academia.status === "ativo" && (
             <>
               <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
@@ -306,20 +287,144 @@ function AcoesDropdown({
 }
 
 // ---------------------------------------------------------------------------
+// Filtro de Províncias (Vista em Escala)
+// ---------------------------------------------------------------------------
+
+interface FiltroProvinciasProps {
+  academiasList: AcademiaDetalhada[];
+  provinciaSelecionada: string | null;
+  onSelecionar: (p: string | null) => void;
+}
+
+function FiltroProvincias({ academiasList, provinciaSelecionada, onSelecionar }: FiltroProvinciasProps) {
+  // Conta academias por provincia (match case-insensitive)
+  const countPorProvincia = useMemo(() => {
+    const map: Record<string, number> = {};
+    academiasList.forEach(a => {
+      const p = a.provincia?.toLowerCase().trim() ?? '';
+      map[p] = (map[p] ?? 0) + 1;
+    });
+    return map;
+  }, [academiasList]);
+
+  const totalTudo = academiasList.length;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+        Vista em Escala — Filtrar por Província
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {/* Botão Tudo */}
+        <button
+          onClick={() => onSelecionar(null)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+            provinciaSelecionada === null
+              ? 'bg-brand-500 text-white border-brand-500'
+              : 'bg-white dark:bg-white/[0.03] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/[0.08] hover:bg-gray-50 dark:hover:bg-white/[0.07]'
+          }`}
+        >
+          Tudo
+          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+            provinciaSelecionada === null
+              ? 'bg-white/20 text-white'
+              : 'bg-gray-100 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400'
+          }`}>
+            {totalTudo}
+          </span>
+        </button>
+
+        {/* Botões das 21 províncias */}
+        {Provincias.map(prov => {
+          const count = countPorProvincia[prov.nome.toLowerCase()] ?? 0;
+          const isSelected = provinciaSelecionada === prov.nome;
+          return (
+            <button
+              key={prov.codigo}
+              onClick={() => onSelecionar(prov.nome)}
+              disabled={count === 0}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                isSelected
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : count === 0
+                  ? 'bg-gray-50 dark:bg-white/[0.02] text-gray-300 dark:text-gray-600 border-gray-100 dark:border-white/[0.04] cursor-not-allowed'
+                  : 'bg-white dark:bg-white/[0.03] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/[0.08] hover:bg-gray-50 dark:hover:bg-white/[0.07]'
+              }`}
+            >
+              {formatarNomeProvincia(prov.nome)}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                isSelected
+                  ? 'bg-white/20 text-white'
+                  : count === 0
+                  ? 'bg-gray-100 dark:bg-white/[0.05] text-gray-400'
+                  : 'bg-gray-100 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Estatísticas da Província Selecionada
+// ---------------------------------------------------------------------------
+
+function EstatisticasProvincia({ academias, nome }: { academias: AcademiaDetalhada[]; nome: string }) {
+  const ativas = academias.filter(a => a.status === 'ativo').length;
+  const inativas = academias.filter(a => a.status === 'inativo').length;
+  const totalEstudantes = academias.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
+
+  return (
+    <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 rounded-xl border border-brand-200 dark:border-brand-800">
+      <div className="flex items-center gap-2">
+        <svg className="h-4 w-4 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        </svg>
+        <span className="text-sm font-semibold text-brand-700 dark:text-brand-300">
+          {formatarNomeProvincia(nome)}
+        </span>
+      </div>
+      <div className="flex items-center gap-4 text-sm">
+        <span className="text-gray-600 dark:text-gray-400">
+          <span className="font-semibold text-gray-900 dark:text-white">{academias.length}</span> academia(s)
+        </span>
+        <span className="text-green-600 dark:text-green-400">
+          <span className="font-semibold">{ativas}</span> ativa(s)
+        </span>
+        {inativas > 0 && (
+          <span className="text-red-600 dark:text-red-400">
+            <span className="font-semibold">{inativas}</span> inativa(s)
+          </span>
+        )}
+        <span className="text-gray-600 dark:text-gray-400">
+          <span className="font-semibold text-gray-900 dark:text-white">{totalEstudantes}</span> estudante(s)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Página principal
 // ---------------------------------------------------------------------------
+
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
-  const { isOpen, openModal, closeModal } = useModal();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
   const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
   const [carregado, setCarregado] = useState(false);
+
+  // Filtro por província
+  const [provinciaSelecionada, setProvinciaSelecionada] = useState<string | null>(null);
 
   // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
 
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
-  const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(adminService.registrarAcademia);
   const { loading: carregandoAtivar, error: erroAtivarAcademia, execute: executarAtivar } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
 
@@ -327,23 +432,8 @@ export default function Academias() {
   const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao, setMotivoDesativacao] = useState('');
 
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [numeroTelefone, setNumeroTelefone] = useState('');
-  const [endereco, setEndereco] = useState('');
-  const [website, setWebsite] = useState('');
-  const [provinciaSelecionada, setProvinciaSelecionada] = useState<Provincia | null>(null);
-  const [nivelEscolarSelecionado, setNivelEscolarSelecionado] = useState<NivelAcademico | null>(null);
-  const [anosAcademicosSelecionados, setAnosAcademicosSelecionados] = useState<string[]>([]);
-
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [successMessage, setSuccessMessage] = useState<string>('');
-
-  const NiveisAcademicos: NivelAcademico[] = [
-    { nome: "Ensino Fundamental (1ª-9ª)", nivel: "fundamental", id: 1 },
-    { nome: "Ensino Médio", nivel: "medio", id: 2 },
-    { nome: "Fundamental e Médio", nivel: "misto", id: 3 },
-  ];
+  const isFpp = !loadingUser && user?.tipo === 'admin' && user?.admin?.role === 'fpp';
+  const isAdmin = !loadingUser && user?.tipo === 'admin';
 
   const carregarLista = useCallback(async () => {
     try {
@@ -367,109 +457,31 @@ export default function Academias() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset paginação quando os dados mudam
+  // Reset paginação quando filtro ou dados mudam
   useEffect(() => {
     setPaginaAtual(1);
-  }, [dataAcademias]);
+  }, [dataAcademias, provinciaSelecionada]);
 
-  // Dados paginados
+  // Lista completa
   const academiasList = dataAcademias?.academias ?? [];
-  const totalPaginas = Math.ceil(academiasList.length / ITEMS_POR_PAGINA);
+
+  // Lista filtrada por província
+  const academiasFiltradas = useMemo(() => {
+    if (!provinciaSelecionada) return academiasList;
+    return academiasList.filter(a =>
+      a.provincia?.toLowerCase().trim() === provinciaSelecionada.toLowerCase().trim()
+    );
+  }, [academiasList, provinciaSelecionada]);
+
+  // Paginação sobre os dados filtrados
+  const totalPaginas = Math.ceil(academiasFiltradas.length / ITEMS_POR_PAGINA);
   const academiasPaginadas = useMemo(
-    () => academiasList.slice(
+    () => academiasFiltradas.slice(
       (paginaAtual - 1) * ITEMS_POR_PAGINA,
       paginaAtual * ITEMS_POR_PAGINA
     ),
-    [academiasList, paginaAtual]
+    [academiasFiltradas, paginaAtual]
   );
-
-  const validarFormulario = (): boolean => {
-    const erros: string[] = [];
-
-    if (!nome.trim()) erros.push('Nome da escola é obrigatório');
-    if (!nivelEscolarSelecionado) erros.push('Selecione o nível acadêmico');
-    if (!provinciaSelecionada) erros.push('Selecione a província');
-    if (!numeroTelefone.trim()) {
-      erros.push('Número de telefone é obrigatório');
-    } else {
-      const telefoneNumerico = numeroTelefone.replace(/\D/g, '');
-      if (telefoneNumerico.length < 9) erros.push('Número de telefone inválido (mínimo 9 dígitos)');
-    }
-    if (!email.trim()) {
-      erros.push('E-mail é obrigatório');
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) erros.push('E-mail inválido');
-    }
-    if (!endereco.trim()) erros.push('Endereço é obrigatório');
-    if (website && website.trim()) {
-      try {
-        new URL(website);
-      } catch {
-        erros.push('Website inválido (deve incluir http:// ou https://)');
-      }
-    }
-    if (
-      nivelEscolarSelecionado &&
-      (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') &&
-      anosAcademicosSelecionados.length === 0
-    ) {
-      erros.push('Selecione pelo menos um ano académico para escolas fundamental/misto');
-    }
-
-    setValidationErrors(erros);
-    return erros.length === 0;
-  };
-
-  const limparFormulario = () => {
-    setNome('');
-    setEmail('');
-    setNumeroTelefone('');
-    setEndereco('');
-    setWebsite('');
-    setProvinciaSelecionada(null);
-    setNivelEscolarSelecionado(null);
-    setAnosAcademicosSelecionados([]);
-    setValidationErrors([]);
-    setSuccessMessage('');
-  };
-
-  const handleCadastro = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationErrors([]);
-    setSuccessMessage('');
-
-    if (!validarFormulario()) return;
-
-    try {
-      const result = await executarCadastro({
-        nome: nome.trim(),
-        type: "escola",
-        cursos: [],
-        provincia: provinciaSelecionada!.nome.toLowerCase(),
-        endereco: endereco.trim(),
-        numero_telefone: numeroTelefone.trim(),
-        email: email.trim(),
-        website: website.trim() || undefined,
-        nivel_escolar: nivelEscolarSelecionado!.nivel,
-        ...(anosAcademicosSelecionados.length > 0 && { anos_academicos: anosAcademicosSelecionados }),
-      });
-
-      if (result?.data) {
-        setSuccessMessage(`Academia cadastrada com sucesso! Código: ${result.data.codigo_academia} | Senha padrão: ${result.data.codigo_academia}`);
-        setTimeout(() => {
-          limparFormulario();
-          closeModal();
-          carregarLista();
-        }, 2000);
-      }
-    } catch (err) {}
-  };
-
-  const handleCloseModal = () => {
-    limparFormulario();
-    closeModal();
-  };
 
   const handleVerDetalhes = (academia: AcademiaDetalhada) => {
     setAcademiaSelecionada(academia);
@@ -496,13 +508,11 @@ export default function Academias() {
 
   const handleDesativar = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!motivoDesativacao.trim()) {
       alert('Por favor, informe o motivo da desativação.');
       return;
     }
     if (!academiaParaDesativar) return;
-
     try {
       const token = tokenStorage.get();
       await executarDesativar(
@@ -547,8 +557,21 @@ export default function Academias() {
     <div>
       <PageBreadcrumb pageTitle="Academias" />
       <div className="space-y-6">
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={openModal}>Cadastrar uma academia</Button>
+
+        {/* Header: ações */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isFpp && (
+            <Link
+              href="/academias/cadastrar"
+              className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-5 py-3.5 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Cadastrar Academia
+            </Link>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -560,314 +583,13 @@ export default function Academias() {
 
           {dataAcademias && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
-              <span className="font-medium">{dataAcademias.total}</span>
-              <span className="ml-1">academias encontradas</span>
+              <span className="font-medium">{academiasFiltradas.length}</span>
+              {provinciaSelecionada && (
+                <span className="ml-1 text-gray-400">de {academiasList.length}</span>
+              )}
+              <span className="ml-1">academias</span>
             </div>
           )}
-
-          {/* ── Modal de Cadastro ── */}
-          <Modal isOpen={isOpen} onClose={handleCloseModal} className="max-w-[640px] p-5 lg:p-10">
-            <form onSubmit={handleCadastro}>
-              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Cadastrar escola</h4>
-
-              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-                <div className="col-span-2">
-                  <Label>Nome da escola *</Label>
-                  <Input
-                    type="text"
-                    placeholder="Digite o nome da escola"
-                    onChange={(e) => setNome(e.target.value)}
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Telefone *</Label>
-                  <Input
-                    type="text"
-                    placeholder="+244 900 000 000"
-                    onChange={(e) => setNumeroTelefone(e.target.value)}
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>E-mail *</Label>
-                  <Input
-                    type="email"
-                    placeholder="email@escola.ao"
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Endereço *</Label>
-                  <Input
-                    type="text"
-                    placeholder="Rua, Bairro, Município"
-                    onChange={(e) => setEndereco(e.target.value)}
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <Label>Website (opcional)</Label>
-                  <Input
-                    type="text"
-                    placeholder="https://escola.ao"
-                    onChange={(e) => setWebsite(e.target.value)}
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Nível acadêmico *
-                  </span>
-                  <Dropdown
-                    value={nivelEscolarSelecionado}
-                    onChange={(e) => {
-                      setNivelEscolarSelecionado(e.value);
-                      setAnosAcademicosSelecionados([]);
-                    }}
-                    options={NiveisAcademicos}
-                    optionLabel="nome"
-                    placeholder="Selecione o nível escolar"
-                    className="w-full"
-                    disabled={carregandoCadastro}
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Província *
-                  </span>
-                  <Dropdown
-                    value={provinciaSelecionada}
-                    onChange={(e) => setProvinciaSelecionada(e.value)}
-                    options={Provincias}
-                    optionLabel="nome"
-                    filter
-                    placeholder="Selecione a província"
-                    className="w-full"
-                    disabled={carregandoCadastro}
-                    emptyFilterMessage="Nenhuma província encontrada"
-                  />
-                </div>
-
-                {/* Seleção de anos académicos para fundamental/misto */}
-                {nivelEscolarSelecionado &&
-                  (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') && (
-                    <div className="col-span-2">
-                      <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        Selecione os anos do ensino fundamental que esta escola oferece
-                      </p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
-                          <label
-                            key={value}
-                            className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={anosAcademicosSelecionados.includes(value)}
-                              onChange={() =>
-                                setAnosAcademicosSelecionados((prev) =>
-                                  prev.includes(value)
-                                    ? prev.filter((a) => a !== value)
-                                    : [...prev, value]
-                                )
-                              }
-                              disabled={carregandoCadastro}
-                              className="w-4 h-4 text-brand-500 focus:ring-brand-500"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-              </div>
-
-              {successMessage && (
-                <div className="mt-5 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-sm text-green-700 dark:text-green-400 font-medium">{successMessage}</p>
-                </div>
-              )}
-
-              {validationErrors.length > 0 && (
-                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <ul className="list-disc list-inside space-y-1">
-                    {validationErrors.map((erro, i) => (
-                      <li key={i} className="text-sm text-red-700 dark:text-red-400">{erro}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {erroCadastro && (
-                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroCadastro}</p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end w-full gap-3 mt-6">
-                <Button size="sm" variant="outline" onClick={handleCloseModal} disabled={carregandoCadastro}>
-                  Cancelar
-                </Button>
-                <Button size="sm" disabled={carregandoCadastro}>
-                  {carregandoCadastro ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Cadastrando...
-                    </>
-                  ) : (
-                    'Cadastrar'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Modal>
-
-          {/* ── Modal de Detalhes ── */}
-          <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
-            {academiaSelecionada && (
-              <div>
-                <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
-                  Detalhes da Academia
-                </h4>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nome}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.codigo_academia}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.type}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível Escolar</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p>
-                    </div>
-
-                    {academiaSelecionada.anos_academicos && academiaSelecionada.anos_academicos.length > 0 && (
-                      <div className="col-span-2">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Anos Académicos</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {academiaSelecionada.anos_academicos.map((ano) => (
-                            <span
-                              key={ano}
-                              className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
-                            >
-                              {formatAnoAcademico(ano)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Província</p>
-                      <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(academiaSelecionada.status)}`}>
-                        {academiaSelecionada.status}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Estudantes</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_estudantes}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
-                      <p className="text-sm text-gray-900 dark:text-white">{formatarData(academiaSelecionada.created_at)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end mt-6">
-                  <Button size="sm" variant="outline" onClick={closeDetailsModal}>
-                    Fechar
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Modal>
-
-          {/* ── Modal de Desativar Academia ── */}
-          <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
-            <form onSubmit={handleDesativar}>
-              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
-
-              {academiaParaDesativar && (
-                <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    <span className="font-semibold">Academia:</span> {academiaParaDesativar.nome}
-                  </p>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    <span className="font-semibold">Código:</span> {academiaParaDesativar.codigo_academia}
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <Label>Motivo da desativação *</Label>
-                <textarea
-                  className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
-                  placeholder="Descreva o motivo da desativação..."
-                  rows={4}
-                  value={motivoDesativacao}
-                  onChange={(e) => setMotivoDesativacao(e.target.value)}
-                  disabled={carregandoDesativar}
-                  required
-                />
-              </div>
-
-              {erroAtivarAcademia && (
-                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroAtivarAcademia}</p>
-                </div>
-              )}
-
-              {erroDesativarAcademia && (
-                <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroDesativarAcademia}</p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end w-full gap-3 mt-6">
-                <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>
-                  Cancelar
-                </Button>
-                <Button size="sm" variant="danger" disabled={carregandoDesativar}>
-                  {carregandoDesativar ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Desativando...
-                    </>
-                  ) : (
-                    'Desativar Academia'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Modal>
         </div>
 
         {erroAcademias && (
@@ -876,7 +598,23 @@ export default function Academias() {
           </div>
         )}
 
-        {/* ── Tabela ── */}
+        {/* Vista em Escala — Filtro por Províncias */}
+        {carregado && (
+          <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-4">
+            <FiltroProvincias
+              academiasList={academiasList}
+              provinciaSelecionada={provinciaSelecionada}
+              onSelecionar={setProvinciaSelecionada}
+            />
+          </div>
+        )}
+
+        {/* Estatísticas da província selecionada */}
+        {carregado && provinciaSelecionada && academiasFiltradas.length > 0 && (
+          <EstatisticasProvincia academias={academiasFiltradas} nome={provinciaSelecionada} />
+        )}
+
+        {/* Tabela */}
         <div className="space-y-3">
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
             <div className="w-full overflow-x-auto">
@@ -919,58 +657,62 @@ export default function Academias() {
                   </TableBody>
                 )}
 
-                {!carregandoAcademias && carregado && dataAcademias && (
+                {!carregandoAcademias && carregado && academiasFiltradas.length === 0 && (
                   <TableBody>
-                    {academiasPaginadas.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8}>
-                          <div className="flex flex-col items-center justify-center py-12">
-                            <p className="text-gray-400 text-sm">Nenhuma academia encontrada</p>
-                          </div>
+                    <TableRow>
+                      <TableCell colSpan={8}>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <p className="text-gray-400 text-sm">
+                            {provinciaSelecionada
+                              ? `Nenhuma academia em ${formatarNomeProvincia(provinciaSelecionada)}`
+                              : 'Nenhuma academia encontrada'}
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+
+                {!carregandoAcademias && carregado && academiasPaginadas.length > 0 && (
+                  <TableBody>
+                    {academiasPaginadas.map((academia) => (
+                      <TableRow key={academia.id}>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">
+                          {academia.nome}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">
+                          {academia.codigo_academia}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {academia.type}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {academia.nivel_escolar || '-'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {academia.provincia}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                          {academia.total_estudantes}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
+                            {academia.status || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
+                          <AcoesDropdown
+                            academia={academia}
+                            isAdmin={isAdmin}
+                            carregandoAtivar={carregandoAtivar}
+                            carregandoDesativar={carregandoDesativar}
+                            onVerDetalhes={handleVerDetalhes}
+                            onAtivar={handleAtivar}
+                            onAbrirDesativar={handleAbrirDesativar}
+                          />
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      academiasPaginadas.map((academia) => (
-                        <TableRow key={academia.id}>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">
-                            {academia.nome}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">
-                            {academia.codigo_academia}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
-                            {academia.type}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
-                            {academia.nivel_escolar || '-'}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">
-                            {academia.provincia}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                            {academia.total_estudantes}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
-                              {academia.status || '-'}
-                            </span>
-                          </TableCell>
-
-                          {/* Coluna Ações */}
-                          <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-                            <AcoesDropdown
-                              academia={academia}
-                              isAdmin={!loadingUser && user?.tipo === "admin"}
-                              carregandoAtivar={carregandoAtivar}
-                              carregandoDesativar={carregandoDesativar}
-                              onVerDetalhes={handleVerDetalhes}
-                              onAtivar={handleAtivar}
-                              onAbrirDesativar={handleAbrirDesativar}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 )}
               </Table>
@@ -978,16 +720,137 @@ export default function Academias() {
           </div>
 
           {/* Paginação */}
-          {!carregandoAcademias && carregado && dataAcademias && (
+          {!carregandoAcademias && carregado && (
             <PaginacaoSetas
               paginaAtual={paginaAtual}
               totalPaginas={totalPaginas}
-              total={academiasList.length}
+              total={academiasFiltradas.length}
               porPagina={ITEMS_POR_PAGINA}
               onChange={setPaginaAtual}
             />
           )}
         </div>
+
+        {/* Modal de Detalhes */}
+        <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
+          {academiaSelecionada && (
+            <div>
+              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
+                Detalhes da Academia
+              </h4>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p>
+                    <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nome}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.codigo_academia}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo</p>
+                    <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.type}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível Escolar</p>
+                    <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p>
+                  </div>
+
+                  {academiaSelecionada.anos_academicos && academiaSelecionada.anos_academicos.length > 0 && (
+                    <div className="col-span-2">
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Anos Académicos</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {academiaSelecionada.anos_academicos.map((ano) => (
+                          <span
+                            key={ano}
+                            className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
+                          >
+                            {formatAnoAcademico(ano)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Província</p>
+                    <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(academiaSelecionada.status)}`}>
+                      {academiaSelecionada.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Estudantes</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_estudantes}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.email || '-'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{formatarData(academiaSelecionada.created_at)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end mt-6">
+                <Button size="sm" variant="outline" onClick={closeDetailsModal}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* Modal de Desativar Academia */}
+        <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
+          <form onSubmit={handleDesativar}>
+            <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
+
+            {academiaParaDesativar && (
+              <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  <span className="font-semibold">Academia:</span> {academiaParaDesativar.nome}
+                </p>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  <span className="font-semibold">Código:</span> {academiaParaDesativar.codigo_academia}
+                </p>
+              </div>
+            )}
+
+            <div>
+              <Label>Motivo da desativação *</Label>
+              <textarea
+                className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
+                placeholder="Descreva o motivo da desativação..."
+                rows={4}
+                value={motivoDesativacao}
+                onChange={(e) => setMotivoDesativacao(e.target.value)}
+                disabled={carregandoDesativar}
+                required
+              />
+            </div>
+
+            {erroDesativarAcademia && (
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="first-letter:uppercase text-sm text-red-700 dark:text-red-400">{erroDesativarAcademia}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end w-full gap-3 mt-6">
+              <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>
+                Cancelar
+              </Button>
+              <Button size="sm" variant="danger" disabled={carregandoDesativar}>
+                {carregandoDesativar ? 'Desativando...' : 'Desativar Academia'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );
