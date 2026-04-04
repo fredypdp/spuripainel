@@ -31,11 +31,13 @@ type OrdemAcademias =
   | 'estudantes_desc' | 'estudantes_asc'
   | 'cadastro_desc' | 'cadastro_asc';
 
+// "tudo" = todas as academias sem filtro de província
 type LayerEscala =
   | { tipo: 'provincias' }
-  | { tipo: 'academias'; provincia: string };
+  | { tipo: 'academias'; provincia: string | null }; // null = "Tudo"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 function formatarNomeProvincia(nome: string): string {
   return nome.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -334,47 +336,90 @@ function VistaEscalaAcademias({
 }) {
   const [layer, setLayer] = useState<LayerEscala>({ tipo: 'provincias' });
 
-  // Agrupa academias por província (lowercase key)
-  const porProvincia = useMemo(() => {
+  // ── Mapa por CÓDIGO de província (ex: "LUA", "BGO")
+  // a.provincia vem da API como código, não como nome
+  const porCodigo = useMemo(() => {
     const map: Record<string, AcademiaDetalhada[]> = {};
     academias.forEach(a => {
-      const key = a.provincia?.toLowerCase().trim() ?? '';
+      const key = (a.provincia ?? '').toUpperCase().trim();
+      if (!key) return;
       if (!map[key]) map[key] = [];
       map[key].push(a);
     });
     return map;
   }, [academias]);
 
-  // Apenas províncias que têm academias, na ordem do array Provincias
+  // Províncias do array Provincias que têm academias — comparadas pelo codigo
   const provinciasComAcademias = useMemo(() =>
-    Provincias.filter(p => (porProvincia[p.nome.toLowerCase()] ?? []).length > 0),
-    [porProvincia]
+    Provincias.filter(p => (porCodigo[p.codigo.toUpperCase()] ?? []).length > 0),
+    [porCodigo]
   );
 
-  // Academias da província selecionada, já ordenadas
-  const academiasNaProvincia = useMemo(() => {
+  // Códigos que existem nos dados mas não estão no array Provincias (fallback)
+  const codigosExtras = useMemo(() => {
+    const conhecidos = new Set(Provincias.map(p => p.codigo.toUpperCase()));
+    return Object.keys(porCodigo).filter(k => !conhecidos.has(k));
+  }, [porCodigo]);
+
+  // Academias para o layer atual (provincia === null → todas)
+  const academiasDoLayer = useMemo(() => {
     if (layer.tipo !== 'academias') return [];
-    const raw = porProvincia[layer.provincia.toLowerCase()] ?? [];
-    return ordenarAcademias(raw, ordem);
-  }, [layer, porProvincia, ordem]);
+    if (layer.provincia === null) return ordenarAcademias(academias, ordem);
+    return ordenarAcademias(porCodigo[layer.provincia.toUpperCase()] ?? [], ordem);
+  }, [layer, porCodigo, academias, ordem]);
+
+  // Resolve nome legível a partir do código armazenado no layer
+  const nomeDoLayer = useMemo(() => {
+    if (layer.tipo !== 'academias' || layer.provincia === null) return 'Todas as Províncias';
+    const prov = Provincias.find(p => p.codigo.toUpperCase() === layer.provincia!.toUpperCase());
+    return prov ? formatarNomeProvincia(prov.nome) : layer.provincia;
+  }, [layer]);
 
   // ── Layer: Províncias ──
   if (layer.tipo === 'provincias') {
+    const totalGeral      = academias.length;
+    const ativasGeral     = academias.filter(a => a.status === 'ativo').length;
+    const estudantesGeral = academias.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
+
     return (
       <div className="space-y-4">
         <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
           Selecione uma Província para explorar
         </p>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+
+          {/* ── Card "Tudo" ── */}
+          <button
+            onClick={() => setLayer({ tipo: 'academias', provincia: null })}
+            className="flex flex-col gap-2 p-4 rounded-xl border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 hover:border-brand-500 hover:shadow-md transition-all text-left group"
+          >
+            <div className="flex items-center justify-between w-full">
+              <Icon icon="mdi:earth" width={16} className="text-brand-400" />
+              <Icon icon="mdi:chevron-right" width={15} className="text-brand-300 group-hover:text-brand-500 transition-colors" />
+            </div>
+            <p className="text-sm font-bold text-brand-700 dark:text-brand-300 leading-snug">
+              Todas as Províncias
+            </p>
+            <div className="space-y-0.5 w-full">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-brand-600 dark:text-brand-400">{totalGeral} academia{totalGeral !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-green-600 dark:text-green-400">{ativasGeral} ativa{ativasGeral !== 1 ? 's' : ''}</span>
+              </div>
+              <p className="text-xs text-brand-500 dark:text-brand-500">{estudantesGeral.toLocaleString()} estudante{estudantesGeral !== 1 ? 's' : ''}</p>
+            </div>
+          </button>
+
+          {/* ── Cards de províncias reconhecidas (via Provincias[]) ── */}
           {provinciasComAcademias.map(prov => {
-            const lista     = porProvincia[prov.nome.toLowerCase()] ?? [];
-            const ativas    = lista.filter(a => a.status === 'ativo').length;
-            const totalEst  = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
+            const lista    = porCodigo[prov.codigo.toUpperCase()] ?? [];
+            const ativas   = lista.filter(a => a.status === 'ativo').length;
+            const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
 
             return (
               <button
                 key={prov.codigo}
-                onClick={() => setLayer({ tipo: 'academias', provincia: prov.nome })}
+                onClick={() => setLayer({ tipo: 'academias', provincia: prov.codigo })}
                 className="flex flex-col gap-2 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md transition-all text-left group"
               >
                 <div className="flex items-center justify-between w-full">
@@ -394,9 +439,40 @@ function VistaEscalaAcademias({
               </button>
             );
           })}
+
+          {/* ── Cards de códigos extras (não reconhecidos no array Provincias) ── */}
+          {codigosExtras.map(codigo => {
+            const lista    = porCodigo[codigo] ?? [];
+            const ativas   = lista.filter(a => a.status === 'ativo').length;
+            const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
+            const nomeExib = codigo;
+
+            return (
+              <button
+                key={codigo}
+                onClick={() => setLayer({ tipo: 'academias', provincia: codigo })}
+                className="flex flex-col gap-2 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">—</span>
+                  <Icon icon="mdi:chevron-right" width={15} className="text-gray-300 group-hover:text-brand-500 transition-colors" />
+                </div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">
+                  {nomeExib}
+                </p>
+                <div className="space-y-0.5 w-full">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{lista.length} academia{lista.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-green-600 dark:text-green-400">{ativas} ativa{ativas !== 1 ? 's' : ''}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{totalEst.toLocaleString()} estudante{totalEst !== 1 ? 's' : ''}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        {provinciasComAcademias.length === 0 && (
+        {academias.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Icon icon="mdi:school-outline" width={48} className="mb-3 opacity-30" />
             <p className="text-sm">Nenhuma academia registrada.</p>
@@ -406,10 +482,13 @@ function VistaEscalaAcademias({
     );
   }
 
-  // ── Layer: Academias de uma Província ──
-  const ativas   = academiasNaProvincia.filter(a => a.status === 'ativo').length;
-  const inativas = academiasNaProvincia.filter(a => a.status !== 'ativo').length;
-  const totalEst = academiasNaProvincia.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
+  // ── Layer: Academias de uma Província (ou todas) ──
+  const ativas   = academiasDoLayer.filter(a => a.status === 'ativo').length;
+  const inativas = academiasDoLayer.filter(a => a.status !== 'ativo').length;
+  const totalEst = academiasDoLayer.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
+  const tituloLayer = layer.tipo === 'academias'
+    ? (layer.provincia === null ? 'Todas as Províncias' : nomeDoLayer)
+    : '';
 
   return (
     <div className="space-y-4">
@@ -424,18 +503,18 @@ function VistaEscalaAcademias({
         </button>
         <Icon icon="mdi:chevron-right" width={16} className="text-gray-300 dark:text-gray-600" />
         <span className="font-medium text-gray-900 dark:text-white">
-          {formatarNomeProvincia(layer.provincia)}
+          {tituloLayer}
         </span>
       </nav>
 
-      {/* Banner da Província */}
+      {/* Banner */}
       <div className="flex flex-wrap items-center gap-6 px-5 py-4 bg-brand-50 dark:bg-brand-900/20 rounded-xl border border-brand-200 dark:border-brand-800">
         <div className="flex items-center gap-2">
-          <Icon icon="mdi:map-marker" width={18} className="text-brand-600 dark:text-brand-400" />
-          <span className="text-sm font-bold text-brand-700 dark:text-brand-300">{formatarNomeProvincia(layer.provincia)}</span>
+          <Icon icon={layer.provincia === null ? 'mdi:earth' : 'mdi:map-marker'} width={18} className="text-brand-600 dark:text-brand-400" />
+          <span className="text-sm font-bold text-brand-700 dark:text-brand-300">{tituloLayer}</span>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="text-gray-600 dark:text-gray-400"><span className="font-semibold text-gray-900 dark:text-white">{academiasNaProvincia.length}</span> academia(s)</span>
+          <span className="text-gray-600 dark:text-gray-400"><span className="font-semibold text-gray-900 dark:text-white">{academiasDoLayer.length}</span> academia(s)</span>
           <span className="text-green-600 dark:text-green-400"><span className="font-semibold">{ativas}</span> ativa(s)</span>
           {inativas > 0 && <span className="text-red-600 dark:text-red-400"><span className="font-semibold">{inativas}</span> inativa(s)</span>}
           <span className="text-gray-600 dark:text-gray-400"><span className="font-semibold text-gray-900 dark:text-white">{totalEst.toLocaleString()}</span> estudante(s)</span>
@@ -446,7 +525,7 @@ function VistaEscalaAcademias({
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="w-full overflow-x-auto">
           <TabelaAcademias
-            academias={academiasNaProvincia}
+            academias={academiasDoLayer}
             isAdmin={isAdmin}
             carregandoAtivar={carregandoAtivar}
             carregandoDesativar={carregandoDesativar}
@@ -468,7 +547,8 @@ export default function Academias() {
   const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
 
   const [carregado,    setCarregado]    = useState(false);
-  const [vistaEscala,  setVistaEscala]  = useState(false);
+  // Vista em escala é o padrão (true)
+  const [vistaEscala,  setVistaEscala]  = useState(true);
   const [ordem,        setOrdem]        = useState<OrdemAcademias>('nome_asc');
   const [paginaAtual,  setPaginaAtual]  = useState(1);
 
@@ -509,7 +589,7 @@ export default function Academias() {
     [academiasOrdenadas, paginaAtual]
   );
 
-  const handleVerDetalhes   = (a: AcademiaDetalhada) => { setAcademiaSelecionada(a); openDetailsModal(); };
+  const handleVerDetalhes    = (a: AcademiaDetalhada) => { setAcademiaSelecionada(a); openDetailsModal(); };
   const handleAbrirDesativar = (a: AcademiaDetalhada) => { setAcademiaParaDesativar(a); setMotivoDesativacao(''); openDesativarModal(); };
 
   const handleAtivar = async (academia: AcademiaDetalhada) => {
@@ -551,13 +631,13 @@ export default function Academias() {
             <button
               onClick={() => setVistaEscala(p => !p)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                vistaEscala
+                !vistaEscala
                   ? 'bg-brand-500 text-white border-brand-500'
                   : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
-              <Icon icon={vistaEscala ? 'mdi:table' : 'mdi:layers-triple'} width={16} />
-              {vistaEscala ? 'Vista Tabela' : 'Vista em Escala'}
+              <Icon icon={!vistaEscala ? 'mdi:layers-triple' : 'mdi:table'} width={16} />
+              {!vistaEscala ? 'Vista em Escala' : 'Vista Tabela'}
             </button>
           )}
 
@@ -584,7 +664,15 @@ export default function Academias() {
           </div>
         )}
 
-        {/* Vista em Escala */}
+        {/* Loading na vista em escala */}
+        {carregandoAcademias && vistaEscala && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
+          </div>
+        )}
+
+        {/* Vista em Escala (padrão) */}
         {vistaEscala && carregado && (
           <VistaEscalaAcademias
             academias={academiasList}
@@ -598,7 +686,7 @@ export default function Academias() {
           />
         )}
 
-        {/* Vista Tabela */}
+        {/* Vista Tabela (secundária) */}
         {!vistaEscala && (
           <div className="space-y-3">
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">

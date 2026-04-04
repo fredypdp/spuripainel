@@ -564,7 +564,7 @@ export interface AcademiaDetalhada {
   type: AcademiaType;
   nome: string;
   codigo_academia: string;
-  provincia: string;
+  provincia: string; // código da província
   endereco: string;
   numero_telefone?: string;
   email?: string;
