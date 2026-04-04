@@ -84,12 +84,12 @@ function gerarDataNasc(minAge = 12, maxAge = 24): string {
 }
 
 /**
- * Senha padrão gerada pelo backend: services.GetDefaultPassword
- * Convenção real: "{tipo}_{codigo}" em minúsculas
- * Ex: academia LDA20261 → "academia_lda20261"
+ * Senha padrão = o próprio código (services.GetDefaultPassword devolve o código).
+ * Academia LDA20261 → senha "LDA20261"
+ * Estudante ABC1234 → senha "ABC1234"
  */
 function senhaAcademia(codigo: string): string {
-  return `academia_${codigo.toLowerCase()}`;
+  return codigo;
 }
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
@@ -878,9 +878,9 @@ export default function SeedTestPage() {
               cada item é independente. Em caso de falha parcial, veja o log.
             </p>
             <p>
-              🔑 Senha das academias gerada pelo backend:{" "}
-              <code className="text-blue-400">academia_{"<codigo_em_minusculas>"}</code>{" "}
-              (ex: <code className="text-blue-400">academia_lda20261</code>)
+              🔑 Senha padrão = o próprio código:{" "}
+              <code className="text-blue-400">academia_lda20261</code> usa senha{" "}
+              <code className="text-blue-400">LDA20261</code>
             </p>
           </div>
         </div>
