@@ -63,7 +63,7 @@ const NOMES_M = ["João","António","Manuel","Francisco","Domingos","Pedro","Pau
 const NOMES_F = ["Maria","Ana","Sofia","Isabel","Filomena","Rosa","Conceição","Graça","Fernanda","Lurdes","Beatriz","Carla","Diana","Elisa","Fátima","Glória","Helena","Inês","Joana","Kátia"];
 const SOBRENOMES = ["Silva","Santos","Costa","Ferreira","Oliveira","Neto","Lopes","Fernandes","Gonçalves","Rodrigues","Monteiro","Cardoso","Marques","Correia","Mendes","Kiala","Nzinga","Mbemba","Lukamba","Tchipilica"];
 
-// Tempo de espera para a projeção processar eventos após operações batch
+/** Tempo de espera padrão para a projeção processar eventos após operações batch */
 const PROJECTION_WAIT_MS = 10_000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const PROJECTION_WAIT_MS = 10_000;
 const rnd = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const pickN = <T,>(arr: T[], n: number): T[] => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 function gerarNome() {
   const masc = Math.random() < 0.51;
@@ -87,7 +87,7 @@ function gerarDataNasc(minAge = 12, maxAge = 24): string {
   return d.toISOString().split("T")[0] + "T00:00:00Z";
 }
 
-/** Senha padrão = o próprio código. Academia BGO20261 → senha "BGO20261" */
+/** Senha padrão = o próprio código da academia */
 function senhaAcademia(codigo: string): string {
   return codigo;
 }
@@ -157,8 +157,8 @@ export default function SeedTestPage() {
 
   /**
    * Aguarda N segundos para a projeção processar eventos.
-   * Necessário após operações batch — o manager de projeções é assíncrono
-   * e pode demorar até ~10s para materializar eventos no banco.
+   * Necessário após TODA operação que altera estado no event store —
+   * o projection manager é assíncrono e pode demorar até ~10s.
    */
   async function aguardarProjecao(motivo: string, ms = PROJECTION_WAIT_MS) {
     const s = Math.ceil(ms / 1000);
@@ -285,6 +285,10 @@ export default function SeedTestPage() {
     }
 
     addLog(`Passo 1: ${criadas.length}/${lista.length} academias criadas`, criadas.length === 0 ? "err" : "ok");
+
+    // Aguardar AcademiaCriada ser processado antes de ativar
+    await aguardarProjecao("academias criadas");
+
     return criadas;
   }
 
@@ -330,6 +334,9 @@ export default function SeedTestPage() {
       if (!alOk) addLog(`    Ano letivo falhou: ${JSON.stringify((alData as any)?.error ?? "")}`, "warn");
       else addLog(`    Ano letivo 2025_2026 definido`, "info");
 
+      // Aguardar AnoLetivoDefinido antes de criar cursos
+      await aguardarProjecao("ano letivo definido");
+
       // Cursos (apenas médio e misto)
       const cursoIds: string[] = [];
       if (ac.meta.nivel !== "fundamental") {
@@ -369,7 +376,7 @@ export default function SeedTestPage() {
           addLog(`    Matérias batch falhou: ${JSON.stringify((mData as any)?.error ?? "")}`, "warn");
         } else {
           addLog(`    ${matPayloads.length} matérias criadas`, "info");
-          // Aguardar MateriaCriada antes de criar turmas (turmas podem usar o mesmo curso_id)
+          // Aguardar MateriaCriada antes de criar turmas
           await aguardarProjecao("matérias criadas");
         }
       }
@@ -390,12 +397,20 @@ export default function SeedTestPage() {
 
       if (turPayloads.length > 0) {
         const { ok: tOk, data: tData } = await callApi("POST", "/academia/turma/batch", turPayloads, tok);
-        if (!tOk) addLog(`    Turmas batch falhou: ${JSON.stringify((tData as any)?.error ?? "")}`, "warn");
-        else addLog(`    ${turPayloads.length} turmas criadas`, "info");
+        if (!tOk) {
+          addLog(`    Turmas batch falhou: ${JSON.stringify((tData as any)?.error ?? "")}`, "warn");
+        } else {
+          addLog(`    ${turPayloads.length} turmas criadas`, "info");
+          // Aguardar TurmaCriada antes de popular dados
+          await aguardarProjecao("turmas criadas");
+        }
       }
     }
 
     addLog("Passo 3 concluído", "ok");
+
+    // Aguardar toda a infra estar visível antes de iniciar passo 4
+    await aguardarProjecao("infra configurada — antes de popular dados");
   }
 
   // ─── PASSOS 4–8: Popular dados ────────────────────────────────────────────
@@ -469,6 +484,9 @@ export default function SeedTestPage() {
         }));
         const { ok: vOk, err: vErr } = await apiBatch("POST", "/academia/turma/estudante/batch", vinculos, 100, tok);
         addLog(`    Turmas: ${vOk} vínculos, ${vErr} erros`, vErr > 0 ? "warn" : "ok");
+
+        // Aguardar EstudanteAdicionadoATurma antes de registrar notas
+        await aguardarProjecao("estudantes vinculados às turmas");
       }
 
       // PASSO 6 — Registrar notas (amostra de até 20 estudantes × até 3 matérias × 3 trimestres)
@@ -491,6 +509,9 @@ export default function SeedTestPage() {
         if (notaPayloads.length > 0) {
           const { ok: nOk, err: nErr } = await apiBatch("POST", "/academia/notas-aluno/batch", notaPayloads, 200, tok);
           addLog(`    Notas: ${nOk} registradas, ${nErr} erros`, nErr > 0 ? "warn" : "ok");
+
+          // Aguardar NotaRegistrada antes de registrar faltas
+          await aguardarProjecao("notas registradas");
         }
       }
 
@@ -511,6 +532,9 @@ export default function SeedTestPage() {
         if (faltaPayloads.length > 0) {
           const { ok: fOk, err: fErr } = await apiBatch("POST", "/academia/faltas-aluno/batch", faltaPayloads, 200, tok);
           addLog(`    Faltas: ${fOk} registradas, ${fErr} erros`, fErr > 0 ? "warn" : "ok");
+
+          // Aguardar FaltaRegistrada antes de registrar avaliações finais
+          await aguardarProjecao("faltas registradas");
         }
       }
 
@@ -548,6 +572,9 @@ export default function SeedTestPage() {
       if (avalPayloads.length > 0) {
         const { ok: aOk, err: aErr } = await apiBatch("POST", "/academia/avaliacao-final/batch", avalPayloads, 100, tok);
         addLog(`    Avaliações: ${aOk} registradas, ${aErr} erros (${nAprov} aprovações previstas)`, aErr > 0 ? "warn" : "ok");
+
+        // Aguardar AvaliacaoFinalRegistrada antes de avançar para a próxima academia
+        await aguardarProjecao("avaliações finais registradas");
       }
 
       addLog(`  ${ac.codigo} populada ✓`, "ok");
@@ -822,14 +849,14 @@ export default function SeedTestPage() {
           <h2 className="text-sm font-semibold text-gray-300 mb-3">Sequência de operações</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-400">
             {([
-              ["1", "Criar academias",   "POST /dominis/academia/register/batch"],
+              ["1", "Criar academias",   "POST /dominis/academia/register/batch → ⏳ 10s"],
               ["2", "Ativar academias",  "PUT /dominis/academia/ativar/batch → ⏳ 10s"],
-              ["3", "Configurar infra",  "Ano letivo · Cursos → ⏳ · Matérias → ⏳ · Turmas"],
+              ["3", "Configurar infra",  "Ano letivo ⏳ → Cursos ⏳ → Matérias ⏳ → Turmas ⏳ → ⏳ extra"],
               ["4", "Criar estudantes",  "POST /academia/estudante/register/batch → ⏳ 10s"],
-              ["5", "Vincular turmas",   "POST /academia/turma/estudante/batch"],
-              ["6", "Registrar notas",   "POST /academia/notas-aluno/batch"],
-              ["7", "Registrar faltas",  "POST /academia/faltas-aluno/batch"],
-              ["8", "Avaliações finais", "POST /academia/avaliacao-final/batch"],
+              ["5", "Vincular turmas",   "POST /academia/turma/estudante/batch → ⏳ 10s"],
+              ["6", "Registrar notas",   "POST /academia/notas-aluno/batch → ⏳ 10s"],
+              ["7", "Registrar faltas",  "POST /academia/faltas-aluno/batch → ⏳ 10s"],
+              ["8", "Avaliações finais", "POST /academia/avaliacao-final/batch → ⏳ 10s"],
             ] as [string, string, string][]).map(([n, titulo, desc]) => (
               <div key={n} className="flex gap-2">
                 <span className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 font-bold text-xs">
@@ -843,7 +870,7 @@ export default function SeedTestPage() {
             ))}
           </div>
           <div className="mt-4 text-xs text-gray-500 space-y-1">
-            <p>⏳ Após cada lote que altera estado (activar, criar) o seed aguarda 10s para a projeção processar.</p>
+            <p>⏳ Cada operação que altera estado aguarda <strong className="text-gray-400">10s</strong> para a projeção processar os eventos antes de avançar.</p>
             <p>🔑 Senha padrão = código da academia (ex: <code className="text-blue-400">BGO20261</code>)</p>
           </div>
         </div>
