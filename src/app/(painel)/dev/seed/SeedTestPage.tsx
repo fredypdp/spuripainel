@@ -111,31 +111,38 @@ export default function SeedTestPage() {
     }
   };
 
-  // Load academias for the selector
-  const loadAcademias = async () => {
+  // FIX 3: wrap in useCallback so it can be safely listed as a dependency
+  const loadAcademias = useCallback(async () => {
     setLoadingAcademias(true);
     const adminToken = tokenStorage.get();
     if (!adminToken) { addLog("Sem token de admin", "err"); setLoadingAcademias(false); return; }
-    const { ok, data } = await callApi("GET", "/academias?status=ativo&limit=200", undefined, adminToken);
-    if (ok) {
-      const list = (data as any).academias || [];
-      const mapped: AcademiaInfo[] = list.map((a: any) => ({
-        codigo: a.codigo_academia,
-        token: "",
-        tipo: a.type,
-        nivel: a.nivel_escolar,
-        anos_academicos: a.anos_academicos || [],
-        ano_letivo: a.ano_letivo,
-      }));
-      setAcademias(mapped);
-      addLog(`${mapped.length} academias ativas carregadas`, "ok");
-    } else {
-      addLog("Erro ao carregar academias", "err");
+    const url = apiUrl() + "/academias?status=ativo&limit=200";
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json", "Authorization": `Bearer ${adminToken}` };
+      const r = await fetch(url, { method: "GET", headers });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const list = (data as any).academias || [];
+        const mapped: AcademiaInfo[] = list.map((a: any) => ({
+          codigo: a.codigo_academia,
+          token: "",
+          tipo: a.type,
+          nivel: a.nivel_escolar,
+          anos_academicos: a.anos_academicos || [],
+          ano_letivo: a.ano_letivo,
+        }));
+        setAcademias(mapped);
+        addLog(`${mapped.length} academias ativas carregadas`, "ok");
+      } else {
+        addLog("Erro ao carregar academias", "err");
+      }
+    } catch {
+      addLog("Erro de rede ao carregar academias", "err");
     }
     setLoadingAcademias(false);
-  };
+  }, [addLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { loadAcademias(); }, []);
+  useEffect(() => { loadAcademias(); }, [loadAcademias]);
 
   const loginAcademia = async (codigo: string): Promise<string | null> => {
     const { ok, data } = await callApi("POST", "/login", { usuario: codigo, senha: codigo }, "");
@@ -197,7 +204,6 @@ export default function SeedTestPage() {
       if (ok) {
         const id = (data as any).data?.id;
         addLog(`  ✓ Curso "${t.nome}" criado`, "ok");
-        // Ativar
         if (id) {
           await sleep(500);
           const { ok: okA } = await callApi("PUT", `/academia/curso/${id}/ativar`, {}, selectedAcademia.token);
@@ -222,7 +228,6 @@ export default function SeedTestPage() {
     const pool = tipo === "fundamental" ? MATERIAS_FUND : tipo === "medio" ? MATERIAS_MEDIO : MATERIAS_SUPERIOR;
     const academia = selectedAcademia;
 
-    // Resolve anos disponíveis
     let anosDisponiveis: string[] = [];
     if (tipo === "fundamental") {
       anosDisponiveis = academia.anos_academicos?.filter(a => a.includes("fundamental")) || ["1_ano_fundamental"];
@@ -289,7 +294,6 @@ export default function SeedTestPage() {
     const academia = selectedAcademia;
     let criadas = 0;
 
-    // Determine available levels
     const niveisDisponiveis: string[] = [];
     if (academia.nivel === "fundamental" || academia.nivel === "misto") {
       niveisDisponiveis.push(...(academia.anos_academicos?.filter(a => a.includes("fundamental")) || ["1_ano_fundamental"]));
@@ -307,7 +311,8 @@ export default function SeedTestPage() {
     for (let i = 0; i < qtd; i++) {
       if (cancelRef.current) break;
       const nivel = turmaConfig.nivel === "random" ? pick(niveisDisponiveis) : turmaConfig.nivel;
-      const turno = turmaConfig.turno === "random" ? pick(TURNOS) : turmaConfig.turno as typeof TURNOS[number];
+      // FIX 1: spread TURNOS to make it mutable before passing to pick()
+      const turno = turmaConfig.turno === "random" ? pick([...TURNOS]) : turmaConfig.turno as typeof TURNOS[number];
       const letra = String.fromCharCode(65 + i);
       const payload: any = {
         codigo_turma: `T${rnd(1, 9)}${letra}${rnd(10, 99)}`,
@@ -315,7 +320,6 @@ export default function SeedTestPage() {
         turno,
       };
 
-      // attach curso if medio/superior
       if (nivel.includes("medio")) {
         const c = cursos.find(x => x.type === "medio");
         if (c) payload.curso_id = c.id;
@@ -369,7 +373,6 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    // Send in chunks of 50
     let ok = 0, err = 0;
     for (let i = 0; i < batch.length; i += 50) {
       if (cancelRef.current) break;
@@ -432,7 +435,8 @@ export default function SeedTestPage() {
 
     const tipoNota = academia.tipo === "superior" ? "superior" : "escolar";
     const periodos = academia.tipo === "superior"
-      ? (materias[0] ? (materias.filter(m => m.tipo === "superior" && m.periodo) as any).map((m: any) => m.periodo).filter(Boolean) : ["1_semestre"])
+      // FIX 2: use .type instead of .tipo
+      ? (materias[0] ? (materias.filter(m => m.type === "superior" && m.periodo) as any).map((m: any) => m.periodo).filter(Boolean) : ["1_semestre"])
       : ["1_trimestre", "2_trimestre", "3_trimestre"];
 
     const batch: any[] = [];
@@ -654,7 +658,6 @@ export default function SeedTestPage() {
 
           {/* LEFT — Academia selector + status */}
           <div>
-            {/* Academia Selector */}
             <Section title="Academia" badge={`${academias.length} disponíveis`}>
               <Row>
                 <Btn onClick={loadAcademias} color="#334155">↻ Recarregar</Btn>
@@ -677,7 +680,6 @@ export default function SeedTestPage() {
               </div>
             </Section>
 
-            {/* Status */}
             {selectedAcademia && (
               <Section title="Estado atual">
                 {[
@@ -712,7 +714,6 @@ export default function SeedTestPage() {
               </div>
             ) : (
               <>
-                {/* Cursos */}
                 {(selectedAcademia.nivel !== "fundamental") && (
                   <Section title="Cursos" badge={`${cursos.length} criados`}>
                     <Row>
@@ -743,7 +744,6 @@ export default function SeedTestPage() {
                   </Section>
                 )}
 
-                {/* Matérias */}
                 <Section title="Matérias Disciplinares" badge={`${materias.length} ativas`}>
                   <Row>
                     <Field label="Tipo">
@@ -778,7 +778,6 @@ export default function SeedTestPage() {
                   )}
                 </Section>
 
-                {/* Turmas */}
                 <Section title="Turmas" badge={`${turmas.length} criadas`}>
                   <Row>
                     <Field label="Quantidade">
@@ -807,7 +806,6 @@ export default function SeedTestPage() {
                   </Row>
                 </Section>
 
-                {/* Estudantes */}
                 <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
                   <Row>
                     <Field label="Quantidade">
@@ -832,7 +830,6 @@ export default function SeedTestPage() {
                   </Row>
                 </Section>
 
-                {/* Notas */}
                 <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
                   <Row>
                     <Field label="Nº estudantes">
@@ -847,7 +844,6 @@ export default function SeedTestPage() {
                   </p>
                 </Section>
 
-                {/* Faltas */}
                 <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
                   <Row>
                     <Field label="Nº estudantes">
@@ -860,7 +856,6 @@ export default function SeedTestPage() {
                   <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>2 matérias por estudante · datas aleatórias de 2025</p>
                 </Section>
 
-                {/* Avaliações Finais */}
                 <Section title="Avaliações Finais" badge={estudantes.length === 0 ? "crie estudantes primeiro" : undefined}>
                   <Row>
                     <Field label="Tipo ensino">
