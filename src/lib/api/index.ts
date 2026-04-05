@@ -26,7 +26,10 @@ export type {
   AcademiaType,
   NivelEscolar,
   AnoEscolar,
+  AnoFundamental,
+  AnoMedio,
   AnoSuperior,
+  AnoAcademico,
   StatusEscolar,
   StatusSuperior,
   StatusGeral,
@@ -92,8 +95,10 @@ export type {
   ProvinciaNome,
   ProvinciaCodigo,
   Provincias,
+  DefinirAnoLetivoAcademiaRequest,
   DefinirAnoLetivoRequest,
   DefinirAnoLetivoResponse,
+  AnoLetivoAcademiaResponse,
   AnoLetivoResponse,
   formatAnoLetivo,
   gerarOpcoesAnoLetivo,
@@ -116,9 +121,10 @@ export type {
   StatusEscolarFundamental,
   StatusEscolarMedio,
   AtualizarFaltaRequest,
+  TipoEnsino,
 } from '@/types/api';
 
-// Adicionar estas exportações
+// Jobs
 export { jobApiService, pollJob } from './job-service';
 export type {
   JobStatus,

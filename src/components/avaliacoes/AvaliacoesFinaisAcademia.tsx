@@ -5,6 +5,7 @@ import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/a
 import type {
   MeuPerfilResponse, AvaliacaoFinal, Turma, Curso,
   EstudanteDetalhado, AcademiaDetalhada,
+  RegistrarAvaliacaoFinalRequest,
 } from "@/types/api";
 import { getCookie } from "@/lib/utils/cookies";
 import Icon from "@/components/ui/Icon";
@@ -18,20 +19,35 @@ const NIVEL_BASE: Record<string, string> = {
   primeiro_medio:"1º Médio",segundo_medio:"2º Médio",terceiro_medio:"3º Médio",quarto_medio:"4º Médio",
   primeiro_ano:"1º Ano",segundo_ano:"2º Ano",terceiro_ano:"3º Ano",
   quarto_ano:"4º Ano",quinto_ano:"5º Ano",sexto_ano:"6º Ano",
+  // formato novo backend: 1_ano_fundamental, etc.
+  "1_ano_fundamental":"1º Ano","2_ano_fundamental":"2º Ano","3_ano_fundamental":"3º Ano",
+  "4_ano_fundamental":"4º Ano","5_ano_fundamental":"5º Ano","6_ano_fundamental":"6º Ano",
+  "7_ano_fundamental":"7º Ano","8_ano_fundamental":"8º Ano","9_ano_fundamental":"9º Ano",
+  "1_ano_medio":"1º Médio","2_ano_medio":"2º Médio","3_ano_medio":"3º Médio","4_ano_medio":"4º Médio",
+  "1_ano_superior":"1º Ano","2_ano_superior":"2º Ano","3_ano_superior":"3º Ano",
+  "4_ano_superior":"4º Ano","5_ano_superior":"5º Ano","6_ano_superior":"6º Ano",
 };
-const ANOS_FUNDAMENTAL = [
+
+const ANOS_FUNDAMENTAL_KEYS = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental",
+  "5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
+  // formato antigo também suportado
   "primeiro_fundamental","segundo_fundamental","terceiro_fundamental","quarto_fundamental",
   "quinto_fundamental","sexto_fundamental","setimo_fundamental","oitavo_fundamental","nono_fundamental",
 ];
-const ANOS_MEDIO = ["primeiro_medio","segundo_medio","terceiro_medio","quarto_medio"];
-const ORDEM_NIVEIS = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO,
+const ANOS_MEDIO_KEYS = [
+  "1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio",
+  "primeiro_medio","segundo_medio","terceiro_medio","quarto_medio",
+];
+const ORDEM_NIVEIS = [...ANOS_FUNDAMENTAL_KEYS, ...ANOS_MEDIO_KEYS,
+  "1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior",
   "primeiro_ano","segundo_ano","terceiro_ano","quarto_ano","quinto_ano","sexto_ano"];
 
 function labelNivel(v: string, comSufixo = false): string {
   const base = NIVEL_BASE[v] ?? v.replace(/_/g, " ");
   if (!comSufixo) return base;
-  if (ANOS_FUNDAMENTAL.includes(v)) return `${base} (Ensino Fundamental)`;
-  if (ANOS_MEDIO.includes(v)) return `${base} (Ensino Médio)`;
+  if (ANOS_FUNDAMENTAL_KEYS.includes(v)) return `${base} (Ensino Fundamental)`;
+  if (ANOS_MEDIO_KEYS.includes(v)) return `${base} (Ensino Médio)`;
   return base;
 }
 
@@ -46,14 +62,12 @@ function sortAnos(anos: string[]) {
 
 // ─── tipos layer ─────────────────────────────────────────────────────────────
 
-// Escola fundamental: ano_letivo → ano_academico → turma → lista
 type LayerFund =
   | { mode: "fund"; type: "anos_letivos" }
   | { mode: "fund"; type: "anos_academicos"; anoLetivo: string }
   | { mode: "fund"; type: "turmas"; anoLetivo: string; anoAcademico: string }
   | { mode: "fund"; type: "resultados"; anoLetivo: string; anoAcademico: string; turma: Turma };
 
-// Médio/Superior: curso → ano_letivo → ano_academico → turma → lista
 type LayerCurso =
   | { mode: "sup"; type: "cursos" }
   | { mode: "sup"; type: "anos_letivos"; curso: Curso }
@@ -136,7 +150,6 @@ function TabelaResultadosTurma({
     return m;
   }, [estudantes]);
 
-  // Para cada estudante da turma, buscar a sua avaliação final no ano letivo/academico
   const rows = turma.estudantes.map(cod => {
     const est = estudantesMap[cod];
     const av = avaliacoes.find(a =>
@@ -213,7 +226,6 @@ export default function AvaliacoesFinaisAcademia() {
   const { data: dataEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading } = useApi(consultasService.listarAvaliacoes);
 
-  // Cache de avaliações por estudante (para busca individual)
   const [avalCache, setAvalCache] = useState<Record<string, AvaliacaoFinal[]>>({});
 
   useEffect(() => {
@@ -242,7 +254,6 @@ export default function AvaliacoesFinaisAcademia() {
     [dataAvaliacoes]
   );
 
-  // Carrega avaliações de todos os estudantes de uma turma se ainda não estiver em cache
   async function carregarAvalTurma(turma: Turma) {
     const faltando = turma.estudantes.filter(cod => !avalCache[cod]);
     if (!faltando.length) return;
@@ -254,7 +265,6 @@ export default function AvaliacoesFinaisAcademia() {
     }));
   }
 
-  // Avaliações da academia filtradas
   const avsDaAcademia = useCallback((anoLetivo?: string, anoAcademico?: string) =>
     todasAvaliacoes.filter(a =>
       (!anoLetivo || a.ano_lectivo === anoLetivo) &&
@@ -262,7 +272,6 @@ export default function AvaliacoesFinaisAcademia() {
     ),
   [todasAvaliacoes]);
 
-  // Anos letivos únicos (dos mais antigos aos mais recentes)
   const anosLetivos = useMemo(() => {
     const set = new Set(todasAvaliacoes.map(a => a.ano_lectivo));
     return Array.from(set).sort();
@@ -279,7 +288,6 @@ export default function AvaliacoesFinaisAcademia() {
   const turmasPorCursoNivel = (cursoId: string, nivel: string) =>
     turmas.filter(t => t.curso_id === cursoId && t.nivel === nivel);
 
-  // Breadcrumbs
   function buildCrumbs(): { label: string; onClick?: () => void }[] {
     const goInicio = () => setLayer({ mode: "misto", type: "choose" });
 
@@ -311,13 +319,12 @@ export default function AvaliacoesFinaisAcademia() {
     return [];
   }
 
-  // anos com turmas para o layer "fund/anos_academicos" — deve ficar no nível do componente
   const anoLetivoPараFund = layer.mode === "fund" && layer.type === "anos_academicos" ? layer.anoLetivo : undefined;
   const anosComTurmas = useMemo(() => {
     if (!anoLetivoPараFund) return [];
     const avsDoAno = avsDaAcademia(anoLetivoPараFund);
     const niveis = new Set(avsDoAno.map(a => a.ano_academico_atual));
-    return ANOS_FUNDAMENTAL.filter(a => turmas.some(t => t.nivel === a) && niveis.has(a));
+    return ANOS_FUNDAMENTAL_KEYS.filter(a => turmas.some(t => t.nivel === a) && niveis.has(a));
   }, [anoLetivoPараFund, avsDaAcademia, turmas]);
 
   if (loading) {

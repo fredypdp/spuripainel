@@ -122,7 +122,7 @@ export default function SeedTestPage() {
   };
 
   // Load academias for the selector
-  const loadAcademias = async () => {
+  const loadAcademias = useCallback(async () => {
     setLoadingAcademias(true);
     const adminToken = tokenStorage.get();
     if (!adminToken) { addLog("Sem token de admin", "err"); setLoadingAcademias(false); return; }
@@ -143,9 +143,9 @@ export default function SeedTestPage() {
       addLog("Erro ao carregar academias", "err");
     }
     setLoadingAcademias(false);
-  };
+  }, [addLog]);
 
-  useEffect(() => { loadAcademias(); }, []);
+  useEffect(() => { loadAcademias(); }, [loadAcademias]);
 
   // Sync nota/falta qtd defaults when estudantes load
   useEffect(() => {
@@ -380,7 +380,7 @@ export default function SeedTestPage() {
     for (let i = 0; i < qtd; i++) {
       if (cancelRef.current) break;
       const nivel = turmaConfig.nivel === "random" ? pick(niveisDisponiveis) : turmaConfig.nivel;
-      const turno = turmaConfig.turno === "random" ? pick(TURNOS) : turmaConfig.turno as typeof TURNOS[number];
+      const turno = turmaConfig.turno === "random" ? pick([...TURNOS]) : turmaConfig.turno as typeof TURNOS[number];
       const letra = String.fromCharCode(65 + (i % 26));
       const payload: any = {
         codigo_turma: `T${rnd(1, 9)}${letra}${rnd(10, 99)}`,
@@ -1053,7 +1053,7 @@ export default function SeedTestPage() {
                       {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") &&
                         cursos.filter(c => c.type === materiaConfig.tipo).length === 0 && (
                         <p style={{ margin: 0, fontSize: 11, color: "#ef4444" }}>
-                          ✗ Nenhum curso do tipo "{materiaConfig.tipo}" criado — crie cursos primeiro
+                          ✗ Nenhum curso do tipo &ldquo;{materiaConfig.tipo}&rdquo; criado — crie cursos primeiro
                         </p>
                       )}
                       {materias.length > 0 && (

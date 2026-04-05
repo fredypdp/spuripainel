@@ -14,7 +14,6 @@ export type AnoAcademico = AnoFundamental | AnoMedio | AnoSuperior;
 
 /**
  * Anos do ensino fundamental. Formato: [1-9]_ano_fundamental
- * Subconjunto configurado por cada academia em anos_academicos.
  */
 export type AnoFundamental =
   | '1_ano_fundamental' | '2_ano_fundamental' | '3_ano_fundamental'
@@ -23,14 +22,12 @@ export type AnoFundamental =
 
 /**
  * Anos do ensino médio. Formato: [n]_ano_medio
- * Definidos pela academia em Curso.anos_academicos.
  */
 export type AnoMedio =
   | '1_ano_medio' | '2_ano_medio' | '3_ano_medio' | '4_ano_medio';
 
 /**
  * Anos do ensino superior. Formato: [n]_ano_superior
- * Definidos pela academia em Curso.anos_academicos.
  */
 export type AnoSuperior =
   | '1_ano_superior' | '2_ano_superior' | '3_ano_superior'
@@ -48,8 +45,7 @@ export type StatusGeral              = 'inativo' | 'ativo' | 'finalizado';
 /**
  * Períodos letivos.
  * - Escolar (fixo): 1_trimestre, 2_trimestre, 3_trimestre
- * - Superior (dinâmico): [n]_semestre onde n ≥ 1 (ex: 1_semestre, 2_semestre, 8_semestre…)
- * O `string` no union permite semestres além do 2.º sem perder type-safety nos fixos.
+ * - Superior (dinâmico): [n]_semestre
  */
 export type Periodo =
   | '1_trimestre' | '2_trimestre' | '3_trimestre'
@@ -58,6 +54,8 @@ export type Periodo =
 export type CursoType   = 'medio' | 'superior';
 export type MateriaType = 'fundamental' | 'medio' | 'superior';
 export type Genero      = 'masculino' | 'feminino';
+
+export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
 
 // =====================
 // REQUEST TYPES
@@ -92,18 +90,11 @@ export interface LoginRequest {
   senha: string;
 }
 
-/**
- * POST /academia/estudante/register
- * Estudantes são registrados EXCLUSIVAMENTE pela academia (não há auto-cadastro).
- *
- * data_nascimento — obrigatório. Formato ISO: "YYYY-MM-DD".
- * genero          — obrigatório. "masculino" | "feminino".
- */
 export interface CriarEstudanteRequest {
   nome: string;
   /** Obrigatório. "masculino" | "feminino" */
   genero: Genero;
-  /** Obrigatório. Formato ISO: "YYYY-MM-DD". Deve ser anterior à data actual. */
+  /** Obrigatório. Formato ISO: "YYYY-MM-DD". */
   data_nascimento: string;
   email?: string;
   telefone?: string;
@@ -121,10 +112,6 @@ export interface CriarEstudanteRequest {
 
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
-  /**
-   * Opcional — o backend infere internamente a partir do ano letivo ativo
-   * e do nível do estudante.
-   */
   ano_academico?: string;
   data: string;
   materia_disciplinar_id: string;
@@ -150,7 +137,7 @@ export interface CriarCursoRequest {
   nome: string;
   type: CursoType;
   anos_academicos: string[];
-  /** Obrigatório para superior, ausente/vazio para medio */
+  /** Obrigatório para superior */
   periodos?: string[];
 }
 
@@ -171,23 +158,17 @@ export interface AtualizarMateriaRequest {
   nome?: string;
 }
 
-/** PUT /academia/materias/:id/periodo — exclusivo para matérias do tipo 'superior' */
+/** PUT /academia/materias/:id/periodo */
 export interface DefinirPeriodoMateriaRequest {
   periodo: string;
 }
 
-/**
- * PUT /estudante/dados-pessoais
- * Todos os campos são opcionais — enviar apenas o que se pretende alterar.
- * Genero NÃO pode ser alterado após o cadastro.
- */
 export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  /** Formato ISO: "YYYY-MM-DD". Deve ser anterior à data actual. */
   data_nascimento?: string;
 }
 
@@ -215,10 +196,6 @@ export interface AtualizarDadosAdminRequest {
   email?: string;
 }
 
-/**
- * PUT /admin/:id/role
- * Backend espera o campo `novo_role` (não `role`).
- */
 export interface AtualizarRoleAdminRequest {
   novo_role: AdminType;
 }
@@ -239,18 +216,20 @@ export interface SolicitarVerificacaoRequest {
 }
 
 export interface AlterarCursoRequest {
-  curso_id: string; // UUID
+  curso_id: string;
   tipo_ensino: 'medio' | 'superior';
 }
 
 /**
  * POST /academia/avaliacao-final
- * ano_lectivo resolvido automaticamente pelo backend a partir do ano letivo ativo.
+ * Campos alinhados com a API: nivel_ano_academico_atual, proximo_ano_academico
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
-  tipo_ensino: 'fundamental' | 'medio' | 'superior';
+  tipo_ensino: TipoEnsino;
+  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio') */
   nivel_ano_academico_atual: string;
+  /** Próximo nível (obrigatório se aprovado e não for o último ano) */
   proximo_ano_academico?: string;
   aprovado: boolean;
   observacao?: string;
@@ -258,11 +237,10 @@ export interface RegistrarAvaliacaoFinalRequest {
 
 /**
  * @deprecated Use RegistrarAvaliacaoFinalRequest.
- * Mantido para compatibilidade com POST /academia/aprovacao-ano (rota ainda activa).
  */
 export interface RegistrarAprovacaoAnoRequest {
   codigo_estudante: string;
-  tipo_ensino: 'fundamental' | 'medio' | 'superior';
+  tipo_ensino: TipoEnsino;
   nivel_atual: string;
   proximo_nivel?: string;
   aprovado: boolean;
@@ -300,7 +278,7 @@ export interface RegistrarNotasRequest {
 export interface AtualizarNotaRequest {
   id: string;
   nota_nova: number;
-  observacao: string; // obrigatória na correcção (regra de negócio do aggregate)
+  observacao: string;
 }
 
 export interface AtualizarFaltaRequest {
@@ -312,7 +290,7 @@ export interface AtualizarFaltaRequest {
 }
 
 export interface CriarCategoriaNotaRequest {
-  nome: string; // formato: nota_[nome]
+  nome: string;
   descricao?: string;
 }
 
@@ -337,7 +315,10 @@ export interface AdicionarEstudanteTurmaRequest {
 
 // ── Ano Letivo ────────────────────────────────────────────────────────────────
 
-/** POST /academia/ano-letivo */
+/**
+ * POST /academia/ano-letivo
+ * tipo: 'escola' | 'superior'
+ */
 export interface DefinirAnoLetivoAcademiaRequest {
   ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
   tipo: 'escola' | 'superior';
@@ -354,19 +335,12 @@ export interface DefinirAnoLetivoRequest {
 // RESPONSE TYPES
 // =====================
 
-/**
- * POST /login
- * Handler retorna: { token, nome, type, codigo/email, role? }
- */
 export interface AuthResponse {
   token: string;
   nome: string;
   type: UserType;
-  /** codigo_academia ou codigo_estudante (ausente para admin) */
   codigo?: string;
-  /** e-mail (apenas para admin) */
   email?: string;
-  /** role (apenas para admin) */
   role?: AdminType;
 }
 
@@ -416,7 +390,7 @@ export interface AprovacaoAno {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
-  tipo_ensino: 'fundamental' | 'medio' | 'superior';
+  tipo_ensino: TipoEnsino;
   nivel_atual: string;
   proximo_nivel?: string;
   aprovado: boolean;
@@ -436,7 +410,7 @@ export interface AvaliacaoFinal {
   codigo_estudante: string;
   codigo_academia: string;
   ano_lectivo: string;
-  tipo_ensino: 'fundamental' | 'medio' | 'superior';
+  tipo_ensino: TipoEnsino;
   /** Campo real da projecção: ano_academico_atual */
   ano_academico_atual: string;
   proximo_ano_academico?: string;
@@ -467,7 +441,7 @@ export interface Materia {
   anos_academicos?: string[];
   codigo_academia: string;
   curso_id?: string;
-  /** Apenas para tipo 'superior'. Definido via PUT /academia/materias/:id/periodo */
+  /** Apenas para tipo 'superior'. */
   periodo?: string;
   status: 'ativo' | 'inativo' | 'deletado';
   deleted_at?: string;
@@ -519,13 +493,8 @@ export interface Evento {
   previous_hash?: string;
 }
 
-// ── Perfis — alinhados com EstudanteDTO / AcademiaDTO / AdminDTO ──────────────
+// ── Perfis ────────────────────────────────────────────────────────────────────
 
-/**
- * EstudanteDTO (projection_estudantes).
- *
- * genero e data_nascimento são sempre preenchidos no backend (NOT NULL).
- */
 export interface EstudanteDetalhado {
   id: string;
   nome: string;
@@ -535,9 +504,7 @@ export interface EstudanteDetalhado {
   email_verificado: boolean;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  /** Sempre preenchido. "masculino" | "feminino" */
   genero: Genero;
-  /** Sempre preenchido. Formato "YYYY-MM-DD" */
   data_nascimento: string;
   codigo_academia?: string;
   status: StatusGeral;
@@ -556,15 +523,12 @@ export interface EstudanteDetalhado {
   version: number;
 }
 
-/**
- * AcademiaDTO (projection_academias).
- */
 export interface AcademiaDetalhada {
   id: string;
   type: AcademiaType;
   nome: string;
   codigo_academia: string;
-  provincia: string; // código da província
+  provincia: string;
   endereco: string;
   numero_telefone?: string;
   email?: string;
@@ -578,15 +542,11 @@ export interface AcademiaDetalhada {
   updated_at?: string;
   total_estudantes: number;
   version: number;
-  /** Ano letivo ativo. undefined = não configurado (bloqueia registros) */
   ano_letivo?: string;
   tipo_ano_letivo?: 'escola' | 'superior';
   ano_letivo_ativado_em?: string;
 }
 
-/**
- * AdminDTO — campos retornados pelos handlers de perfil admin.
- */
 export interface AdminDetalhado {
   id: string;
   nome: string;
@@ -682,9 +642,9 @@ export interface VerificarIntegridadeResponse {
 
 /** GET /academia/ano-letivo */
 export interface AnoLetivoAcademiaResponse {
-  ano_letivo: string;             // ex: "2025_2026"
-  tipo?: 'escola' | 'superior';  // tipo do ano letivo
-  ativado_em?: string;            // ISO timestamp
+  ano_letivo: string;
+  tipo?: 'escola' | 'superior';
+  ativado_em?: string;
 }
 
 /**
@@ -714,14 +674,12 @@ export interface AtualizarStatusResponse {
   novo_status: string;
 }
 
-/** DELETE /academia/turmas/:codigo */
 export interface DeletarTurmaResponse {
   message: string;
   codigo_turma: string;
   auditavel: true;
 }
 
-/** DELETE /academia/cursos/:id */
 export interface DeletarCursoResponse {
   message: string;
   curso_id: string;
@@ -746,10 +704,19 @@ export interface PrimeiroAdminResponse {
 /**
  * GET /meu-perfil
  * Retorna { tipo, academia } | { tipo, admin } | { tipo, estudante }
+ *
+ * NOTA: O backend retorna academia_info dentro do estudante (não academia).
  */
 export interface MeuPerfilResponse {
   tipo: UserType;
   estudante?: EstudanteDetalhado & {
+    /** Informações da academia vinculada ao estudante */
+    academia_info?: {
+      codigo: string;
+      nome: string;
+      tipo: AcademiaType;
+    };
+    /** @deprecated Use academia_info */
     academia?: {
       codigo: string;
       nome: string;
@@ -772,10 +739,6 @@ export interface MeuPerfilResponse {
   admin?: AdminDetalhado;
 }
 
-/**
- * GET /consultar-estudante/:codigo
- * Handler retorna { estudante: { ...campos, academia?, curso_medio?, curso_superior? } }
- */
 export interface ConsultarEstudanteResponse {
   estudante: EstudanteDetalhado & {
     academia?: {
@@ -798,12 +761,9 @@ export interface ConsultarEstudanteResponse {
   };
 }
 
-/**
- * GET /consultar-academia/:codigo
- */
 export interface ConsultarAcademiaResponse {
   academia: AcademiaDetalhada & {
-    motivo_desativacao?: string; // apenas para admin
+    motivo_desativacao?: string;
   };
 }
 
@@ -821,20 +781,13 @@ export interface ConsultarEstudantesResponse {
   nome_academia?: string;
 }
 
-/**
- * GET /buscar-usuario?id=UUID (admin only)
- * Handler retorna { tipo, usuario: DTO }
- */
 export interface BuscarUsuarioResponse {
   tipo: UserType;
   usuario: EstudanteDetalhado | AcademiaDetalhada | AdminDetalhado;
 }
 
-// ── Event Sourcing / Registros (admin) ───────────────────────────────────────
+// ── Event Sourcing / Registros ───────────────────────────────────────────────
 
-/**
- * GET /registros (admin) — notas e faltas de todos os estudantes com paginação.
- */
 export interface RegistroCompleto {
   notas?: Nota[];
   total_notas?: number;
@@ -855,7 +808,6 @@ export interface RegistroCompleto {
 
 // =====================
 // PROVÍNCIAS
-// 21 províncias — administração territorial 2025. Não alterar.
 // =====================
 
 export interface Provincia {
@@ -903,16 +855,10 @@ export const Provincias: Provincia[] = [
 // HELPERS
 // =====================
 
-/**
- * Converte o formato interno "2025_2026" para exibição "2025/2026".
- */
 export function formatAnoLetivo(valor: string): string {
   return valor.replace('_', '/');
 }
 
-/**
- * Gera as 2 opções de anos letivos relevantes com base no ano actual.
- */
 export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
   const anoAtual = new Date().getFullYear();
   return [
@@ -921,42 +867,26 @@ export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {
   ];
 }
 
-// ── Helpers de validação de anos académicos ───────────────────────────────────
-
-/** Valida se uma string segue o formato [1-9]_ano_fundamental */
 export function isAnoFundamentalValido(ano: string): ano is AnoFundamental {
   return /^[1-9]_ano_fundamental$/.test(ano);
 }
 
-/** Valida se uma string segue o formato [n]_ano_medio (n ≥ 1) */
 export function isAnoMedioValido(ano: string): ano is AnoMedio {
   return /^[1-9]\d*_ano_medio$/.test(ano);
 }
 
-/** Valida se uma string segue o formato [n]_ano_superior (n ≥ 1) */
 export function isAnoSuperiorValido(ano: string): ano is AnoSuperior {
   return /^[1-9]\d*_ano_superior$/.test(ano);
 }
 
-/** Valida formato [n]_semestre (n ≥ 1) */
 export function isSemestreValido(periodo: string): boolean {
   return /^[1-9]\d*_semestre$/.test(periodo);
 }
 
-/**
- * Gera a lista de anos fundamentais (1_ano_fundamental … 9_ano_fundamental).
- * Útil para popular selects.
- */
 export function gerarAnosFundamentais(): AnoFundamental[] {
   return Array.from({ length: 9 }, (_, i) => `${i + 1}_ano_fundamental` as AnoFundamental);
 }
 
-/**
- * Formata um ano académico para exibição legível.
- * Ex: "1_ano_fundamental" → "1.º Ano (Fundamental)"
- *     "2_ano_medio"       → "2.º Ano (Médio)"
- *     "3_ano_superior"    → "3.º Ano (Superior)"
- */
 export function formatAnoAcademico(ano: string): string {
   const match = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return ano;
@@ -965,20 +895,12 @@ export function formatAnoAcademico(ano: string): string {
   return `${n}.º Ano (${label})`;
 }
 
-/**
- * Formata uma data ISO "YYYY-MM-DD" para exibição localizada "DD/MM/YYYY".
- * Útil para mostrar data_nascimento em formulários e tabelas.
- */
 export function formatDataNascimento(iso: string): string {
   if (!iso) return '';
   const [year, month, day] = iso.split('-');
   return `${day}/${month}/${year}`;
 }
 
-/**
- * Converte um objecto Date para o formato ISO "YYYY-MM-DD"
- * esperado pela API em campos de data_nascimento.
- */
 export function dateToIso(date: Date): string {
   return date.toISOString().split('T')[0];
 }

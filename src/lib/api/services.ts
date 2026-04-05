@@ -69,7 +69,6 @@ export interface ErrorResponse {
   request_id?: string;
 }
 
-// Resposta padrão de endpoints batch síncronos
 export interface BatchItemResult {
   index: number;
   sucesso: boolean;
@@ -183,6 +182,10 @@ export const consultasService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
+  /**
+   * GET /avaliacoes
+   * Query params opcionais: tipo_ensino
+   */
   listarAvaliacoes: (params?: { tipo_ensino?: string; token?: string }) => {
     const qs = new URLSearchParams();
     if (params?.tipo_ensino) qs.append('tipo_ensino', params.tipo_ensino);
@@ -198,7 +201,7 @@ export const consultasService = {
     }),
 
   listarReprovacoes: (token?: string) =>
-    api.get<ListarReprovacoesResponse>('/reprovacoes', {
+    api.get<{ reprovacoes: import('@/types/api').AvaliacaoFinal[]; total: number }>('/reprovacoes', {
       token: token || tokenStorage.get() || undefined,
     }),
 
@@ -209,7 +212,7 @@ export const consultasService = {
     ),
 
   faltasEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<FaltasEstudanteResponse>(
+    api.get<import('@/types/api').FaltasEstudanteResponse>(
       `/faltas-estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -252,7 +255,7 @@ export const estudanteService = {
     ),
 
   minhasAvaliacoes: (token?: string) =>
-    api.get<AvaliacoesEstudanteResponse>('/estudante/minhas-avaliacoes', {
+    api.get<ListarAvaliacoesResponse>('/estudante/minhas-avaliacoes', {
       token: token || tokenStorage.get() || undefined,
     }),
 
@@ -262,7 +265,7 @@ export const estudanteService = {
     }),
 
   minhasFaltas: (token?: string) =>
-    api.get<FaltasEstudanteResponse>('/estudante/minhas-faltas', {
+    api.get<import('@/types/api').FaltasEstudanteResponse>('/estudante/minhas-faltas', {
       token: token || tokenStorage.get() || undefined,
     }),
 };
@@ -302,10 +305,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/nota/:id
-   * Body obrigatório: { motivo: string }
-   */
   deletarNota: (notaId: string, motivo: string, token?: string) =>
     api.delete<{ message: string }>(
       `/academia/nota/${notaId}`,
@@ -333,10 +332,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/falta/:id
-   * Body obrigatório: { motivo: string }
-   */
   deletarFalta: (faltaId: string, motivo: string, token?: string) =>
     api.delete<{ message: string }>(
       `/academia/falta/${faltaId}`,
@@ -350,6 +345,12 @@ export const academiaService = {
 
   // ── Avaliação Final ────────────────────────────────────────────────
 
+  /**
+   * POST /academia/avaliacao-final
+   * Usa RegistrarAvaliacaoFinalRequest com campos:
+   * - nivel_ano_academico_atual (não nivel_atual)
+   * - proximo_ano_academico (não proximo_nivel)
+   */
   registrarAvaliacaoFinal: (data: RegistrarAvaliacaoFinalRequest, token?: string) =>
     api.post<{
       message: string;
@@ -364,6 +365,10 @@ export const academiaService = {
 
   // ── Ano letivo ────────────────────────────────────────────────────
 
+  /**
+   * POST /academia/ano-letivo
+   * Body: { ano_letivo: "YYYY_YYYY", tipo: "escola" | "superior" }
+   */
   definirAnoLetivo: (data: DefinirAnoLetivoAcademiaRequest, token?: string) =>
     api.post<DefinirAnoLetivoResponse>(
       '/academia/ano-letivo',
@@ -371,6 +376,10 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * GET /academia/ano-letivo
+   * Retorna: { ano_letivo, tipo?, ativado_em? }
+   */
   getAnoLetivo: (token?: string) =>
     api.get<AnoLetivoAcademiaResponse>(
       '/academia/ano-letivo',
@@ -456,11 +465,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/curso/:id
-   * Body opcional: { motivo?: string }
-   * Deleta matérias inativas e turmas inativas em cascata.
-   */
   deletarCurso: (cursoId: string, motivo?: string, token?: string) =>
     api.delete<DeletarCursoResponse>(
       `/academia/curso/${cursoId}`,
@@ -520,10 +524,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/materia/:id
-   * Soft delete — matéria deve estar inativa.
-   */
   deletarMateria: (materiaId: string, token?: string) =>
     api.delete<{ message: string; nome: string }>(
       `/academia/materia/${materiaId}`,
@@ -571,11 +571,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/turma/:codigo
-   * Body opcional: { motivo?: string }
-   * Turma deve estar inativa e sem estudantes.
-   */
   deletarTurma: (codigoTurma: string, motivo?: string, token?: string) =>
     api.delete<DeletarTurmaResponse>(
       `/academia/turma/${codigoTurma}`,
@@ -602,7 +597,6 @@ export const academiaService = {
 
   // ── Batch síncronos (academia) ─────────────────────────────────────
 
-  /** POST /academia/estudante/register/batch — até 100 estudantes */
   cadastrarEstudanteBatch: (data: CriarEstudanteRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/estudante/register/batch',
@@ -610,7 +604,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/notas-aluno/batch — até 200 notas */
   registrarNotaBatch: (data: RegistrarNotasRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/notas-aluno/batch',
@@ -618,7 +611,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/atualizar-nota/batch — até 200 correções */
   atualizarNotaBatch: (data: AtualizarNotaRequest[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/atualizar-nota/batch',
@@ -626,10 +618,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/nota/batch
-   * Body: [{ id, motivo }]
-   */
   deletarNotaBatch: (data: { id: string; motivo: string }[], token?: string) =>
     api.delete<BatchResponse>(
       '/academia/nota/batch',
@@ -641,7 +629,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/faltas-aluno/batch — até 200 faltas */
   registrarFaltasBatch: (data: RegistrarFaltasRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/faltas-aluno/batch',
@@ -649,7 +636,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/atualizar-falta/batch — até 200 */
   atualizarFaltaBatch: (data: AtualizarFaltaRequest[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/atualizar-falta/batch',
@@ -657,10 +643,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/falta/batch
-   * Body: [{ id, motivo }]
-   */
   deletarFaltaBatch: (data: { id: string; motivo: string }[], token?: string) =>
     api.delete<BatchResponse>(
       '/academia/falta/batch',
@@ -672,7 +654,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/avaliacao-final/batch — até 100 */
   registrarAvaliacaoFinalBatch: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/avaliacao-final/batch',
@@ -680,7 +661,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/estudante/status-escolar/batch — até 100 */
   atualizarStatusEscolarBatch: (
     data: { codigo_estudante: string; tipo: 'fundamental' | 'medio' | 'superior'; novo_status: string }[],
     token?: string
@@ -691,7 +671,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/curso/batch — até 50 */
   criarCursoBatch: (data: CriarCursoRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/curso/batch',
@@ -699,7 +678,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/curso/ativar/batch — até 50; body: [{ id }] */
   ativarCursoBatch: (ids: string[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/curso/ativar/batch',
@@ -707,7 +685,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/curso/desativar/batch — até 50; body: [{ id }] */
   desativarCursoBatch: (ids: string[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/curso/desativar/batch',
@@ -715,10 +692,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/curso/batch — até 50
-   * Body: [{ id, motivo? }]
-   */
   deletarCursoBatch: (data: { id: string; motivo?: string }[], token?: string) =>
     api.delete<BatchResponse>(
       '/academia/curso/batch',
@@ -730,7 +703,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/materia/batch — até 100 */
   criarMateriaBatch: (data: CriarMateriaRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/materia/batch',
@@ -738,7 +710,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/materia/ativar/batch — até 100; body: [{ id }] */
   ativarMateriaBatch: (ids: string[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/materia/ativar/batch',
@@ -746,7 +717,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/materia/desativar/batch — até 100; body: [{ id }] */
   desativarMateriaBatch: (ids: string[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/materia/desativar/batch',
@@ -754,10 +724,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/materia/batch — até 100
-   * Body: [{ id }]
-   */
   deletarMateriaBatch: (ids: string[], token?: string) =>
     api.delete<BatchResponse>(
       '/academia/materia/batch',
@@ -769,7 +735,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/turma/batch — até 50 */
   criarTurmaBatch: (data: CriarTurmaRequest[], token?: string) =>
     api.post<BatchResponse>(
       '/academia/turma/batch',
@@ -777,7 +742,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/turma/ativar/batch — até 50; body: [{ codigo }] */
   ativarTurmaBatch: (codigos: string[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/turma/ativar/batch',
@@ -785,7 +749,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/turma/desativar/batch — até 50; body: [{ codigo }] */
   desativarTurmaBatch: (codigos: string[], token?: string) =>
     api.put<BatchResponse>(
       '/academia/turma/desativar/batch',
@@ -793,10 +756,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/turma/batch — até 50
-   * Body: [{ codigo, motivo? }]
-   */
   deletarTurmaBatch: (data: { codigo: string; motivo?: string }[], token?: string) =>
     api.delete<BatchResponse>(
       '/academia/turma/batch',
@@ -808,7 +767,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/turma/estudante/batch — até 100 */
   adicionarEstudanteBatch: (
     data: { codigo_turma: string; codigo_estudante: string }[],
     token?: string
@@ -819,10 +777,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/turma/estudante/batch — até 100
-   * Body: [{ codigo_turma, codigo_estudante }]
-   */
   removerEstudanteBatch: (
     data: { codigo_turma: string; codigo_estudante: string }[],
     token?: string
@@ -837,9 +791,8 @@ export const academiaService = {
       } as any
     ),
 
-  // ── Async — submissão de jobs para lotes grandes ────────────────────
+  // ── Async ────────────────────────────────────────────────────────────
 
-  /** POST /academia/estudante/register/async */
   cadastrarEstudanteBatchAsync: (data: CriarEstudanteRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/estudante/register/async',
@@ -847,7 +800,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/notas-aluno/async */
   registrarNotaBatchAsync: (data: RegistrarNotasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/notas-aluno/async',
@@ -855,7 +807,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/atualizar-nota/async */
   atualizarNotaBatchAsync: (data: AtualizarNotaRequest[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/academia/atualizar-nota/async',
@@ -863,7 +814,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** DELETE /academia/nota/async */
   deletarNotaBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
     api.delete<AsyncBatchResponse>(
       '/academia/nota/async',
@@ -875,7 +825,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/faltas-aluno/async */
   registrarFaltasBatchAsync: (data: RegistrarFaltasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/faltas-aluno/async',
@@ -883,7 +832,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/atualizar-falta/async */
   atualizarFaltaBatchAsync: (data: AtualizarFaltaRequest[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/academia/atualizar-falta/async',
@@ -891,7 +839,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** DELETE /academia/falta/async */
   deletarFaltaBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
     api.delete<AsyncBatchResponse>(
       '/academia/falta/async',
@@ -903,7 +850,6 @@ export const academiaService = {
       } as any
     ),
 
-  /** POST /academia/avaliacao-final/async */
   registrarAvaliacaoFinalBatchAsync: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/avaliacao-final/async',
@@ -911,7 +857,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /academia/estudante/status-escolar/async */
   atualizarStatusEscolarBatchAsync: (
     data: { codigo_estudante: string; tipo: 'fundamental' | 'medio' | 'superior'; novo_status: string }[],
     token?: string
@@ -922,7 +867,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/curso/async */
   criarCursoBatchAsync: (data: CriarCursoRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/curso/async',
@@ -930,7 +874,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/materia/async */
   criarMateriaBatchAsync: (data: CriarMateriaRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/materia/async',
@@ -938,7 +881,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/turma/async */
   criarTurmaBatchAsync: (data: CriarTurmaRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/turma/async',
@@ -946,7 +888,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** POST /academia/turma/estudante/async */
   adicionarEstudanteBatchAsync: (
     data: { codigo_turma: string; codigo_estudante: string }[],
     token?: string
@@ -1065,7 +1006,6 @@ export const adminService = {
 
   // ── Batch síncronos (admin) ────────────────────────────────────────
 
-  /** POST /dominis/academia/register/batch — até 50 */
   registrarAcademiaBatch: (
     data: (CriarEscolaRequest | CriarUniversidadeRequest)[],
     token?: string
@@ -1076,7 +1016,6 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /dominis/academia/ativar/batch — até 50; body: [{ codigo }] */
   ativarAcademiaBatch: (codigos: string[], token?: string) =>
     api.put<BatchResponse>(
       '/dominis/academia/ativar/batch',
@@ -1084,10 +1023,6 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * PUT /dominis/academia/desativar/batch — até 50
-   * Body: [{ codigo, motivo }] — motivo obrigatório por item
-   */
   desativarAcademiaBatch: (
     data: { codigo: string; motivo: string }[],
     token?: string
@@ -1098,9 +1033,8 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Async (admin) — lotes grandes via job queue ────────────────────
+  // ── Async (admin) ────────────────────────────────────────────────
 
-  /** POST /dominis/academia/register/async */
   registrarAcademiaBatchAsync: (
     data: (CriarEscolaRequest | CriarUniversidadeRequest)[],
     token?: string
@@ -1111,7 +1045,6 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /dominis/academia/ativar/async */
   ativarAcademiaBatchAsync: (codigos: string[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/dominis/academia/ativar/async',
@@ -1119,7 +1052,6 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** PUT /dominis/academia/desativar/async */
   desativarAcademiaBatchAsync: (
     data: { codigo: string; motivo: string }[],
     token?: string
@@ -1130,23 +1062,20 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Jobs — consulta de status assíncrono ─────────────────────────
+  // ── Jobs ─────────────────────────────────────────────────────────
 
-  /** GET /jobs */
   listarJobs: (token?: string) =>
     api.get<{ jobs: import('@/lib/api/job-service').JobSummary[]; total: number }>(
       '/jobs',
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** GET /jobs/:id */
   consultarJob: (jobId: string, token?: string) =>
     api.get<import('@/lib/api/job-service').JobSummary>(
       `/jobs/${jobId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /** GET /jobs/:id?results=true */
   consultarJobComResultados: (jobId: string, token?: string) =>
     api.get<{ job: import('@/lib/api/job-service').JobSummary; results: import('@/lib/api/job-service').JobItemResult[] }>(
       `/jobs/${jobId}?results=true`,

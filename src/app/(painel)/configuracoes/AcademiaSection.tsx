@@ -63,9 +63,10 @@ export default function AcademiaSection() {
     setSucesso(false);
     if (!valorFormatado) return;
     try {
+      // Envia { ano_letivo, tipo } — tipo derivado do tipo da academia
       await definirAnoLetivo({
         ano_letivo: valorFormatado,
-        tipo: tipoAcademia,          // sempre usa o tipo da academia
+        tipo: tipoAcademia,
       });
       setSucesso(true);
       setAnoDeOverride(null);
