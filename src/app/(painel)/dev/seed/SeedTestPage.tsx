@@ -1,6 +1,8 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { tokenStorage } from "@/lib/api";
+import { getCookie } from "@/lib/utils/cookies";
+import type { MeuPerfilResponse } from "@/types/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,7 +28,7 @@ interface Estudante {
   total_notas?: number;
   total_faltas?: number;
 }
-interface Turma { id?: string; codigo_turma: string; nivel: string; estudantes: string[]; curso_id?: string; }
+interface Turma { id?: string; codigo_turma: string; nivel: string; estudantes: string[]; curso_id?: string; status?: string; }
 interface Curso { id: string; nome: string; type: string; anos_academicos: string[]; periodos?: string[]; }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -71,12 +73,11 @@ const gerarDataNasc = (minAge = 8, maxAge = 25) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SeedTestPage() {
-  // Academy selector
-  const [academias, setAcademias] = useState<AcademiaInfo[]>([]);
-  const [selectedAcademia, setSelectedAcademia] = useState<AcademiaInfo | null>(null);
-  const [loadingAcademias, setLoadingAcademias] = useState(false);
+  const [currentUser, setCurrentUser] = useState<MeuPerfilResponse | null>(null);
+  const [academia, setAcademia] = useState<AcademiaInfo | null>(null);
+  const [authError, setAuthError] = useState<string>("");
 
-  // Data state for selected academy
+  // Data state
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [materias, setMaterias] = useState<Materia[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
@@ -87,7 +88,6 @@ export default function SeedTestPage() {
   const [materiaConfig, setMateriaConfig] = useState({ tipo: "fundamental" as "fundamental"|"medio"|"superior", qtd: 5, cursoId: "" });
   const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "auto" });
   const [estudanteConfig, setEstudanteConfig] = useState({ qtd: 20, anoEscolar: "random", statusFund: "em_andamento" });
-  // Vincular: turma específica ou aleatória
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
   const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
   const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
@@ -105,11 +105,64 @@ export default function SeedTestPage() {
     setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
   }, []);
 
+  // Load current logged-in user from cookie and validate it's an academia
+  useEffect(() => {
+    const userCookie = getCookie("user");
+    const token = tokenStorage.get();
+
+    if (!userCookie || !token) {
+      setAuthError("Sem sessão ativa. Faça login como academia para usar esta página.");
+      return;
+    }
+
+    try {
+      const parsed: MeuPerfilResponse = JSON.parse(userCookie);
+      if (parsed.tipo !== "academia") {
+        setAuthError("Esta página é exclusiva para academias. Faça login com uma conta de academia.");
+        return;
+      }
+      if (!parsed.academia) {
+        setAuthError("Dados da academia não encontrados. Faça login novamente.");
+        return;
+      }
+
+      setCurrentUser(parsed);
+
+      const ac = parsed.academia;
+      const acadInfo: AcademiaInfo = {
+        codigo: ac.codigo_academia,
+        token,
+        tipo: ac.type,
+        nivel: ac.nivel_escolar,
+        anos_academicos: ac.anos_academicos || [],
+        ano_letivo: ac.ano_letivo,
+      };
+      setAcademia(acadInfo);
+    } catch {
+      setAuthError("Erro ao ler dados da sessão. Faça login novamente.");
+    }
+  }, []);
+
+  // Sync nota/falta qtd defaults when estudantes load
+  useEffect(() => {
+    if (estudantes.length > 0) {
+      setNotaConfig(p => ({ ...p, qtdEstudantes: p.qtdEstudantes === 0 ? estudantes.length : p.qtdEstudantes }));
+      setFaltaConfig(p => ({ ...p, qtdEstudantes: p.qtdEstudantes === 0 ? estudantes.length : p.qtdEstudantes }));
+    }
+  }, [estudantes.length]);
+
+  // Load data when academia is set
+  useEffect(() => {
+    if (academia) {
+      refreshData(academia);
+    }
+  }, [academia?.codigo]);
+
   const apiUrl = () => process.env.NEXT_PUBLIC_API_URL || "";
 
   const callApi = async (method: string, path: string, body: unknown, tok?: string) => {
     const url = apiUrl() + path;
-    const token = tok || selectedAcademia?.token || tokenStorage.get() || "";
+    const token = tok || academia?.token || tokenStorage.get() || "";
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -121,63 +174,10 @@ export default function SeedTestPage() {
     }
   };
 
-  // Load academias for the selector
-  const loadAcademias = useCallback(async () => {
-    setLoadingAcademias(true);
-    const adminToken = tokenStorage.get();
-    if (!adminToken) { addLog("Sem token de admin", "err"); setLoadingAcademias(false); return; }
-    const { ok, data } = await callApi("GET", "/academias?status=ativo&limit=200", undefined, adminToken);
-    if (ok) {
-      const list = (data as any).academias || [];
-      const mapped: AcademiaInfo[] = list.map((a: any) => ({
-        codigo: a.codigo_academia,
-        token: "",
-        tipo: a.type,
-        nivel: a.nivel_escolar,
-        anos_academicos: a.anos_academicos || [],
-        ano_letivo: a.ano_letivo,
-      }));
-      setAcademias(mapped);
-      addLog(`${mapped.length} academias ativas carregadas`, "ok");
-    } else {
-      addLog("Erro ao carregar academias", "err");
-    }
-    setLoadingAcademias(false);
-  }, [addLog]);
-
-  useEffect(() => { loadAcademias(); }, [loadAcademias]);
-
-  // Sync nota/falta qtd defaults when estudantes load
-  useEffect(() => {
-    if (estudantes.length > 0) {
-      setNotaConfig(p => ({ ...p, qtdEstudantes: p.qtdEstudantes === 0 ? estudantes.length : p.qtdEstudantes }));
-      setFaltaConfig(p => ({ ...p, qtdEstudantes: p.qtdEstudantes === 0 ? estudantes.length : p.qtdEstudantes }));
-    }
-  }, [estudantes.length]);
-
-  const loginAcademia = async (codigo: string): Promise<string | null> => {
-    const { ok, data } = await callApi("POST", "/login", { usuario: codigo, senha: codigo }, "");
-    if (ok) return (data as any).token || null;
-    return null;
-  };
-
-  const selectAcademia = async (info: AcademiaInfo) => {
-    addLog(`Autenticando como academia ${info.codigo}...`, "info");
-    const tok = await loginAcademia(info.codigo);
-    if (!tok) { addLog(`Login falhou para ${info.codigo}`, "err"); return; }
-    const updated = { ...info, token: tok };
-    setSelectedAcademia(updated);
-    addLog(`Academia ${info.codigo} selecionada ✓`, "ok");
-    // Reset qtd configs on change
-    setNotaConfig(p => ({ ...p, qtdEstudantes: 0 }));
-    setFaltaConfig(p => ({ ...p, qtdEstudantes: 0 }));
-    await refreshData(updated);
-  };
-
   const refreshData = async (ac?: AcademiaInfo) => {
-    const academia = ac || selectedAcademia;
-    if (!academia?.token) return;
-    const tok = academia.token;
+    const acad = ac || academia;
+    if (!acad?.token) return;
+    const tok = acad.token;
 
     const [rCursos, rMaterias, rTurmas, rEstudantes] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
@@ -207,7 +207,7 @@ export default function SeedTestPage() {
   // ─── Operations ─────────────────────────────────────────────────────────────
 
   const gerarCursos = async () => {
-    if (!selectedAcademia) return;
+    if (!academia) return;
     const { tipo, qtd } = cursoConfig;
     addLog(`Gerando ${qtd} curso(s) do tipo ${tipo}...`, "step");
 
@@ -219,13 +219,13 @@ export default function SeedTestPage() {
       const payload: any = { nome: t.nome, type: tipo, anos_academicos: t.anos };
       if (tipo === "superior") payload.periodos = (t as any).periodos;
 
-      const { ok, data } = await callApi("POST", "/academia/curso", payload, selectedAcademia.token);
+      const { ok, data } = await callApi("POST", "/academia/curso", payload, academia.token);
       if (ok) {
         const id = (data as any).data?.id;
         addLog(`  ✓ Curso "${t.nome}" criado`, "ok");
         if (id) {
           await sleep(500);
-          const { ok: okA } = await callApi("PUT", `/academia/curso/${id}/ativar`, {}, selectedAcademia.token);
+          const { ok: okA } = await callApi("PUT", `/academia/curso/${id}/ativar`, {}, academia.token);
           if (okA) addLog(`    ✓ Curso ativado`, "dim");
         }
       } else {
@@ -240,15 +240,8 @@ export default function SeedTestPage() {
   };
 
   const gerarMaterias = async () => {
-    if (!selectedAcademia) return;
+    if (!academia) return;
     const { tipo, qtd, cursoId } = materiaConfig;
-    const academia = selectedAcademia;
-
-    // ── Validação: academia do tipo "medio" só pode ter matérias do tipo "medio" ou "superior"
-    // Academia do tipo "escola" com nivel "fundamental" só pode ter matérias "fundamental"
-    // Academia do tipo "escola" com nivel "medio" só pode ter matérias "medio"
-    // Academia do tipo "escola" com nivel "misto" pode ter "fundamental" ou "medio"
-    // Academia do tipo "superior" só pode ter matérias "superior"
 
     if (academia.tipo === "superior" && tipo !== "superior") {
       addLog(`  ✗ Academia do tipo superior só pode ter matérias do tipo superior`, "err");
@@ -263,7 +256,6 @@ export default function SeedTestPage() {
       return;
     }
 
-    // Para médio e superior, é obrigatório ter um curso vinculado
     if ((tipo === "medio" || tipo === "superior")) {
       const cursoDisponivel = cursoId && cursoId !== "auto"
         ? cursos.find(c => c.id === cursoId)
@@ -278,14 +270,12 @@ export default function SeedTestPage() {
 
     const pool = tipo === "fundamental" ? MATERIAS_FUND : tipo === "medio" ? MATERIAS_MEDIO : MATERIAS_SUPERIOR;
 
-    // Resolver o curso alvo (para médio/superior)
     const cursoAlvo = (tipo === "medio" || tipo === "superior")
       ? (cursoId && cursoId !== "auto"
           ? cursos.find(c => c.id === cursoId)
           : cursos.find(c => c.type === tipo))
       : null;
 
-    // Anos disponíveis para o tipo
     let anosDisponiveis: string[] = [];
     if (tipo === "fundamental") {
       anosDisponiveis = academia.anos_academicos?.filter(a => a.includes("fundamental")) || ["1_ano_fundamental"];
@@ -293,7 +283,6 @@ export default function SeedTestPage() {
       anosDisponiveis = cursoAlvo.anos_academicos || [];
     }
 
-    // Filtrar nomes de matérias já existentes para o tipo/curso
     const materiasExistentesNomes = materias
       .filter(m => m.type === tipo && (cursoAlvo ? m.curso_id === cursoAlvo.id : true))
       .map(m => m.nome.toLowerCase());
@@ -317,7 +306,6 @@ export default function SeedTestPage() {
         anos_academicos: ano ? [ano] : [],
       };
 
-      // Vincular ao curso (obrigatório para médio/superior)
       if (cursoAlvo) {
         payload.curso_id = cursoAlvo.id;
       }
@@ -328,13 +316,11 @@ export default function SeedTestPage() {
         criadas++;
         addLog(`  ✓ Matéria "${nome}" ${ano ? `(${ano})` : ""} ${cursoAlvo ? `→ ${cursoAlvo.nome}` : ""} criada`, "ok");
 
-        // Definir período para superior
         if (id && tipo === "superior" && cursoAlvo?.periodos?.length) {
           await sleep(300);
           await callApi("PUT", `/academia/materia/${id}/periodo`, { periodo: pick(cursoAlvo.periodos) }, academia.token);
         }
 
-        // Ativar matéria
         if (id) {
           await sleep(500);
           await callApi("PUT", `/academia/materia/${id}/ativar`, {}, academia.token);
@@ -351,14 +337,12 @@ export default function SeedTestPage() {
   };
 
   const gerarTurmas = async () => {
-    if (!selectedAcademia) return;
+    if (!academia) return;
     const { qtd } = turmaConfig;
     addLog(`Gerando ${qtd} turma(s)...`, "step");
 
-    const academia = selectedAcademia;
     let criadas = 0;
 
-    // Determine available levels
     const niveisDisponiveis: string[] = [];
     if (academia.nivel === "fundamental" || academia.nivel === "misto") {
       niveisDisponiveis.push(...(academia.anos_academicos?.filter(a => a.includes("fundamental")) || ["1_ano_fundamental"]));
@@ -388,9 +372,7 @@ export default function SeedTestPage() {
         turno,
       };
 
-      // Vincular curso para turmas do médio ou superior (obrigatório)
       if (nivel.includes("medio")) {
-        // Usar curso específico se selecionado, caso contrário o primeiro do tipo
         const cursoAlvo = turmaConfig.cursoId !== "auto"
           ? cursos.find(c => c.id === turmaConfig.cursoId && c.type === "medio")
           : cursos.find(c => c.type === "medio" && c.anos_academicos.includes(nivel));
@@ -426,11 +408,10 @@ export default function SeedTestPage() {
   };
 
   const gerarEstudantes = async () => {
-    if (!selectedAcademia) return;
+    if (!academia) return;
     const { qtd, anoEscolar, statusFund } = estudanteConfig;
     addLog(`Gerando ${qtd} estudante(s)...`, "step");
 
-    const academia = selectedAcademia;
     const anosDisponiveis = academia.anos_academicos?.filter(a => a.includes("fundamental")) || ["1_ano_fundamental"];
 
     const batch: any[] = Array.from({ length: qtd }, () => {
@@ -455,7 +436,6 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    // Send in chunks of 50
     let ok = 0, err = 0;
     for (let i = 0; i < batch.length; i += 50) {
       if (cancelRef.current) break;
@@ -476,19 +456,13 @@ export default function SeedTestPage() {
     await refreshData();
   };
 
-  /**
-   * Vincular estudantes SEM turma a uma turma (específica ou aleatória).
-   */
   const vincularEstudantesATurmas = async () => {
-    if (!selectedAcademia || turmas.length === 0 || estudantes.length === 0) {
+    if (!academia || turmas.length === 0 || estudantes.length === 0) {
       addLog("Sem turmas ou estudantes disponíveis", "warn");
       return;
     }
 
-    // IDs de estudantes que já estão em alguma turma
     const estudantesEmTurma = new Set(turmas.flatMap(t => t.estudantes));
-
-    // Estudantes SEM turma
     const semTurma = estudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
 
     if (semTurma.length === 0) {
@@ -498,10 +472,8 @@ export default function SeedTestPage() {
 
     addLog(`Vinculando ${semTurma.length} estudante(s) sem turma...`, "step");
 
-    // Turmas disponíveis (não cheias)
-    const turmasAtivas = turmas.filter(t => (t as any).status !== "inativo" && (t as any).status !== "deletado");
+    const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
 
-    // Se selecionado uma turma específica, usar apenas ela
     let turmasAlvo: Turma[];
     if (vincularConfig.turmaCodigo !== "random") {
       const turmaEspecifica = turmasAtivas.find(t => t.codigo_turma === vincularConfig.turmaCodigo);
@@ -530,7 +502,7 @@ export default function SeedTestPage() {
     for (let i = 0; i < vinculos.length; i += 100) {
       if (cancelRef.current) break;
       const chunk = vinculos.slice(i, i + 100);
-      const { ok: rOk, data } = await callApi("POST", "/academia/turma/estudante/batch", chunk, selectedAcademia.token);
+      const { ok: rOk, data } = await callApi("POST", "/academia/turma/estudante/batch", chunk, academia.token);
       if (rOk) {
         const s = ((data as any)?.items || []).filter((x: any) => x.sucesso).length;
         const f = ((data as any)?.items || []).filter((x: any) => !x.sucesso).length;
@@ -547,46 +519,36 @@ export default function SeedTestPage() {
     await refreshData();
   };
 
-  /**
-   * Gerar notas para todos os estudantes.
-   * Se um estudante JÁ TEM nota para uma matéria+período+ano_letivo, pula.
-   * Busca o ano letivo atual da academia.
-   */
   const gerarNotas = async () => {
-    if (!selectedAcademia || materias.length === 0 || estudantes.length === 0) {
+    if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes — crie-os primeiro", "warn"); return;
     }
 
-    const academia = selectedAcademia;
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
     const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
 
-    addLog(`Gerando notas para todos os ${sample.length} estudante(s) (pulando quem já tem)...`, "step");
+    addLog(`Gerando notas para ${sample.length} estudante(s) (pulando quem já tem)...`, "step");
 
     const tipoNota = academia.tipo === "superior" ? "superior" : "escolar";
     const periodosFixos = academia.tipo === "superior"
-      ? null // determinado por matéria
+      ? null
       : ["1_trimestre", "2_trimestre", "3_trimestre"];
 
-    // Para cada estudante, buscar notas existentes e montar batch apenas do que falta
     const batch: any[] = [];
 
     for (const est of sample) {
       if (cancelRef.current) break;
 
-      // Buscar notas atuais do estudante para saber o que já existe
       const { ok: rOk, data: notasData } = await callApi(
         "GET", `/notas-estudante/${est.codigo_estudante}`, undefined, academia.token
       );
 
-      // Indexar notas existentes: "materiaId|periodo" para verificação rápida
       const notasExistentes = new Set<string>();
       if (rOk) {
         const notas: any[] = (notasData as any)?.notas || [];
-        // Filtrar pelo ano letivo atual
         const anoLetivo = academia.ano_letivo;
         for (const n of notas) {
           if (n.ano_lectivo === anoLetivo || n.ano_academico === anoLetivo) {
@@ -595,26 +557,20 @@ export default function SeedTestPage() {
         }
       }
 
-      // Selecionar matérias do tipo correto
       const materiasTipo = materias.filter(m => m.type === tipoNota);
       const materiasSample = pickN(materiasTipo, Math.min(3, materiasTipo.length));
 
       for (const mat of materiasSample) {
-        // Determinar períodos para esta matéria
         let periodos: string[];
         if (academia.tipo === "superior") {
           periodos = mat.periodo ? [mat.periodo] : (cursos.find(c => c.type === "superior")?.periodos || ["1_semestre"]);
         } else {
-          // Se período específico foi escolhido, usar apenas ele; caso contrário todos os trimestres
           periodos = periodoConfig !== "random" ? [periodoConfig] : (periodosFixos || ["1_trimestre"]);
         }
 
         for (const p of periodos) {
           const chave = `${mat.id}|${p}`;
-          if (notasExistentes.has(chave)) {
-            // Já tem nota para este estudante/matéria/período — pular
-            continue;
-          }
+          if (notasExistentes.has(chave)) continue;
           batch.push({
             codigo_estudante: est.codigo_estudante,
             periodo: p,
@@ -626,7 +582,7 @@ export default function SeedTestPage() {
         }
       }
 
-      await sleep(50); // pequena pausa entre fetch de cada estudante
+      await sleep(50);
     }
 
     if (batch.length === 0) {
@@ -652,16 +608,11 @@ export default function SeedTestPage() {
     addLog(`Notas: ${ok} ✓ ${err} ✗`, ok > 0 ? "ok" : "err");
   };
 
-  /**
-   * Gerar faltas para todos os estudantes.
-   * Se um estudante JÁ TEM falta para a matéria+data, pula.
-   */
   const gerarFaltas = async () => {
-    if (!selectedAcademia || materias.length === 0 || estudantes.length === 0) {
+    if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn"); return;
     }
 
-    const academia = selectedAcademia;
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
     const { qtdEstudantes } = faltaConfig;
@@ -678,7 +629,6 @@ export default function SeedTestPage() {
     for (const est of sample) {
       if (cancelRef.current) break;
 
-      // Buscar faltas atuais para verificar duplicatas
       const { ok: rOk, data: faltasData } = await callApi(
         "GET", `/faltas-estudante/${est.codigo_estudante}`, undefined, academia.token
       );
@@ -734,19 +684,14 @@ export default function SeedTestPage() {
     addLog(`Faltas: ${ok} ✓ ${err} ✗`, ok > 0 ? "ok" : "err");
   };
 
-  /**
-   * Avaliação final para TODOS os estudantes.
-   */
   const gerarAvaliacoes = async () => {
-    if (!selectedAcademia || estudantes.length === 0) {
+    if (!academia || estudantes.length === 0) {
       addLog("Sem estudantes disponíveis", "warn"); return;
     }
 
-    const academia = selectedAcademia;
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
     const { tipoEnsino, aprovPct } = avalConfig;
-    // Todos os estudantes
     const sample = [...estudantes];
     const nAprov = Math.floor(sample.length * aprovPct / 100);
 
@@ -808,23 +753,20 @@ export default function SeedTestPage() {
   };
 
   const configurarAnoLetivo = async () => {
-    if (!selectedAcademia) return;
-    const academia = selectedAcademia;
+    if (!academia) return;
     const ano = "2025_2026";
     const tipo = academia.tipo === "superior" ? "superior" : "escola";
     const { ok, data } = await callApi("POST", "/academia/ano-letivo", { ano_letivo: ano, tipo }, academia.token);
     if (ok) {
       addLog(`Ano letivo ${ano} configurado ✓`, "ok");
-      setSelectedAcademia({ ...academia, ano_letivo: ano });
-      setAcademias(prev => prev.map(a => a.codigo === academia.codigo ? { ...a, ano_letivo: ano } : a));
+      setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev);
     } else {
       addLog(`Ano letivo: ${(data as any)?.message || (data as any)?.error}`, "warn");
     }
   };
 
-  // ─── Derived data ─────────────────────────────────────────────────────────
+  // ─── Derived ──────────────────────────────────────────────────────────────
 
-  // Estudantes sem turma (para exibição no badge)
   const estudantesEmTurmaSet = new Set(turmas.flatMap(t => t.estudantes));
   const estudantesSemTurma = estudantes.filter(e => !estudantesEmTurmaSet.has(e.codigo_estudante));
 
@@ -834,6 +776,27 @@ export default function SeedTestPage() {
     ok: "#4ade80", err: "#f87171", warn: "#facc15", info: "#94a3b8", step: "#60a5fa", dim: "#475569"
   };
   const logIcons: Record<LogLevel, string> = { ok: "✓", err: "✗", warn: "!", info: "·", step: "▶", dim: "·" };
+
+  // If auth error, show access denied
+  if (authError) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', monospace", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ maxWidth: 480, textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#f87171", marginBottom: 12 }}>Acesso Restrito</h1>
+          <p style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.6 }}>{authError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!academia) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', monospace", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontSize: 14, color: "#475569" }}>Carregando dados da academia...</div>
+      </div>
+    );
+  }
 
   const Section = ({ title, children, badge }: { title: string; children: React.ReactNode; badge?: string }) => (
     <div style={{ border: "1px solid #1e293b", borderRadius: 12, padding: 20, background: "#0f172a", marginBottom: 16 }}>
@@ -870,27 +833,25 @@ export default function SeedTestPage() {
     </button>
   );
 
-  const anosDisponiveis = selectedAcademia?.anos_academicos?.filter(a => a.includes("fundamental")) || [];
+  const anosDisponiveis = academia.anos_academicos?.filter(a => a.includes("fundamental")) || [];
 
-  // Tipos de matéria disponíveis para a academia selecionada
-  const tiposMateriaDisponiveis = selectedAcademia ? (() => {
+  const tiposMateriaDisponiveis = (() => {
     const tipos: { value: string; label: string }[] = [];
-    if (selectedAcademia.tipo === "escola") {
-      if (selectedAcademia.nivel === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental" });
-      if (selectedAcademia.nivel === "medio") tipos.push({ value: "medio", label: "Médio" });
-      if (selectedAcademia.nivel === "misto") {
+    if (academia.tipo === "escola") {
+      if (academia.nivel === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental" });
+      if (academia.nivel === "medio") tipos.push({ value: "medio", label: "Médio" });
+      if (academia.nivel === "misto") {
         tipos.push({ value: "fundamental", label: "Fundamental" });
         tipos.push({ value: "medio", label: "Médio" });
       }
-    } else if (selectedAcademia.tipo === "superior") {
+    } else if (academia.tipo === "superior") {
       tipos.push({ value: "superior", label: "Superior" });
     }
     return tipos;
-  })() : [];
+  })();
 
-  // Períodos disponíveis para notas
-  const periodosNotaDisponiveis = selectedAcademia?.tipo === "superior"
-    ? [] // determinado pela matéria
+  const periodosNotaDisponiveis = academia.tipo === "superior"
+    ? []
     : [
         { value: "random", label: "Todos os trimestres" },
         { value: "1_trimestre", label: "1º Trimestre" },
@@ -905,363 +866,326 @@ export default function SeedTestPage() {
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#f8fafc", letterSpacing: "-0.02em" }}>
-            <span style={{ color: "#3b82f6" }}>⬡</span> Painel de Testes — Academia
+            <span style={{ color: "#3b82f6" }}>⬡</span> Painel de Testes
           </h1>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>
-            Selecione uma academia ativa e gere dados de teste respeitando as regras de negócio do sistema
+            Academia: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{academia.codigo}</span>
+            {" · "}{academia.tipo}{academia.nivel ? ` · ${academia.nivel}` : ""}
+            {academia.ano_letivo ? ` · Ano letivo: ${academia.ano_letivo.replace("_", "/")}` : " · ⚠ sem ano letivo"}
           </p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
 
-          {/* LEFT — Academia selector + status */}
+          {/* LEFT — Status */}
           <div>
-            {/* Academia Selector */}
-            <Section title="Academia" badge={`${academias.length} disponíveis`}>
-              <Row>
-                <Btn onClick={loadAcademias} color="#334155">↻ Recarregar</Btn>
-              </Row>
-              <div style={{ maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-                {academias.length === 0 && <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>{loadingAcademias ? "Carregando..." : "Nenhuma academia ativa encontrada."}</p>}
-                {academias.map(a => (
-                  <button key={a.codigo} onClick={() => !running && selectAcademia(a)} style={{
-                    background: selectedAcademia?.codigo === a.codigo ? "#1e3a5f" : "#0f172a",
-                    border: `1px solid ${selectedAcademia?.codigo === a.codigo ? "#3b82f6" : "#1e293b"}`,
-                    borderRadius: 8, padding: "10px 12px", cursor: "pointer", textAlign: "left",
-                    transition: "all 0.15s"
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{a.codigo}</div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                      {a.tipo} · {a.nivel || "—"} {a.ano_letivo ? `· ${a.ano_letivo.replace("_","/")}` : "· sem ano letivo"}
-                    </div>
-                  </button>
-                ))}
+            <Section title="Estado atual">
+              {[
+                { label: "Cursos", val: cursos.length, icon: "📚" },
+                { label: "Matérias ativas", val: materias.length, icon: "📖" },
+                { label: "Turmas", val: turmas.length, icon: "🏫" },
+                { label: "Estudantes", val: estudantes.length, icon: "👥" },
+                { label: "Sem turma", val: estudantesSemTurma.length, icon: "⚠️", warn: estudantesSemTurma.length > 0 },
+              ].map(s => (
+                <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1e293b" }}>
+                  <span style={{ fontSize: 13, color: "#94a3b8" }}>{s.icon} {s.label}</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: (s as any).warn ? "#facc15" : s.val > 0 ? "#4ade80" : "#ef4444" }}>{s.val}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: 12 }}>
+                <Row>
+                  <Btn onClick={() => withLoading(async () => { await configurarAnoLetivo(); })} color="#0f4c75">
+                    {academia.ano_letivo ? "✓ Ano letivo ok" : "Configurar ano letivo"}
+                  </Btn>
+                  <Btn onClick={() => refreshData()} color="#334155">↻ Atualizar</Btn>
+                </Row>
               </div>
             </Section>
-
-            {/* Status */}
-            {selectedAcademia && (
-              <Section title="Estado atual">
-                {[
-                  { label: "Cursos", val: cursos.length, icon: "📚" },
-                  { label: "Matérias ativas", val: materias.length, icon: "📖" },
-                  { label: "Turmas", val: turmas.length, icon: "🏫" },
-                  { label: "Estudantes", val: estudantes.length, icon: "👥" },
-                  { label: "Sem turma", val: estudantesSemTurma.length, icon: "⚠️", warn: estudantesSemTurma.length > 0 },
-                ].map(s => (
-                  <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1e293b" }}>
-                    <span style={{ fontSize: 13, color: "#94a3b8" }}>{s.icon} {s.label}</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: (s as any).warn ? "#facc15" : s.val > 0 ? "#4ade80" : "#ef4444" }}>{s.val}</span>
-                  </div>
-                ))}
-                <div style={{ marginTop: 12 }}>
-                  <Row>
-                    <Btn onClick={() => withLoading(async () => { await configurarAnoLetivo(); })} color="#0f4c75">
-                      {selectedAcademia.ano_letivo ? "✓ Ano letivo ok" : "Configurar ano letivo"}
-                    </Btn>
-                    <Btn onClick={() => refreshData()} color="#334155">↻ Atualizar</Btn>
-                  </Row>
-                </div>
-              </Section>
-            )}
           </div>
 
           {/* RIGHT — Operations */}
           <div>
-            {!selectedAcademia ? (
-              <div style={{ border: "2px dashed #1e293b", borderRadius: 12, padding: 60, textAlign: "center", color: "#334155" }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>⬡</div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>Selecione uma academia para começar</div>
-              </div>
-            ) : (
-              <>
-                {/* Cursos */}
-                {(selectedAcademia.nivel !== "fundamental") && (
-                  <Section title="Cursos" badge={`${cursos.length} criados`}>
-                    <Row>
-                      <Field label="Tipo">
-                        <Sel value={cursoConfig.tipo} onChange={e => setCursoConfig(p => ({ ...p, tipo: e.target.value as any }))}>
-                          {selectedAcademia.tipo === "superior" ? (
-                            <option value="superior">Superior</option>
-                          ) : (
-                            <>
-                              {(selectedAcademia.nivel === "medio" || selectedAcademia.nivel === "misto") && <option value="medio">Médio</option>}
-                              <option value="superior">Superior</option>
-                            </>
-                          )}
-                        </Sel>
-                      </Field>
-                      <Field label="Qtd">
-                        <Inp type="number" min={1} max={5} value={cursoConfig.qtd} onChange={e => setCursoConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                      </Field>
-                      <Btn onClick={() => withLoading(gerarCursos)} color="#7c3aed">Gerar Cursos</Btn>
-                    </Row>
-                    {cursos.length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-                        {cursos.map(c => (
-                          <span key={c.id} style={{ fontSize: 11, padding: "3px 8px", background: "#1e293b", borderRadius: 20, color: "#94a3b8" }}>{c.nome} <span style={{ color: "#475569" }}>({c.type})</span></span>
-                        ))}
-                      </div>
-                    )}
-                  </Section>
-                )}
-
-                {/* Matérias */}
-                <Section title="Matérias Disciplinares" badge={`${materias.length} ativas`}>
-                  {tiposMateriaDisponiveis.length === 0 ? (
-                    <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>Tipo de academia não suporta matérias nesta configuração.</p>
-                  ) : (
-                    <>
-                      <Row>
-                        <Field label="Tipo">
-                          <Sel
-                            value={materiaConfig.tipo}
-                            onChange={e => {
-                              const newTipo = e.target.value as any;
-                              setMateriaConfig(p => ({ ...p, tipo: newTipo, cursoId: "auto" }));
-                            }}
-                          >
-                            {tiposMateriaDisponiveis.map(t => (
-                              <option key={t.value} value={t.value}>{t.label}</option>
-                            ))}
-                          </Sel>
-                        </Field>
-                        {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") && (
-                          <Field label="Curso">
-                            <Sel value={materiaConfig.cursoId} onChange={e => setMateriaConfig(p => ({ ...p, cursoId: e.target.value }))}>
-                              <option value="auto">Auto (primeiro disponível)</option>
-                              {cursos.filter(c => c.type === materiaConfig.tipo).map(c => (
-                                <option key={c.id} value={c.id}>{c.nome}</option>
-                              ))}
-                            </Sel>
-                          </Field>
-                        )}
-                        <Field label="Qtd">
-                          <Inp type="number" min={1} max={10} value={materiaConfig.qtd} onChange={e => setMateriaConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                        </Field>
-                        <Btn
-                          onClick={() => withLoading(gerarMaterias)}
-                          color="#7c3aed"
-                          disabled={
-                            (materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") &&
-                            cursos.filter(c => c.type === materiaConfig.tipo).length === 0
-                          }
-                        >
-                          Gerar Matérias
-                        </Btn>
-                      </Row>
-                      {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") &&
-                        cursos.filter(c => c.type === materiaConfig.tipo).length === 0 && (
-                        <p style={{ margin: 0, fontSize: 11, color: "#ef4444" }}>
-                          ✗ Nenhum curso do tipo &ldquo;{materiaConfig.tipo}&rdquo; criado — crie cursos primeiro
-                        </p>
+            {/* Cursos */}
+            {(academia.nivel !== "fundamental") && (
+              <Section title="Cursos" badge={`${cursos.length} criados`}>
+                <Row>
+                  <Field label="Tipo">
+                    <Sel value={cursoConfig.tipo} onChange={e => setCursoConfig(p => ({ ...p, tipo: e.target.value as any }))}>
+                      {academia.tipo === "superior" ? (
+                        <option value="superior">Superior</option>
+                      ) : (
+                        <>
+                          {(academia.nivel === "medio" || academia.nivel === "misto") && <option value="medio">Médio</option>}
+                          <option value="superior">Superior</option>
+                        </>
                       )}
-                      {materias.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                          {materias.slice(0, 12).map(m => (
-                            <span key={m.id} style={{ fontSize: 11, padding: "3px 8px", background: "#1e293b", borderRadius: 20, color: "#94a3b8" }}>
-                              {m.nome} <span style={{ color: "#475569" }}>({m.type})</span>
-                            </span>
-                          ))}
-                          {materias.length > 12 && <span style={{ fontSize: 11, color: "#475569" }}>+{materias.length - 12} mais</span>}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </Section>
-
-                {/* Turmas */}
-                <Section title="Turmas" badge={`${turmas.length} criadas`}>
-                  <Row>
-                    <Field label="Quantidade">
-                      <Inp type="number" min={1} max={20} value={turmaConfig.qtd} onChange={e => setTurmaConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                    </Field>
-                    <Field label="Turno">
-                      <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
-                        <option value="random">Aleatório</option>
-                        <option value="manha">Manhã</option>
-                        <option value="tarde">Tarde</option>
-                        <option value="noite">Noite</option>
-                      </Sel>
-                    </Field>
-                    <Field label="Nível">
-                      <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
-                        <option value="random">Aleatório</option>
-                        {anosDisponiveis.map(a => <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>)}
-                        {cursos.filter(c => c.type === "medio").flatMap(c => c.anos_academicos).map(a => <option key={a} value={a}>{a.replace(/_ano_medio$/, "º Médio")}</option>)}
-                        {cursos.filter(c => c.type === "superior").flatMap(c => c.anos_academicos).map(a => <option key={a} value={a}>{a.replace(/_ano_superior$/, "º Superior")}</option>)}
-                      </Sel>
-                    </Field>
-                    {/* Seletor de curso para turmas do médio/superior */}
-                    {(turmaConfig.nivel.includes("medio") || turmaConfig.nivel.includes("superior") || turmaConfig.nivel === "random") &&
-                      cursos.filter(c => c.type === "medio" || c.type === "superior").length > 0 && (
-                      <Field label="Curso (turma)">
-                        <Sel value={turmaConfig.cursoId} onChange={e => setTurmaConfig(p => ({ ...p, cursoId: e.target.value }))}>
-                          <option value="auto">Auto (por nível)</option>
-                          {cursos.filter(c => c.type === "medio" || c.type === "superior").map(c => (
-                            <option key={c.id} value={c.id}>{c.nome} ({c.type})</option>
-                          ))}
-                        </Sel>
-                      </Field>
-                    )}
-                    <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
-                  </Row>
-                </Section>
-
-                {/* Estudantes */}
-                <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
-                  <Row>
-                    <Field label="Quantidade">
-                      <Inp type="number" min={1} max={500} value={estudanteConfig.qtd} onChange={e => setEstudanteConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                    </Field>
-                    {(selectedAcademia.nivel === "fundamental" || selectedAcademia.nivel === "misto") && (
-                      <Field label="Ano escolar">
-                        <Sel value={estudanteConfig.anoEscolar} onChange={e => setEstudanteConfig(p => ({ ...p, anoEscolar: e.target.value }))}>
-                          <option value="random">Aleatório</option>
-                          {anosDisponiveis.map(a => <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fund.")}</option>)}
-                        </Sel>
-                      </Field>
-                    )}
-                    <Field label="Status Fund.">
-                      <Sel value={estudanteConfig.statusFund} onChange={e => setEstudanteConfig(p => ({ ...p, statusFund: e.target.value }))}>
-                        <option value="em_andamento">Em andamento</option>
-                        <option value="inativo">Inativo</option>
-                        <option value="finalizado">Finalizado</option>
-                      </Sel>
-                    </Field>
-                    <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">Gerar Estudantes</Btn>
-                  </Row>
-                </Section>
-
-                {/* Vincular Estudantes a Turmas */}
-                {turmas.length > 0 && estudantes.length > 0 && (
-                  <Section
-                    title="Vincular Estudantes a Turmas"
-                    badge={estudantesSemTurma.length > 0 ? `${estudantesSemTurma.length} sem turma` : "todos vinculados"}
-                  >
-                    {estudantesSemTurma.length === 0 ? (
-                      <p style={{ color: "#4ade80", fontSize: 12, margin: 0 }}>✓ Todos os estudantes já estão vinculados a turmas.</p>
-                    ) : (
-                      <Row>
-                        <Field label="Turma alvo">
-                          <Sel
-                            value={vincularConfig.turmaCodigo}
-                            onChange={e => setVincularConfig({ turmaCodigo: e.target.value })}
-                            style={{ minWidth: 200 }}
-                          >
-                            <option value="random">Aleatória (distribuir)</option>
-                            {turmas
-                              .filter(t => (t as any).status !== "inativo" && (t as any).status !== "deletado")
-                              .map(t => (
-                                <option key={t.codigo_turma} value={t.codigo_turma}>
-                                  {t.codigo_turma} — {t.nivel.replace(/_ano_(fundamental|medio|superior)$/, "º $1")} ({t.estudantes.length} alunos)
-                                </option>
-                              ))
-                            }
-                          </Sel>
-                        </Field>
-                        <Btn
-                          onClick={() => withLoading(vincularEstudantesATurmas)}
-                          color="#0f4c75"
-                        >
-                          Vincular {estudantesSemTurma.length} sem turma
-                        </Btn>
-                      </Row>
-                    )}
-                    <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                      Apenas estudantes SEM turma serão vinculados.
-                    </p>
-                  </Section>
+                    </Sel>
+                  </Field>
+                  <Field label="Qtd">
+                    <Inp type="number" min={1} max={5} value={cursoConfig.qtd} onChange={e => setCursoConfig(p => ({ ...p, qtd: +e.target.value }))} />
+                  </Field>
+                  <Btn onClick={() => withLoading(gerarCursos)} color="#7c3aed">Gerar Cursos</Btn>
+                </Row>
+                {cursos.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                    {cursos.map(c => (
+                      <span key={c.id} style={{ fontSize: 11, padding: "3px 8px", background: "#1e293b", borderRadius: 20, color: "#94a3b8" }}>{c.nome} <span style={{ color: "#475569" }}>({c.type})</span></span>
+                    ))}
+                  </div>
                 )}
-
-                {/* Notas */}
-                <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
-                  <Row>
-                    <Field label="Nº estudantes (0 = todos)">
-                      <Inp
-                        type="number"
-                        min={0}
-                        max={estudantes.length || 100}
-                        value={notaConfig.qtdEstudantes}
-                        onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))}
-                      />
-                    </Field>
-                    {selectedAcademia.tipo !== "superior" && (
-                      <Field label="Período">
-                        <Sel value={notaConfig.periodo} onChange={e => setNotaConfig(p => ({ ...p, periodo: e.target.value }))}>
-                          {periodosNotaDisponiveis.map(p => (
-                            <option key={p.value} value={p.value}>{p.label}</option>
-                          ))}
-                        </Sel>
-                      </Field>
-                    )}
-                    <Btn
-                      onClick={() => withLoading(gerarNotas)}
-                      color="#b45309"
-                      disabled={materias.length === 0 || estudantes.length === 0}
-                    >
-                      Gerar Notas
-                    </Btn>
-                  </Row>
-                  <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                    {selectedAcademia.tipo === "superior"
-                      ? "Tipo: superior / categoria: nota_exame / período: por matéria · Pula estudantes que já têm nota para a matéria+período"
-                      : "Tipo: escolar / categoria: nota_escola · Pula estudantes que já têm nota para a matéria+período no ano letivo atual"}
-                  </p>
-                </Section>
-
-                {/* Faltas */}
-                <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
-                  <Row>
-                    <Field label="Nº estudantes (0 = todos)">
-                      <Inp
-                        type="number"
-                        min={0}
-                        max={estudantes.length || 100}
-                        value={faltaConfig.qtdEstudantes}
-                        onChange={e => setFaltaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))}
-                      />
-                    </Field>
-                    <Btn
-                      onClick={() => withLoading(gerarFaltas)}
-                      color="#b45309"
-                      disabled={materias.length === 0 || estudantes.length === 0}
-                    >
-                      Gerar Faltas
-                    </Btn>
-                  </Row>
-                  <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                    2 matérias por estudante · datas aleatórias de 2025 · Pula se já existe falta para matéria+data no ano letivo atual
-                  </p>
-                </Section>
-
-                {/* Avaliações Finais */}
-                <Section title="Avaliações Finais" badge={estudantes.length === 0 ? "crie estudantes primeiro" : `${estudantes.length} estudantes`}>
-                  <Row>
-                    <Field label="Tipo ensino">
-                      <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
-                        {(selectedAcademia.nivel === "fundamental" || selectedAcademia.nivel === "misto") && <option value="fundamental">Fundamental</option>}
-                        {(selectedAcademia.nivel === "medio" || selectedAcademia.nivel === "misto") && <option value="medio">Médio</option>}
-                        {selectedAcademia.tipo === "superior" && <option value="superior">Superior</option>}
-                      </Sel>
-                    </Field>
-                    <Field label="% Aprovação">
-                      <Inp type="number" min={0} max={100} value={avalConfig.aprovPct} onChange={e => setAvalConfig(p => ({ ...p, aprovPct: +e.target.value }))} />
-                    </Field>
-                    <Btn
-                      onClick={() => withLoading(gerarAvaliacoes)}
-                      color="#7c3aed"
-                      disabled={estudantes.length === 0}
-                    >
-                      Avaliar TODOS ({estudantes.length})
-                    </Btn>
-                  </Row>
-                  <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                    Avalia todos os {estudantes.length} estudantes · {Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovações estimadas
-                  </p>
-                </Section>
-              </>
+              </Section>
             )}
+
+            {/* Matérias */}
+            <Section title="Matérias Disciplinares" badge={`${materias.length} ativas`}>
+              {tiposMateriaDisponiveis.length === 0 ? (
+                <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>Tipo de academia não suporta matérias nesta configuração.</p>
+              ) : (
+                <>
+                  <Row>
+                    <Field label="Tipo">
+                      <Sel
+                        value={materiaConfig.tipo}
+                        onChange={e => {
+                          const newTipo = e.target.value as any;
+                          setMateriaConfig(p => ({ ...p, tipo: newTipo, cursoId: "auto" }));
+                        }}
+                      >
+                        {tiposMateriaDisponiveis.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </Sel>
+                    </Field>
+                    {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") && (
+                      <Field label="Curso">
+                        <Sel value={materiaConfig.cursoId} onChange={e => setMateriaConfig(p => ({ ...p, cursoId: e.target.value }))}>
+                          <option value="auto">Auto (primeiro disponível)</option>
+                          {cursos.filter(c => c.type === materiaConfig.tipo).map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                    )}
+                    <Field label="Qtd">
+                      <Inp type="number" min={1} max={10} value={materiaConfig.qtd} onChange={e => setMateriaConfig(p => ({ ...p, qtd: +e.target.value }))} />
+                    </Field>
+                    <Btn
+                      onClick={() => withLoading(gerarMaterias)}
+                      color="#7c3aed"
+                      disabled={
+                        (materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") &&
+                        cursos.filter(c => c.type === materiaConfig.tipo).length === 0
+                      }
+                    >
+                      Gerar Matérias
+                    </Btn>
+                  </Row>
+                  {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") &&
+                    cursos.filter(c => c.type === materiaConfig.tipo).length === 0 && (
+                    <p style={{ margin: 0, fontSize: 11, color: "#ef4444" }}>
+                      ✗ Nenhum curso do tipo &ldquo;{materiaConfig.tipo}&rdquo; criado — crie cursos primeiro
+                    </p>
+                  )}
+                  {materias.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {materias.slice(0, 12).map(m => (
+                        <span key={m.id} style={{ fontSize: 11, padding: "3px 8px", background: "#1e293b", borderRadius: 20, color: "#94a3b8" }}>
+                          {m.nome} <span style={{ color: "#475569" }}>({m.type})</span>
+                        </span>
+                      ))}
+                      {materias.length > 12 && <span style={{ fontSize: 11, color: "#475569" }}>+{materias.length - 12} mais</span>}
+                    </div>
+                  )}
+                </>
+              )}
+            </Section>
+
+            {/* Turmas */}
+            <Section title="Turmas" badge={`${turmas.length} criadas`}>
+              <Row>
+                <Field label="Quantidade">
+                  <Inp type="number" min={1} max={20} value={turmaConfig.qtd} onChange={e => setTurmaConfig(p => ({ ...p, qtd: +e.target.value }))} />
+                </Field>
+                <Field label="Turno">
+                  <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
+                    <option value="random">Aleatório</option>
+                    <option value="manha">Manhã</option>
+                    <option value="tarde">Tarde</option>
+                    <option value="noite">Noite</option>
+                  </Sel>
+                </Field>
+                <Field label="Nível">
+                  <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
+                    <option value="random">Aleatório</option>
+                    {anosDisponiveis.map(a => <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>)}
+                    {cursos.filter(c => c.type === "medio").flatMap(c => c.anos_academicos).map(a => <option key={a} value={a}>{a.replace(/_ano_medio$/, "º Médio")}</option>)}
+                    {cursos.filter(c => c.type === "superior").flatMap(c => c.anos_academicos).map(a => <option key={a} value={a}>{a.replace(/_ano_superior$/, "º Superior")}</option>)}
+                  </Sel>
+                </Field>
+                {(turmaConfig.nivel.includes("medio") || turmaConfig.nivel.includes("superior") || turmaConfig.nivel === "random") &&
+                  cursos.filter(c => c.type === "medio" || c.type === "superior").length > 0 && (
+                  <Field label="Curso (turma)">
+                    <Sel value={turmaConfig.cursoId} onChange={e => setTurmaConfig(p => ({ ...p, cursoId: e.target.value }))}>
+                      <option value="auto">Auto (por nível)</option>
+                      {cursos.filter(c => c.type === "medio" || c.type === "superior").map(c => (
+                        <option key={c.id} value={c.id}>{c.nome} ({c.type})</option>
+                      ))}
+                    </Sel>
+                  </Field>
+                )}
+                <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
+              </Row>
+            </Section>
+
+            {/* Estudantes */}
+            <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
+              <Row>
+                <Field label="Quantidade">
+                  <Inp type="number" min={1} max={500} value={estudanteConfig.qtd} onChange={e => setEstudanteConfig(p => ({ ...p, qtd: +e.target.value }))} />
+                </Field>
+                {(academia.nivel === "fundamental" || academia.nivel === "misto") && (
+                  <Field label="Ano escolar">
+                    <Sel value={estudanteConfig.anoEscolar} onChange={e => setEstudanteConfig(p => ({ ...p, anoEscolar: e.target.value }))}>
+                      <option value="random">Aleatório</option>
+                      {anosDisponiveis.map(a => <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fund.")}</option>)}
+                    </Sel>
+                  </Field>
+                )}
+                <Field label="Status Fund.">
+                  <Sel value={estudanteConfig.statusFund} onChange={e => setEstudanteConfig(p => ({ ...p, statusFund: e.target.value }))}>
+                    <option value="em_andamento">Em andamento</option>
+                    <option value="inativo">Inativo</option>
+                    <option value="finalizado">Finalizado</option>
+                  </Sel>
+                </Field>
+                <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">Gerar Estudantes</Btn>
+              </Row>
+            </Section>
+
+            {/* Vincular Estudantes a Turmas */}
+            {turmas.length > 0 && estudantes.length > 0 && (
+              <Section
+                title="Vincular Estudantes a Turmas"
+                badge={estudantesSemTurma.length > 0 ? `${estudantesSemTurma.length} sem turma` : "todos vinculados"}
+              >
+                {estudantesSemTurma.length === 0 ? (
+                  <p style={{ color: "#4ade80", fontSize: 12, margin: 0 }}>✓ Todos os estudantes já estão vinculados a turmas.</p>
+                ) : (
+                  <Row>
+                    <Field label="Turma alvo">
+                      <Sel
+                        value={vincularConfig.turmaCodigo}
+                        onChange={e => setVincularConfig({ turmaCodigo: e.target.value })}
+                        style={{ minWidth: 200 }}
+                      >
+                        <option value="random">Aleatória (distribuir)</option>
+                        {turmas
+                          .filter(t => t.status !== "inativo" && t.status !== "deletado")
+                          .map(t => (
+                            <option key={t.codigo_turma} value={t.codigo_turma}>
+                              {t.codigo_turma} — {t.nivel.replace(/_ano_(fundamental|medio|superior)$/, "º $1")} ({t.estudantes.length} alunos)
+                            </option>
+                          ))
+                        }
+                      </Sel>
+                    </Field>
+                    <Btn onClick={() => withLoading(vincularEstudantesATurmas)} color="#0f4c75">
+                      Vincular {estudantesSemTurma.length} sem turma
+                    </Btn>
+                  </Row>
+                )}
+                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                  Apenas estudantes SEM turma serão vinculados.
+                </p>
+              </Section>
+            )}
+
+            {/* Notas */}
+            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
+              <Row>
+                <Field label="Nº estudantes (0 = todos)">
+                  <Inp
+                    type="number"
+                    min={0}
+                    max={estudantes.length || 100}
+                    value={notaConfig.qtdEstudantes}
+                    onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))}
+                  />
+                </Field>
+                {academia.tipo !== "superior" && (
+                  <Field label="Período">
+                    <Sel value={notaConfig.periodo} onChange={e => setNotaConfig(p => ({ ...p, periodo: e.target.value }))}>
+                      {periodosNotaDisponiveis.map(p => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </Sel>
+                  </Field>
+                )}
+                <Btn
+                  onClick={() => withLoading(gerarNotas)}
+                  color="#b45309"
+                  disabled={materias.length === 0 || estudantes.length === 0}
+                >
+                  Gerar Notas
+                </Btn>
+              </Row>
+              <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+                {academia.tipo === "superior"
+                  ? "Tipo: superior / categoria: nota_exame / período: por matéria"
+                  : "Tipo: escolar / categoria: nota_escola · Pula estudantes com nota existente"}
+              </p>
+            </Section>
+
+            {/* Faltas */}
+            <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
+              <Row>
+                <Field label="Nº estudantes (0 = todos)">
+                  <Inp
+                    type="number"
+                    min={0}
+                    max={estudantes.length || 100}
+                    value={faltaConfig.qtdEstudantes}
+                    onChange={e => setFaltaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))}
+                  />
+                </Field>
+                <Btn
+                  onClick={() => withLoading(gerarFaltas)}
+                  color="#b45309"
+                  disabled={materias.length === 0 || estudantes.length === 0}
+                >
+                  Gerar Faltas
+                </Btn>
+              </Row>
+              <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+                2 matérias por estudante · datas aleatórias de 2025 · Pula falta duplicada
+              </p>
+            </Section>
+
+            {/* Avaliações Finais */}
+            <Section title="Avaliações Finais" badge={estudantes.length === 0 ? "crie estudantes primeiro" : `${estudantes.length} estudantes`}>
+              <Row>
+                <Field label="Tipo ensino">
+                  <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
+                    {(academia.nivel === "fundamental" || academia.nivel === "misto") && <option value="fundamental">Fundamental</option>}
+                    {(academia.nivel === "medio" || academia.nivel === "misto") && <option value="medio">Médio</option>}
+                    {academia.tipo === "superior" && <option value="superior">Superior</option>}
+                  </Sel>
+                </Field>
+                <Field label="% Aprovação">
+                  <Inp type="number" min={0} max={100} value={avalConfig.aprovPct} onChange={e => setAvalConfig(p => ({ ...p, aprovPct: +e.target.value }))} />
+                </Field>
+                <Btn
+                  onClick={() => withLoading(gerarAvaliacoes)}
+                  color="#7c3aed"
+                  disabled={estudantes.length === 0}
+                >
+                  Avaliar TODOS ({estudantes.length})
+                </Btn>
+              </Row>
+              <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+                {Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovações estimadas de {estudantes.length}
+              </p>
+            </Section>
           </div>
         </div>
 

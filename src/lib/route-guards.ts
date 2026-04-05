@@ -73,9 +73,17 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     allowedTypes: ['academia'],
     redirectIfUnauthorized: '/',
   },
-  // /gerenciamento redireciona via page.tsx — manter permissão para academia
   {
     path: '/gerenciamento',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+
+  // ==========================================
+  // ROTAS DE TESTES — apenas academia
+  // ==========================================
+  {
+    path: '/dev/seed',
     allowedTypes: ['academia'],
     redirectIfUnauthorized: '/',
   },

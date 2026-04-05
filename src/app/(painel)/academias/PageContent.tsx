@@ -31,13 +31,19 @@ type OrdemAcademias =
   | 'estudantes_desc' | 'estudantes_asc'
   | 'cadastro_desc' | 'cadastro_asc';
 
-// "tudo" = todas as academias sem filtro de província
 type LayerEscala =
   | { tipo: 'provincias' }
-  | { tipo: 'academias'; provincia: string | null }; // null = "Tudo"
+  | { tipo: 'academias'; provincia: string | null };
+
+// Resultado de operação em lote
+interface BatchResultItem {
+  codigo: string;
+  nome: string;
+  sucesso: boolean;
+  mensagem: string;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 
 function formatarNomeProvincia(nome: string): string {
   return nome.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -261,14 +267,82 @@ function AcoesDropdown({
   );
 }
 
+// ─── Modal de Resultado em Lote ───────────────────────────────────────────────
+
+function ModalResultadoLote({
+  isOpen,
+  onClose,
+  resultados,
+  titulo,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  resultados: BatchResultItem[];
+  titulo: string;
+}) {
+  const sucessos = resultados.filter(r => r.sucesso);
+  const falhas = resultados.filter(r => !r.sucesso);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[600px] p-5 lg:p-8">
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-2">{titulo}</h4>
+        <div className="flex gap-4 mb-5">
+          <div className="flex-1 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
+            <div className="text-2xl font-bold text-green-700 dark:text-green-400">{sucessos.length}</div>
+            <div className="text-xs text-green-600 dark:text-green-500 mt-0.5">Sucesso</div>
+          </div>
+          <div className="flex-1 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-center">
+            <div className="text-2xl font-bold text-red-700 dark:text-red-400">{falhas.length}</div>
+            <div className="text-xs text-red-600 dark:text-red-500 mt-0.5">Falhas</div>
+          </div>
+          <div className="flex-1 p-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.05] rounded-lg text-center">
+            <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{resultados.length}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total</div>
+          </div>
+        </div>
+
+        {/* Lista de resultados */}
+        <div className="max-h-64 overflow-y-auto space-y-2">
+          {resultados.map((r, i) => (
+            <div key={i} className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${r.sucesso ? 'bg-green-50 dark:bg-green-900/10' : 'bg-red-50 dark:bg-red-900/10'}`}>
+              <span className={`mt-0.5 flex-shrink-0 ${r.sucesso ? 'text-green-500' : 'text-red-500'}`}>
+                {r.sucesso ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-gray-800 dark:text-white/90">{r.codigo}</span>
+                {r.nome && <span className="text-gray-500 dark:text-gray-400"> — {r.nome}</span>}
+                {!r.sucesso && r.mensagem && (
+                  <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">{r.mensagem}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end mt-5">
+          <Button size="sm" variant="outline" onClick={onClose}>Fechar</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Tabela de Academias (reutilizável) ───────────────────────────────────────
 
 function TabelaAcademias({
   academias, isAdmin, carregandoAtivar, carregandoDesativar,
   onVerDetalhes, onAtivar, onAbrirDesativar,
+  // Seleção em lote
+  selecionadas, onToggleSelecao, onToggleTodas,
 }: {
   academias: AcademiaDetalhada[]; isAdmin: boolean; carregandoAtivar: boolean; carregandoDesativar: boolean;
   onVerDetalhes: (a: AcademiaDetalhada) => void; onAtivar: (a: AcademiaDetalhada) => void; onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  selecionadas: Set<string>; onToggleSelecao: (id: string) => void; onToggleTodas: (todas: AcademiaDetalhada[]) => void;
 }) {
   if (academias.length === 0) {
     return (
@@ -279,10 +353,24 @@ function TabelaAcademias({
     );
   }
 
+  const todasSelecionadas = academias.length > 0 && academias.every(a => selecionadas.has(a.id));
+  const algumasSelecionadas = academias.some(a => selecionadas.has(a.id));
+
   return (
     <Table className="w-full">
       <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
         <TableRow>
+          {isAdmin && (
+            <TableCell isHeader className="px-4 py-3 w-10">
+              <input
+                type="checkbox"
+                checked={todasSelecionadas}
+                ref={el => { if (el) el.indeterminate = algumasSelecionadas && !todasSelecionadas; }}
+                onChange={() => onToggleTodas(academias)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-500 cursor-pointer"
+              />
+            </TableCell>
+          )}
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
@@ -295,7 +383,17 @@ function TabelaAcademias({
       </TableHeader>
       <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
         {academias.map(academia => (
-          <TableRow key={academia.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+          <TableRow key={academia.id} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas.has(academia.id) ? 'bg-brand-50/30 dark:bg-brand-900/10' : ''}`}>
+            {isAdmin && (
+              <TableCell className="px-4 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={selecionadas.has(academia.id)}
+                  onChange={() => onToggleSelecao(academia.id)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-500 cursor-pointer"
+                />
+              </TableCell>
+            )}
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">{academia.nome}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">{academia.codigo_academia}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{academia.type}</TableCell>
@@ -319,11 +417,93 @@ function TabelaAcademias({
   );
 }
 
+// ─── Barra de ações em lote ───────────────────────────────────────────────────
+
+function BarraLote({
+  selecionadas,
+  academiasList,
+  onLimparSelecao,
+  onAtivarLote,
+  onDesativarLote,
+  carregandoLote,
+}: {
+  selecionadas: Set<string>;
+  academiasList: AcademiaDetalhada[];
+  onLimparSelecao: () => void;
+  onAtivarLote: () => void;
+  onDesativarLote: () => void;
+  carregandoLote: boolean;
+}) {
+  if (selecionadas.size === 0) return null;
+
+  const selecionadasList = academiasList.filter(a => selecionadas.has(a.id));
+  const quantasAtivas = selecionadasList.filter(a => a.status === 'ativo').length;
+  const quantasInativas = selecionadasList.filter(a => a.status === 'inativo').length;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
+      <div className="flex items-center gap-2">
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold">
+          {selecionadas.size}
+        </span>
+        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
+          academia{selecionadas.size !== 1 ? 's' : ''} selecionada{selecionadas.size !== 1 ? 's' : ''}
+        </span>
+        {quantasAtivas > 0 && (
+          <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+            {quantasAtivas} ativa{quantasAtivas !== 1 ? 's' : ''}
+          </span>
+        )}
+        {quantasInativas > 0 && (
+          <span className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
+            {quantasInativas} inativa{quantasInativas !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 ml-auto">
+        {quantasInativas > 0 && (
+          <Button
+            size="sm"
+            variant="success"
+            disabled={carregandoLote}
+            onClick={onAtivarLote}
+            startIcon={<Icon icon="mdi:check-circle-outline" width={16} />}
+          >
+            {carregandoLote ? 'Processando...' : `Ativar ${quantasInativas}`}
+          </Button>
+        )}
+        {quantasAtivas > 0 && (
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={carregandoLote}
+            onClick={onDesativarLote}
+            startIcon={<Icon icon="mdi:close-circle-outline" width={16} />}
+          >
+            {carregandoLote ? 'Processando...' : `Desativar ${quantasAtivas}`}
+          </Button>
+        )}
+        <button
+          onClick={onLimparSelecao}
+          className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors"
+          title="Limpar seleção"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Vista em Escala — drill-down Províncias → Academias ─────────────────────
 
 function VistaEscalaAcademias({
   academias, ordem, isAdmin, carregandoAtivar, carregandoDesativar,
   onVerDetalhes, onAtivar, onAbrirDesativar,
+  selecionadas, onToggleSelecao, onToggleTodas,
 }: {
   academias: AcademiaDetalhada[];
   ordem: OrdemAcademias;
@@ -333,11 +513,12 @@ function VistaEscalaAcademias({
   onVerDetalhes: (a: AcademiaDetalhada) => void;
   onAtivar: (a: AcademiaDetalhada) => void;
   onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  selecionadas: Set<string>;
+  onToggleSelecao: (id: string) => void;
+  onToggleTodas: (todas: AcademiaDetalhada[]) => void;
 }) {
   const [layer, setLayer] = useState<LayerEscala>({ tipo: 'provincias' });
 
-  // ── Mapa por CÓDIGO de província (ex: "LUA", "BGO")
-  // a.provincia vem da API como código, não como nome
   const porCodigo = useMemo(() => {
     const map: Record<string, AcademiaDetalhada[]> = {};
     academias.forEach(a => {
@@ -349,33 +530,28 @@ function VistaEscalaAcademias({
     return map;
   }, [academias]);
 
-  // Províncias do array Provincias que têm academias — comparadas pelo codigo
   const provinciasComAcademias = useMemo(() =>
     Provincias.filter(p => (porCodigo[p.codigo.toUpperCase()] ?? []).length > 0),
     [porCodigo]
   );
 
-  // Códigos que existem nos dados mas não estão no array Provincias (fallback)
   const codigosExtras = useMemo(() => {
     const conhecidos = new Set(Provincias.map(p => p.codigo.toUpperCase()));
     return Object.keys(porCodigo).filter(k => !conhecidos.has(k));
   }, [porCodigo]);
 
-  // Academias para o layer atual (provincia === null → todas)
   const academiasDoLayer = useMemo(() => {
     if (layer.tipo !== 'academias') return [];
     if (layer.provincia === null) return ordenarAcademias(academias, ordem);
     return ordenarAcademias(porCodigo[layer.provincia.toUpperCase()] ?? [], ordem);
   }, [layer, porCodigo, academias, ordem]);
 
-  // Resolve nome legível a partir do código armazenado no layer
   const nomeDoLayer = useMemo(() => {
     if (layer.tipo !== 'academias' || layer.provincia === null) return 'Todas as Províncias';
     const prov = Provincias.find(p => p.codigo.toUpperCase() === layer.provincia!.toUpperCase());
     return prov ? formatarNomeProvincia(prov.nome) : layer.provincia;
   }, [layer]);
 
-  // ── Layer: Províncias ──
   if (layer.tipo === 'provincias') {
     const totalGeral      = academias.length;
     const ativasGeral     = academias.filter(a => a.status === 'ativo').length;
@@ -388,8 +564,6 @@ function VistaEscalaAcademias({
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-
-          {/* ── Card "Tudo" ── */}
           <button
             onClick={() => setLayer({ tipo: 'academias', provincia: null })}
             className="flex flex-col gap-2 p-4 rounded-xl border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 hover:border-brand-500 hover:shadow-md transition-all text-left group"
@@ -398,9 +572,7 @@ function VistaEscalaAcademias({
               <Icon icon="mdi:earth" width={16} className="text-brand-400" />
               <Icon icon="mdi:chevron-right" width={15} className="text-brand-300 group-hover:text-brand-500 transition-colors" />
             </div>
-            <p className="text-sm font-bold text-brand-700 dark:text-brand-300 leading-snug">
-              Todas as Províncias
-            </p>
+            <p className="text-sm font-bold text-brand-700 dark:text-brand-300 leading-snug">Todas as Províncias</p>
             <div className="space-y-0.5 w-full">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-brand-600 dark:text-brand-400">{totalGeral} academia{totalGeral !== 1 ? 's' : ''}</span>
@@ -410,7 +582,6 @@ function VistaEscalaAcademias({
             </div>
           </button>
 
-          {/* ── Cards de províncias reconhecidas (via Provincias[]) ── */}
           {provinciasComAcademias.map(prov => {
             const lista    = porCodigo[prov.codigo.toUpperCase()] ?? [];
             const ativas   = lista.filter(a => a.status === 'ativo').length;
@@ -426,9 +597,7 @@ function VistaEscalaAcademias({
                   <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">{prov.codigo}</span>
                   <Icon icon="mdi:chevron-right" width={15} className="text-gray-300 group-hover:text-brand-500 transition-colors" />
                 </div>
-                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">
-                  {formatarNomeProvincia(prov.nome)}
-                </p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">{formatarNomeProvincia(prov.nome)}</p>
                 <div className="space-y-0.5 w-full">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500 dark:text-gray-400">{lista.length} academia{lista.length !== 1 ? 's' : ''}</span>
@@ -440,12 +609,10 @@ function VistaEscalaAcademias({
             );
           })}
 
-          {/* ── Cards de códigos extras (não reconhecidos no array Provincias) ── */}
           {codigosExtras.map(codigo => {
             const lista    = porCodigo[codigo] ?? [];
             const ativas   = lista.filter(a => a.status === 'ativo').length;
             const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
-            const nomeExib = codigo;
 
             return (
               <button
@@ -457,9 +624,7 @@ function VistaEscalaAcademias({
                   <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">—</span>
                   <Icon icon="mdi:chevron-right" width={15} className="text-gray-300 group-hover:text-brand-500 transition-colors" />
                 </div>
-                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">
-                  {nomeExib}
-                </p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">{codigo}</p>
                 <div className="space-y-0.5 w-full">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500 dark:text-gray-400">{lista.length} academia{lista.length !== 1 ? 's' : ''}</span>
@@ -482,7 +647,6 @@ function VistaEscalaAcademias({
     );
   }
 
-  // ── Layer: Academias de uma Província (ou todas) ──
   const ativas   = academiasDoLayer.filter(a => a.status === 'ativo').length;
   const inativas = academiasDoLayer.filter(a => a.status !== 'ativo').length;
   const totalEst = academiasDoLayer.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
@@ -492,7 +656,6 @@ function VistaEscalaAcademias({
 
   return (
     <div className="space-y-4">
-      {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm">
         <button
           onClick={() => setLayer({ tipo: 'provincias' })}
@@ -502,12 +665,9 @@ function VistaEscalaAcademias({
           Províncias
         </button>
         <Icon icon="mdi:chevron-right" width={16} className="text-gray-300 dark:text-gray-600" />
-        <span className="font-medium text-gray-900 dark:text-white">
-          {tituloLayer}
-        </span>
+        <span className="font-medium text-gray-900 dark:text-white">{tituloLayer}</span>
       </nav>
 
-      {/* Banner */}
       <div className="flex flex-wrap items-center gap-6 px-5 py-4 bg-brand-50 dark:bg-brand-900/20 rounded-xl border border-brand-200 dark:border-brand-800">
         <div className="flex items-center gap-2">
           <Icon icon={layer.provincia === null ? 'mdi:earth' : 'mdi:map-marker'} width={18} className="text-brand-600 dark:text-brand-400" />
@@ -521,7 +681,6 @@ function VistaEscalaAcademias({
         </div>
       </div>
 
-      {/* Tabela */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="w-full overflow-x-auto">
           <TabelaAcademias
@@ -532,6 +691,9 @@ function VistaEscalaAcademias({
             onVerDetalhes={onVerDetalhes}
             onAtivar={onAtivar}
             onAbrirDesativar={onAbrirDesativar}
+            selecionadas={selecionadas}
+            onToggleSelecao={onToggleSelecao}
+            onToggleTodas={onToggleTodas}
           />
         </div>
       </div>
@@ -545,12 +707,20 @@ export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
   const { isOpen: isDetailsOpen,   openModal: openDetailsModal,   closeModal: closeDetailsModal  } = useModal();
   const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
+  const { isOpen: isDesativarLoteOpen, openModal: openDesativarLoteModal, closeModal: closeDesativarLoteModal } = useModal();
+  const { isOpen: isResultadoLoteOpen, openModal: openResultadoLoteModal, closeModal: closeResultadoLoteModal } = useModal();
 
   const [carregado,    setCarregado]    = useState(false);
-  // Vista em escala é o padrão (true)
   const [vistaEscala,  setVistaEscala]  = useState(true);
   const [ordem,        setOrdem]        = useState<OrdemAcademias>('nome_asc');
   const [paginaAtual,  setPaginaAtual]  = useState(1);
+
+  // Seleção em lote
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [motivoDesativacaoLote, setMotivoDesativacaoLote] = useState('');
+  const [carregandoLote, setCarregandoLote] = useState(false);
+  const [resultadosLote, setResultadosLote] = useState<BatchResultItem[]>([]);
+  const [tituloResultadoLote, setTituloResultadoLote] = useState('');
 
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
   const { loading: carregandoAtivar,    error: erroAtivarAcademia,    execute: executarAtivar    } = useApi(adminService.ativarAcademia);
@@ -564,15 +734,21 @@ export default function Academias() {
   const isAdmin = !loadingUser && user?.tipo === 'admin';
 
   const carregarLista = useCallback(async () => {
-    try { const token = tokenStorage.get(); await carregarAcademias(token || undefined); setCarregado(true); }
-    catch {}
+    try {
+      const token = tokenStorage.get();
+      await carregarAcademias(token || undefined);
+      setCarregado(true);
+    } catch {}
   }, [carregarAcademias]);
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
-      try { const token = tokenStorage.get(); await carregarAcademias(token || undefined); if (isMounted) setCarregado(true); }
-      catch {}
+      try {
+        const token = tokenStorage.get();
+        await carregarAcademias(token || undefined);
+        if (isMounted) setCarregado(true);
+      } catch {}
     })();
     return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -589,13 +765,20 @@ export default function Academias() {
     [academiasOrdenadas, paginaAtual]
   );
 
+  // ─── Handlers individuais ──────────────────────────────────────────────────
+
   const handleVerDetalhes    = (a: AcademiaDetalhada) => { setAcademiaSelecionada(a); openDetailsModal(); };
   const handleAbrirDesativar = (a: AcademiaDetalhada) => { setAcademiaParaDesativar(a); setMotivoDesativacao(''); openDesativarModal(); };
 
   const handleAtivar = async (academia: AcademiaDetalhada) => {
     if (!confirm(`Tem certeza que deseja ativar "${academia.nome}"?`)) return;
-    try { await executarAtivar(academia.codigo_academia, tokenStorage.get() || undefined); alert('Academia ativada!'); carregarLista(); }
-    catch { alert('Erro ao ativar academia.'); }
+    try {
+      await executarAtivar(academia.codigo_academia, tokenStorage.get() || undefined);
+      alert('Academia ativada!');
+      carregarLista();
+    } catch {
+      alert('Erro ao ativar academia.');
+    }
   };
 
   const handleDesativar = async (e: React.FormEvent) => {
@@ -604,9 +787,108 @@ export default function Academias() {
     try {
       await executarDesativar(academiaParaDesativar.codigo_academia, { motivo: motivoDesativacao.trim() }, tokenStorage.get() || undefined);
       alert('Academia desativada!');
-      closeDesativarModal(); setAcademiaParaDesativar(null); setMotivoDesativacao('');
+      closeDesativarModal();
+      setAcademiaParaDesativar(null);
+      setMotivoDesativacao('');
       carregarLista();
-    } catch { alert('Erro ao desativar academia.'); }
+    } catch {
+      alert('Erro ao desativar academia.');
+    }
+  };
+
+  // ─── Handlers de seleção ──────────────────────────────────────────────────
+
+  const handleToggleSelecao = useCallback((id: string) => {
+    setSelecionadas(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleTodas = useCallback((todas: AcademiaDetalhada[]) => {
+    setSelecionadas(prev => {
+      const todasIds = todas.map(a => a.id);
+      const todasSelecionadas = todasIds.every(id => prev.has(id));
+      if (todasSelecionadas) {
+        const next = new Set(prev);
+        todasIds.forEach(id => next.delete(id));
+        return next;
+      } else {
+        const next = new Set(prev);
+        todasIds.forEach(id => next.add(id));
+        return next;
+      }
+    });
+  }, []);
+
+  const handleLimparSelecao = () => setSelecionadas(new Set());
+
+  // ─── Handlers em lote ─────────────────────────────────────────────────────
+
+  const handleAtivarLote = async () => {
+    const selecionadasList = academiasList.filter(a => selecionadas.has(a.id) && a.status === 'inativo');
+    if (selecionadasList.length === 0) return;
+    if (!confirm(`Ativar ${selecionadasList.length} academia(s) selecionada(s)?`)) return;
+
+    setCarregandoLote(true);
+    const resultados: BatchResultItem[] = [];
+    const token = tokenStorage.get() || undefined;
+
+    for (const academia of selecionadasList) {
+      try {
+        await adminService.ativarAcademia(academia.codigo_academia, token);
+        resultados.push({ codigo: academia.codigo_academia, nome: academia.nome, sucesso: true, mensagem: 'Ativada com sucesso' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+        resultados.push({ codigo: academia.codigo_academia, nome: academia.nome, sucesso: false, mensagem: msg });
+      }
+    }
+
+    setCarregandoLote(false);
+    setResultadosLote(resultados);
+    setTituloResultadoLote(`Resultado: Ativar ${selecionadasList.length} Academia(s)`);
+    openResultadoLoteModal();
+    setSelecionadas(new Set());
+    carregarLista();
+  };
+
+  const handleAbrirDesativarLote = () => {
+    const selecionadasAtivas = academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo');
+    if (selecionadasAtivas.length === 0) return;
+    setMotivoDesativacaoLote('');
+    openDesativarLoteModal();
+  };
+
+  const handleDesativarLote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!motivoDesativacaoLote.trim()) return;
+
+    const selecionadasAtivas = academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo');
+    if (selecionadasAtivas.length === 0) return;
+
+    setCarregandoLote(true);
+    closeDesativarLoteModal();
+    const resultados: BatchResultItem[] = [];
+    const token = tokenStorage.get() || undefined;
+
+    for (const academia of selecionadasAtivas) {
+      try {
+        await adminService.desativarAcademia(academia.codigo_academia, { motivo: motivoDesativacaoLote.trim() }, token);
+        resultados.push({ codigo: academia.codigo_academia, nome: academia.nome, sucesso: true, mensagem: 'Desativada com sucesso' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+        resultados.push({ codigo: academia.codigo_academia, nome: academia.nome, sucesso: false, mensagem: msg });
+      }
+    }
+
+    setCarregandoLote(false);
+    setResultadosLote(resultados);
+    setTituloResultadoLote(`Resultado: Desativar ${selecionadasAtivas.length} Academia(s)`);
+    openResultadoLoteModal();
+    setSelecionadas(new Set());
+    carregarLista();
   };
 
   return (
@@ -626,7 +908,6 @@ export default function Academias() {
             {carregandoAcademias ? 'Carregando...' : 'Atualizar lista'}
           </Button>
 
-          {/* Toggle Vista */}
           {carregado && (
             <button
               onClick={() => setVistaEscala(p => !p)}
@@ -641,7 +922,6 @@ export default function Academias() {
             </button>
           )}
 
-          {/* Ordenar — disponível em ambas as vistas */}
           {carregado && (
             <BotaoOrdenar
               opcoes={OPCOES_ORDEM_ACADEMIAS}
@@ -658,35 +938,52 @@ export default function Academias() {
           )}
         </div>
 
+        {/* Barra de ações em lote */}
+        {isAdmin && selecionadas.size > 0 && (
+          <BarraLote
+            selecionadas={selecionadas}
+            academiasList={academiasList}
+            onLimparSelecao={handleLimparSelecao}
+            onAtivarLote={handleAtivarLote}
+            onDesativarLote={handleAbrirDesativarLote}
+            carregandoLote={carregandoLote}
+          />
+        )}
+
         {erroAcademias && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-700 dark:text-red-400">{erroAcademias}</p>
           </div>
         )}
 
-        {/* Loading na vista em escala */}
-        {carregandoAcademias && vistaEscala && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
-          </div>
+        {/* Vista em Escala */}
+        {vistaEscala && (
+          <>
+            {carregandoAcademias && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">Carregando academias...</p>
+              </div>
+            )}
+            {!carregandoAcademias && carregado && (
+              <VistaEscalaAcademias
+                academias={academiasList}
+                ordem={ordem}
+                isAdmin={isAdmin}
+                carregandoAtivar={carregandoAtivar}
+                carregandoDesativar={carregandoDesativar}
+                onVerDetalhes={handleVerDetalhes}
+                onAtivar={handleAtivar}
+                onAbrirDesativar={handleAbrirDesativar}
+                selecionadas={selecionadas}
+                onToggleSelecao={handleToggleSelecao}
+                onToggleTodas={handleToggleTodas}
+              />
+            )}
+          </>
         )}
 
-        {/* Vista em Escala (padrão) */}
-        {vistaEscala && carregado && (
-          <VistaEscalaAcademias
-            academias={academiasList}
-            ordem={ordem}
-            isAdmin={isAdmin}
-            carregandoAtivar={carregandoAtivar}
-            carregandoDesativar={carregandoDesativar}
-            onVerDetalhes={handleVerDetalhes}
-            onAtivar={handleAtivar}
-            onAbrirDesativar={handleAbrirDesativar}
-          />
-        )}
-
-        {/* Vista Tabela (secundária) */}
+        {/* Vista Tabela */}
         {!vistaEscala && (
           <div className="space-y-3">
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -711,6 +1008,9 @@ export default function Academias() {
                     onVerDetalhes={handleVerDetalhes}
                     onAtivar={handleAtivar}
                     onAbrirDesativar={handleAbrirDesativar}
+                    selecionadas={selecionadas}
+                    onToggleSelecao={handleToggleSelecao}
+                    onToggleTodas={handleToggleTodas}
                   />
                 )}
               </div>
@@ -752,7 +1052,7 @@ export default function Academias() {
           )}
         </Modal>
 
-        {/* Modal Desativar */}
+        {/* Modal Desativar individual */}
         <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
           <form onSubmit={handleDesativar}>
             <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
@@ -782,6 +1082,46 @@ export default function Academias() {
             </div>
           </form>
         </Modal>
+
+        {/* Modal Desativar em Lote */}
+        <Modal isOpen={isDesativarLoteOpen} onClose={closeDesativarLoteModal} className="max-w-[520px] p-5 lg:p-10">
+          <form onSubmit={handleDesativarLote}>
+            <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academias em Lote</h4>
+            <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                <span className="font-semibold">{academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo').length} academia(s) ativa(s)</span> serão desativadas.
+              </p>
+              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                {academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo').map(a => (
+                  <p key={a.id} className="text-xs text-yellow-700 dark:text-yellow-400">• {a.nome} ({a.codigo_academia})</p>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Motivo da desativação *</Label>
+              <textarea
+                className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
+                placeholder="Descreva o motivo..." rows={4}
+                value={motivoDesativacaoLote} onChange={e => setMotivoDesativacaoLote(e.target.value)}
+                disabled={carregandoLote} required
+              />
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <Button size="sm" variant="outline" onClick={closeDesativarLoteModal} disabled={carregandoLote}>Cancelar</Button>
+              <Button size="sm" variant="danger" disabled={carregandoLote}>
+                {carregandoLote ? 'Desativando...' : `Desativar ${academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo').length} Academia(s)`}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Modal Resultado Lote */}
+        <ModalResultadoLote
+          isOpen={isResultadoLoteOpen}
+          onClose={closeResultadoLoteModal}
+          resultados={resultadosLote}
+          titulo={tituloResultadoLote}
+        />
       </div>
     </div>
   );
