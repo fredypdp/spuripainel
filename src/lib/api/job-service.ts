@@ -1,5 +1,5 @@
 // src/lib/api/job-service.ts
-import { api, tokenStorage } from './client';
+import { api, getApiBaseUrl, tokenStorage } from './client';
 
 // =====================
 // Tipos de job
@@ -44,6 +44,9 @@ export interface JobItemResult {
   sucesso: boolean;
   dados?: unknown;
   erro?: string;
+  payload?: unknown;
+  error?: string;
+  message?: string;
 }
 
 export interface JobDetail extends JobSummary {
@@ -101,6 +104,44 @@ export interface PollOptions {
   onError?: (error: Error) => void;
 }
 
+export type JobEventType = 'job_enqueued' | 'job_progress' | 'job_done' | 'job_failed';
+
+export interface JobStreamEvent {
+  type: JobEventType;
+  job_id: string;
+  job_type?: JobType | string;
+  status?: JobStatus;
+  progress?: number;
+  done_items?: number;
+  fail_items?: number;
+  total_items?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface JobStreamOptions {
+  token?: string;
+  onEvent: (event: JobStreamEvent) => void;
+  onError?: (error: Error) => void;
+  signal?: AbortSignal;
+}
+
+function resolveJobItemError(item: JobItemResult): string | undefined {
+  const raw = item.erro ?? item.error ?? item.message;
+  if (!raw) return undefined;
+  if (typeof raw === 'string') return raw;
+  return JSON.stringify(raw);
+}
+
+function parseSseData(data: string): JobStreamEvent | null {
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as JobStreamEvent;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Faz polling de um job até completar ou atingir timeout.
  *
@@ -142,7 +183,11 @@ export async function pollJob(jobId: string, options: PollOptions = {}): Promise
       if (summary.status === 'done' || summary.status === 'failed') {
         // Buscar os resultados completos
         const detail = await jobApiService.getDetail(jobId);
-        const jobDetail: JobDetail = { ...detail.job, results: detail.results };
+        const normalizedResults = (detail.results ?? []).map((item) => ({
+          ...item,
+          erro: resolveJobItemError(item),
+        }));
+        const jobDetail: JobDetail = { ...detail.job, results: normalizedResults };
         onComplete?.(jobDetail);
         return jobDetail;
       }
@@ -170,4 +215,102 @@ export async function pollJob(jobId: string, options: PollOptions = {}): Promise
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function subscribeToJobStream({
+  token,
+  onEvent,
+  onError,
+  signal,
+}: JobStreamOptions): Promise<void> {
+  const authToken = token || tokenStorage.get() || undefined;
+  const baseUrl = getApiBaseUrl();
+
+  if (!baseUrl) {
+    onError?.(new Error('API_URL não está configurada'));
+    return;
+  }
+
+  if (!authToken) {
+    onError?.(new Error('Token não encontrado para abrir stream de jobs'));
+    return;
+  }
+
+  const response = await fetch(`${baseUrl}/jobs/stream`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      Accept: 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    },
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    const detail = `${response.status} ${response.statusText}`.trim();
+    onError?.(new Error(`Falha ao abrir stream de jobs: ${detail}`));
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let eventType = '';
+  let eventData = '';
+
+  const flushEvent = () => {
+    const parsed = parseSseData(eventData.trim());
+    if (!parsed) {
+      eventType = '';
+      eventData = '';
+      return;
+    }
+
+    onEvent({
+      ...parsed,
+      type: (parsed.type || eventType || 'job_progress') as JobEventType,
+    });
+    eventType = '';
+    eventData = '';
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+
+        if (!line) {
+          flushEvent();
+          continue;
+        }
+
+        if (line.startsWith(':')) {
+          continue; // heartbeat ping
+        }
+
+        if (line.startsWith('event:')) {
+          eventType = line.slice(6).trim();
+          continue;
+        }
+
+        if (line.startsWith('data:')) {
+          const chunk = line.slice(5).trim();
+          eventData = eventData ? `${eventData}\n${chunk}` : chunk;
+        }
+      }
+    }
+  } catch (err) {
+    if (signal?.aborted) return;
+    const error = err instanceof Error ? err : new Error(String(err));
+    onError?.(error);
+  } finally {
+    reader.releaseLock();
+  }
 }

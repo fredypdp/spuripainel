@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
+import { useApi, consultasService, tokenStorage, academiaService, pollJob, jobApiService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { useModal } from "@/hooks/useModal";
@@ -130,31 +130,6 @@ const OPCOES_ORDEM: { key: OrdemEstudantes; label: string; icon: string }[] = [
   { key: 'cadastro_desc', label: 'Mais recentes', icon: 'mdi:clock-outline' },
   { key: 'cadastro_asc', label: 'Mais antigos', icon: 'mdi:clock-check-outline' },
 ];
-
-// ─── Job Polling ──────────────────────────────────────────────────────────────
-
-async function pollJobUntilDone(
-  jobId: string,
-  onProgress: (pct: number) => void,
-  maxMs = 5 * 60 * 1000
-): Promise<{ ok: number; err: number }> {
-  const token = tokenStorage.get();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-  const deadline = Date.now() + maxMs;
-  let interval = 1500;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, interval));
-    interval = Math.min(interval * 1.3, 6000);
-    try {
-      const r = await fetch(`${apiUrl}/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
-      if (!r.ok) continue;
-      const data = await r.json();
-      onProgress(data.progress ?? 0);
-      if (data.status === 'done' || data.status === 'failed') return { ok: data.done_items ?? 0, err: data.fail_items ?? 0 };
-    } catch { /* retry */ }
-  }
-  return { ok: 0, err: 0 };
-}
 
 // ─── BotaoOrdenar ─────────────────────────────────────────────────────────────
 
@@ -699,27 +674,45 @@ export default function Estudantes() {
       const data = await r.json();
 
       if (!r.ok || !data.job_id) {
-        setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || 'Erro ao submeter job' })));
+        setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || data.error || 'Erro ao submeter job' })));
         setBatchCarregando(false);
         return;
       }
 
-      const result = await pollJobUntilDone(data.job_id, (pct) => {
-        setBatchProgresso(pct);
-        setBatchItems(prev => prev.map((item, idx) => {
-          const done = Math.floor(pct / 100 * prev.length);
-          if (idx < done) return { ...item, status: 'success' };
-          return item;
-        }));
+      const result = await pollJob(data.job_id, {
+        timeoutMs: 5 * 60 * 1000,
+        onProgress: (summary) => {
+          const pct = summary.progress ?? 0;
+          setBatchProgresso(pct);
+          setBatchItems(prev => prev.map((item, idx) => {
+            const done = Math.floor(pct / 100 * prev.length);
+            if (idx < done) return { ...item, status: 'success' };
+            return item;
+          }));
+        },
       });
 
-      setBatchItems(prev => prev.map((item, idx) => ({
-        ...item,
-        status: idx < result.ok ? 'success' : 'error',
-      })));
+      const detail = await jobApiService.getDetail(data.job_id, token ?? undefined);
+      const failures = (detail.results ?? []).filter((item) => !item.sucesso);
+      const failureByCodigo = new Map<string, string>();
+      for (const failure of failures) {
+        const payload = failure.payload as { codigo_estudante?: string } | undefined;
+        const codigo = payload?.codigo_estudante;
+        if (!codigo) continue;
+        failureByCodigo.set(codigo, failure.erro || failure.error || failure.message || detail.job.error || 'Falha no processamento');
+      }
+
+      setBatchItems(prev => prev.map((item) => {
+        const failReason = failureByCodigo.get(item.codigo);
+        if (failReason) return { ...item, status: 'error', message: failReason };
+        return { ...item, status: 'success' };
+      }));
       setBatchProgresso(100);
-    } catch (err) {
-      setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: 'Erro de rede' })));
+      if (result.status === 'failed' && detail.job.error) {
+        setBatchTitulo(`Falha no job: ${detail.job.error}`);
+      }
+    } catch (err: any) {
+      setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: err?.message || 'Erro de rede' })));
     } finally {
       setBatchCarregando(false);
       setSelecionadas(new Set());
