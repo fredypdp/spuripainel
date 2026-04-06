@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { tokenStorage } from "@/lib/api";
+import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
 import { getCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
 
@@ -68,46 +68,6 @@ const gerarNome = () => {
 const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
   return new Date(Date.now() - dias * 86400000).toISOString();
-};
-
-// ─── Job polling helper ───────────────────────────────────────────────────────
-
-const pollJob = async (
-  jobId: string,
-  token: string,
-  apiUrl: string,
-  onProgress?: (pct: number, done: number, total: number) => void,
-  maxWaitMs = 5 * 60 * 1000
-): Promise<{ ok: number; err: number; total: number }> => {
-  const deadline = Date.now() + maxWaitMs;
-  let interval = 1500;
-
-  while (Date.now() < deadline) {
-    await sleep(interval);
-    interval = Math.min(interval * 1.3, 6000);
-
-    try {
-      const r = await fetch(`${apiUrl}/jobs/${jobId}`, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      if (!r.ok) continue;
-      const data = await r.json();
-
-      if (onProgress) onProgress(data.progress ?? 0, data.done_items ?? 0, data.total_items ?? 0);
-
-      if (data.status === "done" || data.status === "failed") {
-        return {
-          ok: data.done_items ?? 0,
-          err: data.fail_items ?? 0,
-          total: data.total_items ?? 0,
-        };
-      }
-    } catch {
-      // network error — retry
-    }
-  }
-
-  return { ok: 0, err: 0, total: 0 };
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -204,6 +164,51 @@ export default function SeedTestPage() {
     setTurmas(turmasData);
     setEstudantes(estudantesData);
     addLog(`Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ${turmasData.length} turmas, ${estudantesData.length} estudantes`, "dim");
+  };
+
+  const renderPayloadLabel = (payload: any, index: number) => {
+    if (!payload || typeof payload !== "object") return `item #${index + 1}`;
+    return (
+      payload.codigo_estudante ||
+      payload.codigo_turma ||
+      payload.codigo ||
+      payload.id ||
+      payload.nome ||
+      `item #${index + 1}`
+    );
+  };
+
+  const acompanharJob = async (jobId: string, titulo: string) => {
+    const detail = await pollJob(jobId, {
+      timeoutMs: 5 * 60 * 1000,
+      onProgress: (summary) => {
+        addLog(`  📊 Progresso: ${summary.progress ?? 0}% (${summary.done_items ?? 0}/${summary.total_items ?? 0})`, "dim");
+      },
+    });
+
+    const detailComResultados = await jobApiService.getDetail(jobId, academia?.token);
+    const falhas = (detailComResultados.results ?? []).filter((r) => !r.sucesso);
+
+    if (falhas.length > 0) {
+      addLog(`  ⚠ ${titulo}: ${falhas.length} item(ns) com falha detalhada`, "warn");
+      falhas.slice(0, 8).forEach((f, i) => {
+        const label = renderPayloadLabel(f.payload, i);
+        const motivo =
+          f.erro ||
+          f.error ||
+          f.message ||
+          detailComResultados.job.error ||
+          "Falha sem detalhe retornado";
+        addLog(`    • ${label}: ${motivo}`, "warn");
+      });
+      if (falhas.length > 8) addLog(`    • ...e mais ${falhas.length - 8} falha(s)`, "dim");
+    }
+
+    if (detail.status === "failed" && detailComResultados.job.error) {
+      addLog(`  ✗ ${titulo}: ${detailComResultados.job.error}`, "err");
+    }
+
+    return { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
   };
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -333,9 +338,7 @@ export default function SeedTestPage() {
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} criado (${(data as any)?.total_items} estudantes) — aguardando conclusão...`, "info");
 
-    const result = await pollJob(jobId, academia.token, apiUrl(), (pct, done, total) => {
-      addLog(`  📊 Progresso: ${pct}% (${done}/${total})`, "dim");
-    });
+    const result = await acompanharJob(jobId, "Estudantes");
     addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
     await sleep(3000);
     await refreshData();
@@ -366,9 +369,7 @@ export default function SeedTestPage() {
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} criado (${vinculos.length} vínculos) — aguardando...`, "info");
 
-    const result = await pollJob(jobId, academia.token, apiUrl(), (pct, done, total) => {
-      addLog(`  📊 Progresso: ${pct}% (${done}/${total})`, "dim");
-    });
+    const result = await acompanharJob(jobId, "Vínculos");
     addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
     await sleep(2000);
     await refreshData();
@@ -419,9 +420,7 @@ export default function SeedTestPage() {
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} (${batch.length} notas) — aguardando...`, "info");
 
-    const result = await pollJob(jobId, academia.token, apiUrl(), (pct, done, total) => {
-      addLog(`  📊 ${pct}% (${done}/${total})`, "dim");
-    });
+    const result = await acompanharJob(jobId, "Notas");
     addLog(`Notas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
   };
 
@@ -463,9 +462,7 @@ export default function SeedTestPage() {
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} (${batch.length} faltas) — aguardando...`, "info");
 
-    const result = await pollJob(jobId, academia.token, apiUrl(), (pct, done, total) => {
-      addLog(`  📊 ${pct}% (${done}/${total})`, "dim");
-    });
+    const result = await acompanharJob(jobId, "Faltas");
     addLog(`Faltas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
   };
 
@@ -513,9 +510,7 @@ export default function SeedTestPage() {
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} (${batch.length} avaliações) — aguardando...`, "info");
 
-    const result = await pollJob(jobId, academia.token, apiUrl(), (pct, done, total) => {
-      addLog(`  📊 ${pct}% (${done}/${total})`, "dim");
-    });
+    const result = await acompanharJob(jobId, "Avaliações");
     addLog(`Avaliações: ${result.ok} ✓  ${result.err} ✗  (${nAprov} aprovações de ${sample.length} total)`, result.ok > 0 ? "ok" : "err");
   };
 

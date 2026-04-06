@@ -86,7 +86,7 @@ export default function NotificationDropdown() {
     const start = async () => {
       try {
         const recentJobs = await jobApiService.list(token);
-        const initial = (recentJobs.jobs || []).slice(0, 6).map((job) => ({
+        const initial: UiNotification[] = (recentJobs.jobs || []).slice(0, 6).map((job) => ({
           id: `${job.id}-${job.status}`,
           title:
             job.status === "done"
