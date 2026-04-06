@@ -43,12 +43,19 @@ export interface JobItemResult {
   index: number;
   sucesso: boolean;
   dados?: unknown;
+  /** Motivo da falha — pode vir como `erro`, `error` ou `message` dependendo da versão do backend */
   erro?: string;
-  payload?: unknown;
   error?: string;
   message?: string;
+  /** Payload original do item para replay */
+  payload?: unknown;
 }
 
+/**
+ * JobDetail é retornado pelo endpoint `GET /jobs/:id?results=true`.
+ * O backend envolve em `{ job, results }`.
+ * Internamente normalizamos para uma estrutura plana com `results`.
+ */
 export interface JobDetail extends JobSummary {
   results: JobItemResult[];
 }
@@ -62,6 +69,21 @@ export interface AsyncBatchResponse {
 }
 
 // =====================
+// Helpers internos
+// =====================
+
+/**
+ * Extrai a melhor mensagem de erro disponível num item de resultado,
+ * respeitando os diferentes campos que o backend pode retornar.
+ */
+export function resolveJobItemError(item: JobItemResult): string | undefined {
+  const raw = item.erro ?? item.error ?? item.message;
+  if (!raw) return undefined;
+  if (typeof raw === 'string') return raw;
+  try { return JSON.stringify(raw); } catch { return String(raw); }
+}
+
+// =====================
 // API calls
 // =====================
 
@@ -72,7 +94,11 @@ export const jobApiService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  /** Obtém o job completo com resultados por item. */
+  /**
+   * Obtém o job completo com resultados por item.
+   * A API retorna `{ job: JobSummary, results: JobItemResult[] }`.
+   * Retornamos a estrutura original para não quebrar code que depende de `.job`.
+   */
   getDetail: (jobId: string, token?: string): Promise<{ job: JobSummary; results: JobItemResult[] }> =>
     api.get<{ job: JobSummary; results: JobItemResult[] }>(`/jobs/${jobId}?results=true`, {
       token: token || tokenStorage.get() || undefined,
@@ -126,13 +152,6 @@ export interface JobStreamOptions {
   signal?: AbortSignal;
 }
 
-function resolveJobItemError(item: JobItemResult): string | undefined {
-  const raw = item.erro ?? item.error ?? item.message;
-  if (!raw) return undefined;
-  if (typeof raw === 'string') return raw;
-  return JSON.stringify(raw);
-}
-
 function parseSseData(data: string): JobStreamEvent | null {
   if (!data) return null;
   try {
@@ -181,13 +200,17 @@ export async function pollJob(jobId: string, options: PollOptions = {}): Promise
       onProgress?.(summary);
 
       if (summary.status === 'done' || summary.status === 'failed') {
-        // Buscar os resultados completos
-        const detail = await jobApiService.getDetail(jobId);
-        const normalizedResults = (detail.results ?? []).map((item) => ({
+        // Buscar os resultados completos — API retorna { job, results }
+        const detailResponse = await jobApiService.getDetail(jobId);
+        const normalizedResults = (detailResponse.results ?? []).map((item) => ({
           ...item,
           erro: resolveJobItemError(item),
         }));
-        const jobDetail: JobDetail = { ...detail.job, results: normalizedResults };
+        // Construir JobDetail unificando job summary com results
+        const jobDetail: JobDetail = {
+          ...detailResponse.job,
+          results: normalizedResults,
+        };
         onComplete?.(jobDetail);
         return jobDetail;
       }
@@ -236,15 +259,22 @@ export async function subscribeToJobStream({
     return;
   }
 
-  const response = await fetch(`${baseUrl}/jobs/stream`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-      Accept: 'text/event-stream',
-      'Cache-Control': 'no-cache',
-    },
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/jobs/stream`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        Accept: 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+      signal,
+    });
+  } catch (err) {
+    if (signal?.aborted) return;
+    onError?.(err instanceof Error ? err : new Error(String(err)));
+    return;
+  }
 
   if (!response.ok || !response.body) {
     const detail = `${response.status} ${response.statusText}`.trim();
@@ -265,7 +295,6 @@ export async function subscribeToJobStream({
       eventData = '';
       return;
     }
-
     onEvent({
       ...parsed,
       type: (parsed.type || eventType || 'job_progress') as JobEventType,
@@ -292,7 +321,7 @@ export async function subscribeToJobStream({
         }
 
         if (line.startsWith(':')) {
-          continue; // heartbeat ping
+          continue; // heartbeat ping — ignorar
         }
 
         if (line.startsWith('event:')) {

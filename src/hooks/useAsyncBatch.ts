@@ -48,6 +48,9 @@ export interface UseAsyncBatchReturn {
  * 2. Polling automático em GET /jobs/:id até status = done | failed
  * 3. State machine: idle → submitting → polling → done | error
  *
+ * Nota sobre `JobDetail`: `pollJob` já normaliza a resposta da API
+ * (`{ job, results }`) para um `JobDetail` plano com `results` incluído.
+ *
  * @example
  * ```tsx
  * const { state, submit, isLoading, progress } = useAsyncBatch({
@@ -60,7 +63,8 @@ export interface UseAsyncBatchReturn {
  *     notas
  *   );
  *   if (detail) {
- *     toast.success(`${detail.done_items} notas registradas`);
+ *     const falhas = detail.results.filter(r => !r.sucesso);
+ *     toast.success(`${detail.done_items} notas registradas, ${falhas.length} falhas`);
  *   }
  * };
  * ```
@@ -102,7 +106,6 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
       const jobId = response.job_id;
 
       if (!autoPoll) {
-        // Apenas retornar o ID para quem quiser fazer polling manual
         const summaryPlaceholder: JobSummary = {
           id: jobId,
           type: 'register_estudante_batch',
@@ -117,7 +120,7 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
         return null;
       }
 
-      // Buscar summary inicial
+      // Buscar summary inicial para mostrar progresso imediatamente
       try {
         const initialSummary = await jobApiService.getStatus(jobId);
         if (!cancelledRef.current) {
@@ -144,6 +147,7 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
       }
 
       try {
+        // pollJob retorna JobDetail já normalizado (com results)
         const detail = await pollJob(jobId, {
           ...pollOpts,
           onProgress: (summary) => {

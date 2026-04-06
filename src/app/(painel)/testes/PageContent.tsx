@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
+import { resolveJobItemError } from "@/lib/api/job-service";
 import { getCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
 
@@ -166,19 +167,13 @@ export default function SeedTestPage() {
     addLog(`Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ${turmasData.length} turmas, ${estudantesData.length} estudantes`, "dim");
   };
 
-  const renderPayloadLabel = (payload: any, index: number) => {
-    if (!payload || typeof payload !== "object") return `item #${index + 1}`;
-    return (
-      payload.codigo_estudante ||
-      payload.codigo_turma ||
-      payload.codigo ||
-      payload.id ||
-      payload.nome ||
-      `item #${index + 1}`
-    );
-  };
-
+  /**
+   * Acompanha um job via polling e registra progresso nos logs.
+   * Usa `jobApiService.getDetail` que retorna `{ job, results }` e
+   * `resolveJobItemError` para extrair a melhor mensagem de erro de cada item.
+   */
   const acompanharJob = async (jobId: string, titulo: string) => {
+    // pollJob retorna JobDetail normalizado (com results já extraídos de detailResponse.results)
     const detail = await pollJob(jobId, {
       timeoutMs: 5 * 60 * 1000,
       onProgress: (summary) => {
@@ -186,26 +181,31 @@ export default function SeedTestPage() {
       },
     });
 
-    const detailComResultados = await jobApiService.getDetail(jobId, academia?.token);
-    const falhas = (detailComResultados.results ?? []).filter((r) => !r.sucesso);
+    // Buscar resultados completos com payload por item
+    const detailResponse = await jobApiService.getDetail(jobId, academia?.token);
+    const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
 
-    if (falhas.length > 0) {
-      addLog(`  ⚠ ${titulo}: ${falhas.length} item(ns) com falha detalhada`, "warn");
-      falhas.slice(0, 8).forEach((f, i) => {
-        const label = renderPayloadLabel(f.payload, i);
-        const motivo =
-          f.erro ||
-          f.error ||
-          f.message ||
-          detailComResultados.job.error ||
-          "Falha sem detalhe retornado";
+    if (failures.length > 0) {
+      addLog(`  ⚠ ${titulo}: ${failures.length} item(ns) com falha`, "warn");
+      failures.slice(0, 8).forEach((f, i) => {
+        // payload contém o item original enviado (para identificação)
+        const payloadAny = f.payload as any;
+        const label =
+          payloadAny?.codigo_estudante ||
+          payloadAny?.codigo_turma ||
+          payloadAny?.codigo ||
+          payloadAny?.nome ||
+          `item #${(f.index ?? i) + 1}`;
+
+        // resolveJobItemError normaliza erro/error/message
+        const motivo = resolveJobItemError(f) || detail.error || 'Falha sem detalhe retornado';
         addLog(`    • ${label}: ${motivo}`, "warn");
       });
-      if (falhas.length > 8) addLog(`    • ...e mais ${falhas.length - 8} falha(s)`, "dim");
+      if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
     }
 
-    if (detail.status === "failed" && detailComResultados.job.error) {
-      addLog(`  ✗ ${titulo}: ${detailComResultados.job.error}`, "err");
+    if (detail.status === "failed" && detail.error) {
+      addLog(`  ✗ ${titulo}: ${detail.error}`, "err");
     }
 
     return { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
@@ -234,7 +234,10 @@ export default function SeedTestPage() {
         const id = (data as any).data?.id;
         addLog(`  ✓ Curso "${t.nome}" criado`, "ok");
         if (id) { await sleep(500); const { ok: okA } = await callApi("PUT", `/academia/curso/${id}/ativar`, {}, academia.token); if (okA) addLog(`    ✓ Curso ativado`, "dim"); }
-      } else { addLog(`  ✗ "${t.nome}": ${(data as any)?.message || (data as any)?.error}`, "warn"); }
+      } else {
+        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+        addLog(`  ✗ "${t.nome}": ${errMsg}`, "warn");
+      }
       await sleep(300);
     }
     await sleep(3000);
@@ -275,7 +278,10 @@ export default function SeedTestPage() {
         addLog(`  ✓ Matéria "${nome}" ${ano ? `(${ano})` : ""} ${cursoAlvo ? `→ ${cursoAlvo.nome}` : ""} criada`, "ok");
         if (id && tipo === "superior" && cursoAlvo?.periodos?.length) { await sleep(300); await callApi("PUT", `/academia/materia/${id}/periodo`, { periodo: pick(cursoAlvo.periodos) }, academia.token); }
         if (id) { await sleep(500); await callApi("PUT", `/academia/materia/${id}/ativar`, {}, academia.token); }
-      } else { addLog(`  ✗ "${nome}": ${(data as any)?.message || (data as any)?.error}`, "warn"); }
+      } else {
+        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+        addLog(`  ✗ "${nome}": ${errMsg}`, "warn");
+      }
       await sleep(300);
     }
     await sleep(3000);
@@ -308,7 +314,10 @@ export default function SeedTestPage() {
       }
       const { ok, data } = await callApi("POST", "/academia/turma", payload, academia.token);
       if (ok) { criadas++; addLog(`  ✓ Turma ${payload.codigo_turma} (${nivel}, ${turno}) criada`, "ok"); }
-      else addLog(`  ✗ Turma ${payload.codigo_turma}: ${(data as any)?.message || (data as any)?.error}`, "warn");
+      else {
+        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+        addLog(`  ✗ Turma ${payload.codigo_turma}: ${errMsg}`, "warn");
+      }
       await sleep(200);
     }
     await sleep(2000);
@@ -331,9 +340,12 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    // Use async endpoint
     const { ok, data } = await callApi("POST", "/academia/estudante/register/async", batch, academia.token);
-    if (!ok) { addLog(`  ✗ Erro ao submeter: ${(data as any)?.message || (data as any)?.error}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} criado (${(data as any)?.total_items} estudantes) — aguardando conclusão...`, "info");
@@ -362,9 +374,12 @@ export default function SeedTestPage() {
 
     const vinculos = semTurma.map(e => ({ codigo_turma: pick(turmasAlvo).codigo_turma, codigo_estudante: e.codigo_estudante }));
 
-    // Use async endpoint
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", vinculos, academia.token);
-    if (!ok) { addLog(`  ✗ Erro ao submeter: ${(data as any)?.message || (data as any)?.error}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} criado (${vinculos.length} vínculos) — aguardando...`, "info");
@@ -413,9 +428,12 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma nota nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} nota(s) via async...`, "dim");
 
-    // Use async endpoint
     const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
-    if (!ok) { addLog(`  ✗ Erro: ${(data as any)?.message || (data as any)?.error}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} (${batch.length} notas) — aguardando...`, "info");
@@ -455,9 +473,12 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma falta nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} falta(s) via async...`, "dim");
 
-    // Use async endpoint
     const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
-    if (!ok) { addLog(`  ✗ Erro: ${(data as any)?.message || (data as any)?.error}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} (${batch.length} faltas) — aguardando...`, "info");
@@ -503,9 +524,12 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    // Use async endpoint
     const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
-    if (!ok) { addLog(`  ✗ Erro: ${(data as any)?.message || (data as any)?.error}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
     addLog(`  ⏳ Job ${jobId} (${batch.length} avaliações) — aguardando...`, "info");
@@ -519,8 +543,13 @@ export default function SeedTestPage() {
     const ano = "2025_2026";
     const tipo = academia.tipo === "superior" ? "superior" : "escola";
     const { ok, data } = await callApi("POST", "/academia/ano-letivo", { ano_letivo: ano, tipo }, academia.token);
-    if (ok) { addLog(`Ano letivo ${ano} configurado ✓`, "ok"); setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev); }
-    else addLog(`Ano letivo: ${(data as any)?.message || (data as any)?.error}`, "warn");
+    if (ok) {
+      addLog(`Ano letivo ${ano} configurado ✓`, "ok");
+      setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev);
+    } else {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+      addLog(`Ano letivo: ${errMsg}`, "warn");
+    }
   };
 
   // ─── Derived ──────────────────────────────────────────────────────────────

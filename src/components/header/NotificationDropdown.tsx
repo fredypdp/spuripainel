@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import {
@@ -8,228 +8,458 @@ import {
   subscribeToJobStream,
   tokenStorage,
   type JobStreamEvent,
+  type JobSummary,
 } from "@/lib/api";
 
-type UiNotification = {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type NotifTone = "info" | "success" | "error" | "warning";
+
+interface UiNotification {
   id: string;
   title: string;
   description: string;
   createdAt: string;
-  tone: "info" | "success" | "error";
+  tone: NotifTone;
+  jobId: string;
+  progress?: number;
+  status?: string;
+  read: boolean;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MAX_NOTIFICATIONS = 40;
+
+const TONE_CONFIG: Record<NotifTone, { bg: string; dot: string; label: string }> = {
+  info:    { bg: "bg-blue-500",   dot: "bg-blue-400 animate-pulse",  label: "Em progresso" },
+  success: { bg: "bg-green-500",  dot: "bg-green-500",               label: "Concluído"    },
+  error:   { bg: "bg-red-500",    dot: "bg-red-500",                  label: "Com erros"    },
+  warning: { bg: "bg-orange-400", dot: "bg-orange-400 animate-pulse", label: "Atenção"      },
 };
 
-const MAX_NOTIFICATIONS = 30;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const toneClasses: Record<UiNotification["tone"], string> = {
-  info: "bg-blue-500",
-  success: "bg-green-500",
-  error: "bg-red-500",
-};
+function jobTypeLabel(type?: string): string {
+  const map: Record<string, string> = {
+    register_academia_batch:       "Academias",
+    ativar_academia_batch:         "Ativação academias",
+    desativar_academia_batch:      "Desativação academias",
+    register_estudante_batch:      "Estudantes",
+    registrar_nota_batch:          "Notas",
+    atualizar_nota_batch:          "Atualização notas",
+    deletar_nota_batch:            "Exclusão notas",
+    registrar_faltas_batch:        "Faltas",
+    atualizar_falta_batch:         "Atualização faltas",
+    deletar_falta_batch:           "Exclusão faltas",
+    registrar_avaliacao_final_batch: "Avaliações finais",
+    atualizar_status_escolar_batch: "Status escolar",
+    criar_curso_batch:             "Cursos",
+    criar_materia_batch:           "Matérias",
+    criar_turma_batch:             "Turmas",
+    adicionar_estudante_batch:     "Vínculos turma",
+  };
+  return type ? (map[type] ?? type.replace(/_/g, " ")) : "Operação";
+}
 
-function normalizeEvent(event: JobStreamEvent): UiNotification {
+function formatRelativeTime(isoString: string): string {
+  try {
+    const diff = Date.now() - new Date(isoString).getTime();
+    if (diff < 60_000)  return "agora mesmo";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m atrás`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h atrás`;
+    return new Date(isoString).toLocaleDateString("pt-PT");
+  } catch {
+    return "";
+  }
+}
+
+function normalizeJobSummaryToNotif(job: JobSummary): UiNotification {
+  const done = job.done_items ?? 0;
+  const fail = job.fail_items ?? 0;
+  const total = job.total_items ?? 0;
+  const type = (job as any).type as string | undefined;
+
+  let tone: NotifTone = "info";
+  let title = jobTypeLabel(type);
+  let description = "";
+
+  if (job.status === "done") {
+    tone = fail > 0 ? "warning" : "success";
+    title = `${jobTypeLabel(type)} — ${fail > 0 ? "Concluído com erros" : "Concluído"}`;
+    description = fail > 0
+      ? `${done} sucesso · ${fail} falha${fail !== 1 ? "s" : ""} de ${total} total`
+      : `${done} item${done !== 1 ? "s" : ""} processado${done !== 1 ? "s" : ""} com sucesso`;
+  } else if (job.status === "failed") {
+    tone = "error";
+    title = `${jobTypeLabel(type)} — Falhou`;
+    description = job.error
+      ? job.error.length > 80 ? job.error.slice(0, 80) + "…" : job.error
+      : `${fail} item${fail !== 1 ? "s" : ""} com falha`;
+  } else if (job.status === "processing") {
+    tone = "info";
+    description = total > 0
+      ? `${job.progress ?? 0}% · ${done}/${total} processados`
+      : "Em processamento…";
+  } else {
+    description = "Na fila de processamento…";
+  }
+
+  return {
+    id: `${job.id}-${job.status}`,
+    jobId: job.id,
+    title,
+    description,
+    createdAt: job.completed_at || job.started_at || job.created_at,
+    tone,
+    progress: job.progress,
+    status: job.status,
+    read: job.status === "done" || job.status === "failed",
+  };
+}
+
+function normalizeEventToNotif(event: JobStreamEvent): UiNotification {
   const pct = Math.max(0, Math.min(100, Math.round(event.progress ?? 0)));
-  const total = event.total_items ?? 0;
   const done = event.done_items ?? 0;
   const fail = event.fail_items ?? 0;
+  const total = event.total_items ?? 0;
+  const type = event.job_type as string | undefined;
 
   switch (event.type) {
     case "job_enqueued":
       return {
-        id: `${event.job_id}-${Date.now()}-enqueued`,
-        title: "Job enfileirado",
-        description: `Job ${event.job_id} criado com ${total || "N"} item(ns).`,
+        id: `${event.job_id}-enqueued-${Date.now()}`,
+        jobId: event.job_id,
+        title: `${jobTypeLabel(type)} — Na fila`,
+        description: total > 0 ? `${total} item${total !== 1 ? "s" : ""} aguardando processamento` : "Job criado",
         createdAt: new Date().toISOString(),
         tone: "info",
+        progress: 0,
+        status: "pending",
+        read: false,
       };
+
     case "job_progress":
       return {
-        id: `${event.job_id}-${Date.now()}-progress`,
-        title: "Processamento em andamento",
-        description: `${pct}% concluído (${done} sucesso, ${fail} falha).`,
+        id: `${event.job_id}-progress`,
+        jobId: event.job_id,
+        title: `${jobTypeLabel(type)} — Processando`,
+        description: total > 0
+          ? `${pct}% · ${done}/${total} processados${fail > 0 ? ` · ${fail} falha${fail !== 1 ? "s" : ""}` : ""}`
+          : `${pct}% concluído`,
         createdAt: new Date().toISOString(),
         tone: "info",
+        progress: pct,
+        status: "processing",
+        read: false,
       };
+
     case "job_done":
       return {
-        id: `${event.job_id}-${Date.now()}-done`,
-        title: "Job concluído",
-        description: `Concluído com ${done} sucesso e ${fail} falha.`,
+        id: `${event.job_id}-done`,
+        jobId: event.job_id,
+        title: `${jobTypeLabel(type)} — ${fail > 0 ? "Concluído com erros" : "Concluído"}`,
+        description: fail > 0
+          ? `${done} sucesso · ${fail} falha${fail !== 1 ? "s" : ""} de ${total} total`
+          : `${done} item${done !== 1 ? "s" : ""} processado${done !== 1 ? "s" : ""} com sucesso`,
         createdAt: new Date().toISOString(),
-        tone: fail > 0 ? "error" : "success",
+        tone: fail > 0 ? "warning" : "success",
+        progress: 100,
+        status: "done",
+        read: false,
       };
+
     case "job_failed":
     default:
       return {
-        id: `${event.job_id}-${Date.now()}-failed`,
-        title: "Job falhou",
-        description:
-          event.error ||
-          event.message ||
-          `Falha no job ${event.job_id}${fail > 0 ? ` (${fail} item(ns) com erro)` : ""}.`,
+        id: `${event.job_id}-failed`,
+        jobId: event.job_id,
+        title: `${jobTypeLabel(type)} — Falhou`,
+        description: event.error || event.message
+          ? ((event.error || event.message)!).length > 80
+            ? (event.error || event.message)!.slice(0, 80) + "…"
+            : (event.error || event.message)!
+          : `${fail > 0 ? `${fail} item${fail !== 1 ? "s" : ""} com falha` : "Operação falhou"}`,
         createdAt: new Date().toISOString(),
         tone: "error",
+        progress: 0,
+        status: "failed",
+        read: false,
       };
   }
 }
 
-export default function NotificationDropdown() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<UiNotification[]>([]);
-  const [notifying, setNotifying] = useState(false);
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-1 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mt-1.5">
+      <div
+        className="h-full bg-blue-400 dark:bg-blue-500 rounded-full transition-all duration-500"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
+    </div>
+  );
+}
+
+function NotifItem({ notif, onClick }: { notif: UiNotification; onClick: () => void }) {
+  const config = TONE_CONFIG[notif.tone];
+  const isProcessing = notif.status === "processing" || notif.status === "pending";
+
+  return (
+    <DropdownItem
+      onItemClick={onClick}
+      className={`flex gap-3 rounded-lg border-b border-gray-100 px-4 py-3 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.04] ${!notif.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
+    >
+      {/* Dot indicator */}
+      <span className="flex-shrink-0 mt-1.5">
+        <span className={`block h-2.5 w-2.5 rounded-full ${config.dot}`} />
+      </span>
+
+      {/* Content */}
+      <span className="block min-w-0 flex-1">
+        <span className="flex items-start justify-between gap-2 mb-0.5">
+          <span className={`text-sm font-semibold leading-tight block ${
+            notif.tone === "success" ? "text-green-700 dark:text-green-400" :
+            notif.tone === "error"   ? "text-red-700 dark:text-red-400" :
+            notif.tone === "warning" ? "text-orange-700 dark:text-orange-400" :
+            "text-gray-800 dark:text-white/90"
+          }`}>
+            {notif.title}
+          </span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap flex-shrink-0">
+            {formatRelativeTime(notif.createdAt)}
+          </span>
+        </span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 break-words leading-relaxed block">
+          {notif.description}
+        </span>
+        {isProcessing && notif.progress !== undefined && (
+          <ProgressBar value={notif.progress} />
+        )}
+        {!notif.read && (
+          <span className={`inline-flex items-center gap-1 mt-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
+            notif.tone === "success" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+            notif.tone === "error"   ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
+            notif.tone === "warning" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+            "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+          }`}>
+            {config.label}
+          </span>
+        )}
+      </span>
+    </DropdownItem>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function NotificationDropdown() {
+  const [isOpen, setIsOpen]             = useState(false);
+  const [notifications, setNotifications] = useState<UiNotification[]>([]);
+  const [unreadCount, setUnreadCount]   = useState(0);
+  const [sseStatus, setSseStatus]       = useState<"connecting" | "connected" | "disconnected">("disconnected");
+  const controllerRef = useRef<AbortController | null>(null);
+
+  // Merge / upsert notification by jobId — progress events replace previous for same job
+  const upsertNotif = useCallback((notif: UiNotification) => {
+    setNotifications(prev => {
+      // For progress events, replace existing notif with same jobId
+      const isProgress = notif.status === "processing" || notif.status === "pending";
+      if (isProgress) {
+        const existingIdx = prev.findIndex(n => n.jobId === notif.jobId && (n.status === "processing" || n.status === "pending"));
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = notif;
+          return next;
+        }
+      }
+      // For terminal states (done/failed), replace any prior state for same jobId
+      if (notif.status === "done" || notif.status === "failed") {
+        const existing = prev.findIndex(n => n.jobId === notif.jobId);
+        if (existing >= 0) {
+          const next = [...prev];
+          next[existing] = notif;
+          return next;
+        }
+      }
+      return [notif, ...prev].slice(0, MAX_NOTIFICATIONS);
+    });
+    if (!notif.read) {
+      setUnreadCount(c => c + 1);
+    }
+  }, []);
+
+  // Load recent jobs on mount and start SSE stream
   useEffect(() => {
     const token = tokenStorage.get();
     if (!token) return;
 
-    const controller = new AbortController();
+    let isMounted = true;
 
-    const start = async () => {
+    // Load initial job history
+    (async () => {
       try {
-        const recentJobs = await jobApiService.list(token);
-        const initial: UiNotification[] = (recentJobs.jobs || []).slice(0, 6).map((job) => ({
-          id: `${job.id}-${job.status}`,
-          title:
-            job.status === "done"
-              ? "Job finalizado"
-              : job.status === "failed"
-                ? "Job com erro"
-                : "Job em andamento",
-          description:
-            job.error ||
-            `${job.progress}% (${job.done_items} sucesso, ${job.fail_items} falha).`,
-          createdAt: job.completed_at || job.started_at || job.created_at,
-          tone:
-            job.status === "failed"
-              ? "error"
-              : job.status === "done" && job.fail_items === 0
-                ? "success"
-                : "info",
-        }));
+        setSseStatus("connecting");
+        const recent = await jobApiService.list(token);
+        if (!isMounted) return;
+        const initial = (recent.jobs || []).slice(0, 10).map(normalizeJobSummaryToNotif);
         setNotifications(initial);
+        setUnreadCount(initial.filter(n => !n.read).length);
       } catch {
-        // Sem bloquear dropdown quando listagem falha
+        // History unavailable — continue with stream only
       }
 
+      // Start SSE stream
+      controllerRef.current = new AbortController();
       try {
         await subscribeToJobStream({
           token,
-          signal: controller.signal,
-          onEvent: (event) => {
-            setNotifications((prev) => {
-              const next = [normalizeEvent(event), ...prev];
-              return next.slice(0, MAX_NOTIFICATIONS);
-            });
-            setNotifying(true);
+          signal: controllerRef.current.signal,
+          onEvent: (event: JobStreamEvent) => {
+            if (!isMounted) return;
+            setSseStatus("connected");
+            upsertNotif(normalizeEventToNotif(event));
+          },
+          onError: () => {
+            if (!isMounted) return;
+            setSseStatus("disconnected");
           },
         });
       } catch {
-        // Stream pode encerrar; estado do sino continua com histórico carregado.
+        if (isMounted) setSseStatus("disconnected");
       }
-    };
+    })();
 
-    start();
-    return () => controller.abort();
-  }, []);
+    return () => {
+      isMounted = false;
+      controllerRef.current?.abort();
+    };
+  }, [upsertNotif]);
 
   const ordered = useMemo(
-    () =>
-      [...notifications].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ),
+    () => [...notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [notifications]
   );
 
-  function toggleDropdown() {
-    setIsOpen((prev) => !prev);
+  function handleOpen() {
+    setIsOpen(prev => !prev);
+    if (!isOpen) {
+      // Mark all as read when opening
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
   }
 
   function closeDropdown() {
     setIsOpen(false);
   }
 
-  const handleClick = () => {
-    toggleDropdown();
-    setNotifying(false);
-  };
+  const sseIndicatorColor =
+    sseStatus === "connected"    ? "bg-green-400" :
+    sseStatus === "connecting"   ? "bg-yellow-400 animate-pulse" :
+    "bg-gray-400";
+
+  const sseLabel =
+    sseStatus === "connected"  ? "Conectado — notificações em tempo real" :
+    sseStatus === "connecting" ? "Conectando…" :
+    "Desconectado — atualizações em tempo real indisponíveis";
 
   return (
     <div className="relative">
       <button
+        onClick={handleOpen}
         className="relative dropdown-toggle flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-        onClick={handleClick}
+        title="Notificações de jobs"
       >
-        <span
-          className={`absolute right-0 top-0.5 z-10 h-2 w-2 rounded-full bg-orange-400 ${
-            !notifying ? "hidden" : "flex"
-          }`}
-        >
-          <span className="absolute inline-flex w-full h-full bg-orange-400 rounded-full opacity-75 animate-ping"></span>
-        </span>
-        <svg
-          className="fill-current"
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M10.75 2.29248C10.75 1.87827 10.4143 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.6234 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z"
-            fill="currentColor"
-          />
+        {/* Unread badge */}
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+        {/* Bell icon */}
+        <svg className="fill-current" width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path fillRule="evenodd" clipRule="evenodd" d="M10.75 2.29248C10.75 1.87827 10.4143 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.6234 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z" fill="currentColor" />
         </svg>
       </button>
 
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute -right-[240px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0"
+        className="absolute right-0 mt-[17px] flex flex-col w-[380px] max-h-[520px] rounded-2xl border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark overflow-hidden"
       >
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
-          <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            Notificações
-          </h5>
-          <button
-            onClick={toggleDropdown}
-            className="text-gray-500 transition dropdown-toggle dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-          >
-            ✕
-          </button>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <h5 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              Notificações
+            </h5>
+            {notifications.length > 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {notifications.length} job{notifications.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {/* SSE status */}
+            <div className="flex items-center gap-1.5" title={sseLabel}>
+              <span className={`block h-2 w-2 rounded-full ${sseIndicatorColor}`} />
+              <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">
+                {sseStatus === "connected" ? "Ao vivo" : sseStatus === "connecting" ? "Conectando" : "Offline"}
+              </span>
+            </div>
+            {notifications.length > 0 && (
+              <button
+                onClick={() => { setNotifications([]); setUnreadCount(0); }}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                title="Limpar notificações"
+              >
+                Limpar
+              </button>
+            )}
+            <button
+              onClick={closeDropdown}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors dropdown-toggle"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <ul className="flex flex-col h-auto overflow-y-auto custom-scrollbar">
-          {ordered.length === 0 && (
-            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              Sem notificações de jobs no momento.
+        {/* Body */}
+        <ul className="flex flex-col overflow-y-auto flex-1">
+          {ordered.length === 0 ? (
+            <li className="flex flex-col items-center justify-center py-12 px-6 text-center">
+              <svg className="w-10 h-10 text-gray-200 dark:text-gray-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <p className="text-sm font-medium text-gray-400 dark:text-gray-500">Sem notificações</p>
+              <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">
+                Operações em lote aparecerão aqui
+              </p>
             </li>
+          ) : (
+            ordered.map(n => (
+              <li key={n.id}>
+                <NotifItem notif={n} onClick={closeDropdown} />
+              </li>
+            ))
           )}
-
-          {ordered.map((n) => (
-            <li key={n.id}>
-              <DropdownItem
-                onItemClick={closeDropdown}
-                className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-              >
-                <span className="relative mt-0.5 flex h-2.5 w-2.5">
-                  <span className={`h-2.5 w-2.5 rounded-full ${toneClasses[n.tone]}`} />
-                </span>
-
-                <span className="block min-w-0">
-                  <span className="mb-1 block text-sm font-medium text-gray-800 dark:text-white/90 truncate">
-                    {n.title}
-                  </span>
-                  <span className="block text-theme-sm text-gray-500 dark:text-gray-400 break-words">
-                    {n.description}
-                  </span>
-                  <span className="mt-1 block text-xs text-gray-400 dark:text-gray-500">
-                    {new Date(n.createdAt).toLocaleString("pt-PT")}
-                  </span>
-                </span>
-              </DropdownItem>
-            </li>
-          ))}
         </ul>
+
+        {/* Footer */}
+        {ordered.length > 0 && (
+          <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0">
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+              {sseStatus === "connected"
+                ? "✦ Atualizações em tempo real ativas"
+                : "Reconectando ao servidor de eventos…"}
+            </p>
+          </div>
+        )}
       </Dropdown>
     </div>
   );

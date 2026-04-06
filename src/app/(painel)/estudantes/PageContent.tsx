@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService, pollJob, jobApiService } from '@/lib/api';
+import { resolveJobItemError } from '@/lib/api/job-service';
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { useModal } from "@/hooks/useModal";
@@ -274,7 +275,7 @@ function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isO
         {!done && (
           <div className="mb-4">
             <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-              <span>Processando...</span><span>{progresso}%</span>
+              <span>Processando…</span><span>{progresso}%</span>
             </div>
             <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
@@ -674,12 +675,14 @@ export default function Estudantes() {
       const data = await r.json();
 
       if (!r.ok || !data.job_id) {
-        setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || data.error || 'Erro ao submeter job' })));
+        const errMsg = data.message || data.error || 'Erro ao submeter job';
+        setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: errMsg })));
         setBatchCarregando(false);
         return;
       }
 
-      const result = await pollJob(data.job_id, {
+      // pollJob já retorna JobDetail normalizado (com results)
+      const detail = await pollJob(data.job_id, {
         timeoutMs: 5 * 60 * 1000,
         onProgress: (summary) => {
           const pct = summary.progress ?? 0;
@@ -692,14 +695,19 @@ export default function Estudantes() {
         },
       });
 
-      const detail = await jobApiService.getDetail(data.job_id, token ?? undefined);
-      const failures = (detail.results ?? []).filter((item) => !item.sucesso);
+      // Buscar detalhes completos com resultados por item
+      const detailResponse = await jobApiService.getDetail(data.job_id, token ?? undefined);
+      const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
       const failureByCodigo = new Map<string, string>();
+
       for (const failure of failures) {
-        const payload = failure.payload as { codigo_estudante?: string } | undefined;
-        const codigo = payload?.codigo_estudante;
+        // payload contém o item original — código do estudante
+        const itemPayload = failure.payload as { codigo_estudante?: string } | undefined;
+        const codigo = itemPayload?.codigo_estudante;
         if (!codigo) continue;
-        failureByCodigo.set(codigo, failure.erro || failure.error || failure.message || detail.job.error || 'Falha no processamento');
+        // resolveJobItemError normaliza erro/error/message
+        const motivo = resolveJobItemError(failure) || detail.error || 'Falha no processamento';
+        failureByCodigo.set(codigo, motivo);
       }
 
       setBatchItems(prev => prev.map((item) => {
@@ -708,11 +716,13 @@ export default function Estudantes() {
         return { ...item, status: 'success' };
       }));
       setBatchProgresso(100);
-      if (result.status === 'failed' && detail.job.error) {
-        setBatchTitulo(`Falha no job: ${detail.job.error}`);
+
+      if (detail.status === 'failed' && detail.error) {
+        setBatchTitulo(`Falha no job: ${detail.error}`);
       }
     } catch (err: any) {
-      setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: err?.message || 'Erro de rede' })));
+      const errMsg = err?.message || 'Erro de rede';
+      setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: errMsg })));
     } finally {
       setBatchCarregando(false);
       setSelecionadas(new Set());
