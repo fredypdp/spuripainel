@@ -80,7 +80,7 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="mdi:flask-outline" />,
     name: "Testes",
-    path: "/teste",
+    path: "/testes",
   },
 ];
 
