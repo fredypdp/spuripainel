@@ -125,13 +125,16 @@ export type {
 } from '@/types/api';
 
 // Jobs
-export { jobApiService, pollJob } from './job-service';
+export { jobApiService, pollJob, subscribeToJobStream } from './job-service';
 export type {
   JobStatus,
   JobType,
   JobSummary,
   JobDetail,
   JobItemResult,
+  JobEventType,
+  JobStreamEvent,
+  JobStreamOptions,
   AsyncBatchResponse,
   PollOptions,
 } from './job-service';
