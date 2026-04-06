@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 next build",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -46,6 +46,7 @@
     "@types/react-dom": "^19.2.1",
     "@types/react-transition-group": "^4.4.12",
     "@types/xlsx": "^0.0.36",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.1",
     "eslint-config-next": "16.0.7",
     "postcss": "^8.5.6",
