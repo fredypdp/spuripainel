@@ -12,36 +12,14 @@ import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/ap
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
+import Checkbox from "@/components/form/input/Checkbox";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHeader, TableRow,
 } from "@/components/ui/table";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const ITEMS_POR_PAGINA = 50;
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type OrdemEstudantes =
-  | 'nome_asc' | 'nome_desc'
-  | 'idade_asc' | 'idade_desc'
-  | 'cadastro_desc' | 'cadastro_asc';
-
-interface FiltrosState {
-  genero: string;
-  idadeMin: string;
-  idadeMax: string;
-  status: string;
-  statusFundamental: string;
-  statusMedio: string;
-  statusSuperior: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const ANOS_FUNDAMENTAL_LIST = [
   { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
@@ -54,6 +32,24 @@ const ANOS_FUNDAMENTAL_LIST = [
   { label: '8º Ano Fundamental', value: '8_ano_fundamental' },
   { label: '9º Ano Fundamental', value: '9_ano_fundamental' },
 ];
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
+type OrdemEstudantes = 'nome_asc' | 'nome_desc' | 'idade_asc' | 'idade_desc' | 'cadastro_desc' | 'cadastro_asc';
+
+interface FiltrosState {
+  genero: string; idadeMin: string; idadeMax: string;
+  status: string; statusFundamental: string; statusMedio: string; statusSuperior: string;
+}
+
+interface BatchJobItem {
+  codigo: string;
+  nome: string;
+  status: 'pending' | 'success' | 'error';
+  message?: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function calcularIdade(dataNascimento: string): number | null {
   if (!dataNascimento) return null;
@@ -80,10 +76,10 @@ function formatarDataISO(data: string): string {
 
 function getStatusBadgeClass(status: string) {
   switch (status?.toLowerCase()) {
-    case 'ativo':      return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-    case 'inativo':    return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+    case 'ativo': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    case 'inativo': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
     case 'finalizado': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
-    default:           return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
   }
 }
 
@@ -115,56 +111,62 @@ function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): Est
 function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes): EstudanteDetalhado[] {
   return [...lista].sort((a, b) => {
     switch (ordem) {
-      case 'nome_asc':      return a.nome.localeCompare(b.nome, 'pt');
-      case 'nome_desc':     return b.nome.localeCompare(a.nome, 'pt');
-      case 'idade_asc': {   // mais jovem primeiro (menor idade = primeiro)
-        const ia = calcularIdade(a.data_nascimento) ?? 0;
-        const ib = calcularIdade(b.data_nascimento) ?? 0;
-        return ia - ib;
-      }
-      case 'idade_desc': {  // mais velho primeiro (maior idade = primeiro)
-        const ia = calcularIdade(a.data_nascimento) ?? 0;
-        const ib = calcularIdade(b.data_nascimento) ?? 0;
-        return ib - ia;
-      }
+      case 'nome_asc': return a.nome.localeCompare(b.nome, 'pt');
+      case 'nome_desc': return b.nome.localeCompare(a.nome, 'pt');
+      case 'idade_asc': { const ia = calcularIdade(a.data_nascimento) ?? 0; const ib = calcularIdade(b.data_nascimento) ?? 0; return ia - ib; }
+      case 'idade_desc': { const ia = calcularIdade(a.data_nascimento) ?? 0; const ib = calcularIdade(b.data_nascimento) ?? 0; return ib - ia; }
       case 'cadastro_desc': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      case 'cadastro_asc':  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      default:              return 0;
+      case 'cadastro_asc': return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      default: return 0;
     }
   });
 }
 
-const OPCOES_ORDEM_ESTUDANTES: { key: OrdemEstudantes; label: string; icon: string }[] = [
-  { key: 'nome_asc',      label: 'Nome A → Z',         icon: 'mdi:sort-alphabetical-ascending'  },
-  { key: 'nome_desc',     label: 'Nome Z → A',         icon: 'mdi:sort-alphabetical-descending' },
-  { key: 'idade_asc',     label: 'Mais jovem primeiro', icon: 'mdi:account-arrow-up'             },
-  { key: 'idade_desc',    label: 'Mais velho primeiro', icon: 'mdi:account-arrow-down'           },
-  { key: 'cadastro_desc', label: 'Mais recentes',       icon: 'mdi:clock-outline'                },
-  { key: 'cadastro_asc',  label: 'Mais antigos',        icon: 'mdi:clock-check-outline'          },
+const OPCOES_ORDEM: { key: OrdemEstudantes; label: string; icon: string }[] = [
+  { key: 'nome_asc', label: 'Nome A → Z', icon: 'mdi:sort-alphabetical-ascending' },
+  { key: 'nome_desc', label: 'Nome Z → A', icon: 'mdi:sort-alphabetical-descending' },
+  { key: 'idade_asc', label: 'Mais jovem primeiro', icon: 'mdi:account-arrow-up' },
+  { key: 'idade_desc', label: 'Mais velho primeiro', icon: 'mdi:account-arrow-down' },
+  { key: 'cadastro_desc', label: 'Mais recentes', icon: 'mdi:clock-outline' },
+  { key: 'cadastro_asc', label: 'Mais antigos', icon: 'mdi:clock-check-outline' },
 ];
+
+// ─── Job Polling ──────────────────────────────────────────────────────────────
+
+async function pollJobUntilDone(
+  jobId: string,
+  onProgress: (pct: number) => void,
+  maxMs = 5 * 60 * 1000
+): Promise<{ ok: number; err: number }> {
+  const token = tokenStorage.get();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const deadline = Date.now() + maxMs;
+  let interval = 1500;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, interval));
+    interval = Math.min(interval * 1.3, 6000);
+    try {
+      const r = await fetch(`${apiUrl}/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      if (!r.ok) continue;
+      const data = await r.json();
+      onProgress(data.progress ?? 0);
+      if (data.status === 'done' || data.status === 'failed') return { ok: data.done_items ?? 0, err: data.fail_items ?? 0 };
+    } catch { /* retry */ }
+  }
+  return { ok: 0, err: 0 };
+}
 
 // ─── BotaoOrdenar ─────────────────────────────────────────────────────────────
 
-function BotaoOrdenar<T extends string>({
-  opcoes, ordemAtual, onSelecionar,
-}: {
-  opcoes: { key: T; label: string; icon: string }[];
-  ordemAtual: T;
-  onSelecionar: (k: T) => void;
-}) {
+function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: { opcoes: { key: T; label: string; icon: string }[]; ordemAtual: T; onSelecionar: (k: T) => void }) {
   const [aberto, setAberto] = useState(false);
-  const [pos, setPos]       = useState({ top: 0, left: 0 });
-  const btnRef              = useRef<HTMLButtonElement>(null);
-  const labelAtual          = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
-
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const labelAtual = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
   const handleToggle = () => {
-    if (!aberto && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX });
-    }
+    if (!aberto && btnRef.current) { const r = btnRef.current.getBoundingClientRect(); setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX }); }
     setAberto(p => !p);
   };
-
   useEffect(() => {
     if (!aberto) return;
     const close = () => setAberto(false);
@@ -172,41 +174,21 @@ function BotaoOrdenar<T extends string>({
     window.addEventListener('scroll', close, true);
     return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', close, true); };
   }, [aberto]);
-
   const menu = aberto && typeof document !== 'undefined' && createPortal(
-    <div
-      onMouseDown={e => e.stopPropagation()}
-      style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 220 }}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1"
-    >
+    <div onMouseDown={e => e.stopPropagation()} style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 220 }} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1">
       {opcoes.map(op => (
-        <button
-          key={op.key}
-          onClick={() => { onSelecionar(op.key); setAberto(false); }}
-          className={`flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors ${
-            ordemAtual === op.key
-              ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05]'
-          }`}
-        >
+        <button key={op.key} onClick={() => { onSelecionar(op.key); setAberto(false); }} className={`flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors ${ordemAtual === op.key ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05]'}`}>
           <Icon icon={op.icon} width={16} className="flex-shrink-0" />
           {op.label}
           {ordemAtual === op.key && <Icon icon="mdi:check" width={14} className="ml-auto text-brand-500" />}
         </button>
       ))}
-    </div>,
-    document.body
+    </div>, document.body
   );
-
   return (
     <>
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-      >
-        <Icon icon="mdi:sort" width={16} />
-        {labelAtual}
+      <button ref={btnRef} onClick={handleToggle} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+        <Icon icon="mdi:sort" width={16} />{labelAtual}
         <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={14} className="text-gray-400" />
       </button>
       {menu}
@@ -214,17 +196,12 @@ function BotaoOrdenar<T extends string>({
   );
 }
 
-// ─── Paginação com setas ──────────────────────────────────────────────────────
+// ─── Paginação ────────────────────────────────────────────────────────────────
 
-function PaginacaoSetas({
-  paginaAtual, totalPaginas, total, porPagina, onChange,
-}: {
-  paginaAtual: number; totalPaginas: number; total: number; porPagina: number; onChange: (p: number) => void;
-}) {
+function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange }: { paginaAtual: number; totalPaginas: number; total: number; porPagina: number; onChange: (p: number) => void }) {
   if (totalPaginas <= 1) return null;
   const inicio = (paginaAtual - 1) * porPagina + 1;
-  const fim    = Math.min(paginaAtual * porPagina, total);
-
+  const fim = Math.min(paginaAtual * porPagina, total);
   const getPages = (): (number | '...')[] => {
     const pages: (number | '...')[] = [];
     if (totalPaginas <= 7) { for (let i = 1; i <= totalPaginas; i++) pages.push(i); }
@@ -233,7 +210,6 @@ function PaginacaoSetas({
     else { pages.push(1); pages.push('...'); for (let i = paginaAtual - 1; i <= paginaAtual + 1; i++) pages.push(i); pages.push('...'); pages.push(totalPaginas); }
     return pages;
   };
-
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-white/[0.03] rounded-lg border border-gray-200 dark:border-white/[0.05]">
       <p className="text-sm text-gray-500 dark:text-gray-400">{inicio}–{fim} de {total}</p>
@@ -241,9 +217,7 @@ function PaginacaoSetas({
         <button onClick={() => onChange(paginaAtual - 1)} disabled={paginaAtual === 1} className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
-        {getPages().map((p, i) => p === '...' ? (
-          <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">…</span>
-        ) : (
+        {getPages().map((p, i) => p === '...' ? <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">…</span> : (
           <button key={p} onClick={() => onChange(p as number)} className={`min-w-[32px] h-8 rounded-md text-sm font-medium transition-colors ${paginaAtual === p ? 'bg-brand-500 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.05]'}`}>{p}</button>
         ))}
         <button onClick={() => onChange(paginaAtual + 1)} disabled={paginaAtual === totalPaginas} className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
@@ -257,13 +231,10 @@ function PaginacaoSetas({
 
 // ─── FiltrosPanel ─────────────────────────────────────────────────────────────
 
-function FiltrosPanel({ filtros, setFiltros, isAdmin }: {
-  filtros: FiltrosState; setFiltros: (f: FiltrosState) => void; isAdmin: boolean;
-}) {
+function FiltrosPanel({ filtros, setFiltros, isAdmin }: { filtros: FiltrosState; setFiltros: (f: FiltrosState) => void; isAdmin: boolean }) {
   const [aberto, setAberto] = useState(false);
   const temFiltro = Object.values(filtros).some(v => v !== '');
   const limpar = () => setFiltros({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
-
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <button onClick={() => setAberto(p => !p)} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
@@ -274,16 +245,13 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: {
         </div>
         <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={18} className="text-gray-400" />
       </button>
-
       {aberto && (
         <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Género</label>
               <select value={filtros.genero} onChange={e => setFiltros({ ...filtros, genero: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                <option value="">Todos</option>
-                <option value="masculino">Masculino</option>
-                <option value="feminino">Feminino</option>
+                <option value="">Todos</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option>
               </select>
             </div>
             <div>
@@ -296,77 +264,145 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: {
             </div>
             {isAdmin && (
               <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
-                  <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option>
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                    <option value="finalizado">Finalizado</option>
-                  </select>
+                <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
+                  <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"><option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option></select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
-                  <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option>
-                    <option value="inativo">Inativo</option>
-                    <option value="em_andamento">Em andamento</option>
-                    <option value="finalizado">Finalizado</option>
-                  </select>
+                <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
+                  <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"><option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option></select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
-                  <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option>
-                    <option value="inativo">Inativo</option>
-                    <option value="em_andamento">Em andamento</option>
-                    <option value="finalizado">Finalizado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Superior</label>
-                  <select value={filtros.statusSuperior} onChange={e => setFiltros({ ...filtros, statusSuperior: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option>
-                    <option value="inativo">Inativo</option>
-                    <option value="em_andamento">Em andamento</option>
-                    <option value="finalizado">Finalizado</option>
-                  </select>
+                <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
+                  <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"><option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option></select>
                 </div>
               </>
             )}
           </div>
-          {temFiltro && (
-            <div className="mt-3 flex justify-end">
-              <button onClick={limpar} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors">
-                <Icon icon="mdi:close-circle" width={14} /> Limpar filtros
-              </button>
-            </div>
-          )}
+          {temFiltro && <div className="mt-3 flex justify-end"><button onClick={limpar} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors"><Icon icon="mdi:close-circle" width={14} /> Limpar filtros</button></div>}
         </div>
       )}
     </div>
   );
 }
 
+// ─── Modal de Resultado de Lote ───────────────────────────────────────────────
+
+function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isOpen: boolean; onClose: () => void; items: BatchJobItem[]; titulo: string; progresso: number }) {
+  const total = items.length;
+  const ok = items.filter(i => i.status === 'success').length;
+  const err = items.filter(i => i.status === 'error').length;
+  const pending = items.filter(i => i.status === 'pending').length;
+  const done = progresso >= 100 || pending === 0;
+  return (
+    <Modal isOpen={isOpen} onClose={done ? onClose : () => {}} showCloseButton={done} className="max-w-[560px] p-5 lg:p-8">
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">{titulo}</h4>
+        {/* Progress bar */}
+        {!done && (
+          <div className="mb-4">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <span>Processando...</span><span>{progresso}%</span>
+            </div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
+            </div>
+          </div>
+        )}
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="p-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.05] rounded-xl text-center">
+            <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{total}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total</div>
+          </div>
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-center">
+            <div className="text-2xl font-bold text-green-700 dark:text-green-400">{ok}</div>
+            <div className="text-xs text-green-600 dark:text-green-500 mt-0.5">Sucesso</div>
+          </div>
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-center">
+            <div className="text-2xl font-bold text-red-700 dark:text-red-400">{err}</div>
+            <div className="text-xs text-red-600 dark:text-red-500 mt-0.5">Falhas</div>
+          </div>
+        </div>
+        {/* Item list */}
+        <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-lg border border-gray-200 dark:border-white/[0.05] p-2">
+          {items.map((item, i) => (
+            <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${item.status === 'success' ? 'bg-green-50 dark:bg-green-900/10' : item.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' : 'bg-gray-50 dark:bg-white/[0.02]'}`}>
+              {item.status === 'pending' && <span className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin flex-shrink-0" />}
+              {item.status === 'success' && <Icon icon="mdi:check-circle" width={16} className="text-green-500 flex-shrink-0" />}
+              {item.status === 'error' && <Icon icon="mdi:close-circle" width={16} className="text-red-500 flex-shrink-0" />}
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-gray-800 dark:text-white/90 truncate block">{item.nome}</span>
+                {item.message && <span className="text-xs text-red-600 dark:text-red-400 truncate block">{item.message}</span>}
+              </div>
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0">{item.codigo}</span>
+            </div>
+          ))}
+        </div>
+        {done && (
+          <div className="flex justify-end mt-5">
+            <Button size="sm" variant="outline" onClick={onClose}>Fechar</Button>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Barra de Ações em Lote ───────────────────────────────────────────────────
+
+function BarraLote({ selecionadas, total, onLimpar, onAtualizarStatus, carregando }: { selecionadas: number; total: number; onLimpar: () => void; onAtualizarStatus: (novoStatus: string) => void; carregando: boolean }) {
+  if (selecionadas === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
+      <div className="flex items-center gap-2">
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold">{selecionadas}</span>
+        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">estudante{selecionadas !== 1 ? 's' : ''} selecionado{selecionadas !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-brand-500 dark:text-brand-400">de {total}</span>
+      </div>
+      <div className="flex items-center gap-2 ml-auto flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Status Fundamental:</span>
+          {['em_andamento', 'finalizado', 'inativo'].map(s => (
+            <button key={s} onClick={() => onAtualizarStatus(s)} disabled={carregando} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+              s === 'em_andamento' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200' :
+              s === 'finalizado' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200' :
+              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200'
+            }`}>
+              {s === 'em_andamento' ? 'Em Andamento' : s === 'finalizado' ? 'Finalizado' : 'Inativo'}
+            </button>
+          ))}
+        </div>
+        <button onClick={onLimpar} className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors" title="Limpar seleção">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tabela de Estudantes ─────────────────────────────────────────────────────
 
-function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias }: {
-  estudantes: EstudanteDetalhado[]; isAdmin: boolean; onVerDetalhes: (e: EstudanteDetalhado) => void; academias?: Record<string, string>;
+function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selecionadas, onToggle, onToggleTodos, mostrarSelecao }: {
+  estudantes: EstudanteDetalhado[]; isAdmin: boolean; onVerDetalhes: (e: EstudanteDetalhado) => void;
+  academias?: Record<string, string>; selecionadas?: Set<string>; onToggle?: (id: string) => void;
+  onToggleTodos?: (todos: EstudanteDetalhado[]) => void; mostrarSelecao?: boolean;
 }) {
-  if (estudantes.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-        <Icon icon="mdi:account-group-outline" width={48} className="mb-3 opacity-40" />
-        <p className="text-sm">Nenhum estudante neste grupo.</p>
-      </div>
-    );
-  }
-
+  if (estudantes.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+      <Icon icon="mdi:account-group-outline" width={48} className="mb-3 opacity-40" />
+      <p className="text-sm">Nenhum estudante encontrado.</p>
+    </div>
+  );
+  const todasSelecionadas = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.id));
+  const algumasSelecionadas = mostrarSelecao && estudantes.some(e => selecionadas?.has(e.id));
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+    <div className="overflow-x-auto">
       <Table className="w-full">
         <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
           <TableRow>
+            {mostrarSelecao && (
+              <TableCell isHeader className="px-4 py-3 w-10">
+                <Checkbox checked={!!todasSelecionadas} indeterminate={algumasSelecionadas && !todasSelecionadas} onChange={() => onToggleTodos?.(estudantes)} />
+              </TableCell>
+            )}
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Género</TableCell>
@@ -379,7 +415,12 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias }: {
         </TableHeader>
         <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
           {estudantes.map(est => (
-            <TableRow key={est.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+            <TableRow key={est.id} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas?.has(est.id) ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}>
+              {mostrarSelecao && (
+                <TableCell className="px-4 py-3 w-10">
+                  <Checkbox checked={!!selecionadas?.has(est.id)} onChange={() => onToggle?.(est.id)} />
+                </TableCell>
+              )}
               <TableCell className="max-w-[180px] capitalize truncate px-4 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">{est.nome || '-'}</TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400 font-mono text-xs">{est.codigo_estudante || '-'}</TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
@@ -408,18 +449,14 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias }: {
   );
 }
 
-// ─── Componentes da Vista em Escala ───────────────────────────────────────────
+// ─── Vista em Escala ──────────────────────────────────────────────────────────
 
-function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes }: {
-  turma: Turma; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
-}) {
+function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes }: { turma: Turma; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void }) {
   const [aberto, setAberto] = useState(false);
-
   const estudantesDaTurma = useMemo(() => {
     const lista = turma.estudantes.map(cod => estudantesMapa.get(cod)).filter(Boolean) as EstudanteDetalhado[];
     return ordenarEstudantes(aplicarFiltros(lista, filtros), ordem);
   }, [turma.estudantes, estudantesMapa, filtros, ordem]);
-
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
       <button onClick={() => setAberto(p => !p)} className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -434,22 +471,15 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
           <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={16} className="text-gray-400" />
         </div>
       </button>
-      {aberto && (
-        <div className="border-t border-gray-100 dark:border-gray-700/50 p-3">
-          <TabelaEstudantes estudantes={estudantesDaTurma} isAdmin={false} onVerDetalhes={onVerDetalhes} />
-        </div>
-      )}
+      {aberto && <div className="border-t border-gray-100 dark:border-gray-700/50 p-3"><TabelaEstudantes estudantes={estudantesDaTurma} isAdmin={false} onVerDetalhes={onVerDetalhes} /></div>}
     </div>
   );
 }
 
-function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
-  ano: string; label: string; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
-}) {
+function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: { ano: string; label: string; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void }) {
   const [aberto, setAberto] = useState(false);
   const turmasDoAno = turmas.filter(t => t.nivel === ano);
-  const totalEst    = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
-
+  const totalEst = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <button onClick={() => setAberto(p => !p)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
@@ -463,135 +493,66 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
       </button>
       {aberto && (
         <div className="p-3 space-y-2 border-t border-gray-100 dark:border-gray-700/50">
-          {turmasDoAno.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">Nenhuma turma para este ano.</p>
-          ) : (
-            turmasDoAno.map(t => (
-              <TurmaColapsavel key={t.id} turma={t} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
-            ))
-          )}
+          {turmasDoAno.length === 0 ? <p className="text-sm text-gray-400 text-center py-4">Nenhuma turma para este ano.</p> : turmasDoAno.map(t => <TurmaColapsavel key={t.id} turma={t} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />)}
         </div>
       )}
     </div>
   );
 }
 
-function CursoColapsavel({ curso, turmas, estudantesMapa, filtros, ordem, isSuperior, onVerDetalhes }: {
-  curso: Curso; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; isSuperior: boolean; onVerDetalhes: (e: EstudanteDetalhado) => void;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const turmasDoCurso = turmas.filter(t => t.curso_id === curso.id);
-  const anos          = curso.anos_academicos ?? [];
-
-  return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-      <button onClick={() => setAberto(p => !p)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
-        <div className="flex items-center gap-3">
-          <Icon icon={isSuperior ? 'mdi:university' : 'mdi:book-education'} width={18} className="text-brand-500" />
-          <span className="font-semibold text-gray-800 dark:text-white">{curso.nome}</span>
-          <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{anos.length} ano{anos.length !== 1 ? 's' : ''}</span>
-        </div>
-        <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={18} className="text-gray-400" />
-      </button>
-      {aberto && (
-        <div className="p-3 space-y-2 border-t border-gray-100 dark:border-gray-700/50">
-          {anos.map(ano => (
-            <AnoColapsavel key={ano} ano={ano} label={labelNivel(ano)} turmas={turmasDoCurso} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
-  turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
-}) {
-  const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a => turmas.some(t => t.nivel === a.value));
-  if (anosComTurmas.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
-  return (
-    <div className="space-y-2">
-      {anosComTurmas.map(ano => (
-        <AnoColapsavel key={ano.value} ano={ano.value} label={ano.label.replace(' Fundamental', '')} turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
-      ))}
-    </div>
-  );
-}
-
-function SecaoCursos({ cursosAtivos, tipo, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
-  cursosAtivos: Curso[]; tipo?: 'medio' | 'superior'; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
-}) {
-  const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
-  if (lista.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
-  return (
-    <div className="space-y-2">
-      {lista.map(c => (
-        <CursoColapsavel key={c.id} curso={c} turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} isSuperior={c.type === 'superior'} onVerDetalhes={onVerDetalhes} />
-      ))}
-    </div>
-  );
-}
-
-function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem, onVerDetalhes }: {
-  estudantes: EstudanteDetalhado[]; turmas: Turma[]; cursos: Curso[]; nivelAcademia: string; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
-}) {
+function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem, onVerDetalhes }: { estudantes: EstudanteDetalhado[]; turmas: Turma[]; cursos: Curso[]; nivelAcademia: string; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void }) {
   const [secaoAberta, setSecaoAberta] = useState<'fundamental' | 'cursos' | null>(null);
-
-  const estudantesMapa = useMemo(() => {
-    const m = new Map<string, EstudanteDetalhado>();
-    estudantes.forEach(e => m.set(e.codigo_estudante, e));
-    return m;
-  }, [estudantes]);
-
+  const estudantesMapa = useMemo(() => { const m = new Map<string, EstudanteDetalhado>(); estudantes.forEach(e => m.set(e.codigo_estudante, e)); return m; }, [estudantes]);
   const cursosAtivos = useMemo(() => cursos.filter(c => c.status === 'ativo'), [cursos]);
 
-  if (nivelAcademia === 'fundamental') {
-    return <SecaoFundamental turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />;
-  }
-  if (nivelAcademia === 'medio') {
-    return <SecaoCursos cursosAtivos={cursosAtivos} tipo="medio" turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />;
-  }
-  if (nivelAcademia === 'superior') {
-    return <SecaoCursos cursosAtivos={cursosAtivos} tipo="superior" turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />;
-  }
-  if (nivelAcademia === 'misto') {
-    const cursosMedio = cursosAtivos.filter(c => c.type === 'medio');
+  const SecaoFundamental = ({ lista }: { lista?: Turma[] }) => {
+    const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a => (lista ?? turmas).some(t => t.nivel === a.value));
+    if (anosComTurmas.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
+    return <div className="space-y-2">{anosComTurmas.map(ano => <AnoColapsavel key={ano.value} ano={ano.value} label={ano.label.replace(' Fundamental', '')} turmas={lista ?? turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />)}</div>;
+  };
+
+  const SecaoCursos = ({ tipo }: { tipo?: 'medio' | 'superior' }) => {
+    const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
+    if (lista.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
     return (
-      <div className="space-y-3">
-        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <button onClick={() => setSecaoAberta(p => p === 'fundamental' ? null : 'fundamental')} className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-            <div className="flex items-center gap-3">
-              <Icon icon="mdi:school" width={20} className="text-blue-600 dark:text-blue-400" />
-              <span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental</span>
-              <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">1º ao 9º Ano</span>
+      <div className="space-y-2">
+        {lista.map(curso => (
+          <div key={curso.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800 flex items-center gap-3">
+              <Icon icon={curso.type === 'superior' ? 'mdi:university' : 'mdi:book-education'} width={18} className="text-brand-500" />
+              <span className="font-semibold text-gray-800 dark:text-white">{curso.nome}</span>
+              <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{curso.anos_academicos.length} anos</span>
             </div>
-            <Icon icon={secaoAberta === 'fundamental' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
-          </button>
-          {secaoAberta === 'fundamental' && (
-            <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
-              <SecaoFundamental turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
+            <div className="p-3 space-y-2">
+              {curso.anos_academicos.map(ano => <AnoColapsavel key={ano} ano={ano} label={labelNivel(ano)} turmas={turmas.filter(t => t.curso_id === curso.id)} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />)}
             </div>
-          )}
-        </div>
-        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <button onClick={() => setSecaoAberta(p => p === 'cursos' ? null : 'cursos')} className="w-full flex items-center justify-between px-5 py-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
-            <div className="flex items-center gap-3">
-              <Icon icon="mdi:book-education" width={20} className="text-purple-600 dark:text-purple-400" />
-              <span className="font-bold text-gray-800 dark:text-white">Ensino Médio</span>
-              <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">{cursosMedio.length} curso{cursosMedio.length !== 1 ? 's' : ''}</span>
-            </div>
-            <Icon icon={secaoAberta === 'cursos' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
-          </button>
-          {secaoAberta === 'cursos' && (
-            <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
-              <SecaoCursos cursosAtivos={cursosAtivos} tipo="medio" turmas={turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
-            </div>
-          )}
-        </div>
+          </div>
+        ))}
       </div>
     );
-  }
+  };
 
+  if (nivelAcademia === 'fundamental') return <SecaoFundamental />;
+  if (nivelAcademia === 'medio') return <SecaoCursos tipo="medio" />;
+  if (nivelAcademia === 'superior') return <SecaoCursos tipo="superior" />;
+  if (nivelAcademia === 'misto') return (
+    <div className="space-y-3">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <button onClick={() => setSecaoAberta(p => p === 'fundamental' ? null : 'fundamental')} className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+          <div className="flex items-center gap-3"><Icon icon="mdi:school" width={20} className="text-blue-600 dark:text-blue-400" /><span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental</span></div>
+          <Icon icon={secaoAberta === 'fundamental' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
+        </button>
+        {secaoAberta === 'fundamental' && <div className="p-4 border-t border-gray-100 dark:border-gray-700/50"><SecaoFundamental /></div>}
+      </div>
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <button onClick={() => setSecaoAberta(p => p === 'cursos' ? null : 'cursos')} className="w-full flex items-center justify-between px-5 py-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+          <div className="flex items-center gap-3"><Icon icon="mdi:book-education" width={20} className="text-purple-600 dark:text-purple-400" /><span className="font-bold text-gray-800 dark:text-white">Ensino Médio</span></div>
+          <Icon icon={secaoAberta === 'cursos' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
+        </button>
+        {secaoAberta === 'cursos' && <div className="p-4 border-t border-gray-100 dark:border-gray-700/50"><SecaoCursos tipo="medio" /></div>}
+      </div>
+    </div>
+  );
   return null;
 }
 
@@ -605,10 +566,7 @@ function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; 
         <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.nome}</p></div>
         <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p><p className="text-sm text-gray-900 dark:text-white font-mono">{estudante.codigo_estudante}</p></div>
         <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Género</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.genero || '-'}</p></div>
-        <div>
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Nascimento</p>
-          <p className="text-sm text-gray-900 dark:text-white">{formatarDataNasc(estudante.data_nascimento)}{estudante.data_nascimento && <span className="text-xs text-gray-400 ml-2">({calcularIdade(estudante.data_nascimento)} anos)</span>}</p>
-        </div>
+        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Nascimento</p><p className="text-sm text-gray-900 dark:text-white">{formatarDataNasc(estudante.data_nascimento)}{estudante.data_nascimento && <span className="text-xs text-gray-400 ml-2">({calcularIdade(estudante.data_nascimento)} anos)</span>}</p></div>
         <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p><p className="text-sm text-gray-900 dark:text-white">{estudante.email || '-'}</p></div>
         <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Telefone</p><p className="text-sm text-gray-900 dark:text-white">{estudante.telefone || '-'}</p></div>
         <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Academia</p><p className="text-sm text-gray-900 dark:text-white">{estudante.codigo_academia || '-'}</p></div>
@@ -630,25 +588,30 @@ function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; 
 
 export default function Estudantes() {
   const { isAcademia, isAdmin } = useUserType();
-  const { user }                = useUserCookie();
-
+  const { user } = useUserCookie();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
+  const { isOpen: isLoteOpen, openModal: openLoteModal, closeModal: closeLoteModal } = useModal();
 
-  const [carregado,             setCarregado]             = useState(false);
-  const [estudanteSelecionado,  setEstudanteSelecionado]  = useState<EstudanteDetalhado | null>(null);
-  const [vistaEscala,           setVistaEscala]           = useState(false);
-  const [paginaAtual,           setPaginaAtual]           = useState(1);
-  const [ordem,                 setOrdem]                 = useState<OrdemEstudantes>('nome_asc');
-  const [filtros,               setFiltros]               = useState<FiltrosState>({
-    genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: ''
-  });
+  const [carregado, setCarregado] = useState(false);
+  const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
+  const [vistaEscala, setVistaEscala] = useState(false);
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [ordem, setOrdem] = useState<OrdemEstudantes>('nome_asc');
+  const [filtros, setFiltros] = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
+
+  // Seleção em lote
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [batchItems, setBatchItems] = useState<BatchJobItem[]>([]);
+  const [batchTitulo, setBatchTitulo] = useState('');
+  const [batchProgresso, setBatchProgresso] = useState(0);
+  const [batchCarregando, setBatchCarregando] = useState(false);
 
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataCursos,     execute: carregarCursos  } = useApi(academiaService.listarCursos);
-  const { data: dataTurmas,     execute: carregarTurmas  } = useApi(academiaService.listarTurmas);
+  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
+  const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
   const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
-  const tipoAcademia  = user?.academia?.type ?? 'escola';
+  const tipoAcademia = user?.academia?.type ?? 'escola';
 
   const carregarLista = useCallback(async () => {
     const token = tokenStorage.get();
@@ -664,7 +627,6 @@ export default function Estudantes() {
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -673,7 +635,6 @@ export default function Estudantes() {
       carregarTurmas(token || undefined);
       carregarCursos(token || undefined);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
   useEffect(() => { setPaginaAtual(1); }, [filtros, ordem]);
@@ -691,19 +652,88 @@ export default function Estudantes() {
   );
 
   const turmas: Turma[] = (dataTurmas as any)?.turmas ?? [];
-  const cursos: Curso[]  = dataCursos?.cursos ?? [];
-  const academiasMap     = useMemo<Record<string, string>>(() => ({}), []);
+  const cursos: Curso[] = dataCursos?.cursos ?? [];
+  const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
   const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); openDetailsModal(); };
 
+  // Seleção handlers
+  const handleToggle = useCallback((id: string) => {
+    setSelecionadas(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }, []);
+
+  const handleToggleTodos = useCallback((todos: EstudanteDetalhado[]) => {
+    setSelecionadas(prev => {
+      const todasIds = todos.map(e => e.id);
+      const todasSelecionadas = todasIds.every(id => prev.has(id));
+      if (todasSelecionadas) { const next = new Set(prev); todasIds.forEach(id => next.delete(id)); return next; }
+      const next = new Set(prev); todasIds.forEach(id => next.add(id)); return next;
+    });
+  }, []);
+
+  const handleLimparSelecao = () => setSelecionadas(new Set());
+
+  const handleAtualizarStatusLote = async (novoStatus: string) => {
+    const todasEstudantes = dataEstudantes?.estudantes ?? [];
+    const selecionadasList = todasEstudantes.filter(e => selecionadas.has(e.id));
+    if (selecionadasList.length === 0) return;
+
+    setBatchTitulo(`Atualizar Status Fundamental → ${novoStatus} (${selecionadasList.length} estudantes)`);
+    setBatchProgresso(0);
+    setBatchCarregando(true);
+
+    const items: BatchJobItem[] = selecionadasList.map(e => ({ codigo: e.codigo_estudante, nome: e.nome, status: 'pending' }));
+    setBatchItems(items);
+    openLoteModal();
+
+    const token = tokenStorage.get();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const payload = selecionadasList.map(e => ({ codigo_estudante: e.codigo_estudante, tipo: 'fundamental' as const, novo_status: novoStatus }));
+
+    try {
+      const r = await fetch(`${apiUrl}/academia/estudante/status-escolar/async`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+
+      if (!r.ok || !data.job_id) {
+        setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || 'Erro ao submeter job' })));
+        setBatchCarregando(false);
+        return;
+      }
+
+      const result = await pollJobUntilDone(data.job_id, (pct) => {
+        setBatchProgresso(pct);
+        setBatchItems(prev => prev.map((item, idx) => {
+          const done = Math.floor(pct / 100 * prev.length);
+          if (idx < done) return { ...item, status: 'success' };
+          return item;
+        }));
+      });
+
+      setBatchItems(prev => prev.map((item, idx) => ({
+        ...item,
+        status: idx < result.ok ? 'success' : 'error',
+      })));
+      setBatchProgresso(100);
+    } catch (err) {
+      setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: 'Erro de rede' })));
+    } finally {
+      setBatchCarregando(false);
+      setSelecionadas(new Set());
+      setTimeout(() => carregarLista(), 2000);
+    }
+  };
+
   const totalFiltrado = estudantesFiltradosOrdenados.length;
-  const totalGeral    = dataEstudantes?.total ?? 0;
+  const totalGeral = dataEstudantes?.total ?? 0;
 
   return (
     <div>
       <PageBreadcrumb pageTitle="Estudantes" />
       <div className="space-y-6">
-
         {/* Header */}
         <div className="flex flex-wrap gap-2 items-center">
           {isAcademia && (
@@ -711,35 +741,14 @@ export default function Estudantes() {
               <Icon icon="mdi:account-plus" width={16} /> Cadastrar Estudante
             </Link>
           )}
-
-          <Button size="sm" variant="outline" onClick={carregarLista} disabled={carregandoEstudantes}>
-            {carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}
-          </Button>
-
-          {/* Toggle Vista em Escala — apenas academia */}
+          <Button size="sm" variant="outline" onClick={carregarLista} disabled={carregandoEstudantes}>{carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}</Button>
           {isAcademia && (
-            <button
-              onClick={() => setVistaEscala(p => !p)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                vistaEscala
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
+            <button onClick={() => setVistaEscala(p => !p)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${vistaEscala ? 'bg-brand-500 text-white border-brand-500' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
               <Icon icon={vistaEscala ? 'mdi:table' : 'mdi:layers-triple'} width={16} />
               {vistaEscala ? 'Vista Tabela' : 'Vista em Escala'}
             </button>
           )}
-
-          {/* Ordenar — disponível em ambas as vistas */}
-          {carregado && (
-            <BotaoOrdenar
-              opcoes={OPCOES_ORDEM_ESTUDANTES}
-              ordemAtual={ordem}
-              onSelecionar={setOrdem}
-            />
-          )}
-
+          {carregado && <BotaoOrdenar opcoes={OPCOES_ORDEM} ordemAtual={ordem} onSelecionar={setOrdem} />}
           {dataEstudantes && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
               <span className="font-medium">{vistaEscala ? totalGeral : totalFiltrado}</span>
@@ -749,15 +758,32 @@ export default function Estudantes() {
           )}
         </div>
 
-        {/* Filtros — apenas vista tabela */}
-        {!vistaEscala && carregado && (
-          <FiltrosPanel filtros={filtros} setFiltros={setFiltros} isAdmin={!!isAdmin} />
+        {/* Filtros */}
+        {!vistaEscala && carregado && <FiltrosPanel filtros={filtros} setFiltros={setFiltros} isAdmin={!!isAdmin} />}
+
+        {/* Barra de lote */}
+        {isAcademia && !vistaEscala && (
+          <BarraLote
+            selecionadas={selecionadas.size}
+            total={estudantesFiltradosOrdenados.length}
+            onLimpar={handleLimparSelecao}
+            onAtualizarStatus={handleAtualizarStatusLote}
+            carregando={batchCarregando}
+          />
         )}
 
-        {/* Modal Detalhes */}
+        {/* Modais */}
         <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
           {estudanteSelecionado && <ModalDetalhes estudante={estudanteSelecionado} onClose={closeDetailsModal} />}
         </Modal>
+
+        <ModalResultadoLote
+          isOpen={isLoteOpen}
+          onClose={closeLoteModal}
+          items={batchItems}
+          titulo={batchTitulo}
+          progresso={batchProgresso}
+        />
 
         {/* Erros */}
         {erroEstudantes && (
@@ -768,50 +794,34 @@ export default function Estudantes() {
 
         {/* Vista em Escala */}
         {vistaEscala && isAcademia && carregado && (
-          <VistaEscala
-            estudantes={dataEstudantes?.estudantes ?? []}
-            turmas={turmas} cursos={cursos}
-            nivelAcademia={tipoAcademia === 'superior' ? 'superior' : nivelAcademia}
-            filtros={filtros} ordem={ordem}
-            onVerDetalhes={handleVerDetalhes}
-          />
+          <VistaEscala estudantes={dataEstudantes?.estudantes ?? []} turmas={turmas} cursos={cursos} nivelAcademia={tipoAcademia === 'superior' ? 'superior' : nivelAcademia} filtros={filtros} ordem={ordem} onVerDetalhes={handleVerDetalhes} />
         )}
 
         {/* Vista Tabela */}
         {!vistaEscala && (
           <>
-            {carregandoEstudantes && (
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" />
-                <p className="text-sm text-gray-500 dark:text-gray-400">Carregando estudantes...</p>
-              </div>
-            )}
-
+            {carregandoEstudantes && <div className="flex flex-col items-center justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" /><p className="text-sm text-gray-500 dark:text-gray-400">Carregando estudantes...</p></div>}
             {!carregandoEstudantes && !carregado && (
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
                 <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Clique em &ldquo;Atualizar lista&rdquo; para visualizar</p>
               </div>
             )}
-
             {!carregandoEstudantes && carregado && totalGeral === 0 && (
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
                 <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Nenhum estudante encontrado</p>
-                {isAcademia && (
-                  <Link href="/estudantes/cadastrar" className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">
-                    <Icon icon="mdi:account-plus" width={16} /> Cadastrar primeiro estudante
-                  </Link>
-                )}
+                {isAcademia && <Link href="/estudantes/cadastrar" className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"><Icon icon="mdi:account-plus" width={16} /> Cadastrar primeiro estudante</Link>}
               </div>
             )}
-
             {!carregandoEstudantes && carregado && totalGeral > 0 && (
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                  <div className="w-full overflow-x-auto">
-                    <TabelaEstudantes estudantes={estudantesPaginados} isAdmin={!!isAdmin} onVerDetalhes={handleVerDetalhes} academias={academiasMap} />
-                  </div>
+                  <TabelaEstudantes
+                    estudantes={estudantesPaginados} isAdmin={!!isAdmin} onVerDetalhes={handleVerDetalhes}
+                    academias={academiasMap} selecionadas={selecionadas} onToggle={handleToggle}
+                    onToggleTodos={handleToggleTodos} mostrarSelecao={!!isAcademia}
+                  />
                   {totalFiltrado === 0 && totalGeral > 0 && (
                     <div className="flex flex-col items-center justify-center py-8 text-gray-400">
                       <Icon icon="mdi:filter-off-outline" width={32} className="mb-2 opacity-50" />

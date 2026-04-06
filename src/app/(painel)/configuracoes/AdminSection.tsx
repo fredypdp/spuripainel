@@ -4,10 +4,6 @@ import React, { useCallback, useRef, useState } from "react";
 import { adminService } from "@/lib/api/services";
 import Icon from "@/components/ui/Icon";
 
-// ============================================================================
-// Tipos
-// ============================================================================
-
 type RebuildStatus = "idle" | "loading" | "success" | "error";
 
 interface ProjectionMeta {
@@ -25,14 +21,7 @@ interface RebuildAllItemResult {
   error?: string;
 }
 
-// ============================================================================
-// Metadados das projeções
-// Ordem respeita dependências de FK (tier = ordem de rebuild).
-// sistema_config foi removido — substituído por ano letivo por academia.
-// ============================================================================
-
 const PROJECTIONS: ProjectionMeta[] = [
-  // Tier 1 — sem dependências externas
   {
     name: "admins",
     label: "Admins",
@@ -66,7 +55,6 @@ const PROJECTIONS: ProjectionMeta[] = [
     description: "Categorias de avaliação personalizadas por academia.",
     tier: 1,
   },
-  // Tier 2 — dependem de academias/cursos
   {
     name: "estudantes",
     label: "Estudantes",
@@ -79,7 +67,6 @@ const PROJECTIONS: ProjectionMeta[] = [
     description: "Turmas com listas de estudantes matriculados.",
     tier: 2,
   },
-  // Tier 3 — dependem de estudantes e matérias
   {
     name: "notas",
     label: "Notas",
@@ -92,23 +79,11 @@ const PROJECTIONS: ProjectionMeta[] = [
     description: "Registos de faltas por estudante, matéria e data.",
     tier: 3,
   },
-  // Tier 4 — dependem de estudantes e aprovações
-  {
-    name: "aprovacao_ano",
-    label: "Aprovação de Ano",
-    description: "Histórico de aprovações e reprovações anuais por estudante.",
-    tier: 4,
-  },
-  {
-    name: "reprovacoes",
-    label: "Reprovações",
-    description: "Registo consolidado de reprovações.",
-    tier: 4,
-  },
   {
     name: "avaliacao_final",
     label: "Avaliação Final",
-    description: "Avaliações finais de ciclo e transições entre níveis.",
+    description:
+      "Avaliações finais de ciclo, transições entre níveis, aprovações e reprovações.",
     tier: 4,
   },
 ];
@@ -117,12 +92,8 @@ const TIER_LABELS: Record<number, string> = {
   1: "Base — Sem dependências",
   2: "Nível 2 — Dependem de Academias",
   3: "Nível 3 — Dependem de Estudantes",
-  4: "Nível 4 — Avaliações e Aprovações",
+  4: "Nível 4 — Avaliações Finais",
 };
-
-// ============================================================================
-// Hook de rebuild
-// ============================================================================
 
 function useProjectionRebuild() {
   const [statuses, setStatuses] = useState<Record<string, RebuildStatus>>({});
@@ -163,10 +134,6 @@ function useProjectionRebuild() {
 
   return { statuses, errors, timestamps, rebuild, rebuildRaw };
 }
-
-// ============================================================================
-// Card individual de projeção
-// ============================================================================
 
 function ProjectionCard({
   projection,
@@ -211,30 +178,21 @@ function ProjectionCard({
 
   return (
     <div
-      className={`
-        relative rounded-xl border p-4 flex flex-col gap-3 transition-all duration-200
+      className={`relative rounded-xl border p-4 flex flex-col gap-3 transition-all duration-200
         ${isLoading ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30" : ""}
         ${isSuccess ? "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30" : ""}
         ${isError ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30" : ""}
-        ${
-          !isLoading && !isSuccess && !isError
-            ? "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700"
-            : ""
-        }
+        ${!isLoading && !isSuccess && !isError ? "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700" : ""}
       `}
     >
-      {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className={`
-              flex-shrink-0 w-2 h-2 rounded-full mt-0.5
-              ${isLoading ? "bg-blue-400 animate-pulse" : ""}
-              ${isSuccess ? "bg-green-500" : ""}
-              ${isError ? "bg-red-500" : ""}
-              ${!isLoading && !isSuccess && !isError ? "bg-gray-300 dark:bg-gray-600" : ""}
-            `}
-          />
+          <span className={`flex-shrink-0 w-2 h-2 rounded-full mt-0.5
+            ${isLoading ? "bg-blue-400 animate-pulse" : ""}
+            ${isSuccess ? "bg-green-500" : ""}
+            ${isError ? "bg-red-500" : ""}
+            ${!isLoading && !isSuccess && !isError ? "bg-gray-300 dark:bg-gray-600" : ""}
+          `} />
           <span className="text-sm font-semibold text-gray-800 dark:text-white truncate">
             {projection.label}
           </span>
@@ -249,12 +207,10 @@ function ProjectionCard({
         </span>
       </div>
 
-      {/* Description */}
       <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
         {projection.description}
       </p>
 
-      {/* Last rebuild */}
       {lastRebuildAt && !isError && (
         <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
           <Icon icon="mdi:check-circle-outline" width="12px" />
@@ -262,14 +218,12 @@ function ProjectionCard({
         </p>
       )}
 
-      {/* Error */}
       {isError && error && (
         <p className="text-xs text-red-600 dark:text-red-400 break-words leading-relaxed bg-red-100 dark:bg-red-900/30 rounded px-2 py-1.5">
           {error}
         </p>
       )}
 
-      {/* Actions */}
       <div className="flex items-center gap-2 mt-auto pt-1">
         {confirming ? (
           <>
@@ -293,41 +247,24 @@ function ProjectionCard({
           <button
             onClick={handleClick}
             disabled={isDisabled}
-            className={`
-              w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors
+            className={`w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors
               ${isDisabled && !isLoading ? "opacity-40 cursor-not-allowed" : ""}
               ${isLoading ? "bg-blue-100 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 cursor-not-allowed" : ""}
               ${isSuccess && !isDisabled ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50" : ""}
               ${isSuccess && isDisabled ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : ""}
               ${isError && !isDisabled ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50" : ""}
               ${isError && isDisabled ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : ""}
-              ${
-                !isLoading && !isSuccess && !isError
-                  ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  : ""
-              }
+              ${!isLoading && !isSuccess && !isError ? "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700" : ""}
             `}
           >
             {isLoading ? (
-              <>
-                <span className="w-3 h-3 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-                A reconstruir...
-              </>
+              <><span className="w-3 h-3 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />A reconstruir...</>
             ) : isSuccess ? (
-              <>
-                <Icon icon="mdi:check" width="14px" />
-                Reconstruída
-              </>
+              <><Icon icon="mdi:check" width="14px" />Reconstruída</>
             ) : isError ? (
-              <>
-                <Icon icon="mdi:refresh" width="14px" />
-                Tentar novamente
-              </>
+              <><Icon icon="mdi:refresh" width="14px" />Tentar novamente</>
             ) : (
-              <>
-                <Icon icon="mdi:database-sync-outline" width="14px" />
-                Reconstruir
-              </>
+              <><Icon icon="mdi:database-sync-outline" width="14px" />Reconstruir</>
             )}
           </button>
         )}
@@ -336,25 +273,10 @@ function ProjectionCard({
   );
 }
 
-// ============================================================================
-// Modal de confirmação para Rebuild All
-// ============================================================================
-
-function RebuildAllModal({
-  onConfirm,
-  onCancel,
-  loading,
-}: {
-  onConfirm: () => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
+function RebuildAllModal({ onConfirm, onCancel, loading }: { onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={loading ? undefined : onCancel}
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={loading ? undefined : onCancel} />
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-2xl">
         <div className="flex items-start gap-4 mb-5">
           <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
@@ -366,27 +288,13 @@ function RebuildAllModal({
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
               Esta operação vai truncar e reprocessar{" "}
-              <strong className="text-gray-700 dark:text-gray-300">
-                todas as {PROJECTIONS.length} projeções
-              </strong>{" "}
-              a partir do ledger de eventos, uma a uma em ordem de tier. Durante
-              o processo:
+              <strong className="text-gray-700 dark:text-gray-300">todas as {PROJECTIONS.length} projeções</strong>{" "}
+              a partir do ledger de eventos, uma a uma em ordem de tier.
             </p>
             <ul className="mt-2 space-y-1">
-              {[
-                "Login de admins ficará temporariamente indisponível",
-                "Dados podem estar inconsistentes até conclusão",
-                "Operação pode demorar vários minutos",
-              ].map((item) => (
-                <li
-                  key={item}
-                  className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"
-                >
-                  <Icon
-                    icon="mdi:circle-small"
-                    width="16px"
-                    className="flex-shrink-0 mt-0.5"
-                  />
+              {["Login de admins ficará temporariamente indisponível","Dados podem estar inconsistentes até conclusão","Operação pode demorar vários minutos"].map((item) => (
+                <li key={item} className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
+                  <Icon icon="mdi:circle-small" width="16px" className="flex-shrink-0 mt-0.5" />
                   {item}
                 </li>
               ))}
@@ -394,29 +302,11 @@ function RebuildAllModal({
           </div>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-          >
+          <button onClick={onCancel} disabled={loading} className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50">
             Cancelar
           </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white px-4 py-2.5 text-sm font-medium transition-colors"
-          >
-            {loading ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                A reconstruir...
-              </>
-            ) : (
-              <>
-                <Icon icon="mdi:database-sync-outline" width="16px" />
-                Reconstruir todas
-              </>
-            )}
+          <button onClick={onConfirm} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white px-4 py-2.5 text-sm font-medium transition-colors">
+            {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />A reconstruir...</>) : (<><Icon icon="mdi:database-sync-outline" width="16px" />Reconstruir todas</>)}
           </button>
         </div>
       </div>
@@ -424,92 +314,42 @@ function RebuildAllModal({
   );
 }
 
-// ============================================================================
-// Painel de resultados do Rebuild All
-// ============================================================================
-
-function RebuildAllResultsPanel({
-  results,
-  onDismiss,
-}: {
-  results: RebuildAllItemResult[];
-  onDismiss: () => void;
-}) {
+function RebuildAllResultsPanel({ results, onDismiss }: { results: RebuildAllItemResult[]; onDismiss: () => void }) {
   const successList = results.filter((r) => r.status === "success");
   const errorList = results.filter((r) => r.status === "error");
   const allSuccess = errorList.length === 0;
 
-  const wrapperClass = allSuccess
-    ? "rounded-xl border p-4 flex flex-col gap-3 border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20"
-    : "rounded-xl border p-4 flex flex-col gap-3 border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20";
-
-  const iconName = allSuccess ? "mdi:check-circle-outline" : "mdi:alert-circle-outline";
-  const iconClass = allSuccess
-    ? "text-green-600 dark:text-green-400"
-    : "text-red-500 dark:text-red-400";
-  const labelClass = allSuccess
-    ? "text-sm font-semibold text-green-800 dark:text-green-300"
-    : "text-sm font-semibold text-red-700 dark:text-red-300";
-
-  const errSuffix = errorList.length > 1 ? "ões" : "";
-  const okSuffix = successList.length !== 1 ? "s" : "";
-  const summaryLabel = allSuccess
-    ? `Todas as ${results.length} projeções reconstruídas com sucesso`
-    : `${errorList.length} projeção${errSuffix} com erro — ${successList.length} concluída${okSuffix}`;
-
   return (
-    <div className={wrapperClass}>
+    <div className={`rounded-xl border p-4 flex flex-col gap-3 ${allSuccess ? "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20" : "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20"}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Icon icon={iconName} width="18px" className={iconClass} />
-          <span className={labelClass}>{summaryLabel}</span>
+          <Icon icon={allSuccess ? "mdi:check-circle-outline" : "mdi:alert-circle-outline"} width="18px" className={allSuccess ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"} />
+          <span className={`text-sm font-semibold ${allSuccess ? "text-green-800 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
+            {allSuccess ? `Todas as ${results.length} projeções reconstruídas com sucesso` : `${errorList.length} projeção${errorList.length > 1 ? "ões" : ""} com erro — ${successList.length} concluída${successList.length !== 1 ? "s" : ""}`}
+          </span>
         </div>
-        <button
-          onClick={onDismiss}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
-          title="Fechar resumo"
-        >
+        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0">
           <Icon icon="mdi:close" width="16px" />
         </button>
       </div>
-
       {!allSuccess && successList.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {successList.map((r) => (
-            <span
-              key={r.name}
-              className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full"
-            >
-              <Icon icon="mdi:check" width="11px" />
-              {r.label}
+            <span key={r.name} className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
+              <Icon icon="mdi:check" width="11px" />{r.label}
             </span>
           ))}
         </div>
       )}
-
       {errorList.length > 0 && (
         <div className="flex flex-col gap-2">
           {errorList.map((r) => (
-            <div
-              key={r.name}
-              className="flex flex-col gap-0.5 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2"
-            >
+            <div key={r.name} className="flex flex-col gap-0.5 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2">
               <span className="text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
-                <Icon
-                  icon="mdi:close-circle-outline"
-                  width="13px"
-                  className="flex-shrink-0"
-                />
-                {r.label}
-                <span className="font-mono font-normal text-red-400 dark:text-red-500">
-                  ({r.name})
-                </span>
+                <Icon icon="mdi:close-circle-outline" width="13px" className="flex-shrink-0" />
+                {r.label} <span className="font-mono font-normal text-red-400 dark:text-red-500">({r.name})</span>
               </span>
-              {r.error && (
-                <span className="text-xs text-red-600 dark:text-red-400 leading-relaxed pl-5 break-words">
-                  {r.error}
-                </span>
-              )}
+              {r.error && <span className="text-xs text-red-600 dark:text-red-400 leading-relaxed pl-5 break-words">{r.error}</span>}
             </div>
           ))}
         </div>
@@ -520,7 +360,6 @@ function RebuildAllResultsPanel({
 
 export default function AdminSection() {
   const { statuses, errors, timestamps, rebuild, rebuildRaw } = useProjectionRebuild();
-
   const [showRebuildAllModal, setShowRebuildAllModal] = useState(false);
   const [rebuildAllLoading, setRebuildAllLoading] = useState(false);
   const [rebuildAllResults, setRebuildAllResults] = useState<RebuildAllItemResult[] | null>(null);
@@ -533,136 +372,75 @@ export default function AdminSection() {
     setRebuildAllLoading(true);
     setRebuildAllResults(null);
     setShowRebuildAllModal(false);
-
     const results: RebuildAllItemResult[] = [];
     for (const projection of PROJECTIONS) {
       const result = await rebuildRaw(projection.name);
-      results.push({
-        name: projection.name,
-        label: projection.label,
-        status: result.ok ? "success" : "error",
-        error: result.ok ? undefined : result.error,
-      });
+      results.push({ name: projection.name, label: projection.label, status: result.ok ? "success" : "error", error: result.ok ? undefined : result.error });
     }
-
     setRebuildAllResults(results);
     setRebuildAllLoading(false);
   }
 
   const tiers = [1, 2, 3, 4];
-  const byTier = (tier: number) => PROJECTIONS.filter((p) => p.tier === tier);
 
   return (
     <div>
-      {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800">
-              <Icon
-                icon="mdi:database-sync-outline"
-                width="16px"
-                className="text-gray-600 dark:text-gray-400"
-              />
+              <Icon icon="mdi:database-sync-outline" width="16px" className="text-gray-600 dark:text-gray-400" />
             </span>
             Reconstrução de Projeções
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
-            Reprocessa eventos do ledger para reconstruir as tabelas de leitura.
-            Use quando uma projeção estiver inconsistente com o estado do ledger.
+            Reprocessa eventos do ledger para reconstruir as tabelas de leitura. Use quando uma projeção estiver inconsistente.
           </p>
         </div>
-
-        {/* Contadores + botão Rebuild All */}
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           {(loadingCount > 0 || successCount > 0 || errorCount > 0) && (
             <div className="flex items-center gap-3 text-xs">
-              {loadingCount > 0 && (
-                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                  {loadingCount} a reconstruir
-                </span>
-              )}
-              {successCount > 0 && (
-                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  {successCount} concluída{successCount > 1 ? "s" : ""}
-                </span>
-              )}
-              {errorCount > 0 && (
-                <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  {errorCount} com erro
-                </span>
-              )}
+              {loadingCount > 0 && <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400"><span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />{loadingCount} a reconstruir</span>}
+              {successCount > 0 && <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><span className="w-2 h-2 rounded-full bg-green-500" />{successCount} concluída{successCount > 1 ? "s" : ""}</span>}
+              {errorCount > 0 && <span className="flex items-center gap-1 text-red-600 dark:text-red-400"><span className="w-2 h-2 rounded-full bg-red-500" />{errorCount} com erro</span>}
             </div>
           )}
-
           <button
             onClick={() => setShowRebuildAllModal(true)}
             disabled={rebuildAllLoading || loadingCount > 0}
             className="inline-flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium transition-colors"
           >
-            {rebuildAllLoading ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                A reconstruir...
-              </>
-            ) : (
-              <>
-                <Icon icon="mdi:database-refresh-outline" width="16px" />
-                Reconstruir todas
-              </>
-            )}
+            {rebuildAllLoading ? (<><span className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />A reconstruir...</>) : (<><Icon icon="mdi:database-refresh-outline" width="16px" />Reconstruir todas</>)}
           </button>
         </div>
       </div>
 
-      {/* Painel de resultados do último Rebuild All */}
       {rebuildAllResults && (
         <div className="mb-6">
-          <RebuildAllResultsPanel
-            results={rebuildAllResults}
-            onDismiss={() => setRebuildAllResults(null)}
-          />
+          <RebuildAllResultsPanel results={rebuildAllResults} onDismiss={() => setRebuildAllResults(null)} />
         </div>
       )}
 
-      {/* Aviso de impacto */}
       <div className="mb-6 rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/10 px-5 py-3 flex items-start gap-3">
-        <Icon
-          icon="mdi:alert-circle-outline"
-          width="18px"
-          className="text-orange-500 dark:text-orange-400 mt-0.5 shrink-0"
-        />
+        <Icon icon="mdi:alert-circle-outline" width="18px" className="text-orange-500 dark:text-orange-400 mt-0.5 shrink-0" />
         <div className="text-sm text-orange-700 dark:text-orange-300">
-          <strong>Atenção:</strong> O rebuild trunca e reprocessa a tabela do
-          zero. Projeções marcadas como{" "}
-          <span className="inline-flex items-center gap-1 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">
-            ⚠ crítico
-          </span>{" "}
-          causam indisponibilidade temporária de login durante a operação. Cada
-          ação é registada no ledger de auditoria.
+          <strong>Atenção:</strong> O rebuild trunca e reprocessa a tabela do zero. Projeções marcadas como{" "}
+          <span className="inline-flex items-center gap-1 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">⚠ crítico</span>{" "}
+          causam indisponibilidade temporária de login durante a operação.
         </div>
       </div>
 
-      {/* Grid de projeções agrupado por tier */}
       <div className="space-y-8">
         {tiers.map((tier) => {
-          const projections = byTier(tier);
+          const projections = PROJECTIONS.filter((p) => p.tier === tier);
           if (projections.length === 0) return null;
           return (
             <div key={tier}>
               <div className="flex items-center gap-3 mb-3">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold flex-shrink-0">
-                  {tier}
-                </span>
-                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  {TIER_LABELS[tier]}
-                </span>
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold flex-shrink-0">{tier}</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{TIER_LABELS[tier]}</span>
                 <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800" />
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {projections.map((projection) => (
                   <ProjectionCard
@@ -681,13 +459,8 @@ export default function AdminSection() {
         })}
       </div>
 
-      {/* Modal Rebuild All */}
       {showRebuildAllModal && (
-        <RebuildAllModal
-          onConfirm={handleRebuildAll}
-          onCancel={() => setShowRebuildAllModal(false)}
-          loading={rebuildAllLoading}
-        />
+        <RebuildAllModal onConfirm={handleRebuildAll} onCancel={() => setShowRebuildAllModal(false)} loading={rebuildAllLoading} />
       )}
     </div>
   );

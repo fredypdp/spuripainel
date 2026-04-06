@@ -5,11 +5,12 @@ import type { Curso, MeuPerfilResponse, Turma, EstudanteDetalhado } from "@/type
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
+import Checkbox from "@/components/form/input/Checkbox";
+import { Modal } from "@/components/ui/modal";
 import { getCookie } from "@/lib/utils/cookies";
 
 // ── Constantes ─────────────────────────────────────────────────────────────
 
-// Anos fundamentais são FIXOS — definidos pelo sistema
 const ANOS_FUNDAMENTAL = [
   { value: "1_ano_fundamental", label: "1º Ano" },
   { value: "2_ano_fundamental", label: "2º Ano" },
@@ -21,27 +22,20 @@ const ANOS_FUNDAMENTAL = [
   { value: "8_ano_fundamental", label: "8º Ano" },
   { value: "9_ano_fundamental", label: "9º Ano" },
 ];
-// Anos de médio e superior são DINÂMICOS — vêm de curso.anos_academicos
+
 const TURNOS = [
-  { value: "manha", label: "Manhã"  },
-  { value: "tarde", label: "Tarde"  },
-  { value: "noite", label: "Noite"  },
+  { value: "manha", label: "Manhã" },
+  { value: "tarde", label: "Tarde" },
+  { value: "noite", label: "Noite" },
 ];
 
-/** Formata um valor de nível para label legível — suporta valores dinâmicos. */
 const labelNivel = (v: string): string => {
-  // Fixos: fundamentais
   const fixo = ANOS_FUNDAMENTAL.find(a => a.value === v);
   if (fixo) return fixo.label;
-  // Dinâmicos: ex "3_ano_medio" → "3º Médio" | "2_ano_superior" → "2º Superior"
   const m = v.match(/^(\d+)_ano_(medio|superior)$/);
-  if (m) {
-    const tipo = m[2] === "medio" ? "Médio" : "Superior";
-    return `${m[1]}º ${tipo}`;
-  }
+  if (m) { const tipo = m[2] === "medio" ? "Médio" : "Superior"; return `${m[1]}º ${tipo}`; }
   return v.replace(/_/g, " ");
 };
-
 const labelTurno = (t: string) => TURNOS.find(x => x.value === t)?.label ?? t;
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
@@ -50,79 +44,142 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
   catch { return null; }
 };
 
-interface TurmaFormData {
-  codigo_turma: string;
-  nivel: string;
-  turno: string;
-  curso_id?: string;
+// ── Batch polling helper ────────────────────────────────────────────────────
+
+interface BatchResultItem { codigo: string; nome: string; status: 'pending' | 'success' | 'error'; message?: string; }
+
+async function pollJobUntilDone(jobId: string, onProgress: (pct: number) => void, maxMs = 5 * 60 * 1000): Promise<{ ok: number; err: number }> {
+  const token = tokenStorage.get();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const deadline = Date.now() + maxMs;
+  let interval = 1500;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, interval));
+    interval = Math.min(interval * 1.3, 6000);
+    try {
+      const r = await fetch(`${apiUrl}/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      if (!r.ok) continue;
+      const data = await r.json();
+      onProgress(data.progress ?? 0);
+      if (data.status === 'done' || data.status === 'failed') return { ok: data.done_items ?? 0, err: data.fail_items ?? 0 };
+    } catch { /* retry */ }
+  }
+  return { ok: 0, err: 0 };
 }
 
-// ── Modal: Confirmar Deleção de Turma ─────────────────────────────────────────
+// ── Modal Resultado Lote ────────────────────────────────────────────────────
 
-function ModalConfirmarDeleteTurma({
-  turma,
-  onConfirm,
-  onClose,
-}: {
-  turma: Turma;
-  onConfirm: () => Promise<void>;
-  onClose: () => void;
+function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isOpen: boolean; onClose: () => void; items: BatchResultItem[]; titulo: string; progresso: number }) {
+  const ok = items.filter(i => i.status === 'success').length;
+  const err = items.filter(i => i.status === 'error').length;
+  const done = progresso >= 100 || items.every(i => i.status !== 'pending');
+  return (
+    <Modal isOpen={isOpen} onClose={done ? onClose : () => {}} showCloseButton={done} className="max-w-[520px] p-5 lg:p-8">
+      <div>
+        <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">{titulo}</h4>
+        {!done && (
+          <div className="mb-4">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1"><span>Processando...</span><span>{progresso}%</span></div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} /></div>
+          </div>
+        )}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="p-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.05] rounded-xl text-center"><div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{items.length}</div><div className="text-xs text-gray-500 mt-0.5">Total</div></div>
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-center"><div className="text-2xl font-bold text-green-700 dark:text-green-400">{ok}</div><div className="text-xs text-green-600 mt-0.5">Sucesso</div></div>
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-center"><div className="text-2xl font-bold text-red-700 dark:text-red-400">{err}</div><div className="text-xs text-red-600 mt-0.5">Falhas</div></div>
+        </div>
+        <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-lg border border-gray-200 dark:border-white/[0.05] p-2">
+          {items.map((item, i) => (
+            <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${item.status === 'success' ? 'bg-green-50 dark:bg-green-900/10' : item.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' : 'bg-gray-50 dark:bg-white/[0.02]'}`}>
+              {item.status === 'pending' && <span className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin flex-shrink-0" />}
+              {item.status === 'success' && <Icon icon="mdi:check-circle" width={16} className="text-green-500 flex-shrink-0" />}
+              {item.status === 'error' && <Icon icon="mdi:close-circle" width={16} className="text-red-500 flex-shrink-0" />}
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-gray-800 dark:text-white/90 truncate block">{item.nome}</span>
+                {item.message && <span className="text-xs text-red-600 dark:text-red-400 truncate block">{item.message}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+        {done && <div className="flex justify-end mt-5"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Barra de lote ───────────────────────────────────────────────────────────
+
+function BarraLoteTurmas({ selecionadas, turmasList, onLimpar, onAtivar, onDesativar, onDeletar, carregando }: {
+  selecionadas: Set<string>; turmasList: Turma[]; onLimpar: () => void;
+  onAtivar: () => void; onDesativar: () => void; onDeletar: () => void; carregando: boolean;
 }) {
+  if (selecionadas.size === 0) return null;
+  const sel = turmasList.filter(t => selecionadas.has(t.codigo_turma));
+  const ativas = sel.filter(t => t.status === 'ativo').length;
+  const inativas = sel.filter(t => t.status === 'inativo').length;
+  const deletaveis = sel.filter(t => t.status === 'inativo' && t.estudantes.length === 0).length;
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
+      <div className="flex items-center gap-2">
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold">{selecionadas.size}</span>
+        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">turma{selecionadas.size !== 1 ? 's' : ''} selecionada{selecionadas.size !== 1 ? 's' : ''}</span>
+        {ativas > 0 && <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">{ativas} ativa{ativas !== 1 ? 's' : ''}</span>}
+        {inativas > 0 && <span className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full">{inativas} inativa{inativas !== 1 ? 's' : ''}</span>}
+      </div>
+      <div className="flex items-center gap-2 ml-auto">
+        {inativas > 0 && <Button size="sm" variant="success" disabled={carregando} onClick={onAtivar} startIcon={<Icon icon="mdi:play-circle-outline" width={16} />}>{carregando ? '...' : `Ativar ${inativas}`}</Button>}
+        {ativas > 0 && <Button size="sm" variant="warning" disabled={carregando} onClick={onDesativar} startIcon={<Icon icon="mdi:pause-circle-outline" width={16} />}>{carregando ? '...' : `Desativar ${ativas}`}</Button>}
+        {deletaveis > 0 && <Button size="sm" variant="danger" disabled={carregando} onClick={onDeletar} startIcon={<Icon icon="mdi:delete-outline" width={16} />}>{carregando ? '...' : `Deletar ${deletaveis}`}</Button>}
+        <button onClick={onLimpar} className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal: Confirmar Deleção ────────────────────────────────────────────────
+
+function ModalConfirmarDeleteTurma({ turma, onConfirm, onClose }: { turma: Turma; onConfirm: () => Promise<void>; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
-
-  async function handle() {
-    setLoading(true);
-    try { await onConfirm(); onClose(); }
-    finally { setLoading(false); }
-  }
-
+  async function handle() { setLoading(true); try { await onConfirm(); onClose(); } finally { setLoading(false); } }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Deletar Turma</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Tem certeza que deseja deletar a turma{" "}
-          <span className="font-medium text-gray-700 dark:text-gray-200">{turma.codigo_turma}</span>?{" "}
-          O histórico é preservado no ledger.
-        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Tem certeza que deseja deletar a turma <span className="font-medium text-gray-700 dark:text-gray-200">{turma.codigo_turma}</span>? O histórico é preservado no ledger.</p>
         <div className="flex gap-3 justify-end">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          <button
-            onClick={handle}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Deletando..." : "Deletar"}
-          </button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Cancelar</Button>
+          <button onClick={handle} disabled={loading} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">{loading ? "Deletando..." : "Deletar"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Componente principal ───────────────────────────────────────────────────
+// ── Componente principal ────────────────────────────────────────────────────
 
 export default function TurmasPainel() {
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-
-  // UI state
   const [expandedTurma, setExpandedTurma] = useState<string | null>(null);
   const [expandedNivel, setExpandedNivel] = useState<string | null>(null);
   const [expandedCurso, setExpandedCurso] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
   const [turmaParaDelete, setTurmaParaDelete] = useState<Turma | null>(null);
-  const [formData, setFormData] = useState<TurmaFormData>({ codigo_turma: "", nivel: "", turno: "manha" });
+  const [formData, setFormData] = useState({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined as string | undefined });
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [codigoAdd, setCodigoAdd] = useState("");
-  const [alert, setAlert] = useState<{variant: "success"|"error"|"warning"|"info"; message: string }|null>(null);
-  // Para academias mistas: qual secção está visível (fundamental vs médio/cursos)
+  const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [viewNivelTurmas, setViewNivelTurmas] = useState<"fundamental" | "cursos">("fundamental");
 
-  // APIs
-  const { execute: listarTurmas, data: dataTurmas, loading: carregando  } = useApi(academiaService.listarTurmas);
+  // Lote
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [loteItems, setLoteItems] = useState<BatchResultItem[]>([]);
+  const [loteTitulo, setLoteTitulo] = useState('');
+  const [loteProgresso, setLoteProgresso] = useState(0);
+  const [loteCarregando, setLoteCarregando] = useState(false);
+  const [loteModalOpen, setLoteModalOpen] = useState(false);
+
+  const { execute: listarTurmas, data: dataTurmas, loading: carregando } = useApi(academiaService.listarTurmas);
   const { execute: listarCursos, data: dataCursos } = useApi(academiaService.listarCursos);
   const { execute: listarEstudantes, data: dataEstudantes } = useApi(consultasService.listarEstudantes);
   const { execute: criarTurma, loading: criando } = useApi(academiaService.criarTurma);
@@ -135,59 +192,37 @@ export default function TurmasPainel() {
 
   useEffect(() => {
     const t = tokenStorage.get() ?? undefined;
-    listarTurmas(t);
-    listarCursos(t);
-    listarEstudantes(t);
+    listarTurmas(t); listarCursos(t); listarEstudantes(t);
   }, []);
 
-  const showMsg = (variant: "success"|"error"|"warning"|"info", msg: string) => {
+  const showMsg = (variant: "success" | "error" | "warning" | "info", msg: string) => {
     setAlert({ variant, message: msg });
     setTimeout(() => setAlert(null), 5000);
   };
 
   const reload = () => listarTurmas(tokenStorage.get() ?? undefined);
 
-  // ── Contexto académico ────────────────────────────────────────────────
-
-  const academiaType  = user?.academia?.type;
-  const nivelEscolar  = user?.academia?.nivel_escolar;
+  const academiaType = user?.academia?.type;
+  const nivelEscolar = user?.academia?.nivel_escolar;
   const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
-  const isMisto       = academiaType === "escola" && nivelEscolar === "misto";
-  const isSuperior    = academiaType === "superior";
+  const isMisto = academiaType === "escola" && nivelEscolar === "misto";
 
-  const turmas:     Turma[]              = dataTurmas?.turmas ?? [];
-  const cursos:     Curso[]              = dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [];
+  const turmas: Turma[] = dataTurmas?.turmas ?? [];
+  const cursos: Curso[] = dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [];
   const estudantes: EstudanteDetalhado[] = dataEstudantes?.estudantes ?? [];
 
-  /**
-   * Retorna as opções de nível para o select do formulário.
-   * - fundamental: lista fixa (ANOS_FUNDAMENTAL)
-   * - médio/superior: derivados de curso.anos_academicos (dinâmico)
-   *
-   * Sem curso selecionado (médio/superior) retorna [] — o select fica desabilitado
-   * até o utilizador escolher um curso.
-   */
   const getNivelOptions = (cursoId?: string) => {
     if (isFundamental) return ANOS_FUNDAMENTAL;
-    if (!cursoId) return []; // obriga escolher curso primeiro
+    if (!cursoId) return [];
     const curso = cursos.find(c => c.id === cursoId);
     if (!curso) return [];
-    // curso.anos_academicos = ["1_ano_medio","2_ano_medio",...] ou ["1_ano_superior",...]
-    return curso.anos_academicos.map(v => ({
-      value: v,
-      label: labelNivel(v),
-    }));
+    return curso.anos_academicos.map(v => ({ value: v, label: labelNivel(v) }));
   };
-
-  // ── Agrupamentos ─────────────────────────────────────────────────────
 
   const turmasPorNivel = (lista?: Turma[]) => {
     const source = lista ?? turmas;
     const map: Record<string, Turma[]> = {};
-    for (const t of source) {
-      if (!map[t.nivel]) map[t.nivel] = [];
-      map[t.nivel].push(t);
-    }
+    for (const t of source) { if (!map[t.nivel]) map[t.nivel] = []; map[t.nivel].push(t); }
     return map;
   };
 
@@ -197,27 +232,73 @@ export default function TurmasPainel() {
     const map: Record<string, G> = {};
     for (const t of source) {
       const key = t.curso_id ?? "__sem_curso__";
-      if (!map[key]) {
-        map[key] = { curso: cursos.find(c => c.id === t.curso_id) ?? null, niveis: {} };
-      }
+      if (!map[key]) map[key] = { curso: cursos.find(c => c.id === t.curso_id) ?? null, niveis: {} };
       if (!map[key].niveis[t.nivel]) map[key].niveis[t.nivel] = [];
       map[key].niveis[t.nivel].push(t);
     }
     return map;
   };
 
-  // Para academias mistas: turmas de fundamental têm nivel matching /fundamental/
-  // turmas de médio/superior têm nivel matching /medio|superior/
   const turmasFundamental = turmas.filter(t => t.nivel.includes("fundamental"));
-  const turmasCursos      = turmas.filter(t => !t.nivel.includes("fundamental"));
+  const turmasCursos = turmas.filter(t => !t.nivel.includes("fundamental"));
 
-  // ── Handlers ─────────────────────────────────────────────────────────
-
-  const resetForm = () => {
-    setFormData({ codigo_turma: "", nivel: "", turno: "manha" });
-    setEditingTurma(null);
-    setShowForm(false);
+  // Seleção handlers
+  const handleToggleSelecao = (codigo: string) => {
+    setSelecionadas(prev => { const next = new Set(prev); if (next.has(codigo)) next.delete(codigo); else next.add(codigo); return next; });
   };
+  const handleToggleTodas = (lista: Turma[]) => {
+    setSelecionadas(prev => {
+      const ids = lista.map(t => t.codigo_turma);
+      const todasSel = ids.every(id => prev.has(id));
+      if (todasSel) { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next; }
+      const next = new Set(prev); ids.forEach(id => next.add(id)); return next;
+    });
+  };
+  const limparSelecao = () => setSelecionadas(new Set());
+
+  // Batch via async
+  const executarBatchAsync = async (endpoint: string, method: string, payload: any, titulo: string, itemsParaLabel: { codigo: string; nome: string }[]) => {
+    setLoteTitulo(titulo);
+    setLoteProgresso(0);
+    setLoteCarregando(true);
+    const items: BatchResultItem[] = itemsParaLabel.map(i => ({ ...i, status: 'pending' }));
+    setLoteItems(items);
+    setLoteModalOpen(true);
+    const token = tokenStorage.get();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    try {
+      const r = await fetch(`${apiUrl}${endpoint}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const data = await r.json();
+      if (!r.ok || !data.job_id) { setLoteItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || 'Erro' }))); setLoteCarregando(false); return; }
+      const result = await pollJobUntilDone(data.job_id, pct => {
+        setLoteProgresso(pct);
+        setLoteItems(prev => prev.map((item, idx) => { const done = Math.floor(pct / 100 * prev.length); return idx < done ? { ...item, status: 'success' } : item; }));
+      });
+      setLoteItems(prev => prev.map((item, idx) => ({ ...item, status: idx < result.ok ? 'success' : 'error' })));
+      setLoteProgresso(100);
+    } catch { setLoteItems(prev => prev.map(i => ({ ...i, status: 'error', message: 'Erro de rede' }))); }
+    finally { setLoteCarregando(false); limparSelecao(); setTimeout(reload, 2000); }
+  };
+
+  const handleAtivarLote = () => {
+    const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'inativo');
+    if (!sel.length) return;
+    executarBatchAsync('/academia/turma/ativar/batch', 'PUT', sel.map(t => ({ codigo: t.codigo_turma })), `Ativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+  };
+
+  const handleDesativarLote = () => {
+    const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'ativo');
+    if (!sel.length) return;
+    executarBatchAsync('/academia/turma/desativar/batch', 'PUT', sel.map(t => ({ codigo: t.codigo_turma })), `Desativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+  };
+
+  const handleDeletarLote = () => {
+    const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'inativo' && t.estudantes.length === 0);
+    if (!sel.length) return;
+    executarBatchAsync('/academia/turma/batch', 'DELETE', sel.map(t => ({ codigo: t.codigo_turma })), `Deletar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+  };
+
+  const resetForm = () => { setFormData({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined }); setEditingTurma(null); setShowForm(false); };
 
   const handleEdit = (t: Turma) => {
     setEditingTurma(t);
@@ -228,179 +309,88 @@ export default function TurmasPainel() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.codigo_turma.trim() || !formData.nivel || !formData.turno) {
-      showMsg("error", "Preencha todos os campos obrigatórios");
-      return;
-    }
+    if (!formData.codigo_turma.trim() || !formData.nivel || !formData.turno) { showMsg("error", "Preencha todos os campos obrigatórios"); return; }
     try {
-      if (editingTurma) {
-        await atualizarTurma(editingTurma.codigo_turma, {
-          nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined,
-        });
-        showMsg("success", "Turma actualizada com sucesso");
-      } else {
-        await criarTurma({
-          codigo_turma: formData.codigo_turma, nivel: formData.nivel,
-          turno: formData.turno, curso_id: formData.curso_id || undefined,
-        });
-        showMsg("success", "Turma criada com sucesso");
-      }
-      resetForm();
-      reload();
-    } catch (err: any) {
-      showMsg("error", err?.message || "Erro ao guardar turma");
-    }
+      if (editingTurma) { await atualizarTurma(editingTurma.codigo_turma, { nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined }); showMsg("success", "Turma actualizada com sucesso"); }
+      else { await criarTurma({ codigo_turma: formData.codigo_turma, nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined }); showMsg("success", "Turma criada com sucesso"); }
+      resetForm(); reload();
+    } catch (err: any) { showMsg("error", err?.message || "Erro ao guardar turma"); }
   };
 
   const handleAdd = async (codigoTurma: string) => {
     if (!codigoAdd.trim()) return;
-    try {
-      await adicionarEstudante(codigoTurma, { codigo_estudante: codigoAdd.trim() });
-      showMsg("success", "Estudante adicionado");
-      setCodigoAdd(""); setAddingTo(null);
-      reload();
-    } catch (err: any) {
-      showMsg("error", err?.message || "Erro ao adicionar estudante");
-    }
+    try { await adicionarEstudante(codigoTurma, { codigo_estudante: codigoAdd.trim() }); showMsg("success", "Estudante adicionado"); setCodigoAdd(""); setAddingTo(null); reload(); }
+    catch (err: any) { showMsg("error", err?.message || "Erro ao adicionar estudante"); }
   };
 
   const handleRemove = async (codigoTurma: string, codigoEstudante: string) => {
-    try {
-      await removerEstudante(codigoTurma, codigoEstudante);
-      showMsg("success", "Estudante removido");
-      reload();
-    } catch (err: any) {
-      showMsg("error", err?.message || "Erro ao remover estudante");
-    }
+    try { await removerEstudante(codigoTurma, codigoEstudante); showMsg("success", "Estudante removido"); reload(); }
+    catch (err: any) { showMsg("error", err?.message || "Erro ao remover estudante"); }
   };
 
   const handleDeletarTurma = async (codigoTurma: string) => {
-    try {
-      await executarDeletarTurma(codigoTurma);
-      showMsg("success", "Turma deletada com sucesso");
-      reload();
-    } catch (e: any) {
-      showMsg("error", e?.message ?? "Erro ao deletar turma");
-    }
+    try { await executarDeletarTurma(codigoTurma); showMsg("success", "Turma deletada com sucesso"); reload(); }
+    catch (e: any) { showMsg("error", e?.message ?? "Erro ao deletar turma"); }
   };
 
   const handleToggleStatus = async (turma: Turma) => {
     const t = tokenStorage.get() ?? undefined;
     try {
-      if (turma.status === "ativo") {
-        await desativarTurma(turma.codigo_turma, t);
-        showMsg("success", "Turma desativada");
-      } else {
-        await ativarTurma(turma.codigo_turma, t);
-        showMsg("success", "Turma ativada");
-      }
+      if (turma.status === "ativo") { await desativarTurma(turma.codigo_turma, t); showMsg("success", "Turma desativada"); }
+      else { await ativarTurma(turma.codigo_turma, t); showMsg("success", "Turma ativada"); }
       reload();
-    } catch (e: any) {
-      showMsg("error", e?.message ?? "Erro ao alterar status da turma");
-    }
+    } catch (e: any) { showMsg("error", e?.message ?? "Erro ao alterar status da turma"); }
   };
 
-  // ── TurmaCard ────────────────────────────────────────────────────────
+  // ── TurmaCard ───────────────────────────────────────────────────────────
 
-  const TurmaCard = ({ turma }: { turma: Turma }) => {
-    const isOpen   = expandedTurma === turma.codigo_turma;
+  const TurmaCard = ({ turma, mostrarCheckbox }: { turma: Turma; mostrarCheckbox?: boolean }) => {
+    const isOpen = expandedTurma === turma.codigo_turma;
     const isAdding = addingTo === turma.codigo_turma;
-
+    const isSelecionada = selecionadas.has(turma.codigo_turma);
     return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        {/* Cabeçalho clicável */}
-        <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-          onClick={() => setExpandedTurma(isOpen ? null : turma.codigo_turma)}
-        >
+      <div className={`border rounded-xl overflow-hidden transition-colors ${isSelecionada ? 'border-brand-300 dark:border-brand-700 bg-brand-50/30 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
+        <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => setExpandedTurma(isOpen ? null : turma.codigo_turma)}>
           <div className="flex items-center gap-3">
+            {mostrarCheckbox && (
+              <div onClick={e => { e.stopPropagation(); handleToggleSelecao(turma.codigo_turma); }}>
+                <Checkbox checked={isSelecionada} onChange={() => handleToggleSelecao(turma.codigo_turma)} />
+              </div>
+            )}
             <Icon icon="mdi:door-closed" className="text-brand-500 w-5 h-5" />
             <span className="font-semibold text-gray-900 dark:text-white">{turma.codigo_turma}</span>
             <span className="text-sm text-gray-500 dark:text-gray-400">· {labelTurno(turma.turno)}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              turma.status === "ativo"
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                : turma.status === "deletado"
-                ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-            }`}>
-              {turma.status}
-            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${turma.status === "ativo" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : turma.status === "deletado" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"}`}>{turma.status}</span>
           </div>
           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              <Icon icon="mdi:account-group" className="w-4 h-4" />
-              {turma.estudantes.length}
-            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{turma.estudantes.length}</span>
             {turma.status !== "deletado" && (
               <>
-                {/* Ativar / Desativar */}
-                <button
-                  onClick={() => handleToggleStatus(turma)}
-                  className={`p-1.5 transition-colors ${
-                    turma.status === "ativo"
-                      ? "text-gray-400 hover:text-orange-500"
-                      : "text-gray-400 hover:text-green-500"
-                  }`}
-                  title={turma.status === "ativo" ? "Desativar turma" : "Ativar turma"}
-                >
+                <button onClick={() => handleToggleStatus(turma)} className={`p-1.5 transition-colors ${turma.status === "ativo" ? "text-gray-400 hover:text-orange-500" : "text-gray-400 hover:text-green-500"}`} title={turma.status === "ativo" ? "Desativar turma" : "Ativar turma"}>
                   <Icon icon={turma.status === "ativo" ? "mdi:pause-circle-outline" : "mdi:play-circle-outline"} className="w-4 h-4" />
                 </button>
-                {/* Editar */}
-                <button
-                  onClick={() => handleEdit(turma)}
-                  className="p-1.5 text-gray-400 hover:text-brand-500 transition-colors"
-                  title="Editar"
-                >
-                  <Icon icon="mdi:pencil" className="w-4 h-4" />
-                </button>
+                <button onClick={() => handleEdit(turma)} className="p-1.5 text-gray-400 hover:text-brand-500 transition-colors" title="Editar"><Icon icon="mdi:pencil" className="w-4 h-4" /></button>
               </>
             )}
-            {/* Botão Deletar — só turmas inativas sem estudantes */}
             {turma.status === "inativo" && turma.estudantes.length === 0 && (
-              <button
-                onClick={() => setTurmaParaDelete(turma)}
-                className="p-1.5 text-red-400 hover:text-red-600 transition-colors"
-                title="Deletar turma"
-              >
-                <Icon icon="mdi:delete-outline" className="w-4 h-4" />
-              </button>
+              <button onClick={() => setTurmaParaDelete(turma)} className="p-1.5 text-red-400 hover:text-red-600 transition-colors" title="Deletar turma"><Icon icon="mdi:delete-outline" className="w-4 h-4" /></button>
             )}
             <Icon icon={isOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
           </div>
         </div>
-
-        {/* Conteúdo expandido */}
         {isOpen && (
           <div className="px-4 pb-4 pt-2 border-t border-gray-100 dark:border-gray-700/50 space-y-3">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              Estudantes ({turma.estudantes.length})
-            </p>
-
-            {turma.estudantes.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-                Nenhum estudante nesta turma
-              </p>
-            ) : (
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Estudantes ({turma.estudantes.length})</p>
+            {turma.estudantes.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500 italic">Nenhum estudante nesta turma</p> : (
               <div className="flex flex-wrap gap-2">
                 {turma.estudantes.map(codigo => {
                   const est = estudantes.find(e => e.codigo_estudante === codigo);
                   return (
-                    <div
-                      key={codigo}
-                      className="flex items-center gap-1.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-lg px-2.5 py-1.5"
-                    >
+                    <div key={codigo} className="flex items-center gap-1.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-lg px-2.5 py-1.5">
                       <Icon icon="mdi:account" className="w-3.5 h-3.5 text-brand-500" />
-                      <span className="text-gray-700 dark:text-gray-300 font-medium">
-                        {est ? est.nome : codigo}
-                      </span>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">{est ? est.nome : codigo}</span>
                       <span className="text-gray-400 dark:text-gray-500">({codigo})</span>
-                      <button
-                        onClick={() => handleRemove(turma.codigo_turma, codigo)}
-                        disabled={removendo}
-                        className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                        title="Remover da turma"
-                      >
+                      <button onClick={() => handleRemove(turma.codigo_turma, codigo)} disabled={removendo} className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover da turma">
                         <Icon icon="mdi:close-circle" className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -408,47 +398,16 @@ export default function TurmasPainel() {
                 })}
               </div>
             )}
-
-            {/* Adicionar estudante */}
             {turma.status !== "deletado" && (
               isAdding ? (
                 <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={codigoAdd}
-                    onChange={e => setCodigoAdd(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(turma.codigo_turma); } }}
-                    placeholder="Código do estudante"
-                    list="estudantes-list-dp"
-                    className="flex-1 text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-                  />
-                  <datalist id="estudantes-list-dp">
-                    {estudantes.map(e => (
-                      <option key={e.codigo_estudante} value={e.codigo_estudante}>{e.nome}</option>
-                    ))}
-                  </datalist>
-                  <button
-                    onClick={() => handleAdd(turma.codigo_turma)}
-                    disabled={adicionando || !codigoAdd.trim()}
-                    className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
-                  >
-                    {adicionando ? "…" : "Adicionar"}
-                  </button>
-                  <button
-                    onClick={() => { setAddingTo(null); setCodigoAdd(""); }}
-                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancelar
-                  </button>
+                  <input type="text" value={codigoAdd} onChange={e => setCodigoAdd(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(turma.codigo_turma); } }} placeholder="Código do estudante" list="estudantes-list-dp" className="flex-1 text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white" />
+                  <datalist id="estudantes-list-dp">{estudantes.map(e => <option key={e.codigo_estudante} value={e.codigo_estudante}>{e.nome}</option>)}</datalist>
+                  <button onClick={() => handleAdd(turma.codigo_turma)} disabled={adicionando || !codigoAdd.trim()} className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors">{adicionando ? "…" : "Adicionar"}</button>
+                  <button onClick={() => { setAddingTo(null); setCodigoAdd(""); }} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
                 </div>
               ) : (
-                <button
-                  onClick={() => setAddingTo(turma.codigo_turma)}
-                  className="flex items-center gap-1.5 text-sm text-brand-500 hover:text-brand-600 transition-colors"
-                >
-                  <Icon icon="mdi:account-plus" className="w-4 h-4" />
-                  Adicionar estudante
-                </button>
+                <button onClick={() => setAddingTo(turma.codigo_turma)} className="flex items-center gap-1.5 text-sm text-brand-500 hover:text-brand-600 transition-colors"><Icon icon="mdi:account-plus" className="w-4 h-4" />Adicionar estudante</button>
               )
             )}
           </div>
@@ -457,147 +416,82 @@ export default function TurmasPainel() {
     );
   };
 
-  // ── Formulário ───────────────────────────────────────────────────────
+  // ── Form ────────────────────────────────────────────────────────────────
 
   const Form = () => (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-theme-xs p-6 border border-gray-200 dark:border-gray-700">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {editingTurma ? "Editar Turma" : "Nova Turma"}
-          </h3>
-          <button type="button" onClick={resetForm} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <Icon icon="mdi:close" width={20} />
-          </button>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingTurma ? "Editar Turma" : "Nova Turma"}</h3>
+          <button type="button" onClick={resetForm} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icon icon="mdi:close" width={20} /></button>
         </div>
-
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Código da Turma *
-          </label>
-          <input
-            type="text"
-            value={formData.codigo_turma}
-            onChange={e => setFormData({ ...formData, codigo_turma: e.target.value })}
-            disabled={!!editingTurma}
-            placeholder="Ex: 7A, 8B, Turma-1"
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
-          />
-          {editingTurma && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              O código não pode ser alterado após a criação
-            </p>
-          )}
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Código da Turma *</label>
+          <input type="text" value={formData.codigo_turma} onChange={e => setFormData({ ...formData, codigo_turma: e.target.value })} disabled={!!editingTurma} placeholder="Ex: 7A, 8B, Turma-1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50" />
+          {editingTurma && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">O código não pode ser alterado após a criação</p>}
         </div>
-
         {!isFundamental && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
-            <select
-              value={formData.curso_id ?? ""}
-              onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, nivel: "" })}
-              disabled={!!editingTurma}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
-            >
+            <select value={formData.curso_id ?? ""} onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, nivel: "" })} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
               <option value="">Selecione um curso</option>
               {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
-            {cursos.length === 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                ⚠️ Nenhum curso activo. Crie um curso na aba &quot;Cursos&quot; primeiro.
-              </p>
-            )}
           </div>
         )}
-
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Nível / Ano *
-          </label>
-          <select
-            value={formData.nivel}
-            onChange={e => setFormData({ ...formData, nivel: e.target.value })}
-            disabled={!isFundamental && !formData.curso_id}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
-          >
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível / Ano *</label>
+          <select value={formData.nivel} onChange={e => setFormData({ ...formData, nivel: e.target.value })} disabled={!isFundamental && !formData.curso_id} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
             <option value="">Selecione o ano</option>
-            {getNivelOptions(formData.curso_id).map(a => (
-              <option key={a.value} value={a.value}>{a.label}</option>
-            ))}
+            {getNivelOptions(formData.curso_id).map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
           </select>
         </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Turno *</label>
           <div className="flex gap-3">
             {TURNOS.map(t => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setFormData({ ...formData, turno: t.value })}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  formData.turno === t.value
-                    ? "bg-brand-500 text-white border-brand-500"
-                    : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                }`}
-              >
-                {t.label}
-              </button>
+              <button key={t.value} type="button" onClick={() => setFormData({ ...formData, turno: t.value })} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${formData.turno === t.value ? "bg-brand-500 text-white border-brand-500" : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"}`}>{t.label}</button>
             ))}
           </div>
         </div>
-
         <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={criando || atualizando}
-            className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50"
-          >
-            {criando || atualizando ? "A guardar…" : editingTurma ? "Actualizar" : "Criar Turma"}
-          </button>
-          <button
-            type="button"
-            onClick={resetForm}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            Cancelar
-          </button>
+          <button type="submit" disabled={criando || atualizando} className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50">{criando || atualizando ? "A guardar…" : editingTurma ? "Actualizar" : "Criar Turma"}</button>
+          <button type="button" onClick={resetForm} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
         </div>
       </form>
     </div>
   );
 
-  // ── Vista fundamental (ano → turmas) ────────────────────────────────
+  // ── ViewFundamental ────────────────────────────────────────────────────
 
   const ViewFundamental = ({ lista }: { lista?: Turma[] }) => {
     const porNivel = turmasPorNivel(lista);
     const niveisComTurmas = ANOS_FUNDAMENTAL.filter(a => porNivel[a.value]?.length > 0);
     if (niveisComTurmas.length === 0) return <Empty />;
+    const listaCompleta = Object.values(porNivel).flat();
+    const todasSelecionadas = listaCompleta.length > 0 && listaCompleta.every(t => selecionadas.has(t.codigo_turma));
+    const algumasSelecionadas = listaCompleta.some(t => selecionadas.has(t.codigo_turma));
     return (
       <div className="space-y-3">
+        {listaCompleta.length > 1 && (
+          <div className="flex items-center gap-2 px-1">
+            <Checkbox checked={todasSelecionadas} indeterminate={algumasSelecionadas && !todasSelecionadas} onChange={() => handleToggleTodas(listaCompleta)} label={todasSelecionadas ? "Desselecionar todas" : "Selecionar todas"} />
+          </div>
+        )}
         {niveisComTurmas.map(ano => {
           const isOpen = expandedNivel === ano.value;
-          const listaAno  = porNivel[ano.value] ?? [];
+          const listaAno = porNivel[ano.value] ?? [];
           return (
             <div key={ano.value} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-              <button
-                onClick={() => setExpandedNivel(isOpen ? null : ano.value)}
-                className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors"
-              >
+              <button onClick={() => setExpandedNivel(isOpen ? null : ano.value)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
                 <div className="flex items-center gap-3">
                   <Icon icon="mdi:school" className="text-brand-500 w-5 h-5" />
                   <span className="font-semibold text-gray-800 dark:text-white">{ano.label}</span>
-                  <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">
-                    {listaAno.length} turma{listaAno.length !== 1 ? "s" : ""}
-                  </span>
+                  <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{listaAno.length} turma{listaAno.length !== 1 ? "s" : ""}</span>
                 </div>
                 <Icon icon={isOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
               </button>
-              {isOpen && (
-                <div className="p-3 space-y-2">
-                  {listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} />)}
-                </div>
-              )}
+              {isOpen && <div className="p-3 space-y-2">{listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}</div>}
             </div>
           );
         })}
@@ -605,30 +499,29 @@ export default function TurmasPainel() {
     );
   };
 
-  // ── Vista médio/superior (curso → ano → turmas) ──────────────────────
-
   const ViewCursos = ({ lista }: { lista?: Turma[] }) => {
     const porCurso = turmasPorCurso(lista);
     if (Object.keys(porCurso).length === 0) return <Empty />;
+    const listaCompleta = Object.values(porCurso).flatMap(g => Object.values(g.niveis).flat());
+    const todasSelecionadas = listaCompleta.length > 0 && listaCompleta.every(t => selecionadas.has(t.codigo_turma));
+    const algumasSelecionadas = listaCompleta.some(t => selecionadas.has(t.codigo_turma));
     return (
       <div className="space-y-3">
+        {listaCompleta.length > 1 && (
+          <div className="flex items-center gap-2 px-1">
+            <Checkbox checked={todasSelecionadas} indeterminate={algumasSelecionadas && !todasSelecionadas} onChange={() => handleToggleTodas(listaCompleta)} label={todasSelecionadas ? "Desselecionar todas" : "Selecionar todas"} />
+          </div>
+        )}
         {Object.entries(porCurso).map(([cursoKey, { curso, niveis }]) => {
           const isCursoOpen = expandedCurso === cursoKey;
           const totalTurmas = Object.values(niveis).reduce((s, a) => s + a.length, 0);
           return (
             <div key={cursoKey} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-              <button
-                onClick={() => setExpandedCurso(isCursoOpen ? null : cursoKey)}
-                className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors"
-              >
+              <button onClick={() => setExpandedCurso(isCursoOpen ? null : cursoKey)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
                 <div className="flex items-center gap-3">
                   <Icon icon="mdi:book-education" className="text-brand-500 w-5 h-5" />
-                  <span className="font-semibold text-gray-800 dark:text-white">
-                    {curso ? curso.nome : "Sem curso associado"}
-                  </span>
-                  <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">
-                    {totalTurmas} turma{totalTurmas !== 1 ? "s" : ""}
-                  </span>
+                  <span className="font-semibold text-gray-800 dark:text-white">{curso ? curso.nome : "Sem curso associado"}</span>
+                  <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{totalTurmas} turma{totalTurmas !== 1 ? "s" : ""}</span>
                 </div>
                 <Icon icon={isCursoOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
               </button>
@@ -636,29 +529,18 @@ export default function TurmasPainel() {
                 <div className="p-3 space-y-2">
                   {Object.entries(niveis).map(([nivel, listaLocal]) => {
                     const nivelKey = `${cursoKey}__${nivel}`;
-                    const isNivel  = expandedNivel === nivelKey;
+                    const isNivel = expandedNivel === nivelKey;
                     return (
                       <div key={nivel} className="border border-gray-100 dark:border-gray-700/50 rounded-lg overflow-hidden">
-                        <button
-                          onClick={() => setExpandedNivel(isNivel ? null : nivelKey)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
-                        >
+                        <button onClick={() => setExpandedNivel(isNivel ? null : nivelKey)} className="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
                           <div className="flex items-center gap-2.5">
                             <Icon icon="mdi:school-outline" className="text-gray-400 w-4 h-4" />
-                            <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
-                              {labelNivel(nivel)}
-                            </span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
-                              · {listaLocal.length} turma{listaLocal.length !== 1 ? "s" : ""}
-                            </span>
+                            <span className="font-medium text-sm text-gray-700 dark:text-gray-300">{labelNivel(nivel)}</span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">· {listaLocal.length} turma{listaLocal.length !== 1 ? "s" : ""}</span>
                           </div>
                           <Icon icon={isNivel ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-gray-400" />
                         </button>
-                        {isNivel && (
-                          <div className="p-2 space-y-2">
-                            {listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} />)}
-                          </div>
-                        )}
+                        {isNivel && <div className="p-2 space-y-2">{listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}</div>}
                       </div>
                     );
                   })}
@@ -678,80 +560,53 @@ export default function TurmasPainel() {
     </div>
   );
 
-  // ── Render ───────────────────────────────────────────────────────────
-
   return (
     <div className="space-y-5">
-      {/* Alertas */}
-      {alert && (
-        <Alert
-          variant={alert.variant}
-          title={alert.variant === "success" ? "Sucesso" : alert.variant === "error" ? "Erro" : "Aviso"}
-          message={alert.message}
-        />
-      )}
+      {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : alert.variant === "error" ? "Erro" : "Aviso"} message={alert.message} />}
 
-      {/* Modal de deleção de turma */}
-      {turmaParaDelete && (
-        <ModalConfirmarDeleteTurma
-          turma={turmaParaDelete}
-          onConfirm={async () => { await handleDeletarTurma(turmaParaDelete.codigo_turma); }}
-          onClose={() => setTurmaParaDelete(null)}
-        />
-      )}
+      {turmaParaDelete && <ModalConfirmarDeleteTurma turma={turmaParaDelete} onConfirm={async () => { await handleDeletarTurma(turmaParaDelete.codigo_turma); }} onClose={() => setTurmaParaDelete(null)} />}
+
+      <ModalResultadoLote isOpen={loteModalOpen} onClose={() => setLoteModalOpen(false)} items={loteItems} titulo={loteTitulo} progresso={loteProgresso} />
 
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turmas</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {`Gerencie as turmas da sua ${user?.academia?.type === "escola" ? "escola" : "universidade"}. ${
-              isMisto ? "" : `Elas estão organizadas ${isFundamental ? "por ano escolar" : "por curso → ano"}.`
-            }`}
+            {`Gerencie as turmas da sua ${user?.academia?.type === "escola" ? "escola" : "universidade"}.`}
           </p>
         </div>
         <div className="flex gap-3">
-          {!showForm && (
-            <Button disabled={carregando} onClick={reload}>Actualizar</Button>
-          )}
-          <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>
-            Nova Turma
-          </Button>
+          {!showForm && <Button disabled={carregando} onClick={reload} variant="outline">Actualizar</Button>}
+          <Button startIcon={<Icon icon="mdi:plus" />} onClick={() => setShowForm(!showForm)}>Nova Turma</Button>
         </div>
       </div>
 
       {showForm && <Form />}
 
-      {carregando && !showForm && (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-        </div>
+      {/* Barra de lote */}
+      {!showForm && selecionadas.size > 0 && (
+        <BarraLoteTurmas
+          selecionadas={selecionadas} turmasList={turmas}
+          onLimpar={limparSelecao} onAtivar={handleAtivarLote} onDesativar={handleDesativarLote} onDeletar={handleDeletarLote}
+          carregando={loteCarregando}
+        />
       )}
+
+      {carregando && !showForm && <div className="flex justify-center items-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" /></div>}
 
       {!carregando && !showForm && (
         <div className="space-y-4">
-          {/* Toggle Fundamental/Médio para academias mistas */}
           {isMisto && turmas.length > 0 && (
             <div className="flex items-center">
-              <button
-                onClick={() => setViewNivelTurmas(v => v === "fundamental" ? "cursos" : "fundamental")}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
-              >
-                <Icon
-                  icon={viewNivelTurmas === "fundamental" ? "mdi:book-education" : "mdi:school"}
-                  width={16}
-                />
-                {viewNivelTurmas === "fundamental"
-                  ? "Ver Turmas do Ensino Médio"
-                  : "Ver Turmas do Ensino Fundamental"}
+              <button onClick={() => setViewNivelTurmas(v => v === "fundamental" ? "cursos" : "fundamental")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
+                <Icon icon={viewNivelTurmas === "fundamental" ? "mdi:book-education" : "mdi:school"} width={16} />
+                {viewNivelTurmas === "fundamental" ? "Ver Turmas do Ensino Médio" : "Ver Turmas do Ensino Fundamental"}
               </button>
             </div>
           )}
-
           {isMisto ? (
-            viewNivelTurmas === "fundamental"
-              ? <ViewFundamental lista={turmasFundamental} />
-              : <ViewCursos lista={turmasCursos} />
+            viewNivelTurmas === "fundamental" ? <ViewFundamental lista={turmasFundamental} /> : <ViewCursos lista={turmasCursos} />
           ) : isFundamental ? (
             <ViewFundamental />
           ) : (

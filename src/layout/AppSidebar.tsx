@@ -80,7 +80,7 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="mdi:flask-outline" />,
     name: "Testes",
-    path: "/dev/seed",
+    path: "/teste",
   },
 ];
 
@@ -130,7 +130,7 @@ export default function AppSidebar() {
             return isFpp || user.tipo === "academia";
           }
           // Testes: apenas academia
-          if (item.path === "/dev/seed") {
+          if (item.path === "/testes") {
             return user.tipo === "academia";
           }
         }
