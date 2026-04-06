@@ -5,7 +5,7 @@ import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
 // ✅ URL base com protocolo garantido
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL;
 
-const getApiBaseUrl = () => {
+export const getApiBaseUrl = () => {
   const url = API_BASE_URL;
   
   if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
