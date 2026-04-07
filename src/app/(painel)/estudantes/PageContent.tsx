@@ -13,6 +13,7 @@ import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/ap
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
+import Checkbox from "@/components/form/input/Checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ITEMS_POR_PAGINA = 50;
@@ -35,50 +36,6 @@ interface FiltrosState {
   status: string; statusFundamental: string; statusMedio: string; statusSuperior: string;
 }
 interface BatchJobItem { codigo: string; nome: string; status: 'pending' | 'success' | 'error'; message?: string; }
-
-// ─── TableCheckbox ────────────────────────────────────────────────────────────
-// Implemented as a plain <button> — NO hidden <input type="checkbox">.
-//
-// Root cause of the previous "select-all when clicking one row" bug:
-//   The previous version contained a hidden sibling `<input className="sr-only">`.
-//   Tailwind's sr-only applies `position:absolute; margin:-1px`, pulling every row's
-//   hidden input OUT of normal flow. All of them stacked at the same absolute position
-//   on top of each other and on top of the header checkbox area.
-//   Clicking the visual div sometimes landed on a stacked invisible input; that input
-//   had no stopPropagation, so the click bubbled through React to the header's
-//   onChange → toggle-all fired.
-//
-// Fix: a single <button> element stays in normal document flow (inline-block inside
-//   the table cell). stopPropagation + preventDefault on onClick fully isolate it.
-
-function TableCheckbox({ checked, indeterminate, onChange }: {
-  checked: boolean; indeterminate?: boolean; onChange: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={indeterminate ? 'mixed' : checked}
-      onClick={e => { e.stopPropagation(); e.preventDefault(); onChange(); }}
-      className={`w-5 h-5 rounded-md border-2 cursor-pointer inline-flex items-center justify-center flex-shrink-0 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-1 ${
-        checked || indeterminate
-          ? 'bg-brand-500 border-brand-500 shadow-sm shadow-brand-500/30'
-          : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 hover:border-brand-400 dark:hover:border-brand-500'
-      }`}
-    >
-      {checked && !indeterminate && (
-        <svg className="w-3 h-3 text-white pointer-events-none" viewBox="0 0 12 12" fill="none">
-          <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      )}
-      {indeterminate && (
-        <svg className="w-3 h-3 text-white pointer-events-none" viewBox="0 0 12 12" fill="none">
-          <path d="M2.5 6H9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
-      )}
-    </button>
-  );
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -437,10 +394,12 @@ function BarraLote({ selecionadas, onLimpar, onAtualizarStatus, carregando }: {
 }
 
 // ─── TabelaEstudantes ─────────────────────────────────────────────────────────
+// CORREÇÃO: seleção usa codigo_estudante como chave (mesma chave do payload),
+// e toggle-todos opera apenas sobre os estudantes visíveis naquela chamada.
 
 function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selecionadas, onToggle, onToggleTodos, mostrarSelecao }: {
   estudantes: EstudanteDetalhado[]; isAdmin: boolean; onVerDetalhes: (e: EstudanteDetalhado) => void;
-  academias?: Record<string, string>; selecionadas?: Set<string>; onToggle?: (id: string) => void;
+  academias?: Record<string, string>; selecionadas?: Set<string>; onToggle?: (codigo: string) => void;
   onToggleTodos?: (todos: EstudanteDetalhado[]) => void; mostrarSelecao?: boolean;
 }) {
   if (estudantes.length === 0) return (
@@ -450,8 +409,9 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
     </div>
   );
 
-  const todasSelecionadas   = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.id));
-  const algumasSelecionadas = mostrarSelecao && estudantes.some(e => selecionadas?.has(e.id));
+  // Usa codigo_estudante como chave de seleção (igual ao payload da requisição)
+  const todasSelecionadas   = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.codigo_estudante));
+  const algumasSelecionadas = mostrarSelecao && estudantes.some(e => selecionadas?.has(e.codigo_estudante));
 
   return (
     <div className="overflow-x-auto">
@@ -460,11 +420,13 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
           <TableRow>
             {mostrarSelecao && (
               <TableCell isHeader className="px-4 py-3 w-10">
-                <TableCheckbox
-                  checked={!!todasSelecionadas}
-                  indeterminate={algumasSelecionadas && !todasSelecionadas}
-                  onChange={() => onToggleTodos?.(estudantes)}
-                />
+                <div onClick={e => e.stopPropagation()}>
+                  <Checkbox
+                    checked={!!todasSelecionadas}
+                    indeterminate={algumasSelecionadas && !todasSelecionadas}
+                    onChange={() => onToggleTodos?.(estudantes)}
+                  />
+                </div>
               </TableCell>
             )}
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
@@ -479,11 +441,15 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
         </TableHeader>
         <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
           {estudantes.map(est => (
-            <TableRow key={est.id} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas?.has(est.id) ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}>
+            <TableRow key={est.codigo_estudante} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas?.has(est.codigo_estudante) ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}>
               {mostrarSelecao && (
                 <TableCell className="px-4 py-3 w-10">
-                  {/* <button> stays in normal flow — no position:absolute, no overlapping */}
-                  <TableCheckbox checked={!!selecionadas?.has(est.id)} onChange={() => onToggle?.(est.id)} />
+                  <div onClick={e => e.stopPropagation()}>
+                    <Checkbox
+                      checked={!!selecionadas?.has(est.codigo_estudante)}
+                      onChange={() => onToggle?.(est.codigo_estudante)}
+                    />
+                  </div>
                 </TableCell>
               )}
               <TableCell className="max-w-[180px] capitalize truncate px-4 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">{est.nome || '-'}</TableCell>
@@ -693,6 +659,8 @@ export default function Estudantes() {
   const [paginaAtual,          setPaginaAtual]          = useState(1);
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
   const [filtros,              setFiltros]              = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
+
+  // CORREÇÃO: selecionadas usa codigo_estudante como chave, não est.id
   const [selecionadas,         setSelecionadas]         = useState<Set<string>>(new Set());
   const [batchItems,           setBatchItems]           = useState<BatchJobItem[]>([]);
   const [batchTitulo,          setBatchTitulo]          = useState('');
@@ -730,6 +698,7 @@ export default function Estudantes() {
     }
   }, [vistaEscala, isAcademia]);
 
+  // Limpar seleção ao mudar filtros, ordem ou página
   useEffect(() => { setPaginaAtual(1); }, [filtros, ordem]);
   useEffect(() => { setPaginaAtual(1); }, [dataEstudantes]);
 
@@ -749,23 +718,41 @@ export default function Estudantes() {
 
   const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); openDetailsModal(); };
 
-  const handleToggle = useCallback((id: string) => {
-    setSelecionadas(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  // CORREÇÃO: toggle usa codigo_estudante como chave
+  const handleToggle = useCallback((codigo: string) => {
+    setSelecionadas(prev => {
+      const next = new Set(prev);
+      if (next.has(codigo)) next.delete(codigo);
+      else next.add(codigo);
+      return next;
+    });
   }, []);
 
+  // CORREÇÃO: toggle-todos opera apenas sobre os estudantes visíveis na página atual
   const handleToggleTodos = useCallback((todos: EstudanteDetalhado[]) => {
     setSelecionadas(prev => {
-      const ids = todos.map(e => e.id);
-      const allSelected = ids.every(id => prev.has(id));
-      if (allSelected) { const next = new Set(prev); ids.forEach(id => next.delete(id)); return next; }
-      const next = new Set(prev); ids.forEach(id => next.add(id)); return next;
+      const codigos = todos.map(e => e.codigo_estudante);
+      const todasSelecionadas = codigos.every(c => prev.has(c));
+      if (todasSelecionadas) {
+        // Desmarcar apenas os da página atual
+        const next = new Set(prev);
+        codigos.forEach(c => next.delete(c));
+        return next;
+      }
+      // Marcar apenas os da página atual
+      const next = new Set(prev);
+      codigos.forEach(c => next.add(c));
+      return next;
     });
   }, []);
 
   const handleLimparSelecao = () => setSelecionadas(new Set());
 
   const handleAtualizarStatusLote = async (novoStatus: string) => {
-    const selecionadasList = (dataEstudantes?.estudantes ?? []).filter(e => selecionadas.has(e.id));
+    // CORREÇÃO: filtra por codigo_estudante (chave do Set) e monta payload correto
+    const selecionadasList = (dataEstudantes?.estudantes ?? []).filter(
+      e => selecionadas.has(e.codigo_estudante)
+    );
     if (selecionadasList.length === 0) return;
 
     setBatchTitulo(`Atualizar Status Fundamental → ${novoStatus} (${selecionadasList.length} estudantes)`);
@@ -776,7 +763,11 @@ export default function Estudantes() {
 
     const token  = tokenStorage.get();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const payload = selecionadasList.map(e => ({ codigo_estudante: e.codigo_estudante, tipo: 'fundamental' as const, novo_status: novoStatus }));
+    const payload = selecionadasList.map(e => ({
+      codigo_estudante: e.codigo_estudante,
+      tipo: 'fundamental' as const,
+      novo_status: novoStatus,
+    }));
 
     try {
       const r    = await fetch(`${apiUrl}/academia/estudante/status-escolar/async`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
