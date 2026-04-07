@@ -13,7 +13,6 @@ import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/ap
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
-import Checkbox from "@/components/form/input/Checkbox";
 import {
   Table, TableBody, TableCell, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -50,6 +49,48 @@ interface BatchJobItem {
   message?: string;
 }
 
+// ─── TableCheckbox ────────────────────────────────────────────────────────────
+// Checkbox sem <label> wrapper para uso dentro de tabelas.
+// Usa onClick + stopPropagation para evitar que o clique se propague
+// para outras células (incluindo o header), o que causava seleção em massa.
+
+function TableCheckbox({ checked, indeterminate, onChange }: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate;
+  }, [indeterminate]);
+
+  return (
+    <div className="flex items-center justify-center">
+      <div
+        onClick={e => { e.stopPropagation(); onChange(); }}
+        className={`w-5 h-5 rounded-md border-2 cursor-pointer flex items-center justify-center transition-all duration-150 flex-shrink-0 ${
+          checked || indeterminate
+            ? 'bg-brand-500 border-brand-500 shadow-sm shadow-brand-500/30'
+            : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 hover:border-brand-400 dark:hover:border-brand-500'
+        }`}
+      >
+        {checked && !indeterminate && (
+          <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+        {indeterminate && (
+          <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6H9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        )}
+      </div>
+      {/* Hidden input keeps accessible semantics without bubbling issues */}
+      <input ref={ref} type="checkbox" checked={checked} onChange={() => {}} className="sr-only" tabIndex={-1} />
+    </div>
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function calcularIdade(dataNascimento: string): number | null {
@@ -77,10 +118,10 @@ function formatarDataISO(data: string): string {
 
 function getStatusBadgeClass(status: string) {
   switch (status?.toLowerCase()) {
-    case 'ativo': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-    case 'inativo': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-    case 'finalizado': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
-    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    case 'ativo':       return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    case 'inativo':     return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+    case 'finalizado':  return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+    default:            return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
   }
 }
 
@@ -112,33 +153,33 @@ function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): Est
 function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes): EstudanteDetalhado[] {
   return [...lista].sort((a, b) => {
     switch (ordem) {
-      case 'nome_asc': return a.nome.localeCompare(b.nome, 'pt');
-      case 'nome_desc': return b.nome.localeCompare(a.nome, 'pt');
-      case 'idade_asc': { const ia = calcularIdade(a.data_nascimento) ?? 0; const ib = calcularIdade(b.data_nascimento) ?? 0; return ia - ib; }
-      case 'idade_desc': { const ia = calcularIdade(a.data_nascimento) ?? 0; const ib = calcularIdade(b.data_nascimento) ?? 0; return ib - ia; }
+      case 'nome_asc':    return a.nome.localeCompare(b.nome, 'pt');
+      case 'nome_desc':   return b.nome.localeCompare(a.nome, 'pt');
+      case 'idade_asc':   { const ia = calcularIdade(a.data_nascimento) ?? 0; const ib = calcularIdade(b.data_nascimento) ?? 0; return ia - ib; }
+      case 'idade_desc':  { const ia = calcularIdade(a.data_nascimento) ?? 0; const ib = calcularIdade(b.data_nascimento) ?? 0; return ib - ia; }
       case 'cadastro_desc': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      case 'cadastro_asc': return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'cadastro_asc':  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       default: return 0;
     }
   });
 }
 
 const OPCOES_ORDEM: { key: OrdemEstudantes; label: string; icon: string }[] = [
-  { key: 'nome_asc', label: 'Nome A → Z', icon: 'mdi:sort-alphabetical-ascending' },
-  { key: 'nome_desc', label: 'Nome Z → A', icon: 'mdi:sort-alphabetical-descending' },
-  { key: 'idade_asc', label: 'Mais jovem primeiro', icon: 'mdi:account-arrow-up' },
-  { key: 'idade_desc', label: 'Mais velho primeiro', icon: 'mdi:account-arrow-down' },
-  { key: 'cadastro_desc', label: 'Mais recentes', icon: 'mdi:clock-outline' },
-  { key: 'cadastro_asc', label: 'Mais antigos', icon: 'mdi:clock-check-outline' },
+  { key: 'nome_asc',     label: 'Nome A → Z',        icon: 'mdi:sort-alphabetical-ascending'  },
+  { key: 'nome_desc',    label: 'Nome Z → A',        icon: 'mdi:sort-alphabetical-descending' },
+  { key: 'idade_asc',    label: 'Mais jovem primeiro', icon: 'mdi:account-arrow-up'           },
+  { key: 'idade_desc',   label: 'Mais velho primeiro', icon: 'mdi:account-arrow-down'         },
+  { key: 'cadastro_desc',label: 'Mais recentes',      icon: 'mdi:clock-outline'               },
+  { key: 'cadastro_asc', label: 'Mais antigos',       icon: 'mdi:clock-check-outline'         },
 ];
 
 // ─── BotaoOrdenar ─────────────────────────────────────────────────────────────
 
 function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: { opcoes: { key: T; label: string; icon: string }[]; ordemAtual: T; onSelecionar: (k: T) => void }) {
   const [aberto, setAberto] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const labelAtual = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
+  const [pos, setPos]       = useState({ top: 0, left: 0 });
+  const btnRef              = useRef<HTMLButtonElement>(null);
+  const labelAtual          = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
   const handleToggle = () => {
     if (!aberto && btnRef.current) { const r = btnRef.current.getBoundingClientRect(); setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX }); }
     setAberto(p => !p);
@@ -177,7 +218,7 @@ function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: { 
 function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange }: { paginaAtual: number; totalPaginas: number; total: number; porPagina: number; onChange: (p: number) => void }) {
   if (totalPaginas <= 1) return null;
   const inicio = (paginaAtual - 1) * porPagina + 1;
-  const fim = Math.min(paginaAtual * porPagina, total);
+  const fim    = Math.min(paginaAtual * porPagina, total);
   const getPages = (): (number | '...')[] => {
     const pages: (number | '...')[] = [];
     if (totalPaginas <= 7) { for (let i = 1; i <= totalPaginas; i++) pages.push(i); }
@@ -240,19 +281,28 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: { filtros: FiltrosState;
             </div>
             {isAdmin && (
               <>
-                <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
                   <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"><option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option></select>
                 </div>
-                <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
                   <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"><option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option></select>
                 </div>
-                <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
                   <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"><option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option></select>
                 </div>
               </>
             )}
           </div>
-          {temFiltro && <div className="mt-3 flex justify-end"><button onClick={limpar} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors"><Icon icon="mdi:close-circle" width={14} /> Limpar filtros</button></div>}
+          {temFiltro && (
+            <div className="mt-3 flex justify-end">
+              <button onClick={limpar} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors">
+                <Icon icon="mdi:close-circle" width={14} /> Limpar filtros
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -262,16 +312,15 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: { filtros: FiltrosState;
 // ─── Modal de Resultado de Lote ───────────────────────────────────────────────
 
 function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isOpen: boolean; onClose: () => void; items: BatchJobItem[]; titulo: string; progresso: number }) {
-  const total = items.length;
-  const ok = items.filter(i => i.status === 'success').length;
-  const err = items.filter(i => i.status === 'error').length;
+  const total   = items.length;
+  const ok      = items.filter(i => i.status === 'success').length;
+  const err     = items.filter(i => i.status === 'error').length;
   const pending = items.filter(i => i.status === 'pending').length;
-  const done = progresso >= 100 || pending === 0;
+  const done    = progresso >= 100 || pending === 0;
   return (
     <Modal isOpen={isOpen} onClose={done ? onClose : () => {}} showCloseButton={done} className="max-w-[560px] p-5 lg:p-8">
       <div>
         <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">{titulo}</h4>
-        {/* Progress bar */}
         {!done && (
           <div className="mb-4">
             <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -282,7 +331,6 @@ function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isO
             </div>
           </div>
         )}
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="p-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.05] rounded-xl text-center">
             <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{total}</div>
@@ -297,13 +345,12 @@ function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isO
             <div className="text-xs text-red-600 dark:text-red-500 mt-0.5">Falhas</div>
           </div>
         </div>
-        {/* Item list */}
         <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-lg border border-gray-200 dark:border-white/[0.05] p-2">
           {items.map((item, i) => (
             <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${item.status === 'success' ? 'bg-green-50 dark:bg-green-900/10' : item.status === 'error' ? 'bg-red-50 dark:bg-red-900/10' : 'bg-gray-50 dark:bg-white/[0.02]'}`}>
               {item.status === 'pending' && <span className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin flex-shrink-0" />}
               {item.status === 'success' && <Icon icon="mdi:check-circle" width={16} className="text-green-500 flex-shrink-0" />}
-              {item.status === 'error' && <Icon icon="mdi:close-circle" width={16} className="text-red-500 flex-shrink-0" />}
+              {item.status === 'error'   && <Icon icon="mdi:close-circle" width={16} className="text-red-500 flex-shrink-0" />}
               <div className="min-w-0 flex-1">
                 <span className="font-medium text-gray-800 dark:text-white/90 truncate block">{item.nome}</span>
                 {item.message && <span className="text-xs text-red-600 dark:text-red-400 truncate block">{item.message}</span>}
@@ -323,33 +370,81 @@ function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: { isO
 }
 
 // ─── Barra de Ações em Lote ───────────────────────────────────────────────────
+// Redesenhada para mostrar contagem, badges de status e botões com ícones.
 
-function BarraLote({ selecionadas, total, onLimpar, onAtualizarStatus, carregando }: { selecionadas: number; total: number; onLimpar: () => void; onAtualizarStatus: (novoStatus: string) => void; carregando: boolean }) {
-  if (selecionadas === 0) return null;
+function BarraLote({
+  selecionadas,
+  onLimpar,
+  onAtualizarStatus,
+  carregando,
+}: {
+  selecionadas: Set<string>;
+  onLimpar: () => void;
+  onAtualizarStatus: (novoStatus: string) => void;
+  carregando: boolean;
+}) {
+  if (selecionadas.size === 0) return null;
+  const count = selecionadas.size;
+
   return (
     <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
-      <div className="flex items-center gap-2">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold">{selecionadas}</span>
-        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">estudante{selecionadas !== 1 ? 's' : ''} selecionado{selecionadas !== 1 ? 's' : ''}</span>
-        <span className="text-xs text-brand-500 dark:text-brand-400">de {total}</span>
+      {/* Contador */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold">
+          {count}
+        </span>
+        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
+          estudante{count !== 1 ? 's' : ''} selecionado{count !== 1 ? 's' : ''}
+        </span>
       </div>
-      <div className="flex items-center gap-2 ml-auto flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Status Fundamental:</span>
-          {['em_andamento', 'finalizado', 'inativo'].map(s => (
-            <button key={s} onClick={() => onAtualizarStatus(s)} disabled={carregando} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
-              s === 'em_andamento' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200' :
-              s === 'finalizado' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200' :
-              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200'
-            }`}>
-              {s === 'em_andamento' ? 'Em Andamento' : s === 'finalizado' ? 'Finalizado' : 'Inativo'}
-            </button>
-          ))}
-        </div>
-        <button onClick={onLimpar} className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors" title="Limpar seleção">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
+
+      {/* Separador visual */}
+      <div className="hidden sm:block w-px h-5 bg-brand-200 dark:bg-brand-700 flex-shrink-0" />
+
+      {/* Ações */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-shrink-0">
+          Status Fundamental:
+        </span>
+        <Button
+          size="sm"
+          variant="success"
+          disabled={carregando}
+          onClick={() => onAtualizarStatus('em_andamento')}
+          startIcon={<Icon icon="mdi:play-circle-outline" width={15} />}
+        >
+          {carregando ? '...' : 'Em Andamento'}
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={carregando}
+          onClick={() => onAtualizarStatus('finalizado')}
+          startIcon={<Icon icon="mdi:check-circle-outline" width={15} />}
+        >
+          {carregando ? '...' : 'Finalizado'}
+        </Button>
+        <Button
+          size="sm"
+          variant="warning"
+          disabled={carregando}
+          onClick={() => onAtualizarStatus('inativo')}
+          startIcon={<Icon icon="mdi:pause-circle-outline" width={15} />}
+        >
+          {carregando ? '...' : 'Inativo'}
+        </Button>
       </div>
+
+      {/* Limpar seleção */}
+      <button
+        onClick={onLimpar}
+        className="ml-auto p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors flex-shrink-0"
+        title="Limpar seleção"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -367,8 +462,10 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
       <p className="text-sm">Nenhum estudante encontrado.</p>
     </div>
   );
-  const todasSelecionadas = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.id));
+
+  const todasSelecionadas  = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.id));
   const algumasSelecionadas = mostrarSelecao && estudantes.some(e => selecionadas?.has(e.id));
+
   return (
     <div className="overflow-x-auto">
       <Table className="w-full">
@@ -376,7 +473,11 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
           <TableRow>
             {mostrarSelecao && (
               <TableCell isHeader className="px-4 py-3 w-10">
-                <Checkbox checked={!!todasSelecionadas} indeterminate={algumasSelecionadas && !todasSelecionadas} onChange={() => onToggleTodos?.(estudantes)} />
+                <TableCheckbox
+                  checked={!!todasSelecionadas}
+                  indeterminate={algumasSelecionadas && !todasSelecionadas}
+                  onChange={() => onToggleTodos?.(estudantes)}
+                />
               </TableCell>
             )}
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
@@ -394,7 +495,11 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
             <TableRow key={est.id} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas?.has(est.id) ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}>
               {mostrarSelecao && (
                 <TableCell className="px-4 py-3 w-10">
-                  <Checkbox checked={!!selecionadas?.has(est.id)} onChange={() => onToggle?.(est.id)} />
+                  {/* TableCheckbox usa onClick+stopPropagation — não usa <label>, evita propagação para o header */}
+                  <TableCheckbox
+                    checked={!!selecionadas?.has(est.id)}
+                    onChange={() => onToggle?.(est.id)}
+                  />
                 </TableCell>
               )}
               <TableCell className="max-w-[180px] capitalize truncate px-4 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">{est.nome || '-'}</TableCell>
@@ -435,18 +540,18 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
   }, [turma.estudantes, estudantesMapa, filtros, ordem]);
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-      <button onClick={() => setAberto(p => !p)} className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+      <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => setAberto(p => !p)}>
         <div className="flex items-center gap-3">
-          <Icon icon="mdi:door-closed" width={16} className="text-brand-500" />
-          <span className="font-medium text-sm text-gray-800 dark:text-white">Turma {turma.codigo_turma}</span>
-          <span className="text-xs text-gray-400">· {turma.turno === 'manha' ? 'Manhã' : turma.turno === 'tarde' ? 'Tarde' : 'Noite'}</span>
+          <Icon icon="mdi:door-closed" className="text-brand-500 w-5 h-5" />
+          <span className="font-semibold text-sm text-gray-900 dark:text-white">{turma.codigo_turma}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">· {turma.turno === 'manha' ? 'Manhã' : turma.turno === 'tarde' ? 'Tarde' : 'Noite'}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full ${turma.status === 'ativo' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>{turma.status}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 flex items-center gap-1"><Icon icon="mdi:account-group" width={14} />{estudantesDaTurma.length}/{turma.estudantes.length}</span>
-          <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={16} className="text-gray-400" />
+          <span className="text-xs text-gray-500 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantesDaTurma.length}/{turma.estudantes.length}</span>
+          <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} className="w-5 h-5 text-gray-400" />
         </div>
-      </button>
+      </div>
       {aberto && <div className="border-t border-gray-100 dark:border-gray-700/50 p-3"><TabelaEstudantes estudantes={estudantesDaTurma} isAdmin={false} onVerDetalhes={onVerDetalhes} /></div>}
     </div>
   );
@@ -455,7 +560,7 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
 function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: { ano: string; label: string; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void }) {
   const [aberto, setAberto] = useState(false);
   const turmasDoAno = turmas.filter(t => t.nivel === ano);
-  const totalEst = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
+  const totalEst    = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <button onClick={() => setAberto(p => !p)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
@@ -479,7 +584,7 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
 function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem, onVerDetalhes }: { estudantes: EstudanteDetalhado[]; turmas: Turma[]; cursos: Curso[]; nivelAcademia: string; filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void }) {
   const [secaoAberta, setSecaoAberta] = useState<'fundamental' | 'cursos' | null>(null);
   const estudantesMapa = useMemo(() => { const m = new Map<string, EstudanteDetalhado>(); estudantes.forEach(e => m.set(e.codigo_estudante, e)); return m; }, [estudantes]);
-  const cursosAtivos = useMemo(() => cursos.filter(c => c.status === 'ativo'), [cursos]);
+  const cursosAtivos   = useMemo(() => cursos.filter(c => c.status === 'ativo'), [cursos]);
 
   const SecaoFundamental = ({ lista }: { lista?: Turma[] }) => {
     const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a => (lista ?? turmas).some(t => t.nivel === a.value));
@@ -509,8 +614,8 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
   };
 
   if (nivelAcademia === 'fundamental') return <SecaoFundamental />;
-  if (nivelAcademia === 'medio') return <SecaoCursos tipo="medio" />;
-  if (nivelAcademia === 'superior') return <SecaoCursos tipo="superior" />;
+  if (nivelAcademia === 'medio')       return <SecaoCursos tipo="medio" />;
+  if (nivelAcademia === 'superior')    return <SecaoCursos tipo="superior" />;
   if (nivelAcademia === 'misto') return (
     <div className="space-y-3">
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -564,30 +669,29 @@ function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; 
 
 export default function Estudantes() {
   const { isAcademia, isAdmin } = useUserType();
-  const { user } = useUserCookie();
+  const { user }                = useUserCookie();
   const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
-  const { isOpen: isLoteOpen, openModal: openLoteModal, closeModal: closeLoteModal } = useModal();
+  const { isOpen: isLoteOpen,    openModal: openLoteModal,    closeModal: closeLoteModal    } = useModal();
 
-  const [carregado, setCarregado] = useState(false);
+  const [carregado,          setCarregado]          = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
-  const [vistaEscala, setVistaEscala] = useState(false);
-  const [paginaAtual, setPaginaAtual] = useState(1);
-  const [ordem, setOrdem] = useState<OrdemEstudantes>('nome_asc');
-  const [filtros, setFiltros] = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
+  const [vistaEscala,        setVistaEscala]        = useState(false);
+  const [paginaAtual,        setPaginaAtual]        = useState(1);
+  const [ordem,              setOrdem]              = useState<OrdemEstudantes>('nome_asc');
+  const [filtros,            setFiltros]            = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
 
-  // Seleção em lote
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
-  const [batchItems, setBatchItems] = useState<BatchJobItem[]>([]);
-  const [batchTitulo, setBatchTitulo] = useState('');
+  const [selecionadas,   setSelecionadas]   = useState<Set<string>>(new Set());
+  const [batchItems,     setBatchItems]     = useState<BatchJobItem[]>([]);
+  const [batchTitulo,    setBatchTitulo]    = useState('');
   const [batchProgresso, setBatchProgresso] = useState(0);
   const [batchCarregando, setBatchCarregando] = useState(false);
 
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
-  const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
+  const { data: dataCursos,  execute: carregarCursos } = useApi(academiaService.listarCursos);
+  const { data: dataTurmas,  execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
   const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
-  const tipoAcademia = user?.academia?.type ?? 'escola';
+  const tipoAcademia  = user?.academia?.type ?? 'escola';
 
   const carregarLista = useCallback(async () => {
     const token = tokenStorage.get();
@@ -621,7 +725,7 @@ export default function Estudantes() {
     return ordenarEstudantes(aplicarFiltros(lista, filtros), ordem);
   }, [dataEstudantes, filtros, ordem]);
 
-  const totalPaginas = Math.ceil(estudantesFiltradosOrdenados.length / ITEMS_POR_PAGINA);
+  const totalPaginas       = Math.ceil(estudantesFiltradosOrdenados.length / ITEMS_POR_PAGINA);
   const estudantesPaginados = useMemo(
     () => estudantesFiltradosOrdenados.slice((paginaAtual - 1) * ITEMS_POR_PAGINA, paginaAtual * ITEMS_POR_PAGINA),
     [estudantesFiltradosOrdenados, paginaAtual]
@@ -629,28 +733,41 @@ export default function Estudantes() {
 
   const turmas: Turma[] = (dataTurmas as any)?.turmas ?? [];
   const cursos: Curso[] = dataCursos?.cursos ?? [];
-  const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
+  const academiasMap    = useMemo<Record<string, string>>(() => ({}), []);
 
   const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); openDetailsModal(); };
 
-  // Seleção handlers
+  // ─── Handlers de seleção ──────────────────────────────────────────────────
+
   const handleToggle = useCallback((id: string) => {
-    setSelecionadas(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+    setSelecionadas(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   }, []);
 
   const handleToggleTodos = useCallback((todos: EstudanteDetalhado[]) => {
     setSelecionadas(prev => {
-      const todasIds = todos.map(e => e.id);
+      const todasIds       = todos.map(e => e.id);
       const todasSelecionadas = todasIds.every(id => prev.has(id));
-      if (todasSelecionadas) { const next = new Set(prev); todasIds.forEach(id => next.delete(id)); return next; }
-      const next = new Set(prev); todasIds.forEach(id => next.add(id)); return next;
+      if (todasSelecionadas) {
+        const next = new Set(prev);
+        todasIds.forEach(id => next.delete(id));
+        return next;
+      }
+      const next = new Set(prev);
+      todasIds.forEach(id => next.add(id));
+      return next;
     });
   }, []);
 
   const handleLimparSelecao = () => setSelecionadas(new Set());
 
+  // ─── Handler de atualização em lote ───────────────────────────────────────
+
   const handleAtualizarStatusLote = async (novoStatus: string) => {
-    const todasEstudantes = dataEstudantes?.estudantes ?? [];
+    const todasEstudantes  = dataEstudantes?.estudantes ?? [];
     const selecionadasList = todasEstudantes.filter(e => selecionadas.has(e.id));
     if (selecionadasList.length === 0) return;
 
@@ -662,8 +779,8 @@ export default function Estudantes() {
     setBatchItems(items);
     openLoteModal();
 
-    const token = tokenStorage.get();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const token   = tokenStorage.get();
+    const apiUrl  = process.env.NEXT_PUBLIC_API_URL || '';
     const payload = selecionadasList.map(e => ({ codigo_estudante: e.codigo_estudante, tipo: 'fundamental' as const, novo_status: novoStatus }));
 
     try {
@@ -681,7 +798,6 @@ export default function Estudantes() {
         return;
       }
 
-      // pollJob já retorna JobDetail normalizado (com results)
       const detail = await pollJob(data.job_id, {
         timeoutMs: 5 * 60 * 1000,
         onProgress: (summary) => {
@@ -695,17 +811,14 @@ export default function Estudantes() {
         },
       });
 
-      // Buscar detalhes completos com resultados por item
       const detailResponse = await jobApiService.getDetail(data.job_id, token ?? undefined);
-      const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
+      const failures       = (detailResponse.results ?? []).filter((item) => !item.sucesso);
       const failureByCodigo = new Map<string, string>();
 
       for (const failure of failures) {
-        // payload contém o item original — código do estudante
         const itemPayload = failure.payload as { codigo_estudante?: string } | undefined;
-        const codigo = itemPayload?.codigo_estudante;
+        const codigo      = itemPayload?.codigo_estudante;
         if (!codigo) continue;
-        // resolveJobItemError normaliza erro/error/message
         const motivo = resolveJobItemError(failure) || detail.error || 'Falha no processamento';
         failureByCodigo.set(codigo, motivo);
       }
@@ -731,12 +844,13 @@ export default function Estudantes() {
   };
 
   const totalFiltrado = estudantesFiltradosOrdenados.length;
-  const totalGeral = dataEstudantes?.total ?? 0;
+  const totalGeral    = dataEstudantes?.total ?? 0;
 
   return (
     <div>
       <PageBreadcrumb pageTitle="Estudantes" />
       <div className="space-y-6">
+
         {/* Header */}
         <div className="flex flex-wrap gap-2 items-center">
           {isAcademia && (
@@ -744,7 +858,9 @@ export default function Estudantes() {
               <Icon icon="mdi:account-plus" width={16} /> Cadastrar Estudante
             </Link>
           )}
-          <Button size="sm" variant="outline" onClick={carregarLista} disabled={carregandoEstudantes}>{carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}</Button>
+          <Button size="sm" variant="outline" onClick={carregarLista} disabled={carregandoEstudantes}>
+            {carregandoEstudantes ? 'Carregando...' : 'Atualizar lista'}
+          </Button>
           {isAcademia && (
             <button onClick={() => setVistaEscala(p => !p)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${vistaEscala ? 'bg-brand-500 text-white border-brand-500' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
               <Icon icon={vistaEscala ? 'mdi:table' : 'mdi:layers-triple'} width={16} />
@@ -764,11 +880,10 @@ export default function Estudantes() {
         {/* Filtros */}
         {!vistaEscala && carregado && <FiltrosPanel filtros={filtros} setFiltros={setFiltros} isAdmin={!!isAdmin} />}
 
-        {/* Barra de lote */}
-        {isAcademia && !vistaEscala && (
+        {/* Barra de lote (só aparece quando há seleção) */}
+        {isAcademia && !vistaEscala && selecionadas.size > 0 && (
           <BarraLote
-            selecionadas={selecionadas.size}
-            total={estudantesFiltradosOrdenados.length}
+            selecionadas={selecionadas}
             onLimpar={handleLimparSelecao}
             onAtualizarStatus={handleAtualizarStatusLote}
             carregando={batchCarregando}
@@ -803,7 +918,12 @@ export default function Estudantes() {
         {/* Vista Tabela */}
         {!vistaEscala && (
           <>
-            {carregandoEstudantes && <div className="flex flex-col items-center justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" /><p className="text-sm text-gray-500 dark:text-gray-400">Carregando estudantes...</p></div>}
+            {carregandoEstudantes && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">Carregando estudantes...</p>
+              </div>
+            )}
             {!carregandoEstudantes && !carregado && (
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
@@ -814,16 +934,25 @@ export default function Estudantes() {
               <div className="flex flex-col items-center justify-center py-12">
                 <Icon icon="mdi:account-group-outline" width={64} className="text-gray-300 mb-4" />
                 <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Nenhum estudante encontrado</p>
-                {isAcademia && <Link href="/estudantes/cadastrar" className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"><Icon icon="mdi:account-plus" width={16} /> Cadastrar primeiro estudante</Link>}
+                {isAcademia && (
+                  <Link href="/estudantes/cadastrar" className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">
+                    <Icon icon="mdi:account-plus" width={16} /> Cadastrar primeiro estudante
+                  </Link>
+                )}
               </div>
             )}
             {!carregandoEstudantes && carregado && totalGeral > 0 && (
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
                   <TabelaEstudantes
-                    estudantes={estudantesPaginados} isAdmin={!!isAdmin} onVerDetalhes={handleVerDetalhes}
-                    academias={academiasMap} selecionadas={selecionadas} onToggle={handleToggle}
-                    onToggleTodos={handleToggleTodos} mostrarSelecao={!!isAcademia}
+                    estudantes={estudantesPaginados}
+                    isAdmin={!!isAdmin}
+                    onVerDetalhes={handleVerDetalhes}
+                    academias={academiasMap}
+                    selecionadas={selecionadas}
+                    onToggle={handleToggle}
+                    onToggleTodos={handleToggleTodos}
+                    mostrarSelecao={!!isAcademia}
                   />
                   {totalFiltrado === 0 && totalGeral > 0 && (
                     <div className="flex flex-col items-center justify-center py-8 text-gray-400">

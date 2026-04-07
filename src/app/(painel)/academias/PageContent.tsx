@@ -12,6 +12,7 @@ import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
 import { Provincias, AcademiaDetalhada, formatAnoAcademico } from '@/types/api';
 import Icon from "@/components/ui/Icon";
+import Checkbox from "@/components/form/input/Checkbox";
 import {
   Table,
   TableBody,
@@ -35,7 +36,6 @@ type LayerEscala =
   | { tipo: 'provincias' }
   | { tipo: 'academias'; provincia: string | null };
 
-// Resultado de operação em lote
 interface BatchResultItem {
   codigo: string;
   nome: string;
@@ -270,18 +270,12 @@ function AcoesDropdown({
 // ─── Modal de Resultado em Lote ───────────────────────────────────────────────
 
 function ModalResultadoLote({
-  isOpen,
-  onClose,
-  resultados,
-  titulo,
+  isOpen, onClose, resultados, titulo,
 }: {
-  isOpen: boolean;
-  onClose: () => void;
-  resultados: BatchResultItem[];
-  titulo: string;
+  isOpen: boolean; onClose: () => void; resultados: BatchResultItem[]; titulo: string;
 }) {
   const sucessos = resultados.filter(r => r.sucesso);
-  const falhas = resultados.filter(r => !r.sucesso);
+  const falhas   = resultados.filter(r => !r.sucesso);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[600px] p-5 lg:p-8">
@@ -301,8 +295,6 @@ function ModalResultadoLote({
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total</div>
           </div>
         </div>
-
-        {/* Lista de resultados */}
         <div className="max-h-64 overflow-y-auto space-y-2">
           {resultados.map((r, i) => (
             <div key={i} className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${r.sucesso ? 'bg-green-50 dark:bg-green-900/10' : 'bg-red-50 dark:bg-red-900/10'}`}>
@@ -323,7 +315,6 @@ function ModalResultadoLote({
             </div>
           ))}
         </div>
-
         <div className="flex justify-end mt-5">
           <Button size="sm" variant="outline" onClick={onClose}>Fechar</Button>
         </div>
@@ -332,12 +323,11 @@ function ModalResultadoLote({
   );
 }
 
-// ─── Tabela de Academias (reutilizável) ───────────────────────────────────────
+// ─── Tabela de Academias ──────────────────────────────────────────────────────
 
 function TabelaAcademias({
   academias, isAdmin, carregandoAtivar, carregandoDesativar,
   onVerDetalhes, onAtivar, onAbrirDesativar,
-  // Seleção em lote
   selecionadas, onToggleSelecao, onToggleTodas,
 }: {
   academias: AcademiaDetalhada[]; isAdmin: boolean; carregandoAtivar: boolean; carregandoDesativar: boolean;
@@ -353,7 +343,7 @@ function TabelaAcademias({
     );
   }
 
-  const todasSelecionadas = academias.length > 0 && academias.every(a => selecionadas.has(a.id));
+  const todasSelecionadas  = academias.length > 0 && academias.every(a => selecionadas.has(a.id));
   const algumasSelecionadas = academias.some(a => selecionadas.has(a.id));
 
   return (
@@ -362,13 +352,14 @@ function TabelaAcademias({
         <TableRow>
           {isAdmin && (
             <TableCell isHeader className="px-4 py-3 w-10">
-              <input
-                type="checkbox"
-                checked={todasSelecionadas}
-                ref={el => { if (el) el.indeterminate = algumasSelecionadas && !todasSelecionadas; }}
-                onChange={() => onToggleTodas(academias)}
-                className="w-4 h-4 rounded border-gray-300 text-brand-500 cursor-pointer"
-              />
+              {/* stopPropagation wrapper prevents label-click from bubbling through the table */}
+              <div onClick={e => e.stopPropagation()}>
+                <Checkbox
+                  checked={todasSelecionadas}
+                  indeterminate={algumasSelecionadas && !todasSelecionadas}
+                  onChange={() => onToggleTodas(academias)}
+                />
+              </div>
             </TableCell>
           )}
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
@@ -386,12 +377,12 @@ function TabelaAcademias({
           <TableRow key={academia.id} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas.has(academia.id) ? 'bg-brand-50/30 dark:bg-brand-900/10' : ''}`}>
             {isAdmin && (
               <TableCell className="px-4 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={selecionadas.has(academia.id)}
-                  onChange={() => onToggleSelecao(academia.id)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-500 cursor-pointer"
-                />
+                <div onClick={e => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selecionadas.has(academia.id)}
+                    onChange={() => onToggleSelecao(academia.id)}
+                  />
+                </div>
               </TableCell>
             )}
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">{academia.nome}</TableCell>
@@ -420,24 +411,15 @@ function TabelaAcademias({
 // ─── Barra de ações em lote ───────────────────────────────────────────────────
 
 function BarraLote({
-  selecionadas,
-  academiasList,
-  onLimparSelecao,
-  onAtivarLote,
-  onDesativarLote,
-  carregandoLote,
+  selecionadas, academiasList, onLimparSelecao, onAtivarLote, onDesativarLote, carregandoLote,
 }: {
-  selecionadas: Set<string>;
-  academiasList: AcademiaDetalhada[];
-  onLimparSelecao: () => void;
-  onAtivarLote: () => void;
-  onDesativarLote: () => void;
-  carregandoLote: boolean;
+  selecionadas: Set<string>; academiasList: AcademiaDetalhada[];
+  onLimparSelecao: () => void; onAtivarLote: () => void; onDesativarLote: () => void; carregandoLote: boolean;
 }) {
   if (selecionadas.size === 0) return null;
 
   const selecionadasList = academiasList.filter(a => selecionadas.has(a.id));
-  const quantasAtivas = selecionadasList.filter(a => a.status === 'ativo').length;
+  const quantasAtivas   = selecionadasList.filter(a => a.status === 'ativo').length;
   const quantasInativas = selecionadasList.filter(a => a.status === 'inativo').length;
 
   return (
@@ -460,35 +442,18 @@ function BarraLote({
           </span>
         )}
       </div>
-
       <div className="flex items-center gap-2 ml-auto">
         {quantasInativas > 0 && (
-          <Button
-            size="sm"
-            variant="success"
-            disabled={carregandoLote}
-            onClick={onAtivarLote}
-            startIcon={<Icon icon="mdi:check-circle-outline" width={16} />}
-          >
+          <Button size="sm" variant="success" disabled={carregandoLote} onClick={onAtivarLote} startIcon={<Icon icon="mdi:check-circle-outline" width={16} />}>
             {carregandoLote ? 'Processando...' : `Ativar ${quantasInativas}`}
           </Button>
         )}
         {quantasAtivas > 0 && (
-          <Button
-            size="sm"
-            variant="danger"
-            disabled={carregandoLote}
-            onClick={onDesativarLote}
-            startIcon={<Icon icon="mdi:close-circle-outline" width={16} />}
-          >
+          <Button size="sm" variant="danger" disabled={carregandoLote} onClick={onDesativarLote} startIcon={<Icon icon="mdi:close-circle-outline" width={16} />}>
             {carregandoLote ? 'Processando...' : `Desativar ${quantasAtivas}`}
           </Button>
         )}
-        <button
-          onClick={onLimparSelecao}
-          className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors"
-          title="Limpar seleção"
-        >
+        <button onClick={onLimparSelecao} className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors" title="Limpar seleção">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -498,24 +463,17 @@ function BarraLote({
   );
 }
 
-// ─── Vista em Escala — drill-down Províncias → Academias ─────────────────────
+// ─── Vista em Escala ──────────────────────────────────────────────────────────
 
 function VistaEscalaAcademias({
   academias, ordem, isAdmin, carregandoAtivar, carregandoDesativar,
   onVerDetalhes, onAtivar, onAbrirDesativar,
   selecionadas, onToggleSelecao, onToggleTodas,
 }: {
-  academias: AcademiaDetalhada[];
-  ordem: OrdemAcademias;
-  isAdmin: boolean;
-  carregandoAtivar: boolean;
-  carregandoDesativar: boolean;
-  onVerDetalhes: (a: AcademiaDetalhada) => void;
-  onAtivar: (a: AcademiaDetalhada) => void;
-  onAbrirDesativar: (a: AcademiaDetalhada) => void;
-  selecionadas: Set<string>;
-  onToggleSelecao: (id: string) => void;
-  onToggleTodas: (todas: AcademiaDetalhada[]) => void;
+  academias: AcademiaDetalhada[]; ordem: OrdemAcademias; isAdmin: boolean;
+  carregandoAtivar: boolean; carregandoDesativar: boolean;
+  onVerDetalhes: (a: AcademiaDetalhada) => void; onAtivar: (a: AcademiaDetalhada) => void; onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  selecionadas: Set<string>; onToggleSelecao: (id: string) => void; onToggleTodas: (todas: AcademiaDetalhada[]) => void;
 }) {
   const [layer, setLayer] = useState<LayerEscala>({ tipo: 'provincias' });
 
@@ -562,7 +520,6 @@ function VistaEscalaAcademias({
         <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
           Selecione uma Província para explorar
         </p>
-
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <button
             onClick={() => setLayer({ tipo: 'academias', provincia: null })}
@@ -586,7 +543,6 @@ function VistaEscalaAcademias({
             const lista    = porCodigo[prov.codigo.toUpperCase()] ?? [];
             const ativas   = lista.filter(a => a.status === 'ativo').length;
             const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
-
             return (
               <button
                 key={prov.codigo}
@@ -613,7 +569,6 @@ function VistaEscalaAcademias({
             const lista    = porCodigo[codigo] ?? [];
             const ativas   = lista.filter(a => a.status === 'ativo').length;
             const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
-
             return (
               <button
                 key={codigo}
@@ -684,16 +639,10 @@ function VistaEscalaAcademias({
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="w-full overflow-x-auto">
           <TabelaAcademias
-            academias={academiasDoLayer}
-            isAdmin={isAdmin}
-            carregandoAtivar={carregandoAtivar}
-            carregandoDesativar={carregandoDesativar}
-            onVerDetalhes={onVerDetalhes}
-            onAtivar={onAtivar}
-            onAbrirDesativar={onAbrirDesativar}
-            selecionadas={selecionadas}
-            onToggleSelecao={onToggleSelecao}
-            onToggleTodas={onToggleTodas}
+            academias={academiasDoLayer} isAdmin={isAdmin}
+            carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
+            onVerDetalhes={onVerDetalhes} onAtivar={onAtivar} onAbrirDesativar={onAbrirDesativar}
+            selecionadas={selecionadas} onToggleSelecao={onToggleSelecao} onToggleTodas={onToggleTodas}
           />
         </div>
       </div>
@@ -705,30 +654,29 @@ function VistaEscalaAcademias({
 
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
-  const { isOpen: isDetailsOpen,   openModal: openDetailsModal,   closeModal: closeDetailsModal  } = useModal();
-  const { isOpen: isDesativarOpen, openModal: openDesativarModal, closeModal: closeDesativarModal } = useModal();
-  const { isOpen: isDesativarLoteOpen, openModal: openDesativarLoteModal, closeModal: closeDesativarLoteModal } = useModal();
-  const { isOpen: isResultadoLoteOpen, openModal: openResultadoLoteModal, closeModal: closeResultadoLoteModal } = useModal();
+  const { isOpen: isDetailsOpen,        openModal: openDetailsModal,        closeModal: closeDetailsModal        } = useModal();
+  const { isOpen: isDesativarOpen,      openModal: openDesativarModal,      closeModal: closeDesativarModal      } = useModal();
+  const { isOpen: isDesativarLoteOpen,  openModal: openDesativarLoteModal,  closeModal: closeDesativarLoteModal  } = useModal();
+  const { isOpen: isResultadoLoteOpen,  openModal: openResultadoLoteModal,  closeModal: closeResultadoLoteModal  } = useModal();
 
-  const [carregado,    setCarregado]    = useState(false);
-  const [vistaEscala,  setVistaEscala]  = useState(true);
-  const [ordem,        setOrdem]        = useState<OrdemAcademias>('nome_asc');
-  const [paginaAtual,  setPaginaAtual]  = useState(1);
+  const [carregado,   setCarregado]   = useState(false);
+  const [vistaEscala, setVistaEscala] = useState(true);
+  const [ordem,       setOrdem]       = useState<OrdemAcademias>('nome_asc');
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
-  // Seleção em lote
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
-  const [motivoDesativacaoLote, setMotivoDesativacaoLote] = useState('');
-  const [carregandoLote, setCarregandoLote] = useState(false);
-  const [resultadosLote, setResultadosLote] = useState<BatchResultItem[]>([]);
-  const [tituloResultadoLote, setTituloResultadoLote] = useState('');
+  const [selecionadas,           setSelecionadas]           = useState<Set<string>>(new Set());
+  const [motivoDesativacaoLote,  setMotivoDesativacaoLote]  = useState('');
+  const [carregandoLote,         setCarregandoLote]         = useState(false);
+  const [resultadosLote,         setResultadosLote]         = useState<BatchResultItem[]>([]);
+  const [tituloResultadoLote,    setTituloResultadoLote]    = useState('');
 
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
   const { loading: carregandoAtivar,    error: erroAtivarAcademia,    execute: executarAtivar    } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
 
-  const [academiaSelecionada,    setAcademiaSelecionada]    = useState<AcademiaDetalhada | null>(null);
-  const [academiaParaDesativar,  setAcademiaParaDesativar]  = useState<AcademiaDetalhada | null>(null);
-  const [motivoDesativacao,      setMotivoDesativacao]      = useState('');
+  const [academiaSelecionada,   setAcademiaSelecionada]   = useState<AcademiaDetalhada | null>(null);
+  const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
+  const [motivoDesativacao,     setMotivoDesativacao]     = useState('');
 
   const isFpp   = !loadingUser && user?.tipo === 'admin' && user?.admin?.role === 'fpp';
   const isAdmin = !loadingUser && user?.tipo === 'admin';
@@ -758,9 +706,9 @@ export default function Academias() {
 
   const academiasList = dataAcademias?.academias ?? [];
 
-  const academiasOrdenadas = useMemo(() => ordenarAcademias(academiasList, ordem), [academiasList, ordem]);
-  const totalPaginas = Math.ceil(academiasOrdenadas.length / ITEMS_POR_PAGINA);
-  const academiasPaginadas = useMemo(
+  const academiasOrdenadas  = useMemo(() => ordenarAcademias(academiasList, ordem), [academiasList, ordem]);
+  const totalPaginas        = Math.ceil(academiasOrdenadas.length / ITEMS_POR_PAGINA);
+  const academiasPaginadas  = useMemo(
     () => academiasOrdenadas.slice((paginaAtual - 1) * ITEMS_POR_PAGINA, paginaAtual * ITEMS_POR_PAGINA),
     [academiasOrdenadas, paginaAtual]
   );
@@ -801,25 +749,23 @@ export default function Academias() {
   const handleToggleSelecao = useCallback((id: string) => {
     setSelecionadas(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }, []);
 
   const handleToggleTodas = useCallback((todas: AcademiaDetalhada[]) => {
     setSelecionadas(prev => {
-      const todasIds = todas.map(a => a.id);
+      const todasIds        = todas.map(a => a.id);
       const todasSelecionadas = todasIds.every(id => prev.has(id));
       if (todasSelecionadas) {
         const next = new Set(prev);
         todasIds.forEach(id => next.delete(id));
         return next;
-      } else {
-        const next = new Set(prev);
-        todasIds.forEach(id => next.add(id));
-        return next;
       }
+      const next = new Set(prev);
+      todasIds.forEach(id => next.add(id));
+      return next;
     });
   }, []);
 
@@ -903,11 +849,9 @@ export default function Academias() {
               <Icon icon="mdi:plus" width={16} /> Cadastrar Academia
             </Link>
           )}
-
           <Button variant="outline" size="sm" disabled={carregandoAcademias} onClick={carregarLista}>
             {carregandoAcademias ? 'Carregando...' : 'Atualizar lista'}
           </Button>
-
           {carregado && (
             <button
               onClick={() => setVistaEscala(p => !p)}
@@ -921,15 +865,9 @@ export default function Academias() {
               {!vistaEscala ? 'Vista em Escala' : 'Vista Tabela'}
             </button>
           )}
-
           {carregado && (
-            <BotaoOrdenar
-              opcoes={OPCOES_ORDEM_ACADEMIAS}
-              ordemAtual={ordem}
-              onSelecionar={setOrdem}
-            />
+            <BotaoOrdenar opcoes={OPCOES_ORDEM_ACADEMIAS} ordemAtual={ordem} onSelecionar={setOrdem} />
           )}
-
           {dataAcademias && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
               <span className="font-medium">{academiasList.length}</span>
@@ -967,17 +905,10 @@ export default function Academias() {
             )}
             {!carregandoAcademias && carregado && (
               <VistaEscalaAcademias
-                academias={academiasList}
-                ordem={ordem}
-                isAdmin={isAdmin}
-                carregandoAtivar={carregandoAtivar}
-                carregandoDesativar={carregandoDesativar}
-                onVerDetalhes={handleVerDetalhes}
-                onAtivar={handleAtivar}
-                onAbrirDesativar={handleAbrirDesativar}
-                selecionadas={selecionadas}
-                onToggleSelecao={handleToggleSelecao}
-                onToggleTodas={handleToggleTodas}
+                academias={academiasList} ordem={ordem} isAdmin={isAdmin}
+                carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
+                onVerDetalhes={handleVerDetalhes} onAtivar={handleAtivar} onAbrirDesativar={handleAbrirDesativar}
+                selecionadas={selecionadas} onToggleSelecao={handleToggleSelecao} onToggleTodas={handleToggleTodas}
               />
             )}
           </>
@@ -1001,16 +932,10 @@ export default function Academias() {
                 )}
                 {!carregandoAcademias && carregado && (
                   <TabelaAcademias
-                    academias={academiasPaginadas}
-                    isAdmin={isAdmin}
-                    carregandoAtivar={carregandoAtivar}
-                    carregandoDesativar={carregandoDesativar}
-                    onVerDetalhes={handleVerDetalhes}
-                    onAtivar={handleAtivar}
-                    onAbrirDesativar={handleAbrirDesativar}
-                    selecionadas={selecionadas}
-                    onToggleSelecao={handleToggleSelecao}
-                    onToggleTodas={handleToggleTodas}
+                    academias={academiasPaginadas} isAdmin={isAdmin}
+                    carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
+                    onVerDetalhes={handleVerDetalhes} onAtivar={handleAtivar} onAbrirDesativar={handleAbrirDesativar}
+                    selecionadas={selecionadas} onToggleSelecao={handleToggleSelecao} onToggleTodas={handleToggleTodas}
                   />
                 )}
               </div>
