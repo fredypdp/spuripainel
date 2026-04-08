@@ -19,7 +19,15 @@ interface AcademiaInfo {
   ano_letivo?: string;
 }
 
-interface Materia { id: string; nome: string; type: string; anos_academicos: string[]; periodo?: string; curso_id?: string; }
+interface Materia {
+  id: string;
+  nome: string;
+  type: string;
+  anos_academicos: string[];
+  periodo?: string;
+  curso_id?: string;
+}
+
 interface Estudante {
   codigo_estudante: string;
   nome: string;
