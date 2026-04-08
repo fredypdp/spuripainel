@@ -30,7 +30,6 @@ interface Estudante {
   total_faltas?: number;
 }
 interface Turma { id?: string; codigo_turma: string; nivel: string; estudantes: string[]; curso_id?: string; status?: string; }
-// ✅ CORRIGIDO: adicionado campo status (obrigatório pelo backend mas ausente na interface local)
 interface Curso { id: string; nome: string; type: string; anos_academicos: string[]; periodos?: string[]; status?: string; }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -137,7 +136,10 @@ export default function SeedTestPage() {
 
   const [cursoConfig, setCursoConfig] = useState({ tipo: "medio" as "medio"|"superior", qtd: 2 });
   const [materiaConfig, setMateriaConfig] = useState({ tipo: "fundamental" as "fundamental"|"medio"|"superior", qtd: 5, cursoId: "" });
-  const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "auto" });
+
+  // ✅ cursoId: "random" = distribui aleatoriamente entre todos os cursos ativos do tipo
+  const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random" });
+
   const [estudanteConfig, setEstudanteConfig] = useState({ qtd: 20, anoEscolar: "random", statusFund: "em_andamento" });
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
   const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
@@ -444,6 +446,7 @@ export default function SeedTestPage() {
     addLog(`Gerando ${qtd} turma(s)...`, "step");
     let criadas = 0;
 
+    // ── Construir pool de níveis disponíveis ──────────────────────────────────
     const niveisDisponiveis: string[] = [];
     if (academia.tipo === "escola") {
       if (academia.nivel === "fundamental" || academia.nivel === "misto") {
@@ -463,6 +466,26 @@ export default function SeedTestPage() {
       return;
     }
 
+    // ── Resolver pool de cursos ativos para o tipo correto ────────────────────
+    const tipoCurso = academia.tipo === "superior" ? "superior" : "medio";
+    const cursosAtivos = cursos.filter(c => c.type === tipoCurso && c.status === "ativo");
+
+    // Curso específico escolhido pelo utilizador (ou undefined para aleatório)
+    const cursoEspecifico = turmaConfig.cursoId !== "random"
+      ? cursosAtivos.find(c => c.id === turmaConfig.cursoId)
+      : undefined;
+
+    if (turmaConfig.cursoId !== "random" && !cursoEspecifico) {
+      addLog(`  ✗ Curso selecionado não encontrado ou inativo`, "err");
+      return;
+    }
+
+    if (turmaConfig.cursoId === "random" && cursosAtivos.length > 0) {
+      addLog(`  Distribuindo entre ${cursosAtivos.length} curso(s) ativo(s) aleatoriamente`, "dim");
+    } else if (cursoEspecifico) {
+      addLog(`  Usando curso fixo: ${cursoEspecifico.nome}`, "dim");
+    }
+
     for (let i = 0; i < qtd; i++) {
       if (cancelRef.current) break;
 
@@ -471,23 +494,29 @@ export default function SeedTestPage() {
       const letra = String.fromCharCode(65 + (i % 26));
       const payload: any = { codigo_turma: `T${rnd(1, 9)}${letra}${rnd(10, 99)}`, nivel, turno };
 
-      if (nivel.includes("medio")) {
-        const cursoAlvo = turmaConfig.cursoId !== "auto"
-          ? cursos.find(c => c.id === turmaConfig.cursoId && c.type === "medio")
-          : cursos.find(c => c.type === "medio" && c.status === "ativo" && c.anos_academicos.includes(nivel));
-        if (cursoAlvo) {
-          payload.curso_id = cursoAlvo.id;
-        } else {
-          addLog(`  ! Turma ${payload.codigo_turma}: nenhum curso médio ativo com o nível "${nivel}"`, "warn");
+      if (nivel.includes("medio") || nivel.includes("superior")) {
+        let cursoAlvo: Curso | undefined;
+
+        if (cursoEspecifico) {
+          // Curso fixo escolhido pelo utilizador
+          cursoAlvo = cursoEspecifico;
+        } else if (turmaConfig.cursoId === "random") {
+          // ✅ Distribuição aleatória: escolhe aleatoriamente entre TODOS os cursos ativos
+          // que contenham o nível selecionado (ou qualquer curso ativo se nível é random)
+          const cursosCompativeis = cursosAtivos.filter(c => c.anos_academicos.includes(nivel));
+          if (cursosCompativeis.length > 0) {
+            cursoAlvo = pick(cursosCompativeis);
+          } else {
+            // Fallback: qualquer curso ativo do tipo correto
+            cursoAlvo = cursosAtivos.length > 0 ? pick(cursosAtivos) : undefined;
+          }
         }
-      } else if (nivel.includes("superior")) {
-        const cursoAlvo = turmaConfig.cursoId !== "auto"
-          ? cursos.find(c => c.id === turmaConfig.cursoId && c.type === "superior")
-          : cursos.find(c => c.type === "superior" && c.status === "ativo" && c.anos_academicos.includes(nivel));
+
         if (cursoAlvo) {
           payload.curso_id = cursoAlvo.id;
+          addLog(`  · Turma ${payload.codigo_turma} → ${cursoAlvo.nome} (${nivel})`, "dim");
         } else {
-          addLog(`  ! Turma ${payload.codigo_turma}: nenhum curso superior ativo com o nível "${nivel}"`, "warn");
+          addLog(`  ! Turma ${payload.codigo_turma}: nenhum curso ativo com o nível "${nivel}"`, "warn");
         }
       }
 
@@ -884,6 +913,35 @@ export default function SeedTestPage() {
   const tiposEnsinoDisp = academia ? tiposEnsinoDisponiveis(academia, cursos) : [];
   const anosDisponiveis = academia?.anos_academicos?.filter(a => a.includes("fundamental")) || [];
 
+  // ── Cursos disponíveis para o selector de turmas ──────────────────────────
+  const tipoCursoTurma = academia?.tipo === "superior" ? "superior" : "medio";
+  const cursosParaTurma = cursos.filter(c => c.type === tipoCursoTurma && c.status === "ativo");
+
+  // Níveis disponíveis filtrados pelo curso selecionado (se específico)
+  const niveisParaTurma: string[] = (() => {
+    const cursoEscolhido = turmaConfig.cursoId !== "random"
+      ? cursosParaTurma.find(c => c.id === turmaConfig.cursoId)
+      : undefined;
+
+    if (cursoEscolhido) {
+      return cursoEscolhido.anos_academicos;
+    }
+
+    // Aleatório: todos os níveis disponíveis (fundamental + todos os cursos)
+    const pool: string[] = [];
+    if (academia?.tipo === "escola") {
+      if (academia.nivel === "fundamental" || academia.nivel === "misto") {
+        pool.push(...(academia.anos_academicos?.filter(a => a.includes("fundamental")) || []));
+      }
+      if (academia.nivel === "medio" || academia.nivel === "misto") {
+        for (const c of cursosParaTurma) pool.push(...c.anos_academicos);
+      }
+    } else if (academia?.tipo === "superior") {
+      for (const c of cursosParaTurma) pool.push(...c.anos_academicos);
+    }
+    return [...new Set(pool)];
+  })();
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   const logColors: Record<LogLevel, string> = {
@@ -1077,33 +1135,84 @@ export default function SeedTestPage() {
 
             {/* Turmas */}
             <Section title="Turmas" badge={`${turmas.length} criadas`}>
-              {academia.tipo === "superior" && cursos.filter(c => c.type === "superior" && c.status === "ativo").length === 0 ? (
+              {academia.tipo === "superior" && cursosParaTurma.length === 0 ? (
                 <p style={{ color: "#f87171", fontSize: 12, margin: 0 }}>✗ Academia superior sem cursos ativos — crie cursos primeiro</p>
-              ) : academia.nivel === "medio" && cursos.filter(c => c.type === "medio" && c.status === "ativo").length === 0 ? (
+              ) : academia.nivel === "medio" && cursosParaTurma.length === 0 ? (
                 <p style={{ color: "#f87171", fontSize: 12, margin: 0 }}>✗ Academia de nível médio sem cursos ativos — crie cursos primeiro</p>
               ) : (
-                <Row>
-                  <Field label="Quantidade">
-                    <Inp type="number" min={1} max={20} value={turmaConfig.qtd} onChange={e => setTurmaConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                  </Field>
-                  <Field label="Turno">
-                    <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
-                      <option value="random">Aleatório</option>
-                      <option value="manha">Manhã</option>
-                      <option value="tarde">Tarde</option>
-                      <option value="noite">Noite</option>
-                    </Sel>
-                  </Field>
-                  <Field label="Nível">
-                    <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
-                      <option value="random">Aleatório</option>
-                      {anosDisponiveis.map(a => (<option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>))}
-                      {cursos.filter(c => c.type === "medio" && c.status === "ativo").flatMap(c => c.anos_academicos).map(a => (<option key={a} value={a}>{a.replace(/_ano_medio$/, "º Médio")}</option>))}
-                      {cursos.filter(c => c.type === "superior" && c.status === "ativo").flatMap(c => c.anos_academicos).map(a => (<option key={a} value={a}>{a.replace(/_ano_superior$/, "º Superior")}</option>))}
-                    </Sel>
-                  </Field>
-                  <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
-                </Row>
+                <>
+                  <Row>
+                    <Field label="Quantidade">
+                      <Inp type="number" min={1} max={20} value={turmaConfig.qtd} onChange={e => setTurmaConfig(p => ({ ...p, qtd: +e.target.value }))} />
+                    </Field>
+                    <Field label="Turno">
+                      <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
+                        <option value="random">Aleatório</option>
+                        <option value="manha">Manhã</option>
+                        <option value="tarde">Tarde</option>
+                        <option value="noite">Noite</option>
+                      </Sel>
+                    </Field>
+
+                    {/* ✅ Seletor de curso — novo, com opção aleatória */}
+                    {cursosParaTurma.length > 0 && (
+                      <Field label="Curso">
+                        <Sel
+                          value={turmaConfig.cursoId}
+                          onChange={e => {
+                            // Ao mudar o curso, resetar o nível para "random"
+                            setTurmaConfig(p => ({ ...p, cursoId: e.target.value, nivel: "random" }));
+                          }}
+                          style={{ minWidth: 200 }}
+                        >
+                          <option value="random">Aleatório (todos os cursos)</option>
+                          {cursosParaTurma.map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                    )}
+
+                    <Field label="Nível">
+                      <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
+                        <option value="random">Aleatório</option>
+                        {/* Níveis fundamentais (sempre disponíveis para escolas fundamentais/mistas) */}
+                        {(academia.nivel === "fundamental" || academia.nivel === "misto") &&
+                          (academia.anos_academicos || [])
+                            .filter(a => a.includes("fundamental"))
+                            .map(a => (
+                              <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
+                            ))
+                        }
+                        {/* Níveis do curso selecionado (ou de todos os cursos se aleatório) */}
+                        {niveisParaTurma
+                          .filter(a => !a.includes("fundamental")) // já listados acima
+                          .map(a => (
+                            <option key={a} value={a}>
+                              {a.includes("medio")
+                                ? a.replace(/_ano_medio$/, "º Médio")
+                                : a.replace(/_ano_superior$/, "º Superior")}
+                            </option>
+                          ))
+                        }
+                      </Sel>
+                    </Field>
+
+                    <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
+                  </Row>
+
+                  {/* Informação sobre distribuição */}
+                  {cursosParaTurma.length > 1 && turmaConfig.cursoId === "random" && (
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#60a5fa" }}>
+                      ✦ Distribuição aleatória entre {cursosParaTurma.length} curso(s): {cursosParaTurma.map(c => c.nome).join(", ")}
+                    </p>
+                  )}
+                  {turmaConfig.cursoId !== "random" && cursosParaTurma.find(c => c.id === turmaConfig.cursoId) && (
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#a78bfa" }}>
+                      📌 Curso fixo: {cursosParaTurma.find(c => c.id === turmaConfig.cursoId)?.nome}
+                    </p>
+                  )}
+                </>
               )}
             </Section>
 
