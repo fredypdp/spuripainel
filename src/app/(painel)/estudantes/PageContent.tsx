@@ -698,9 +698,12 @@ export default function Estudantes() {
     }
   }, [vistaEscala, isAcademia]);
 
-  // Limpar seleção ao mudar filtros, ordem ou página
-  useEffect(() => { setPaginaAtual(1); }, [filtros, ordem]);
+  // Resetar página ao mudar filtros, ordem ou dados
+  useEffect(() => { setPaginaAtual(1); setSelecionadas(new Set()); }, [filtros, ordem]);
   useEffect(() => { setPaginaAtual(1); }, [dataEstudantes]);
+
+  // Resetar seleção ao mudar de página
+  useEffect(() => { setSelecionadas(new Set()); }, [paginaAtual]);
 
   const estudantesFiltradosOrdenados = useMemo(
     () => ordenarEstudantes(aplicarFiltros(dataEstudantes?.estudantes ?? [], filtros), ordem),

@@ -12,6 +12,8 @@ import {
   type JobDetail,
   type JobItemResult,
 } from "@/lib/api";
+import { academiaService } from "@/lib/api";
+import type { CriarEstudanteRequest } from "@/types/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -191,17 +193,85 @@ function normalizeEventToNotif(event: JobStreamEvent): UiNotification {
   }
 }
 
+// ─── Retry helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Extrai os payloads dos itens com falha e reenvia como novo job assíncrono.
+ * Suporta apenas register_estudante_batch por enquanto — adicionar outros tipos
+ * conforme necessário (seguir o mesmo padrão: verificar job.type, chamar o
+ * endpoint correspondente).
+ */
+async function retryFailedItems(
+  jobType: string,
+  failures: JobItemResult[],
+  token: string
+): Promise<{ job_id: string; total_items: number } | null> {
+  const payloads = failures
+    .map(f => f.payload)
+    .filter(Boolean);
+
+  if (payloads.length === 0) return null;
+
+  const apiUrl = (() => {
+    const url = process.env.NEXT_PUBLIC_API_URL || "";
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) return `https://${url}`;
+    return url;
+  })();
+
+  const endpointMap: Record<string, string> = {
+    register_estudante_batch:        "/academia/estudante/register/async",
+    registrar_nota_batch:            "/academia/notas-aluno/async",
+    atualizar_nota_batch:            "/academia/atualizar-nota/async",
+    deletar_nota_batch:              "/academia/nota/async",
+    registrar_faltas_batch:          "/academia/faltas-aluno/async",
+    atualizar_falta_batch:           "/academia/atualizar-falta/async",
+    deletar_falta_batch:             "/academia/falta/async",
+    registrar_avaliacao_final_batch: "/academia/avaliacao-final/async",
+    atualizar_status_escolar_batch:  "/academia/estudante/status-escolar/async",
+    criar_curso_batch:               "/academia/curso/async",
+    criar_materia_batch:             "/academia/materia/async",
+    criar_turma_batch:               "/academia/turma/async",
+    adicionar_estudante_batch:       "/academia/turma/estudante/async",
+    register_academia_batch:         "/dominis/academia/register/async",
+    ativar_academia_batch:           "/dominis/academia/ativar/async",
+    desativar_academia_batch:        "/dominis/academia/desativar/async",
+  };
+
+  const endpoint = endpointMap[jobType];
+  if (!endpoint) return null;
+
+  const method = jobType.startsWith("atualizar_") || jobType.startsWith("ativar_") || jobType.startsWith("desativar_")
+    ? "PUT"
+    : jobType.startsWith("deletar_")
+    ? "DELETE"
+    : "POST";
+
+  const r = await fetch(`${apiUrl}${endpoint}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payloads),
+  });
+
+  const data = await r.json();
+  if (!r.ok || !data.job_id) throw new Error(data.message || data.error || "Erro ao submeter retry");
+  return { job_id: data.job_id, total_items: data.total_items ?? payloads.length };
+}
+
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 
 interface DetailModalProps {
   notif: UiNotification;
   onClose: () => void;
+  onRetryStarted?: (notif: UiNotification) => void;
 }
 
-function DetailModal({ notif, onClose }: DetailModalProps) {
-  const [detail, setDetail]   = useState<JobDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
+  const [detail, setDetail]         = useState<JobDetail | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [retrying, setRetrying]     = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [retryDone, setRetryDone]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,7 +281,6 @@ function DetailModal({ notif, onClose }: DetailModalProps) {
     jobApiService.getDetail(notif.jobId, token)
       .then(resp => {
         if (cancelled) return;
-        // A API retorna { job, results } — montar JobDetail
         const jobDetail: JobDetail = { ...resp.job, results: resp.results ?? [] };
         setDetail(jobDetail);
       })
@@ -225,6 +294,50 @@ function DetailModal({ notif, onClose }: DetailModalProps) {
 
   const failures  = detail?.results?.filter(r => !r.sucesso)  ?? [];
   const successes = detail?.results?.filter(r => r.sucesso)   ?? [];
+
+  // Botão de retry disponível quando: job falhou ou tem falhas, e há payloads para reenviar
+  const canRetry = !retryDone
+    && (notif.status === "failed" || failures.length > 0)
+    && failures.some(f => f.payload != null)
+    && !!(detail as any)?.type;
+
+  const handleRetry = async () => {
+    if (!detail) return;
+    const token = tokenStorage.get();
+    if (!token) { setRetryError("Token não disponível"); return; }
+
+    setRetrying(true);
+    setRetryError(null);
+
+    try {
+      const jobType = (detail as any).type as string;
+      const result = await retryFailedItems(jobType, failures, token);
+      if (!result) {
+        setRetryError("Não foi possível identificar o tipo de operação para reenvio.");
+        return;
+      }
+
+      // Criar notificação provisória para o novo job
+      const newNotif: UiNotification = {
+        id:          `${result.job_id}-enqueued-${Date.now()}`,
+        jobId:       result.job_id,
+        title:       `${jobTypeLabel(jobType)} — Retry na fila`,
+        description: `${result.total_items} item${result.total_items !== 1 ? "s" : ""} reenviado${result.total_items !== 1 ? "s" : ""}`,
+        createdAt:   new Date().toISOString(),
+        tone:        "info",
+        progress:    0,
+        status:      "pending",
+        read:        false,
+      };
+      onRetryStarted?.(newNotif);
+      setRetryDone(true);
+      onClose();
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : "Erro ao tentar novamente");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const toneColor: Record<NotifTone, string> = {
     success: "#22c55e",
@@ -303,7 +416,7 @@ function DetailModal({ notif, onClose }: DetailModalProps) {
                 </div>
               )}
 
-              {/* Failures */}
+              {/* Failures list */}
               {failures.length > 0 && (
                 <div>
                   <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#f87171" }}>
@@ -325,7 +438,7 @@ function DetailModal({ notif, onClose }: DetailModalProps) {
                 </div>
               )}
 
-              {/* Success sample */}
+              {/* Success-only message */}
               {successes.length > 0 && failures.length === 0 && (
                 <div style={{ background: "#0a1e0f", border: "1px solid #14532d", borderRadius: 8, padding: 14 }}>
                   <p style={{ margin: 0, fontSize: 13, color: "#86efac" }}>
@@ -339,12 +452,62 @@ function DetailModal({ notif, onClose }: DetailModalProps) {
                   Nenhum resultado detalhado disponível para este job.
                 </div>
               )}
+
+              {/* Retry error */}
+              {retryError && (
+                <div style={{ background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 12 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: "#fca5a5" }}>✗ {retryError}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          {/* Retry button — only shown when there are failed items with payloads */}
+          {canRetry && detail && (
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: retrying ? "#1e293b" : "#7c2d12",
+                color: retrying ? "#475569" : "#fed7aa",
+                border: "1px solid",
+                borderColor: retrying ? "#334155" : "#9a3412",
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: retrying ? "not-allowed" : "pointer",
+                transition: "all 0.15s",
+              }}
+              title={`Reenviar ${failures.length} item${failures.length !== 1 ? "s" : ""} com falha`}
+            >
+              {retrying ? (
+                <>
+                  <span style={{ width: 12, height: 12, border: "2px solid #475569", borderTopColor: "#fed7aa", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
+                  Reenviando…
+                </>
+              ) : (
+                <>
+                  {/* Refresh icon */}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="1 4 1 10 7 10" />
+                    <path d="M3.51 15a9 9 0 1 0 .49-3.36" />
+                  </svg>
+                  Tentar novamente ({failures.length})
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Spacer when no retry */}
+          {!canRetry && <span />}
+
           <button
             onClick={onClose}
             style={{ background: "#1e293b", color: "#e2e8f0", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
@@ -353,6 +516,9 @@ function DetailModal({ notif, onClose }: DetailModalProps) {
           </button>
         </div>
       </div>
+
+      {/* Inline keyframe for spinner */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -534,6 +700,12 @@ export default function NotificationDropdown() {
     setSelectedNotif(notif);
   }
 
+  // Called by DetailModal when a retry job is successfully submitted
+  const handleRetryStarted = useCallback((newNotif: UiNotification) => {
+    upsertNotif(newNotif);
+    setUnreadCount(c => c + 1);
+  }, [upsertNotif]);
+
   const sseIndicatorColor =
     sseStatus === "connected"  ? "bg-green-400" :
     sseStatus === "connecting" ? "bg-yellow-400 animate-pulse" :
@@ -635,7 +807,11 @@ export default function NotificationDropdown() {
 
       {/* Detail modal — rendered outside the dropdown */}
       {selectedNotif && (
-        <DetailModal notif={selectedNotif} onClose={() => setSelectedNotif(null)} />
+        <DetailModal
+          notif={selectedNotif}
+          onClose={() => setSelectedNotif(null)}
+          onRetryStarted={handleRetryStarted}
+        />
       )}
     </>
   );
