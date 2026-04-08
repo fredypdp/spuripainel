@@ -130,6 +130,17 @@ function tiposEnsinoDisponiveis(academia: AcademiaInfo, cursos: Curso[]): { valu
   return tipos;
 }
 
+// ─── Determine the main "escola type" for a given academia context ─────────────
+
+type EscolaMode = "fundamental" | "medio" | "superior" | "misto";
+
+function getEscolaMode(academia: AcademiaInfo): EscolaMode {
+  if (academia.tipo === "superior") return "superior";
+  if (academia.nivel === "medio") return "medio";
+  if (academia.nivel === "misto") return "misto";
+  return "fundamental";
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SeedTestPage() {
@@ -145,14 +156,31 @@ export default function SeedTestPage() {
   const [cursoConfig, setCursoConfig] = useState({ tipo: "medio" as "medio"|"superior", qtd: 2 });
   const [materiaConfig, setMateriaConfig] = useState({ tipo: "fundamental" as "fundamental"|"medio"|"superior", qtd: 5, cursoId: "" });
 
-  // ✅ cursoId: "random" = distribui aleatoriamente entre todos os cursos ativos do tipo
   const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random" });
-
-  const [estudanteConfig, setEstudanteConfig] = useState({ qtd: 20, anoEscolar: "random", statusFund: "em_andamento" });
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
   const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
   const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
   const [avalConfig, setAvalConfig] = useState({ tipoEnsino: "fundamental" as string, aprovPct: 70 });
+
+  // ─── Enhanced student config ────────────────────────────────────────────────
+  const [estudanteConfig, setEstudanteConfig] = useState({
+    qtd: 20,
+    // Fundamental
+    anoFundamental: "random",
+    statusFundamental: "em_andamento",
+    // Médio
+    anoMedio: "random",
+    statusMedio: "em_andamento",
+    cursoMedioId: "random",
+    // Superior
+    anoSuperior: "random",
+    statusSuperior: "em_andamento",
+    cursoSuperiorId: "random",
+    // Misto: qual nível principal adicionar
+    modoPrincipal: "fundamental" as "fundamental" | "medio",
+    // Distribuição mista: percentagem fundamental vs médio
+    pctFundamental: 60,
+  });
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(false);
@@ -187,10 +215,13 @@ export default function SeedTestPage() {
 
       const tiposCurso = tiposCursoValidos(acInfo);
       if (tiposCurso.length > 0) setCursoConfig(p => ({ ...p, tipo: tiposCurso[0].value }));
-
       const tiposMateria = tiposMateriaValidos(acInfo);
       if (tiposMateria.length > 0) setMateriaConfig(p => ({ ...p, tipo: tiposMateria[0].value }));
 
+      // Set default modoPrincipal for misto
+      if (acInfo.nivel === "misto") {
+        setEstudanteConfig(p => ({ ...p, modoPrincipal: "fundamental" }));
+      }
     } catch { setAuthError("Erro ao ler dados da sessão. Faça login novamente."); }
   }, []);
 
@@ -400,7 +431,6 @@ export default function SeedTestPage() {
       if (cancelRef.current) break;
 
       const anoSelecionado = pick(anosDisponiveis);
-
       const payload: any = {
         nome,
         type: tipo,
@@ -429,7 +459,7 @@ export default function SeedTestPage() {
           await sleep(300);
           const { ok: okA } = await callApi("PUT", `/academia/materia/${id}/ativar`, {}, academia.token);
           if (okA) addLog(`    ✓ Matéria ativada`, "dim");
-          else addLog(`    ! Falha ao ativar (já será tentado depois)`, "warn");
+          else addLog(`    ! Falha ao ativar`, "warn");
         } else {
           const errP = (dataP as any)?.message || (dataP as any)?.error || 'Erro';
           addLog(`    ✗ Falha ao definir período: ${errP}`, "warn");
@@ -454,7 +484,6 @@ export default function SeedTestPage() {
     addLog(`Gerando ${qtd} turma(s)...`, "step");
     let criadas = 0;
 
-    // ── Construir pool de níveis disponíveis ──────────────────────────────────
     const niveisDisponiveis: string[] = [];
     if (academia.tipo === "escola") {
       if (academia.nivel === "fundamental" || academia.nivel === "misto") {
@@ -470,15 +499,13 @@ export default function SeedTestPage() {
     }
 
     if (niveisDisponiveis.length === 0) {
-      addLog("  ✗ Nenhum nível disponível para criar turmas. Verifique cursos e configuração da academia.", "err");
+      addLog("  ✗ Nenhum nível disponível para criar turmas.", "err");
       return;
     }
 
-    // ── Resolver pool de cursos ativos para o tipo correto ────────────────────
     const tipoCurso = academia.tipo === "superior" ? "superior" : "medio";
     const cursosAtivos = cursos.filter(c => c.type === tipoCurso && c.status === "ativo");
 
-    // Curso específico escolhido pelo utilizador (ou undefined para aleatório)
     const cursoEspecifico = turmaConfig.cursoId !== "random"
       ? cursosAtivos.find(c => c.id === turmaConfig.cursoId)
       : undefined;
@@ -486,12 +513,6 @@ export default function SeedTestPage() {
     if (turmaConfig.cursoId !== "random" && !cursoEspecifico) {
       addLog(`  ✗ Curso selecionado não encontrado ou inativo`, "err");
       return;
-    }
-
-    if (turmaConfig.cursoId === "random" && cursosAtivos.length > 0) {
-      addLog(`  Distribuindo entre ${cursosAtivos.length} curso(s) ativo(s) aleatoriamente`, "dim");
-    } else if (cursoEspecifico) {
-      addLog(`  Usando curso fixo: ${cursoEspecifico.nome}`, "dim");
     }
 
     for (let i = 0; i < qtd; i++) {
@@ -504,27 +525,19 @@ export default function SeedTestPage() {
 
       if (nivel.includes("medio") || nivel.includes("superior")) {
         let cursoAlvo: Curso | undefined;
-
         if (cursoEspecifico) {
-          // Curso fixo escolhido pelo utilizador
           cursoAlvo = cursoEspecifico;
         } else if (turmaConfig.cursoId === "random") {
-          // ✅ Distribuição aleatória: escolhe aleatoriamente entre TODOS os cursos ativos
-          // que contenham o nível selecionado (ou qualquer curso ativo se nível é random)
           const cursosCompativeis = cursosAtivos.filter(c => c.anos_academicos.includes(nivel));
           if (cursosCompativeis.length > 0) {
             cursoAlvo = pick(cursosCompativeis);
           } else {
-            // Fallback: qualquer curso ativo do tipo correto
             cursoAlvo = cursosAtivos.length > 0 ? pick(cursosAtivos) : undefined;
           }
         }
-
         if (cursoAlvo) {
           payload.curso_id = cursoAlvo.id;
           addLog(`  · Turma ${payload.codigo_turma} → ${cursoAlvo.nome} (${nivel})`, "dim");
-        } else {
-          addLog(`  ! Turma ${payload.codigo_turma}: nenhum curso ativo com o nível "${nivel}"`, "warn");
         }
       }
 
@@ -543,13 +556,28 @@ export default function SeedTestPage() {
     addLog(`${criadas} turma(s) gerada(s) ✓`, "ok");
   };
 
-  // ─── Gerar Estudantes ─────────────────────────────────────────────────────────
+  // ─── Gerar Estudantes (enhanced) ─────────────────────────────────────────────
   const gerarEstudantes = async () => {
     if (!academia) return;
-    const { qtd, anoEscolar, statusFund } = estudanteConfig;
-    addLog(`Gerando ${qtd} estudante(s) via async...`, "step");
+    const cfg = estudanteConfig;
+    const modo = getEscolaMode(academia);
 
-    const batch: any[] = Array.from({ length: qtd }, () => {
+    addLog(`Gerando ${cfg.qtd} estudante(s) via async (modo: ${modo})...`, "step");
+
+    // Resolve courses to use
+    const cursoMedioAlvo = cfg.cursoMedioId === "random"
+      ? cursos.find(c => c.type === "medio" && c.status === "ativo")
+      : cursos.find(c => c.id === cfg.cursoMedioId && c.status === "ativo");
+
+    const cursoSuperiorAlvo = cfg.cursoSuperiorId === "random"
+      ? cursos.find(c => c.type === "superior" && c.status === "ativo")
+      : cursos.find(c => c.id === cfg.cursoSuperiorId && c.status === "ativo");
+
+    const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental"));
+    const anosMedio = cursoMedioAlvo?.anos_academicos || [];
+    const anosSuperior = cursoSuperiorAlvo?.anos_academicos || [];
+
+    const batch: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
         nome,
@@ -558,37 +586,56 @@ export default function SeedTestPage() {
         bilhete_identidade: `${rnd(100000000, 999999999)}LA0${rnd(10, 99)}`,
       };
 
-      if (academia.tipo === "superior") {
-        const cursoSup = cursos.find(c => c.type === "superior" && c.status === "ativo");
-        if (cursoSup) {
-          const ano = pick(cursoSup.anos_academicos);
+      if (modo === "superior") {
+        if (cursoSuperiorAlvo) {
+          const ano = cfg.anoSuperior === "random"
+            ? (anosSuperior.length > 0 ? pick(anosSuperior) : "1_ano_superior")
+            : cfg.anoSuperior;
           payload.ano_superior = ano;
-          payload.status_superior = "em_andamento";
-          payload.curso_superior_id = cursoSup.id;
-        }
-      } else if (academia.nivel === "medio") {
-        const cursoMedio = cursos.find(c => c.type === "medio" && c.status === "ativo");
-        if (cursoMedio && cursoMedio.anos_academicos.length > 0) {
-          const ano = pick(cursoMedio.anos_academicos);
-          payload.ano_escolar_medio = ano;
-          payload.status_escolar_medio = "em_andamento";
-          payload.curso_medio_id = cursoMedio.id;
+          payload.status_superior = cfg.statusSuperior;
+          payload.curso_superior_id = cursoSuperiorAlvo.id;
         } else {
-          addLog("  ! Academia de nível médio sem curso ativo — estudante sem ano médio", "warn");
+          addLog(`  ! Est. #${idx + 1}: nenhum curso superior ativo — criado sem vínculo de curso`, "warn");
         }
-      } else if (academia.nivel === "misto") {
-        const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental"));
-        if (anosF.length > 0) {
-          const ano = anoEscolar === "random" ? pick(anosF) : anoEscolar;
-          payload.ano_escolar = ano;
-          payload.status_escolar_fundamental = statusFund;
+
+      } else if (modo === "medio") {
+        if (cursoMedioAlvo && anosMedio.length > 0) {
+          const ano = cfg.anoMedio === "random"
+            ? pick(anosMedio)
+            : cfg.anoMedio;
+          payload.ano_escolar_medio = ano;
+          payload.status_escolar_medio = cfg.statusMedio;
+          payload.curso_medio_id = cursoMedioAlvo.id;
+        } else {
+          addLog(`  ! Est. #${idx + 1}: nenhum curso médio ativo — criado sem vínculo de curso`, "warn");
         }
-      } else {
-        const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental"));
+
+      } else if (modo === "fundamental") {
         if (anosF.length > 0) {
-          const ano = anoEscolar === "random" ? pick(anosF) : anoEscolar;
+          const ano = cfg.anoFundamental === "random"
+            ? pick(anosF)
+            : cfg.anoFundamental;
           payload.ano_escolar = ano;
-          payload.status_escolar_fundamental = statusFund;
+          payload.status_escolar_fundamental = cfg.statusFundamental;
+        }
+
+      } else if (modo === "misto") {
+        // Distribute: pctFundamental% go fundamental, rest go medio
+        const isFund = idx < Math.floor(cfg.qtd * cfg.pctFundamental / 100);
+
+        if (isFund) {
+          if (anosF.length > 0) {
+            const ano = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
+            payload.ano_escolar = ano;
+            payload.status_escolar_fundamental = cfg.statusFundamental;
+          }
+        } else {
+          if (cursoMedioAlvo && anosMedio.length > 0) {
+            const ano = cfg.anoMedio === "random" ? pick(anosMedio) : cfg.anoMedio;
+            payload.ano_escolar_medio = ano;
+            payload.status_escolar_medio = cfg.statusMedio;
+            payload.curso_medio_id = cursoMedioAlvo.id;
+          }
         }
       }
 
@@ -611,34 +658,60 @@ export default function SeedTestPage() {
     await refreshData();
   };
 
-  // ─── Vincular Estudantes a Turmas ─────────────────────────────────────────────
+  // ─── Vincular Estudantes a Turmas (each student goes to exactly ONE turma) ────
   const vincularEstudantesATurmas = async () => {
     if (!academia || turmas.length === 0 || estudantes.length === 0) {
       addLog("Sem turmas ou estudantes disponíveis", "warn");
       return;
     }
+
+    // Students already in ANY turma
     const estudantesEmTurma = new Set(turmas.flatMap(t => t.estudantes));
     const semTurma = estudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
-    if (semTurma.length === 0) { addLog("Todos os estudantes já estão vinculados a alguma turma", "info"); return; }
+
+    if (semTurma.length === 0) {
+      addLog("Todos os estudantes já estão vinculados a alguma turma", "info");
+      return;
+    }
+
     addLog(`Vinculando ${semTurma.length} estudante(s) sem turma via async...`, "step");
 
     const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
     let turmasAlvo: Turma[];
+
     if (vincularConfig.turmaCodigo !== "random") {
       const turmaEspecifica = turmasAtivas.find(t => t.codigo_turma === vincularConfig.turmaCodigo);
-      if (!turmaEspecifica) { addLog(`Turma "${vincularConfig.turmaCodigo}" não encontrada ou inativa`, "err"); return; }
+      if (!turmaEspecifica) {
+        addLog(`Turma "${vincularConfig.turmaCodigo}" não encontrada ou inativa`, "err");
+        return;
+      }
       turmasAlvo = [turmaEspecifica];
       addLog(`  Usando turma específica: ${turmaEspecifica.codigo_turma} (${turmaEspecifica.nivel})`, "dim");
     } else {
       turmasAlvo = turmasAtivas;
-      addLog(`  Distribuindo aleatoriamente entre ${turmasAlvo.length} turma(s)`, "dim");
+      addLog(`  Distribuindo entre ${turmasAlvo.length} turma(s) — cada estudante vai para APENAS UMA turma`, "dim");
     }
-    if (turmasAlvo.length === 0) { addLog("Nenhuma turma ativa disponível", "err"); return; }
 
-    const vinculos = semTurma.map(e => ({
-      codigo_turma: pick(turmasAlvo).codigo_turma,
+    if (turmasAlvo.length === 0) {
+      addLog("Nenhuma turma ativa disponível", "err");
+      return;
+    }
+
+    // ✅ Each student is assigned to exactly ONE turma (no duplicates)
+    // We use round-robin for even distribution when multiple turmas are available
+    const vinculos = semTurma.map((e, idx) => ({
+      codigo_turma: turmasAlvo[idx % turmasAlvo.length].codigo_turma,
       codigo_estudante: e.codigo_estudante,
     }));
+
+    // Log distribution summary
+    const distribuicao = vinculos.reduce<Record<string, number>>((acc, v) => {
+      acc[v.codigo_turma] = (acc[v.codigo_turma] || 0) + 1;
+      return acc;
+    }, {});
+    Object.entries(distribuicao).forEach(([turma, qtd]) => {
+      addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
+    });
 
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", vinculos, academia.token);
     if (!ok) {
@@ -694,7 +767,6 @@ export default function SeedTestPage() {
 
       for (const mat of materiasSample) {
         let periodos: string[];
-
         if (academia.tipo === "superior") {
           if (mat.periodo) {
             periodos = [mat.periodo];
@@ -919,23 +991,20 @@ export default function SeedTestPage() {
   const tiposCursoDisp = academia ? tiposCursoValidos(academia) : [];
   const tiposMateriaDisp = academia ? tiposMateriaValidos(academia) : [];
   const tiposEnsinoDisp = academia ? tiposEnsinoDisponiveis(academia, cursos) : [];
-  const anosDisponiveis = academia?.anos_academicos?.filter(a => a.includes("fundamental")) || [];
+  const anosDispFundamental = academia?.anos_academicos?.filter(a => a.includes("fundamental")) || [];
+  const modo = academia ? getEscolaMode(academia) : "fundamental";
 
-  // ── Cursos disponíveis para o selector de turmas ──────────────────────────
   const tipoCursoTurma = academia?.tipo === "superior" ? "superior" : "medio";
   const cursosParaTurma = cursos.filter(c => c.type === tipoCursoTurma && c.status === "ativo");
+  const cursosAtivosTotal = cursos.filter(c => c.status === "ativo");
+  const cursosMedioAtivos = cursos.filter(c => c.type === "medio" && c.status === "ativo");
+  const cursosSuperiorAtivos = cursos.filter(c => c.type === "superior" && c.status === "ativo");
 
-  // Níveis disponíveis filtrados pelo curso selecionado (se específico)
   const niveisParaTurma: string[] = (() => {
     const cursoEscolhido = turmaConfig.cursoId !== "random"
       ? cursosParaTurma.find(c => c.id === turmaConfig.cursoId)
       : undefined;
-
-    if (cursoEscolhido) {
-      return cursoEscolhido.anos_academicos;
-    }
-
-    // Aleatório: todos os níveis disponíveis (fundamental + todos os cursos)
+    if (cursoEscolhido) return cursoEscolhido.anos_academicos;
     const pool: string[] = [];
     if (academia?.tipo === "escola") {
       if (academia.nivel === "fundamental" || academia.nivel === "misto") {
@@ -987,6 +1056,13 @@ export default function SeedTestPage() {
     </div>
   );
 
+  const SubSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: "12px 14px", background: "#0a1929", marginBottom: 12 }}>
+      <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.06em" }}>{title}</p>
+      {children}
+    </div>
+  );
+
   const Row = ({ children }: { children: React.ReactNode }) => (
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>{children}</div>
   );
@@ -1019,6 +1095,19 @@ export default function SeedTestPage() {
     { value: "3_trimestre", label: "3º Trimestre" },
   ] : [];
 
+  // Resolve the ano options for the student config selectors
+  const anosMedioParaConfig = cursosMedioAtivos.length > 0
+    ? (estudanteConfig.cursoMedioId === "random"
+        ? cursosMedioAtivos[0]?.anos_academicos || []
+        : cursos.find(c => c.id === estudanteConfig.cursoMedioId)?.anos_academicos || [])
+    : [];
+
+  const anosSuperiorParaConfig = cursosSuperiorAtivos.length > 0
+    ? (estudanteConfig.cursoSuperiorId === "random"
+        ? cursosSuperiorAtivos[0]?.anos_academicos || []
+        : cursos.find(c => c.id === estudanteConfig.cursoSuperiorId)?.anos_academicos || [])
+    : [];
+
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -1035,7 +1124,7 @@ export default function SeedTestPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
-          {/* ─── Painel de estado ────────────────────────────────────────────── */}
+          {/* ─── Estado ──────────────────────────────────────────────────── */}
           <div>
             <Section title="Estado atual">
               {[
@@ -1061,7 +1150,7 @@ export default function SeedTestPage() {
             </Section>
           </div>
 
-          {/* ─── Painéis de operações ─────────────────────────────────────── */}
+          {/* ─── Operações ───────────────────────────────────────────────── */}
           <div>
             {/* Cursos */}
             {tiposCursoDisp.length > 0 && (
@@ -1086,11 +1175,6 @@ export default function SeedTestPage() {
                       </span>
                     ))}
                   </div>
-                )}
-                {cursoConfig.tipo === "medio" && (
-                  <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                    Cursos médios usam trimestres fixos do sistema (1_trimestre, 2_trimestre, 3_trimestre)
-                  </p>
                 )}
               </Section>
             )}
@@ -1129,12 +1213,7 @@ export default function SeedTestPage() {
                   </Row>
                   {materiaConfig.tipo === "superior" && (
                     <p style={{ margin: "4px 0 0", fontSize: 11, color: "#facc15" }}>
-                      ⚠ Matérias superiores nascem inativas — o período será definido automaticamente antes de ativar
-                    </p>
-                  )}
-                  {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") && cursos.filter(c => c.type === materiaConfig.tipo && c.status === "ativo").length === 0 && (
-                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#f87171" }}>
-                      ✗ Nenhum curso {materiaConfig.tipo} ativo — crie e ative cursos primeiro
+                      ⚠ Matérias superiores nascem inativas — período definido automaticamente antes de ativar
                     </p>
                   )}
                 </>
@@ -1161,16 +1240,11 @@ export default function SeedTestPage() {
                         <option value="noite">Noite</option>
                       </Sel>
                     </Field>
-
-                    {/* ✅ Seletor de curso — novo, com opção aleatória */}
                     {cursosParaTurma.length > 0 && (
                       <Field label="Curso">
                         <Sel
                           value={turmaConfig.cursoId}
-                          onChange={e => {
-                            // Ao mudar o curso, resetar o nível para "random"
-                            setTurmaConfig(p => ({ ...p, cursoId: e.target.value, nivel: "random" }));
-                          }}
+                          onChange={e => setTurmaConfig(p => ({ ...p, cursoId: e.target.value, nivel: "random" }))}
                           style={{ minWidth: 200 }}
                         >
                           <option value="random">Aleatório (todos os cursos)</option>
@@ -1180,82 +1254,164 @@ export default function SeedTestPage() {
                         </Sel>
                       </Field>
                     )}
-
                     <Field label="Nível">
                       <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
                         <option value="random">Aleatório</option>
-                        {/* Níveis fundamentais (sempre disponíveis para escolas fundamentais/mistas) */}
                         {(academia.nivel === "fundamental" || academia.nivel === "misto") &&
-                          (academia.anos_academicos || [])
-                            .filter(a => a.includes("fundamental"))
-                            .map(a => (
-                              <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
-                            ))
-                        }
-                        {/* Níveis do curso selecionado (ou de todos os cursos se aleatório) */}
-                        {niveisParaTurma
-                          .filter(a => !a.includes("fundamental")) // já listados acima
-                          .map(a => (
-                            <option key={a} value={a}>
-                              {a.includes("medio")
-                                ? a.replace(/_ano_medio$/, "º Médio")
-                                : a.replace(/_ano_superior$/, "º Superior")}
-                            </option>
+                          (academia.anos_academicos || []).filter(a => a.includes("fundamental")).map(a => (
+                            <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
                           ))
                         }
+                        {niveisParaTurma.filter(a => !a.includes("fundamental")).map(a => (
+                          <option key={a} value={a}>
+                            {a.includes("medio") ? a.replace(/_ano_medio$/, "º Médio") : a.replace(/_ano_superior$/, "º Superior")}
+                          </option>
+                        ))}
                       </Sel>
                     </Field>
-
                     <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
                   </Row>
-
-                  {/* Informação sobre distribuição */}
-                  {cursosParaTurma.length > 1 && turmaConfig.cursoId === "random" && (
-                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#60a5fa" }}>
-                      ✦ Distribuição aleatória entre {cursosParaTurma.length} curso(s): {cursosParaTurma.map(c => c.nome).join(", ")}
-                    </p>
-                  )}
-                  {turmaConfig.cursoId !== "random" && cursosParaTurma.find(c => c.id === turmaConfig.cursoId) && (
-                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#a78bfa" }}>
-                      📌 Curso fixo: {cursosParaTurma.find(c => c.id === turmaConfig.cursoId)?.nome}
-                    </p>
-                  )}
                 </>
               )}
             </Section>
 
-            {/* Estudantes */}
+            {/* ═══════════════════════════════════════════════════════════════
+                ESTUDANTES — Enhanced config
+            ════════════════════════════════════════════════════════════════ */}
             <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
               <Row>
                 <Field label="Quantidade">
-                  <Inp type="number" min={1} max={1000} value={estudanteConfig.qtd} onChange={e => setEstudanteConfig(p => ({ ...p, qtd: +e.target.value }))} />
+                  <Inp type="number" min={1} max={1000} value={estudanteConfig.qtd}
+                    onChange={e => setEstudanteConfig(p => ({ ...p, qtd: +e.target.value }))} />
                 </Field>
-                {(academia.nivel === "fundamental" || academia.nivel === "misto") && (
-                  <Field label="Ano escolar">
-                    <Sel value={estudanteConfig.anoEscolar} onChange={e => setEstudanteConfig(p => ({ ...p, anoEscolar: e.target.value }))}>
-                      <option value="random">Aleatório</option>
-                      {anosDisponiveis.map(a => (<option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fund.")}</option>))}
-                    </Sel>
-                  </Field>
-                )}
-                {(academia.nivel === "fundamental" || academia.nivel === "misto") && (
-                  <Field label="Status Fund.">
-                    <Sel value={estudanteConfig.statusFund} onChange={e => setEstudanteConfig(p => ({ ...p, statusFund: e.target.value }))}>
-                      <option value="em_andamento">Em andamento</option>
-                      <option value="inativo">Inativo</option>
-                      <option value="finalizado">Finalizado</option>
-                    </Sel>
-                  </Field>
-                )}
-                <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">Gerar Estudantes (async)</Btn>
               </Row>
-              {academia.tipo === "superior" && cursos.filter(c => c.type === "superior" && c.status === "ativo").length === 0 && (
-                <p style={{ margin: 0, fontSize: 11, color: "#facc15" }}>⚠ Estudantes serão criados sem curso/ano superior (nenhum curso ativo encontrado)</p>
+
+              {/* FUNDAMENTAL */}
+              {(modo === "fundamental" || modo === "misto") && (
+                <SubSection title="Ensino Fundamental">
+                  <Row>
+                    <Field label="Ano escolar">
+                      <Sel value={estudanteConfig.anoFundamental}
+                        onChange={e => setEstudanteConfig(p => ({ ...p, anoFundamental: e.target.value }))}>
+                        <option value="random">Aleatório</option>
+                        {anosDispFundamental.map(a => (
+                          <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
+                        ))}
+                      </Sel>
+                    </Field>
+                    <Field label="Status fundamental">
+                      <Sel value={estudanteConfig.statusFundamental}
+                        onChange={e => setEstudanteConfig(p => ({ ...p, statusFundamental: e.target.value }))}>
+                        <option value="em_andamento">Em andamento</option>
+                        <option value="inativo">Inativo</option>
+                        <option value="finalizado">Finalizado</option>
+                      </Sel>
+                    </Field>
+                  </Row>
+                </SubSection>
               )}
-              {academia.nivel === "medio" && cursos.filter(c => c.type === "medio" && c.status === "ativo").length === 0 && (
-                <p style={{ margin: 0, fontSize: 11, color: "#facc15" }}>⚠ Estudantes serão criados sem curso/ano médio (nenhum curso ativo encontrado)</p>
+
+              {/* MÉDIO */}
+              {(modo === "medio" || modo === "misto") && (
+                <SubSection title="Ensino Médio">
+                  {cursosMedioAtivos.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 11, color: "#f87171" }}>✗ Nenhum curso médio ativo — crie e ative um curso médio primeiro</p>
+                  ) : (
+                    <Row>
+                      <Field label="Curso médio">
+                        <Sel value={estudanteConfig.cursoMedioId}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoMedioId: e.target.value, anoMedio: "random" }))}>
+                          <option value="random">Primeiro ativo</option>
+                          {cursosMedioAtivos.map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                      <Field label="Ano médio">
+                        <Sel value={estudanteConfig.anoMedio}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, anoMedio: e.target.value }))}>
+                          <option value="random">Aleatório</option>
+                          {anosMedioParaConfig.map(a => (
+                            <option key={a} value={a}>{a.replace(/_ano_medio$/, "º Médio")}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                      <Field label="Status médio">
+                        <Sel value={estudanteConfig.statusMedio}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, statusMedio: e.target.value }))}>
+                          <option value="em_andamento">Em andamento</option>
+                          <option value="inativo">Inativo</option>
+                          <option value="finalizado">Finalizado</option>
+                        </Sel>
+                      </Field>
+                    </Row>
+                  )}
+                </SubSection>
               )}
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>Usa endpoint assíncrono — limite: 1000 por job</p>
+
+              {/* SUPERIOR */}
+              {modo === "superior" && (
+                <SubSection title="Ensino Superior">
+                  {cursosSuperiorAtivos.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 11, color: "#f87171" }}>✗ Nenhum curso superior ativo — crie e ative um curso superior primeiro</p>
+                  ) : (
+                    <Row>
+                      <Field label="Curso superior">
+                        <Sel value={estudanteConfig.cursoSuperiorId}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoSuperiorId: e.target.value, anoSuperior: "random" }))}>
+                          <option value="random">Primeiro ativo</option>
+                          {cursosSuperiorAtivos.map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                      <Field label="Ano superior">
+                        <Sel value={estudanteConfig.anoSuperior}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, anoSuperior: e.target.value }))}>
+                          <option value="random">Aleatório</option>
+                          {anosSuperiorParaConfig.map(a => (
+                            <option key={a} value={a}>{a.replace(/_ano_superior$/, "º Superior")}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                      <Field label="Status superior">
+                        <Sel value={estudanteConfig.statusSuperior}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, statusSuperior: e.target.value }))}>
+                          <option value="em_andamento">Em andamento</option>
+                          <option value="inativo">Inativo</option>
+                          <option value="finalizado">Finalizado</option>
+                        </Sel>
+                      </Field>
+                    </Row>
+                  )}
+                </SubSection>
+              )}
+
+              {/* MISTO — split config */}
+              {modo === "misto" && (
+                <SubSection title="Distribuição Misto">
+                  <Row>
+                    <Field label="% Fundamental">
+                      <Inp type="number" min={0} max={100} value={estudanteConfig.pctFundamental}
+                        onChange={e => setEstudanteConfig(p => ({ ...p, pctFundamental: +e.target.value }))} />
+                    </Field>
+                  </Row>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>
+                    ≈ {Math.floor(estudanteConfig.qtd * estudanteConfig.pctFundamental / 100)} fundamental
+                    · {estudanteConfig.qtd - Math.floor(estudanteConfig.qtd * estudanteConfig.pctFundamental / 100)} médio
+                  </p>
+                </SubSection>
+              )}
+
+              <div style={{ marginTop: 8 }}>
+                <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
+                  Gerar {estudanteConfig.qtd} Estudante(s) (async)
+                </Btn>
+              </div>
+
+              <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                Usa endpoint assíncrono — limite: 1000 por job
+              </p>
             </Section>
 
             {/* Vincular a Turmas */}
@@ -1264,17 +1420,26 @@ export default function SeedTestPage() {
                 {estudantesSemTurma.length === 0 ? (
                   <p style={{ color: "#4ade80", fontSize: 12, margin: 0 }}>✓ Todos os estudantes já estão vinculados a turmas.</p>
                 ) : (
-                  <Row>
-                    <Field label="Turma alvo">
-                      <Sel value={vincularConfig.turmaCodigo} onChange={e => setVincularConfig({ turmaCodigo: e.target.value })} style={{ minWidth: 200 }}>
-                        <option value="random">Aleatória (distribuir)</option>
-                        {turmas.filter(t => t.status !== "inativo" && t.status !== "deletado").map(t => (
-                          <option key={t.codigo_turma} value={t.codigo_turma}>{t.codigo_turma} — {t.nivel.replace(/_ano_(fundamental|medio|superior)$/, "º $1")} ({t.estudantes.length} alunos)</option>
-                        ))}
-                      </Sel>
-                    </Field>
-                    <Btn onClick={() => withLoading(vincularEstudantesATurmas)} color="#0f4c75">Vincular {estudantesSemTurma.length} sem turma (async)</Btn>
-                  </Row>
+                  <>
+                    <Row>
+                      <Field label="Turma alvo">
+                        <Sel value={vincularConfig.turmaCodigo} onChange={e => setVincularConfig({ turmaCodigo: e.target.value })} style={{ minWidth: 220 }}>
+                          <option value="random">Distribuir entre todas (round-robin)</option>
+                          {turmas.filter(t => t.status !== "inativo" && t.status !== "deletado").map(t => (
+                            <option key={t.codigo_turma} value={t.codigo_turma}>
+                              {t.codigo_turma} — {t.nivel.replace(/_ano_(fundamental|medio|superior)$/, "º $1")} ({t.estudantes.length} alunos)
+                            </option>
+                          ))}
+                        </Sel>
+                      </Field>
+                      <Btn onClick={() => withLoading(vincularEstudantesATurmas)} color="#0f4c75">
+                        Vincular {estudantesSemTurma.length} → 1 turma cada (async)
+                      </Btn>
+                    </Row>
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
+                      ✦ Cada estudante é vinculado a <strong style={{ color: "#60a5fa" }}>exactamente uma</strong> turma, independentemente do nível de ensino
+                    </p>
+                  </>
                 )}
               </Section>
             )}
@@ -1284,14 +1449,16 @@ export default function SeedTestPage() {
               {academia.tipo === "superior" ? (
                 <Row>
                   <Field label="Nº estudantes (0 = todos)">
-                    <Inp type="number" min={0} max={estudantes.length || 100} value={notaConfig.qtdEstudantes} onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
+                    <Inp type="number" min={0} max={estudantes.length || 100} value={notaConfig.qtdEstudantes}
+                      onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
                   </Field>
                   <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>Gerar Notas (async)</Btn>
                 </Row>
               ) : (
                 <Row>
                   <Field label="Nº estudantes (0 = todos)">
-                    <Inp type="number" min={0} max={estudantes.length || 100} value={notaConfig.qtdEstudantes} onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
+                    <Inp type="number" min={0} max={estudantes.length || 100} value={notaConfig.qtdEstudantes}
+                      onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
                   </Field>
                   <Field label="Período">
                     <Sel value={notaConfig.periodo} onChange={e => setNotaConfig(p => ({ ...p, periodo: e.target.value }))}>
@@ -1310,7 +1477,8 @@ export default function SeedTestPage() {
             <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
               <Row>
                 <Field label="Nº estudantes (0 = todos)">
-                  <Inp type="number" min={0} max={estudantes.length || 100} value={faltaConfig.qtdEstudantes} onChange={e => setFaltaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
+                  <Inp type="number" min={0} max={estudantes.length || 100} value={faltaConfig.qtdEstudantes}
+                    onChange={e => setFaltaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
                 </Field>
                 <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>Gerar Faltas (async)</Btn>
               </Row>
@@ -1333,7 +1501,8 @@ export default function SeedTestPage() {
                       </Sel>
                     </Field>
                     <Field label="% Aprovação">
-                      <Inp type="number" min={0} max={100} value={avalConfig.aprovPct} onChange={e => setAvalConfig(p => ({ ...p, aprovPct: +e.target.value }))} />
+                      <Inp type="number" min={0} max={100} value={avalConfig.aprovPct}
+                        onChange={e => setAvalConfig(p => ({ ...p, aprovPct: +e.target.value }))} />
                     </Field>
                     <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
                       Avaliar TODOS ({estudantes.length}) async
@@ -1341,7 +1510,6 @@ export default function SeedTestPage() {
                   </Row>
                   <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
                     {Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovações estimadas de {estudantes.length}
-                    {" · "}campos: nivel_ano_academico_atual + proximo_ano_academico
                   </p>
                 </>
               )}
@@ -1349,7 +1517,7 @@ export default function SeedTestPage() {
           </div>
         </div>
 
-        {/* ─── Log ────────────────────────────────────────────────────────── */}
+        {/* ─── Log ───────────────────────────────────────────────────────── */}
         {logs.length > 0 && (
           <div style={{ marginTop: 20, border: "1px solid #1e293b", borderRadius: 12, overflow: "hidden" }}>
             <div style={{ background: "#0f172a", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #1e293b" }}>
