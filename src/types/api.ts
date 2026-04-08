@@ -458,6 +458,13 @@ export interface Turma {
   curso_id?: string;
   turno: 'manha' | 'tarde' | 'noite';
   estudantes: string[];
+  /**
+   * Histórico de estudantes por ano letivo.
+   * Chave: ano_letivo (ex: "2025_2026") → valor: lista de codigo_estudante
+   * que já fizeram parte desta turma nesse ano letivo.
+   * Populado ao adicionar estudante e na remoção automática via avaliação final.
+   */
+  historico_estudantes_ano_letivo?: Record<string, string[]>;
   status: 'ativo' | 'inativo' | 'deletado';
   status_alterado_por?: string;
   status_alterado_em?: string;
