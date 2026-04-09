@@ -168,10 +168,6 @@ export const consultasService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  /**
-   * GET /avaliacoes
-   * Query params opcionais: tipo_ensino
-   */
   listarAvaliacoes: (params?: { tipo_ensino?: string; token?: string }) => {
     const qs = new URLSearchParams();
     if (params?.tipo_ensino) qs.append('tipo_ensino', params.tipo_ensino);
@@ -331,12 +327,6 @@ export const academiaService = {
 
   // ── Avaliação Final ────────────────────────────────────────────────
 
-  /**
-   * POST /academia/avaliacao-final
-   * Usa RegistrarAvaliacaoFinalRequest com campos:
-   * - nivel_ano_academico_atual (não nivel_atual)
-   * - proximo_ano_academico (não proximo_nivel)
-   */
   registrarAvaliacaoFinal: (data: RegistrarAvaliacaoFinalRequest, token?: string) =>
     api.post<{
       message: string;
@@ -351,10 +341,6 @@ export const academiaService = {
 
   // ── Ano letivo ────────────────────────────────────────────────────
 
-  /**
-   * POST /academia/ano-letivo
-   * Body: { ano_letivo: "YYYY_YYYY", tipo: "escola" | "superior" }
-   */
   definirAnoLetivo: (data: DefinirAnoLetivoAcademiaRequest, token?: string) =>
     api.post<DefinirAnoLetivoResponse>(
       '/academia/ano-letivo',
@@ -362,10 +348,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * GET /academia/ano-letivo
-   * Retorna: { ano_letivo, tipo?, ativado_em? }
-   */
   getAnoLetivo: (token?: string) =>
     api.get<AnoLetivoAcademiaResponse>(
       '/academia/ano-letivo',
@@ -746,9 +728,24 @@ export const adminService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
+  /**
+   * Rebuild síncrono — mantido para compatibilidade.
+   * Para projeções com alto volume, prefira rebuildProjectionAsync.
+   */
   rebuildProjection: (name: string, token?: string) =>
     api.post<{ message: string; projection: string }>(
       `/dominis/projections/rebuild/${name}`,
+      {},
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Rebuild assíncrono — retorna 202 + job_id.
+   * Acompanhe via GET /jobs/:id ou GET /jobs/stream (SSE).
+   */
+  rebuildProjectionAsync: (name: string, token?: string) =>
+    api.post<AsyncBatchResponse>(
+      `/dominis/projections/rebuild/${name}/async`,
       {},
       { token: token || tokenStorage.get() || undefined }
     ),
