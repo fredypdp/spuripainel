@@ -627,7 +627,7 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    // API espera { items: [...] }
+    // ✅ Envelope correto: { items: [...] }
     const { ok, data } = await callApi("POST", "/academia/estudante/register/async", { items }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -682,7 +682,7 @@ export default function SeedTestPage() {
       return;
     }
 
-    // Cada estudante é atribuído a exactamente UMA turma (round-robin)
+    // ✅ Cada estudante é atribuído a exactamente UMA turma (round-robin)
     const items = semTurma.map((e, idx) => ({
       codigo_turma: turmasAlvo[idx % turmasAlvo.length].codigo_turma,
       codigo_estudante: e.codigo_estudante,
@@ -697,8 +697,8 @@ export default function SeedTestPage() {
       addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
     });
 
-    // ✅ FIX: endpoint /academia/turma/estudante/async espera array puro (não { items: [...] })
-    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
+    // ✅ FIX PRINCIPAL: envelope { items: [...] } conforme contrato da API batch async
+    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", { items }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
@@ -784,7 +784,7 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma nota nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} nota(s) via async...`, "dim");
 
-    // API espera { items: [...] }
+    // ✅ Envelope { items: [...] }
     const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", { items: batch }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -839,12 +839,12 @@ export default function SeedTestPage() {
 
       const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
       for (const mat of materiasSample) {
-        const dataFalta = pick(DATAS_FALTA);
-        const chave = `${mat.id}|${dataFalta}`;
+        const data = pick(DATAS_FALTA);
+        const chave = `${mat.id}|${data}`;
         if (faltasExistentes.has(chave)) continue;
         batch.push({
           codigo_estudante: est.codigo_estudante,
-          data: dataFalta,
+          data,
           materia_disciplinar_id: mat.id,
           quantidade: rnd(1, 3),
         });
@@ -855,7 +855,7 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma falta nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} falta(s) via async...`, "dim");
 
-    // API espera { items: [...] }
+    // ✅ Envelope { items: [...] }
     const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", { items: batch }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -942,7 +942,7 @@ export default function SeedTestPage() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    // API espera { items: [...] }
+    // ✅ Envelope { items: [...] }
     const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", { items: batch }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
