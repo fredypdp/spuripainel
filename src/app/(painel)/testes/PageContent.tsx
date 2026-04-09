@@ -698,7 +698,7 @@ export default function SeedTestPage() {
     });
 
     // ✅ FIX PRINCIPAL: envelope { items: [...] } conforme contrato da API batch async
-    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", { items }, academia.token);
+    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", JSON.stringify({ items }), academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
