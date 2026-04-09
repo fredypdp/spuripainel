@@ -394,8 +394,6 @@ function BarraLote({ selecionadas, onLimpar, onAtualizarStatus, carregando }: {
 }
 
 // ─── TabelaEstudantes ─────────────────────────────────────────────────────────
-// CORREÇÃO: seleção usa codigo_estudante como chave (mesma chave do payload),
-// e toggle-todos opera apenas sobre os estudantes visíveis naquela chamada.
 
 function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selecionadas, onToggle, onToggleTodos, mostrarSelecao }: {
   estudantes: EstudanteDetalhado[]; isAdmin: boolean; onVerDetalhes: (e: EstudanteDetalhado) => void;
@@ -409,7 +407,6 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
     </div>
   );
 
-  // Usa codigo_estudante como chave de seleção (igual ao payload da requisição)
   const todasSelecionadas   = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.codigo_estudante));
   const algumasSelecionadas = mostrarSelecao && estudantes.some(e => selecionadas?.has(e.codigo_estudante));
 
@@ -480,7 +477,7 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
   );
 }
 
-// ─── Vista em Escala ──────────────────────────────────────────────────────────
+// ─── TurmaColapsavel ──────────────────────────────────────────────────────────
 
 function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes }: {
   turma: Turma; estudantesMapa: Map<string, EstudanteDetalhado>;
@@ -510,6 +507,8 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
     </div>
   );
 }
+
+// ─── AnoColapsavel ────────────────────────────────────────────────────────────
 
 function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
   ano: string; label: string; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>;
@@ -541,79 +540,167 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
   );
 }
 
-function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem, onVerDetalhes }: {
+// ─── SecaoFundamental — declarada FORA de VistaEscala ─────────────────────────
+// ✅ FIX: componentes movidos para fora do render de VistaEscala para evitar
+// o erro ESLint react-hooks/static-components.
+
+function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhes, anosDisponiveis }: {
+  turmas: Turma[];
+  estudantesMapa: Map<string, EstudanteDetalhado>;
+  filtros: FiltrosState;
+  ordem: OrdemEstudantes;
+  onVerDetalhes: (e: EstudanteDetalhado) => void;
+  anosDisponiveis?: string[];
+}) {
+  const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a =>
+    turmas.some(t => t.nivel === a.value) &&
+    (anosDisponiveis ? anosDisponiveis.includes(a.value) : true)
+  );
+  if (anosComTurmas.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
+  return (
+    <div className="space-y-2">
+      {anosComTurmas.map(ano => (
+        <AnoColapsavel
+          key={ano.value}
+          ano={ano.value}
+          label={ano.label.replace(' Fundamental', '')}
+          turmas={turmas}
+          estudantesMapa={estudantesMapa}
+          filtros={filtros}
+          ordem={ordem}
+          onVerDetalhes={onVerDetalhes}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── SecaoCursos — declarada FORA de VistaEscala ──────────────────────────────
+
+function SecaoCursos({ tipo, cursosAtivos, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
+  tipo?: 'medio' | 'superior';
+  cursosAtivos: Curso[];
+  turmas: Turma[];
+  estudantesMapa: Map<string, EstudanteDetalhado>;
+  filtros: FiltrosState;
+  ordem: OrdemEstudantes;
+  onVerDetalhes: (e: EstudanteDetalhado) => void;
+}) {
+  const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
+  if (lista.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
+  return (
+    <div className="space-y-2">
+      {lista.map(curso => (
+        <div key={curso.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800 flex items-center gap-3">
+            <Icon icon={curso.type === 'superior' ? 'mdi:university' : 'mdi:book-education'} width={18} className="text-brand-500" />
+            <span className="font-semibold text-gray-800 dark:text-white">{curso.nome}</span>
+            <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{curso.anos_academicos.length} anos</span>
+          </div>
+          <div className="p-3 space-y-2">
+            {curso.anos_academicos.map(ano => (
+              <AnoColapsavel
+                key={ano}
+                ano={ano}
+                label={labelNivel(ano)}
+                turmas={turmas.filter(t => t.curso_id === curso.id)}
+                estudantesMapa={estudantesMapa}
+                filtros={filtros}
+                ordem={ordem}
+                onVerDetalhes={onVerDetalhes}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── VistaEscala ──────────────────────────────────────────────────────────────
+// ✅ FIX: SecaoFundamental e SecaoCursos agora são componentes externos
+// passados como JSX com props, em vez de definidos dentro do render.
+
+function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem, onVerDetalhes, anosAcademicos }: {
   estudantes: EstudanteDetalhado[]; turmas: Turma[]; cursos: Curso[]; nivelAcademia: string;
   filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
+  anosAcademicos?: string[];
 }) {
   const [secaoAberta, setSecaoAberta] = useState<'fundamental' | 'cursos' | null>(null);
+
   const estudantesMapa = useMemo(() => {
     const m = new Map<string, EstudanteDetalhado>();
     estudantes.forEach(e => m.set(e.codigo_estudante, e));
     return m;
   }, [estudantes]);
+
   const cursosAtivos = useMemo(() => cursos.filter(c => c.status === 'ativo'), [cursos]);
-
-  const SecaoFundamental = ({ lista }: { lista?: Turma[] }) => {
-    const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a => (lista ?? turmas).some(t => t.nivel === a.value));
-    if (anosComTurmas.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
-    return (
-      <div className="space-y-2">
-        {anosComTurmas.map(ano => (
-          <AnoColapsavel key={ano.value} ano={ano.value} label={ano.label.replace(' Fundamental', '')}
-            turmas={lista ?? turmas} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
-        ))}
-      </div>
-    );
-  };
-
-  const SecaoCursos = ({ tipo }: { tipo?: 'medio' | 'superior' }) => {
-    const lista = tipo ? cursosAtivos.filter(c => c.type === tipo) : cursosAtivos;
-    if (lista.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhum curso ativo cadastrado.</p>;
-    return (
-      <div className="space-y-2">
-        {lista.map(curso => (
-          <div key={curso.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800 flex items-center gap-3">
-              <Icon icon={curso.type === 'superior' ? 'mdi:university' : 'mdi:book-education'} width={18} className="text-brand-500" />
-              <span className="font-semibold text-gray-800 dark:text-white">{curso.nome}</span>
-              <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{curso.anos_academicos.length} anos</span>
-            </div>
-            <div className="p-3 space-y-2">
-              {curso.anos_academicos.map(ano => (
-                <AnoColapsavel key={ano} ano={ano} label={labelNivel(ano)}
-                  turmas={turmas.filter(t => t.curso_id === curso.id)}
-                  estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  if (nivelAcademia === 'fundamental') return <SecaoFundamental />;
-  if (nivelAcademia === 'medio')       return <SecaoCursos tipo="medio" />;
-  if (nivelAcademia === 'superior')    return <SecaoCursos tipo="superior" />;
-  if (nivelAcademia === 'misto') return (
-    <div className="space-y-3">
-      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <button onClick={() => setSecaoAberta(p => p === 'fundamental' ? null : 'fundamental')}
-          className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-          <div className="flex items-center gap-3"><Icon icon="mdi:school" width={20} className="text-blue-600 dark:text-blue-400" /><span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental</span></div>
-          <Icon icon={secaoAberta === 'fundamental' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
-        </button>
-        {secaoAberta === 'fundamental' && <div className="p-4 border-t border-gray-100 dark:border-gray-700/50"><SecaoFundamental /></div>}
-      </div>
-      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <button onClick={() => setSecaoAberta(p => p === 'cursos' ? null : 'cursos')}
-          className="w-full flex items-center justify-between px-5 py-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
-          <div className="flex items-center gap-3"><Icon icon="mdi:book-education" width={20} className="text-purple-600 dark:text-purple-400" /><span className="font-bold text-gray-800 dark:text-white">Ensino Médio</span></div>
-          <Icon icon={secaoAberta === 'cursos' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
-        </button>
-        {secaoAberta === 'cursos' && <div className="p-4 border-t border-gray-100 dark:border-gray-700/50"><SecaoCursos tipo="medio" /></div>}
-      </div>
-    </div>
+  const anosDispFundamental = useMemo(
+    () => (anosAcademicos || []).filter(a => a.includes('fundamental')),
+    [anosAcademicos]
   );
+
+  // Props comuns reutilizadas nos sub-componentes
+  const commonProps = { turmas, estudantesMapa, filtros, ordem, onVerDetalhes };
+
+  if (nivelAcademia === 'fundamental') {
+    return (
+      <SecaoFundamental
+        {...commonProps}
+        anosDisponiveis={anosDispFundamental}
+      />
+    );
+  }
+
+  if (nivelAcademia === 'medio') {
+    return <SecaoCursos {...commonProps} tipo="medio" cursosAtivos={cursosAtivos} />;
+  }
+
+  if (nivelAcademia === 'superior') {
+    return <SecaoCursos {...commonProps} tipo="superior" cursosAtivos={cursosAtivos} />;
+  }
+
+  if (nivelAcademia === 'misto') {
+    return (
+      <div className="space-y-3">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setSecaoAberta(p => p === 'fundamental' ? null : 'fundamental')}
+            className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Icon icon="mdi:school" width={20} className="text-blue-600 dark:text-blue-400" />
+              <span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental</span>
+            </div>
+            <Icon icon={secaoAberta === 'fundamental' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
+          </button>
+          {secaoAberta === 'fundamental' && (
+            <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
+              <SecaoFundamental {...commonProps} anosDisponiveis={anosDispFundamental} />
+            </div>
+          )}
+        </div>
+        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setSecaoAberta(p => p === 'cursos' ? null : 'cursos')}
+            className="w-full flex items-center justify-between px-5 py-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Icon icon="mdi:book-education" width={20} className="text-purple-600 dark:text-purple-400" />
+              <span className="font-bold text-gray-800 dark:text-white">Ensino Médio</span>
+            </div>
+            <Icon icon={secaoAberta === 'cursos' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
+          </button>
+          {secaoAberta === 'cursos' && (
+            <div className="p-4 border-t border-gray-100 dark:border-gray-700/50">
+              <SecaoCursos {...commonProps} tipo="medio" cursosAtivos={cursosAtivos} />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -660,7 +747,6 @@ export default function Estudantes() {
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
   const [filtros,              setFiltros]              = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
 
-  // CORREÇÃO: selecionadas usa codigo_estudante como chave, não est.id
   const [selecionadas,         setSelecionadas]         = useState<Set<string>>(new Set());
   const [batchItems,           setBatchItems]           = useState<BatchJobItem[]>([]);
   const [batchTitulo,          setBatchTitulo]          = useState('');
@@ -673,10 +759,8 @@ export default function Estudantes() {
 
   const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
   const tipoAcademia  = user?.academia?.type ?? 'escola';
+  const anosAcademicosAcademia = user?.academia?.anos_academicos ?? [];
 
-  // Guarda referência estável para evitar re-renders em cascata causados
-  // pelo NotificationDropdown (SSE events → setNotifications → nova referência
-  // de carregarEstudantes → efeito dispara de novo).
   const carregarEstudantesRef = useRef(carregarEstudantes);
   useEffect(() => { carregarEstudantesRef.current = carregarEstudantes; }, [carregarEstudantes]);
 
@@ -684,7 +768,7 @@ export default function Estudantes() {
     const token = tokenStorage.get();
     await carregarEstudantesRef.current(token || undefined);
     setCarregado(true);
-  }, []); // sem dependências — usa a ref internamente
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -694,7 +778,7 @@ export default function Estudantes() {
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };
-  }, []); // executa apenas uma vez ao montar
+  }, []);
 
   useEffect(() => {
     if (vistaEscala && isAcademia) {
@@ -702,13 +786,11 @@ export default function Estudantes() {
       carregarTurmas(token || undefined);
       carregarCursos(token || undefined);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
-  // Resetar página ao mudar filtros, ordem ou dados
   useEffect(() => { setPaginaAtual(1); setSelecionadas(new Set()); }, [filtros, ordem]);
   useEffect(() => { setPaginaAtual(1); }, [dataEstudantes]);
-
-  // Resetar seleção ao mudar de página
   useEffect(() => { setSelecionadas(new Set()); }, [paginaAtual]);
 
   const estudantesFiltradosOrdenados = useMemo(
@@ -727,7 +809,6 @@ export default function Estudantes() {
 
   const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); openDetailsModal(); };
 
-  // CORREÇÃO: toggle usa codigo_estudante como chave
   const handleToggle = useCallback((codigo: string) => {
     setSelecionadas(prev => {
       const next = new Set(prev);
@@ -737,18 +818,15 @@ export default function Estudantes() {
     });
   }, []);
 
-  // CORREÇÃO: toggle-todos opera apenas sobre os estudantes visíveis na página atual
   const handleToggleTodos = useCallback((todos: EstudanteDetalhado[]) => {
     setSelecionadas(prev => {
       const codigos = todos.map(e => e.codigo_estudante);
       const todasSelecionadas = codigos.every(c => prev.has(c));
       if (todasSelecionadas) {
-        // Desmarcar apenas os da página atual
         const next = new Set(prev);
         codigos.forEach(c => next.delete(c));
         return next;
       }
-      // Marcar apenas os da página atual
       const next = new Set(prev);
       codigos.forEach(c => next.add(c));
       return next;
@@ -758,7 +836,6 @@ export default function Estudantes() {
   const handleLimparSelecao = () => setSelecionadas(new Set());
 
   const handleAtualizarStatusLote = async (novoStatus: string) => {
-    // CORREÇÃO: filtra por codigo_estudante (chave do Set) e monta payload correto
     const selecionadasList = (dataEstudantes?.estudantes ?? []).filter(
       e => selecionadas.has(e.codigo_estudante)
     );
@@ -772,14 +849,19 @@ export default function Estudantes() {
 
     const token  = tokenStorage.get();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const payload = selecionadasList.map(e => ({
+    const items = selecionadasList.map(e => ({
       codigo_estudante: e.codigo_estudante,
       tipo: 'fundamental' as const,
       novo_status: novoStatus,
     }));
 
     try {
-      const r    = await fetch(`${apiUrl}/academia/estudante/status-escolar/async`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      // ✅ Envelope { items: [...] }
+      const r    = await fetch(`${apiUrl}/academia/estudante/status-escolar/async`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items }),
+      });
       const data = await r.json();
       if (!r.ok || !data.job_id) {
         setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || data.error || 'Erro ao submeter job' })));
@@ -870,9 +952,14 @@ export default function Estudantes() {
 
         {vistaEscala && isAcademia && carregado && (
           <VistaEscala
-            estudantes={dataEstudantes?.estudantes ?? []} turmas={turmas} cursos={cursos}
+            estudantes={dataEstudantes?.estudantes ?? []}
+            turmas={turmas}
+            cursos={cursos}
             nivelAcademia={tipoAcademia === 'superior' ? 'superior' : nivelAcademia}
-            filtros={filtros} ordem={ordem} onVerDetalhes={handleVerDetalhes}
+            filtros={filtros}
+            ordem={ordem}
+            onVerDetalhes={handleVerDetalhes}
+            anosAcademicos={anosAcademicosAcademia}
           />
         )}
 

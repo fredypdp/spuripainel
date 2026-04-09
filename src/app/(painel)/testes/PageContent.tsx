@@ -130,8 +130,6 @@ function tiposEnsinoDisponiveis(academia: AcademiaInfo, cursos: Curso[]): { valu
   return tipos;
 }
 
-// ─── Determine the main "escola type" for a given academia context ─────────────
-
 type EscolaMode = "fundamental" | "medio" | "superior" | "misto";
 
 function getEscolaMode(academia: AcademiaInfo): EscolaMode {
@@ -162,23 +160,17 @@ export default function SeedTestPage() {
   const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
   const [avalConfig, setAvalConfig] = useState({ tipoEnsino: "fundamental" as string, aprovPct: 70 });
 
-  // ─── Enhanced student config ────────────────────────────────────────────────
   const [estudanteConfig, setEstudanteConfig] = useState({
     qtd: 20,
-    // Fundamental
     anoFundamental: "random",
     statusFundamental: "em_andamento",
-    // Médio
     anoMedio: "random",
     statusMedio: "em_andamento",
     cursoMedioId: "random",
-    // Superior
     anoSuperior: "random",
     statusSuperior: "em_andamento",
     cursoSuperiorId: "random",
-    // Misto: qual nível principal adicionar
     modoPrincipal: "fundamental" as "fundamental" | "medio",
-    // Distribuição mista: percentagem fundamental vs médio
     pctFundamental: 60,
   });
 
@@ -218,7 +210,6 @@ export default function SeedTestPage() {
       const tiposMateria = tiposMateriaValidos(acInfo);
       if (tiposMateria.length > 0) setMateriaConfig(p => ({ ...p, tipo: tiposMateria[0].value }));
 
-      // Set default modoPrincipal for misto
       if (acInfo.nivel === "misto") {
         setEstudanteConfig(p => ({ ...p, modoPrincipal: "fundamental" }));
       }
@@ -240,7 +231,7 @@ export default function SeedTestPage() {
     }
   }, [estudantes.length]);
 
-  useEffect(() => { if (academia) refreshData(academia); }, [academia?.codigo]);
+  useEffect(() => { if (academia) refreshData(academia); }, [academia?.codigo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const apiUrl = () => {
     const url = process.env.NEXT_PUBLIC_API_URL || "";
@@ -556,7 +547,7 @@ export default function SeedTestPage() {
     addLog(`${criadas} turma(s) gerada(s) ✓`, "ok");
   };
 
-  // ─── Gerar Estudantes (enhanced) ─────────────────────────────────────────────
+  // ─── Gerar Estudantes ─────────────────────────────────────────────────────────
   const gerarEstudantes = async () => {
     if (!academia) return;
     const cfg = estudanteConfig;
@@ -564,7 +555,6 @@ export default function SeedTestPage() {
 
     addLog(`Gerando ${cfg.qtd} estudante(s) via async (modo: ${modo})...`, "step");
 
-    // Resolve courses to use
     const cursoMedioAlvo = cfg.cursoMedioId === "random"
       ? cursos.find(c => c.type === "medio" && c.status === "ativo")
       : cursos.find(c => c.id === cfg.cursoMedioId && c.status === "ativo");
@@ -577,7 +567,7 @@ export default function SeedTestPage() {
     const anosMedio = cursoMedioAlvo?.anos_academicos || [];
     const anosSuperior = cursoSuperiorAlvo?.anos_academicos || [];
 
-    const batch: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
+    const items: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
         nome,
@@ -597,7 +587,6 @@ export default function SeedTestPage() {
         } else {
           addLog(`  ! Est. #${idx + 1}: nenhum curso superior ativo — criado sem vínculo de curso`, "warn");
         }
-
       } else if (modo === "medio") {
         if (cursoMedioAlvo && anosMedio.length > 0) {
           const ano = cfg.anoMedio === "random"
@@ -609,7 +598,6 @@ export default function SeedTestPage() {
         } else {
           addLog(`  ! Est. #${idx + 1}: nenhum curso médio ativo — criado sem vínculo de curso`, "warn");
         }
-
       } else if (modo === "fundamental") {
         if (anosF.length > 0) {
           const ano = cfg.anoFundamental === "random"
@@ -618,11 +606,8 @@ export default function SeedTestPage() {
           payload.ano_escolar = ano;
           payload.status_escolar_fundamental = cfg.statusFundamental;
         }
-
       } else if (modo === "misto") {
-        // Distribute: pctFundamental% go fundamental, rest go medio
         const isFund = idx < Math.floor(cfg.qtd * cfg.pctFundamental / 100);
-
         if (isFund) {
           if (anosF.length > 0) {
             const ano = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
@@ -642,7 +627,8 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    const { ok, data } = await callApi("POST", "/academia/estudante/register/async", batch, academia.token);
+    // ✅ Envelope correto: { items: [...] }
+    const { ok, data } = await callApi("POST", "/academia/estudante/register/async", { items }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
@@ -658,14 +644,13 @@ export default function SeedTestPage() {
     await refreshData();
   };
 
-  // ─── Vincular Estudantes a Turmas (each student goes to exactly ONE turma) ────
+  // ─── Vincular Estudantes a Turmas ─────────────────────────────────────────────
   const vincularEstudantesATurmas = async () => {
     if (!academia || turmas.length === 0 || estudantes.length === 0) {
       addLog("Sem turmas ou estudantes disponíveis", "warn");
       return;
     }
 
-    // Students already in ANY turma
     const estudantesEmTurma = new Set(turmas.flatMap(t => t.estudantes));
     const semTurma = estudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
 
@@ -697,15 +682,14 @@ export default function SeedTestPage() {
       return;
     }
 
-    // ✅ Each student is assigned to exactly ONE turma (no duplicates)
-    // We use round-robin for even distribution when multiple turmas are available
-    const vinculos = semTurma.map((e, idx) => ({
+    // ✅ Cada estudante é atribuído a exactamente UMA turma (round-robin)
+    const items = semTurma.map((e, idx) => ({
       codigo_turma: turmasAlvo[idx % turmasAlvo.length].codigo_turma,
       codigo_estudante: e.codigo_estudante,
     }));
 
-    // Log distribution summary
-    const distribuicao = vinculos.reduce<Record<string, number>>((acc, v) => {
+    // Log da distribuição
+    const distribuicao = items.reduce<Record<string, number>>((acc, v) => {
       acc[v.codigo_turma] = (acc[v.codigo_turma] || 0) + 1;
       return acc;
     }, {});
@@ -713,7 +697,8 @@ export default function SeedTestPage() {
       addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
     });
 
-    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", vinculos, academia.token);
+    // ✅ FIX PRINCIPAL: envelope { items: [...] } conforme contrato da API batch async
+    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", { items }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
@@ -721,7 +706,7 @@ export default function SeedTestPage() {
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  ⏳ Job ${jobId} criado (${vinculos.length} vínculos) — aguardando...`, "info");
+    addLog(`  ⏳ Job ${jobId} criado (${items.length} vínculos) — aguardando...`, "info");
 
     const result = await acompanharJob(jobId, "Vínculos");
     addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
@@ -799,7 +784,8 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma nota nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} nota(s) via async...`, "dim");
 
-    const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
+    // ✅ Envelope { items: [...] }
+    const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", { items: batch }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro: ${errMsg}`, "err");
@@ -869,7 +855,8 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma falta nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} falta(s) via async...`, "dim");
 
-    const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
+    // ✅ Envelope { items: [...] }
+    const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", { items: batch }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro: ${errMsg}`, "err");
@@ -955,7 +942,8 @@ export default function SeedTestPage() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
+    // ✅ Envelope { items: [...] }
+    const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", { items: batch }, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro: ${errMsg}`, "err");
@@ -996,7 +984,6 @@ export default function SeedTestPage() {
 
   const tipoCursoTurma = academia?.tipo === "superior" ? "superior" : "medio";
   const cursosParaTurma = cursos.filter(c => c.type === tipoCursoTurma && c.status === "ativo");
-  const cursosAtivosTotal = cursos.filter(c => c.status === "ativo");
   const cursosMedioAtivos = cursos.filter(c => c.type === "medio" && c.status === "ativo");
   const cursosSuperiorAtivos = cursos.filter(c => c.type === "superior" && c.status === "ativo");
 
@@ -1095,7 +1082,6 @@ export default function SeedTestPage() {
     { value: "3_trimestre", label: "3º Trimestre" },
   ] : [];
 
-  // Resolve the ano options for the student config selectors
   const anosMedioParaConfig = cursosMedioAtivos.length > 0
     ? (estudanteConfig.cursoMedioId === "random"
         ? cursosMedioAtivos[0]?.anos_academicos || []
@@ -1275,9 +1261,7 @@ export default function SeedTestPage() {
               )}
             </Section>
 
-            {/* ═══════════════════════════════════════════════════════════════
-                ESTUDANTES — Enhanced config
-            ════════════════════════════════════════════════════════════════ */}
+            {/* Estudantes */}
             <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
               <Row>
                 <Field label="Quantidade">
@@ -1286,7 +1270,6 @@ export default function SeedTestPage() {
                 </Field>
               </Row>
 
-              {/* FUNDAMENTAL */}
               {(modo === "fundamental" || modo === "misto") && (
                 <SubSection title="Ensino Fundamental">
                   <Row>
@@ -1311,7 +1294,6 @@ export default function SeedTestPage() {
                 </SubSection>
               )}
 
-              {/* MÉDIO */}
               {(modo === "medio" || modo === "misto") && (
                 <SubSection title="Ensino Médio">
                   {cursosMedioAtivos.length === 0 ? (
@@ -1349,7 +1331,6 @@ export default function SeedTestPage() {
                 </SubSection>
               )}
 
-              {/* SUPERIOR */}
               {modo === "superior" && (
                 <SubSection title="Ensino Superior">
                   {cursosSuperiorAtivos.length === 0 ? (
@@ -1387,7 +1368,6 @@ export default function SeedTestPage() {
                 </SubSection>
               )}
 
-              {/* MISTO — split config */}
               {modo === "misto" && (
                 <SubSection title="Distribuição Misto">
                   <Row>
@@ -1408,7 +1388,6 @@ export default function SeedTestPage() {
                   Gerar {estudanteConfig.qtd} Estudante(s) (async)
                 </Btn>
               </div>
-
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
                 Usa endpoint assíncrono — limite: 1000 por job
               </p>
