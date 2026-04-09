@@ -674,21 +674,27 @@ export default function Estudantes() {
   const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
   const tipoAcademia  = user?.academia?.type ?? 'escola';
 
+  // Guarda referência estável para evitar re-renders em cascata causados
+  // pelo NotificationDropdown (SSE events → setNotifications → nova referência
+  // de carregarEstudantes → efeito dispara de novo).
+  const carregarEstudantesRef = useRef(carregarEstudantes);
+  useEffect(() => { carregarEstudantesRef.current = carregarEstudantes; }, [carregarEstudantes]);
+
   const carregarLista = useCallback(async () => {
     const token = tokenStorage.get();
-    await carregarEstudantes(token || undefined);
+    await carregarEstudantesRef.current(token || undefined);
     setCarregado(true);
-  }, [carregarEstudantes]);
+  }, []); // sem dependências — usa a ref internamente
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const token = tokenStorage.get();
-      await carregarEstudantes(token || undefined);
+      await carregarEstudantesRef.current(token || undefined);
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };
-  }, []);
+  }, []); // executa apenas uma vez ao montar
 
   useEffect(() => {
     if (vistaEscala && isAcademia) {
