@@ -57,6 +57,7 @@ import type {
   DefinirPeriodoMateriaRequest,
   DeletarTurmaResponse,
   DeletarCursoResponse,
+  TurmasEstudanteResponse,
   Turma,
   AdminDetalhado,
   Curso,
@@ -202,6 +203,19 @@ export const consultasService = {
   avaliacoesEstudante: (codigoEstudante: string, token?: string) =>
     api.get<AvaliacoesEstudanteResponse>(
       `/avaliacoes-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * GET /turmas-estudante/:codigo
+   * Regras de autorização:
+   * - estudante: apenas as próprias turmas
+   * - academia: apenas estudantes da própria academia
+   * - admin: qualquer estudante
+   */
+  turmasEstudante: (codigoEstudante: string, token?: string) =>
+    api.get<TurmasEstudanteResponse>(
+      `/turmas-estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 };
@@ -366,6 +380,16 @@ export const academiaService = {
   listarCategoriasNota: (token?: string) =>
     api.get<ListarCategoriasNotaResponse>(
       '/academia/categorias-nota',
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * DELETE /academia/categorias-nota/:nome
+   * Remove (inativa) uma categoria de nota adicional da academia.
+   */
+  deletarCategoriaNota: (nome: string, token?: string) =>
+    api.delete<{ message: string; categoria: string }>(
+      `/academia/categorias-nota/${encodeURIComponent(nome)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -563,7 +587,7 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Async ────────────────────────────────────────────────────────────
+  // ── Async — estudantes ──────────────────────────────────────────────
 
   cadastrarEstudanteBatchAsync: (data: CriarEstudanteRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
@@ -571,6 +595,8 @@ export const academiaService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  // ── Async — notas ──────────────────────────────────────────────────
 
   registrarNotaBatchAsync: (data: RegistrarNotasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
@@ -597,6 +623,8 @@ export const academiaService = {
       } as any
     ),
 
+  // ── Async — faltas ────────────────────────────────────────────────
+
   registrarFaltasBatchAsync: (data: RegistrarFaltasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/faltas-aluno/async',
@@ -622,12 +650,16 @@ export const academiaService = {
       } as any
     ),
 
+  // ── Async — avaliações ────────────────────────────────────────────
+
   registrarAvaliacaoFinalBatchAsync: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/avaliacao-final/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  // ── Async — status escolar ────────────────────────────────────────
 
   atualizarStatusEscolarBatchAsync: (
     data: { codigo_estudante: string; tipo: 'fundamental' | 'medio' | 'superior'; novo_status: string }[],
@@ -639,12 +671,48 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  // ── Async — cursos ────────────────────────────────────────────────
+
   criarCursoBatchAsync: (data: CriarCursoRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/curso/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  ativarCursoBatchAsync: (data: { id: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/curso/ativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  desativarCursoBatchAsync: (data: { id: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/curso/desativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarCursoBatchAsync: (data: (AtualizarCursoRequest & { id: string })[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/curso/dados/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  deletarCursoBatchAsync: (data: { id: string; motivo?: string }[], token?: string) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/curso/async',
+      {
+        token: token || tokenStorage.get() || undefined,
+        method: 'DELETE',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      } as any
+    ),
+
+  // ── Async — matérias ──────────────────────────────────────────────
 
   criarMateriaBatchAsync: (data: CriarMateriaRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
@@ -653,11 +721,84 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  ativarMateriaBatchAsync: (data: { id: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/materia/ativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  desativarMateriaBatchAsync: (data: { id: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/materia/desativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  definirPeriodoMateriaBatchAsync: (data: (DefinirPeriodoMateriaRequest & { id: string })[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/materia/periodo/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarMateriaBatchAsync: (data: ({ id: string } & AtualizarMateriaRequest)[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/materia/dados/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  deletarMateriaBatchAsync: (data: { id: string }[], token?: string) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/materia/async',
+      {
+        token: token || tokenStorage.get() || undefined,
+        method: 'DELETE',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      } as any
+    ),
+
+  // ── Async — turmas ────────────────────────────────────────────────
+
   criarTurmaBatchAsync: (data: CriarTurmaRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/turma/async',
       data,
       { token: token || tokenStorage.get() || undefined }
+    ),
+
+  ativarTurmaBatchAsync: (data: { codigo_turma: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/turma/ativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  desativarTurmaBatchAsync: (data: { codigo_turma: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/turma/desativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarTurmaBatchAsync: (data: ({ codigo_turma: string } & AtualizarTurmaRequest)[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/turma/dados/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  deletarTurmaBatchAsync: (data: { codigo_turma: string; motivo?: string }[], token?: string) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/turma/async',
+      {
+        token: token || tokenStorage.get() || undefined,
+        method: 'DELETE',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      } as any
     ),
 
   adicionarEstudanteBatchAsync: (
@@ -668,6 +809,49 @@ export const academiaService = {
       '/academia/turma/estudante/async',
       data,
       { token: token || tokenStorage.get() || undefined }
+    ),
+
+  removerEstudanteTurmaBatchAsync: (
+    data: { codigo_turma: string; codigo_estudante: string }[],
+    token?: string
+  ) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/turma/estudante/async',
+      {
+        token: token || tokenStorage.get() || undefined,
+        method: 'DELETE',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      } as any
+    ),
+
+  // ── Async — dados da academia ─────────────────────────────────────
+
+  atualizarAcademiaBatchAsync: (data: AtualizarDadosAcademiaRequest[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/academia/dados/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // ── Async — categorias de nota ────────────────────────────────────
+
+  criarCategoriasNotaBatchAsync: (data: CriarCategoriaNotaRequest[], token?: string) =>
+    api.post<AsyncBatchResponse>(
+      '/academia/categorias-nota/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  deletarCategoriasNotaBatchAsync: (data: { nome: string }[], token?: string) =>
+    api.delete<AsyncBatchResponse>(
+      '/academia/categorias-nota/async',
+      {
+        token: token || tokenStorage.get() || undefined,
+        method: 'DELETE',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      } as any
     ),
 };
 
@@ -791,7 +975,7 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Async (admin) ────────────────────────────────────────────────
+  // ── Async — academias ─────────────────────────────────────────────
 
   registrarAcademiaBatchAsync: (
     data: (CriarEscolaRequest | CriarUniversidadeRequest)[],
@@ -816,6 +1000,30 @@ export const adminService = {
   ) =>
     api.put<AsyncBatchResponse>(
       '/dominis/academia/desativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // ── Async — admins ────────────────────────────────────────────────
+
+  /**
+   * PUT /dominis/admin/ativar/async
+   * Ativa múltiplos admins em lote.
+   */
+  ativarAdminBatchAsync: (data: { id: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/dominis/admin/ativar/async',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * PUT /dominis/admin/desativar/async
+   * Desativa múltiplos admins em lote.
+   */
+  desativarAdminBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
+    api.put<AsyncBatchResponse>(
+      '/dominis/admin/desativar/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),

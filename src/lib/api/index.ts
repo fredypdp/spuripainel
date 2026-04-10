@@ -113,6 +113,7 @@ export type {
   Genero,
   Turma,
   ListarTurmasResponse,
+  TurmasEstudanteResponse,
   CriarTurmaRequest,
   AtualizarTurmaRequest,
   AdicionarEstudanteTurmaRequest,

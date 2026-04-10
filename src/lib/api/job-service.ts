@@ -8,22 +8,53 @@ import { api, getApiBaseUrl, tokenStorage } from './client';
 export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
 
 export type JobType =
-  | 'register_academia_batch'
-  | 'ativar_academia_batch'
-  | 'desativar_academia_batch'
+  // Academia — estudantes
   | 'register_estudante_batch'
+  // Academia — notas
   | 'registrar_nota_batch'
   | 'atualizar_nota_batch'
   | 'deletar_nota_batch'
+  // Academia — faltas
   | 'registrar_faltas_batch'
   | 'atualizar_falta_batch'
   | 'deletar_falta_batch'
+  // Academia — avaliações
   | 'registrar_avaliacao_final_batch'
+  // Academia — status escolar
   | 'atualizar_status_escolar_batch'
+  // Academia — cursos
   | 'criar_curso_batch'
+  | 'ativar_curso_batch'
+  | 'desativar_curso_batch'
+  | 'atualizar_curso_batch'
+  | 'deletar_curso_batch'
+  // Academia — matérias
   | 'criar_materia_batch'
+  | 'ativar_materia_batch'
+  | 'desativar_materia_batch'
+  | 'definir_periodo_materia_batch'
+  | 'atualizar_materia_batch'
+  | 'deletar_materia_batch'
+  // Academia — turmas
   | 'criar_turma_batch'
-  | 'adicionar_estudante_batch';
+  | 'ativar_turma_batch'
+  | 'desativar_turma_batch'
+  | 'atualizar_turma_batch'
+  | 'deletar_turma_batch'
+  // Academia — turmas / estudantes
+  | 'adicionar_estudante_batch'
+  | 'remover_estudante_turma_batch'
+  // Academia — dados / categorias de nota
+  | 'atualizar_academia_batch'
+  | 'criar_categoria_nota_batch'
+  | 'deletar_categoria_nota_batch'
+  // Admin — academias
+  | 'register_academia_batch'
+  | 'ativar_academia_batch'
+  | 'desativar_academia_batch'
+  // Admin — admins
+  | 'ativar_admin_batch'
+  | 'desativar_admin_batch';
 
 export interface JobSummary {
   id: string;
@@ -169,12 +200,6 @@ function parseSseData(data: string): JobStreamEvent | null {
  *
  * @returns JobDetail quando concluído
  * @throws Error em timeout ou erro fatal
- *
- * @example
- * const detail = await pollJob('uuid-do-job', {
- *   onProgress: (s) => setProgress(s.progress),
- *   onComplete: (d) => console.log('concluído', d),
- * });
  */
 export async function pollJob(jobId: string, options: PollOptions = {}): Promise<JobDetail> {
   const {
@@ -200,13 +225,11 @@ export async function pollJob(jobId: string, options: PollOptions = {}): Promise
       onProgress?.(summary);
 
       if (summary.status === 'done' || summary.status === 'failed') {
-        // Buscar os resultados completos — API retorna { job, results }
         const detailResponse = await jobApiService.getDetail(jobId);
         const normalizedResults = (detailResponse.results ?? []).map((item) => ({
           ...item,
           erro: resolveJobItemError(item),
         }));
-        // Construir JobDetail unificando job summary com results
         const jobDetail: JobDetail = {
           ...detailResponse.job,
           results: normalizedResults,
@@ -215,7 +238,6 @@ export async function pollJob(jobId: string, options: PollOptions = {}): Promise
         return jobDetail;
       }
 
-      // Backoff suave: aumentar intervalo gradualmente enquanto o job está em andamento
       currentInterval = Math.min(currentInterval * 1.3, maxIntervalMs);
 
     } catch (err) {
@@ -223,12 +245,10 @@ export async function pollJob(jobId: string, options: PollOptions = {}): Promise
       const error = err instanceof Error ? err : new Error(String(err));
       onError?.(error);
 
-      // Tolerar até 5 erros consecutivos antes de desistir (resiliência a instabilidade de rede)
       if (consecutiveErrors >= 5) {
         throw new Error(`Polling abortado após ${consecutiveErrors} erros consecutivos: ${error.message}`);
       }
 
-      // Espera extra após erro
       currentInterval = Math.min(currentInterval * 2, maxIntervalMs);
     }
   }

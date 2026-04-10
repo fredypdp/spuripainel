@@ -461,8 +461,6 @@ export interface Turma {
   /**
    * Histórico de estudantes por ano letivo.
    * Chave: ano_letivo (ex: "2025_2026") → valor: lista de codigo_estudante
-   * que já fizeram parte desta turma nesse ano letivo.
-   * Populado ao adicionar estudante e na remoção automática via avaliação final.
    */
   historico_estudantes_ano_letivo?: Record<string, string[]>;
   status: 'ativo' | 'inativo' | 'deletado';
@@ -704,6 +702,17 @@ export interface ListarAdminsResponse {
 export interface PrimeiroAdminResponse {
   message: string;
   admin: AdminDetalhado;
+}
+
+/**
+ * GET /turmas-estudante/:codigo
+ * Retorna as turmas de um estudante com autorização por perfil.
+ */
+export interface TurmasEstudanteResponse {
+  codigo_estudante: string;
+  nome: string;
+  turmas: Turma[];
+  total: number;
 }
 
 // ── Perfil e consultas ────────────────────────────────────────────────────────
