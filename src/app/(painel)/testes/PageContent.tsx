@@ -58,6 +58,19 @@ interface Curso {
   status?: string;
 }
 
+// ─── Categorias de Nota ───────────────────────────────────────────────────────
+
+const CATEGORIAS_ESCOLAR: { value: string; label: string }[] = [
+  { value: "nota_escola", label: "Nota Escola" },
+  { value: "nota_professor", label: "Nota Professor" },
+];
+
+const CATEGORIAS_SUPERIOR: { value: string; label: string }[] = [
+  { value: "nota_pp1", label: "PP1" },
+  { value: "nota_pp2", label: "PP2" },
+  { value: "nota_exame", label: "Exame" },
+];
+
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const NOMES_M = ["João","António","Manuel","Francisco","Domingos","Pedro","Paulo","Carlos","Luís","Miguel","Filipe","Rui","Hélder","Faustino","Simão","Narciso","Mário","Sérgio","Ezequiel","Armindo"];
@@ -157,12 +170,6 @@ function getEscolaMode(academia: AcademiaInfo): EscolaMode {
   return "fundamental";
 }
 
-// ─── Compatibilidade estudante ↔ turma ────────────────────────────────────────
-
-/**
- * Determina o tipo de ensino pelo sufixo do campo nivel.
- * Espelha a lógica do back-end (inferirTipoEnsinoPorNivel).
- */
 function inferirTipoEnsinoPorNivel(nivel: string): "fundamental" | "medio" | "superior" | "desconhecido" {
   if (nivel.endsWith("_ano_fundamental")) return "fundamental";
   if (nivel.endsWith("_ano_medio")) return "medio";
@@ -170,10 +177,6 @@ function inferirTipoEnsinoPorNivel(nivel: string): "fundamental" | "medio" | "su
   return "desconhecido";
 }
 
-/**
- * Retorna true se o estudante é compatível com a turma.
- * Espelha exatamente a lógica de validarCompatibilidadeEstudanteTurma no back-end.
- */
 function estudanteCompatívelComTurma(
   estudante: Estudante,
   turma: Turma,
@@ -182,37 +185,196 @@ function estudanteCompatívelComTurma(
   const tipo = inferirTipoEnsinoPorNivel(turma.nivel);
 
   if (tipo === "fundamental") {
-    // Nivel da turma deve estar nos anos_academicos da academia
     if (!academiaAnosAcademicos.includes(turma.nivel)) return false;
-    // Estudante deve ter ano_escolar correspondente
     if (!estudante.ano_escolar) return false;
     return estudante.ano_escolar === turma.nivel;
   }
 
   if (tipo === "medio") {
-    // Estudante deve ter ano_escolar_medio correspondente ao nivel
     if (!estudante.ano_escolar_medio) return false;
     if (estudante.ano_escolar_medio !== turma.nivel) return false;
-    // Turma deve ter curso_id
     if (!turma.curso_id) return false;
-    // Estudante deve ter curso_medio_id correspondente
     if (!estudante.curso_medio_id) return false;
     return estudante.curso_medio_id === turma.curso_id;
   }
 
   if (tipo === "superior") {
-    // Estudante deve ter ano_superior correspondente ao nivel
     if (!estudante.ano_superior) return false;
     if (estudante.ano_superior !== turma.nivel) return false;
-    // Turma deve ter curso_id
     if (!turma.curso_id) return false;
-    // Estudante deve ter curso_superior_id correspondente
     if (!estudante.curso_superior_id) return false;
     return estudante.curso_superior_id === turma.curso_id;
   }
 
-  // Tipo desconhecido — não bloquear silenciosamente, deixar o back-end decidir
   return true;
+}
+
+// ─── NumberStepper Component ───────────────────────────────────────────────────
+
+function NumberStepper({
+  value,
+  onChange,
+  min = 0,
+  max = 9999,
+  step = 1,
+  label,
+  hint,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  label?: string;
+  hint?: string;
+}) {
+  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === "" || raw === "-") { onChange(min); return; }
+    const parsed = parseInt(raw, 10);
+    if (!isNaN(parsed)) onChange(clamp(parsed));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {label && (
+        <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {label}
+        </label>
+      )}
+      <div style={{ display: "flex", alignItems: "center", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, overflow: "hidden", height: 34 }}>
+        <button
+          type="button"
+          onClick={() => onChange(clamp(value - step))}
+          disabled={value <= min}
+          style={{
+            width: 32, height: "100%", background: "transparent", border: "none",
+            color: value <= min ? "#334155" : "#94a3b8", cursor: value <= min ? "not-allowed" : "pointer",
+            fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
+            borderRight: "1px solid #334155", flexShrink: 0, transition: "color 0.15s",
+          }}
+        >
+          −
+        </button>
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={handleInput}
+          style={{
+            width: 60, height: "100%", background: "transparent", border: "none",
+            color: "#e2e8f0", fontSize: 13, fontWeight: 600, textAlign: "center",
+            outline: "none", MozAppearance: "textfield" as any,
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => onChange(clamp(value + step))}
+          disabled={value >= max}
+          style={{
+            width: 32, height: "100%", background: "transparent", border: "none",
+            color: value >= max ? "#334155" : "#94a3b8", cursor: value >= max ? "not-allowed" : "pointer",
+            fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
+            borderLeft: "1px solid #334155", flexShrink: 0, transition: "color 0.15s",
+          }}
+        >
+          +
+        </button>
+      </div>
+      {hint && <span style={{ fontSize: 10, color: "#475569" }}>{hint}</span>}
+    </div>
+  );
+}
+
+// ─── CategoryCheckboxes Component ─────────────────────────────────────────────
+
+function CategoryCheckboxes({
+  options,
+  selected,
+  onChange,
+  label,
+}: {
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (sel: string[]) => void;
+  label?: string;
+}) {
+  const toggle = (val: string) => {
+    if (selected.includes(val)) {
+      // Keep at least one selected
+      if (selected.length === 1) return;
+      onChange(selected.filter(v => v !== val));
+    } else {
+      onChange([...selected, val]);
+    }
+  };
+
+  const all = options.every(o => selected.includes(o.value));
+  const toggleAll = () => {
+    if (all) {
+      // keep only first
+      onChange([options[0].value]);
+    } else {
+      onChange(options.map(o => o.value));
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {label && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {label}
+          </label>
+          <button
+            type="button"
+            onClick={toggleAll}
+            style={{ fontSize: 10, color: "#60a5fa", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            {all ? "desmarcar todas" : "todas"}
+          </button>
+        </div>
+      )}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {options.map(opt => {
+          const checked = selected.includes(opt.value);
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => toggle(opt.value)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                border: `1px solid ${checked ? "#3b82f6" : "#334155"}`,
+                background: checked ? "#1e3a5f" : "#1e293b",
+                color: checked ? "#93c5fd" : "#64748b",
+                fontSize: 12, fontWeight: checked ? 600 : 400,
+                transition: "all 0.15s",
+              }}
+            >
+              <span style={{
+                width: 12, height: 12, borderRadius: 3, border: `1.5px solid ${checked ? "#3b82f6" : "#475569"}`,
+                background: checked ? "#3b82f6" : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                {checked && (
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                    <path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -232,6 +394,11 @@ export default function SeedTestPage() {
 
   const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random" });
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
+
+  // Categorias selecionadas para registro de notas
+  const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_escola", "nota_professor"]);
+  const [categoriaSuperiorSel, setCategoriaSuperiorSel] = useState<string[]>(["nota_pp1", "nota_pp2", "nota_exame"]);
+
   const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
   const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
   const [avalConfig, setAvalConfig] = useState({ tipoEnsino: "fundamental" as string, aprovPct: 70 });
@@ -720,9 +887,6 @@ export default function SeedTestPage() {
   };
 
   // ─── Vincular Estudantes a Turmas ─────────────────────────────────────────────
-  //
-  // ATUALIZADO: agora filtra turmas compatíveis por estudante individualmente,
-  // respeitando as mesmas regras do back-end (ano académico + curso para médio/superior).
   const vincularEstudantesATurmas = async () => {
     if (!academia || turmas.length === 0 || estudantes.length === 0) {
       addLog("Sem turmas ou estudantes disponíveis", "warn");
@@ -749,7 +913,6 @@ export default function SeedTestPage() {
 
     const academiaAnosAcademicos = academia.anos_academicos || [];
 
-    // Determinar as turmas-alvo (específica ou todas ativas)
     const turmasAlvo = vincularConfig.turmaCodigo !== "random"
       ? turmasAtivas.filter(t => t.codigo_turma === vincularConfig.turmaCodigo)
       : turmasAtivas;
@@ -759,17 +922,14 @@ export default function SeedTestPage() {
       return;
     }
 
-    // Construir os pares (estudante, turma) com filtragem de compatibilidade
     const items: { codigo_turma: string; codigo_estudante: string }[] = [];
     let semTurmaCompativel = 0;
 
-    // Para distribuição round-robin entre turmas compatíveis por estudante
-    const turmaIndexMap = new Map<string, number>(); // chave = nivel+cursoId → índice rotativo
+    const turmaIndexMap = new Map<string, number>();
 
     for (const est of semTurma) {
       if (cancelRef.current) break;
 
-      // Filtrar turmas compatíveis com este estudante específico
       const turmasCompativeis = turmasAlvo.filter(t =>
         estudanteCompatívelComTurma(est, t, academiaAnosAcademicos)
       );
@@ -785,7 +945,6 @@ export default function SeedTestPage() {
         continue;
       }
 
-      // Round-robin entre turmas compatíveis para distribuir estudantes
       const chaveGrupo = turmasCompativeis.map(t => t.codigo_turma).sort().join(",");
       const idx = (turmaIndexMap.get(chaveGrupo) ?? 0) % turmasCompativeis.length;
       turmaIndexMap.set(chaveGrupo, idx + 1);
@@ -810,7 +969,6 @@ export default function SeedTestPage() {
       return;
     }
 
-    // Log da distribuição
     const distribuicao = items.reduce<Record<string, number>>((acc, v) => {
       acc[v.codigo_turma] = (acc[v.codigo_turma] || 0) + 1;
       return acc;
@@ -843,12 +1001,20 @@ export default function SeedTestPage() {
     }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
+    const tipoNota = academia.tipo === "superior" ? "superior" : "escolar";
+    const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
+
+    if (categoriasAtivas.length === 0) {
+      addLog("Nenhuma categoria de nota selecionada", "warn");
+      return;
+    }
+
     const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
-    addLog(`Gerando notas para ${sample.length} estudante(s) via async...`, "step");
 
-    const tipoNota = academia.tipo === "superior" ? "superior" : "escolar";
+    addLog(`Gerando notas para ${sample.length} estudante(s) — categorias: ${categoriasAtivas.join(", ")}`, "step");
+
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
     const batch: any[] = [];
 
@@ -884,26 +1050,27 @@ export default function SeedTestPage() {
           periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
         }
 
-        const categoria = tipoNota === "escolar" ? "nota_escola" : "nota_exame";
-
+        // Registrar uma nota por categoria selecionada × período
         for (const p of periodos) {
-          const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
-          if (notasExistentes.has(chave)) continue;
-          batch.push({
-            codigo_estudante: est.codigo_estudante,
-            periodo: p,
-            materia_disciplinar_id: mat.id,
-            tipo: tipoNota,
-            categoria,
-            nota: parseFloat((rnd(8, 20) + Math.random()).toFixed(1)),
-          });
+          for (const categoria of categoriasAtivas) {
+            const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
+            if (notasExistentes.has(chave)) continue;
+            batch.push({
+              codigo_estudante: est.codigo_estudante,
+              periodo: p,
+              materia_disciplinar_id: mat.id,
+              tipo: tipoNota,
+              categoria,
+              nota: parseFloat((rnd(8, 20) + Math.random()).toFixed(1)),
+            });
+          }
         }
       }
       await sleep(30);
     }
 
     if (batch.length === 0) { addLog("Nenhuma nota nova para registrar", "info"); return; }
-    addLog(`  Enviando ${batch.length} nota(s) via async...`, "dim");
+    addLog(`  Enviando ${batch.length} nota(s) via async (${categoriasAtivas.length} categoria(s) × matérias × períodos)...`, "dim");
 
     const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
     if (!ok) {
@@ -1095,7 +1262,6 @@ export default function SeedTestPage() {
   const estudantesEmTurmaSet = new Set(turmas.flatMap(t => t.estudantes));
   const estudantesSemTurma = estudantes.filter(e => !estudantesEmTurmaSet.has(e.codigo_estudante));
 
-  // Contar quantos estudantes sem turma têm pelo menos uma turma compatível
   const academiaAnosAcademicosLocal = academia?.anos_academicos || [];
   const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
   const estudantesSemTurmaComCompativeis = estudantesSemTurma.filter(est =>
@@ -1133,7 +1299,13 @@ export default function SeedTestPage() {
     return [...new Set(pool)];
   })();
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // Categorias e tipo de nota da academia
+  const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
+  const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
+  const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
+  const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
+
+  // ─── Render helpers ────────────────────────────────────────────────────────────
 
   const logColors: Record<LogLevel, string> = {
     ok: "#4ade80", err: "#f87171", warn: "#facc15", info: "#94a3b8", step: "#60a5fa", dim: "#475569"
@@ -1189,15 +1361,11 @@ export default function SeedTestPage() {
   );
 
   const Sel = (props: React.SelectHTMLAttributes<HTMLSelectElement> & { style?: React.CSSProperties }) => (
-    <select {...props} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer", ...props.style }} />
-  );
-
-  const Inp = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input {...props} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, width: props.type === "number" ? 80 : undefined }} />
+    <select {...props} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer", height: 34, ...props.style }} />
   );
 
   const Btn = ({ onClick, children, color = "#2563eb", disabled = false }: { onClick: () => void; children: React.ReactNode; color?: string; disabled?: boolean }) => (
-    <button onClick={onClick} disabled={disabled || running} style={{ background: disabled || running ? "#1e293b" : color, color: disabled || running ? "#475569" : "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: disabled || running ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
+    <button onClick={onClick} disabled={disabled || running} style={{ background: disabled || running ? "#1e293b" : color, color: disabled || running ? "#475569" : "#fff", border: "none", borderRadius: 8, padding: "0 18px", height: 34, fontSize: 13, fontWeight: 600, cursor: disabled || running ? "not-allowed" : "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}>
       {children}
     </button>
   );
@@ -1221,8 +1389,20 @@ export default function SeedTestPage() {
         : cursos.find(c => c.id === estudanteConfig.cursoSuperiorId)?.anos_academicos || [])
     : [];
 
+  // Estimativa de notas a gerar
+  const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
+  const periodosMult = academia.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
+  const estimativaNota = totalEstudantesNota * Math.min(3, materias.length) * categoriasAtivas.length * periodosMult;
+
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
+      {/* hide number input arrows globally */}
+      <style>{`
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+      `}</style>
+
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#f8fafc", letterSpacing: "-0.02em" }}>
@@ -1263,7 +1443,6 @@ export default function SeedTestPage() {
               </div>
             </Section>
 
-            {/* Legenda de compatibilidade */}
             {turmas.length > 0 && estudantesSemTurma.length > 0 && (
               <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
                 <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Regra de vínculo</p>
@@ -1288,10 +1467,13 @@ export default function SeedTestPage() {
                       {tiposCursoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
                     </Sel>
                   </Field>
-                  <Field label="Qtd">
-                    <Inp type="number" min={1} max={5} value={cursoConfig.qtd}
-                      onChange={e => setCursoConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                  </Field>
+                  <NumberStepper
+                    label="Quantidade"
+                    value={cursoConfig.qtd}
+                    min={1}
+                    max={5}
+                    onChange={v => setCursoConfig(p => ({ ...p, qtd: v }))}
+                  />
                   <Btn onClick={() => withLoading(gerarCursos)} color="#7c3aed">Gerar Cursos</Btn>
                 </Row>
                 {cursos.length > 0 && (
@@ -1326,10 +1508,13 @@ export default function SeedTestPage() {
                         </Sel>
                       </Field>
                     )}
-                    <Field label="Qtd">
-                      <Inp type="number" min={1} max={10} value={materiaConfig.qtd}
-                        onChange={e => setMateriaConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                    </Field>
+                    <NumberStepper
+                      label="Quantidade"
+                      value={materiaConfig.qtd}
+                      min={1}
+                      max={10}
+                      onChange={v => setMateriaConfig(p => ({ ...p, qtd: v }))}
+                    />
                     <Btn
                       onClick={() => withLoading(gerarMaterias)}
                       color="#7c3aed"
@@ -1356,9 +1541,13 @@ export default function SeedTestPage() {
               ) : (
                 <>
                   <Row>
-                    <Field label="Quantidade">
-                      <Inp type="number" min={1} max={20} value={turmaConfig.qtd} onChange={e => setTurmaConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                    </Field>
+                    <NumberStepper
+                      label="Quantidade"
+                      value={turmaConfig.qtd}
+                      min={1}
+                      max={20}
+                      onChange={v => setTurmaConfig(p => ({ ...p, qtd: v }))}
+                    />
                     <Field label="Turno">
                       <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
                         <option value="random">Aleatório</option>
@@ -1408,10 +1597,15 @@ export default function SeedTestPage() {
             {/* Estudantes */}
             <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
               <Row>
-                <Field label="Quantidade">
-                  <Inp type="number" min={1} max={1000} value={estudanteConfig.qtd}
-                    onChange={e => setEstudanteConfig(p => ({ ...p, qtd: +e.target.value }))} />
-                </Field>
+                <NumberStepper
+                  label="Quantidade"
+                  value={estudanteConfig.qtd}
+                  min={1}
+                  max={1000}
+                  step={10}
+                  onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))}
+                  hint={`máx. 1000 por job`}
+                />
               </Row>
 
               {(modo === "fundamental" || modo === "misto") && (
@@ -1515,10 +1709,14 @@ export default function SeedTestPage() {
               {modo === "misto" && (
                 <SubSection title="Distribuição Misto">
                   <Row>
-                    <Field label="% Fundamental">
-                      <Inp type="number" min={0} max={100} value={estudanteConfig.pctFundamental}
-                        onChange={e => setEstudanteConfig(p => ({ ...p, pctFundamental: +e.target.value }))} />
-                    </Field>
+                    <NumberStepper
+                      label="% Fundamental"
+                      value={estudanteConfig.pctFundamental}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onChange={v => setEstudanteConfig(p => ({ ...p, pctFundamental: v }))}
+                    />
                   </Row>
                   <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>
                     ≈ {Math.floor(estudanteConfig.qtd * estudanteConfig.pctFundamental / 100)} fundamental
@@ -1585,42 +1783,80 @@ export default function SeedTestPage() {
             )}
 
             {/* Notas */}
-            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
-              {academia.tipo === "superior" ? (
+            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
+              <SubSection title={`Categorias — ${tipoNota === "escolar" ? "Escolar" : "Superior"}`}>
+                <CategoryCheckboxes
+                  label="Registrar notas para"
+                  options={categoriasDisponiveis}
+                  selected={categoriasAtivas}
+                  onChange={setCategoriasAtivas}
+                />
+                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                  {tipoNota === "escolar"
+                    ? "Categorias fixas do ensino escolar"
+                    : "Categorias fixas do ensino superior"}
+                  {" · "}{categoriasAtivas.length} de {categoriasDisponiveis.length} selecionada(s)
+                </p>
+              </SubSection>
+
+              {academia.tipo !== "superior" ? (
                 <Row>
-                  <Field label="Nº estudantes (0 = todos)">
-                    <Inp type="number" min={0} max={estudantes.length || 100} value={notaConfig.qtdEstudantes}
-                      onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
-                  </Field>
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>Gerar Notas (async)</Btn>
-                </Row>
-              ) : (
-                <Row>
-                  <Field label="Nº estudantes (0 = todos)">
-                    <Inp type="number" min={0} max={estudantes.length || 100} value={notaConfig.qtdEstudantes}
-                      onChange={e => setNotaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
-                  </Field>
+                  <NumberStepper
+                    label="Nº estudantes (0 = todos)"
+                    value={notaConfig.qtdEstudantes}
+                    min={0}
+                    max={estudantes.length || 1000}
+                    step={5}
+                    onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
+                    hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
+                  />
                   <Field label="Período">
                     <Sel value={notaConfig.periodo} onChange={e => setNotaConfig(p => ({ ...p, periodo: e.target.value }))}>
                       {periodosNotaDisponiveis.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
                     </Sel>
                   </Field>
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>Gerar Notas (async)</Btn>
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                    Gerar Notas (async)
+                  </Btn>
+                </Row>
+              ) : (
+                <Row>
+                  <NumberStepper
+                    label="Nº estudantes (0 = todos)"
+                    value={notaConfig.qtdEstudantes}
+                    min={0}
+                    max={estudantes.length || 1000}
+                    step={5}
+                    onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
+                    hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
+                  />
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                    Gerar Notas (async)
+                  </Btn>
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                {academia.tipo === "superior" ? "Tipo: superior · Categoria: nota_exame · Período: definido por matéria" : "Tipo: escolar · Categoria: nota_escola · Períodos: trimestres do sistema"}
+                {tipoNota === "superior"
+                  ? "Tipo: superior · Período: definido por matéria · Categorias: selecionadas acima"
+                  : "Tipo: escolar · Categorias: selecionadas acima · Períodos: conforme seleção"}
               </p>
             </Section>
 
             {/* Faltas */}
             <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
               <Row>
-                <Field label="Nº estudantes (0 = todos)">
-                  <Inp type="number" min={0} max={estudantes.length || 100} value={faltaConfig.qtdEstudantes}
-                    onChange={e => setFaltaConfig(p => ({ ...p, qtdEstudantes: +e.target.value }))} />
-                </Field>
-                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>Gerar Faltas (async)</Btn>
+                <NumberStepper
+                  label="Nº estudantes (0 = todos)"
+                  value={faltaConfig.qtdEstudantes}
+                  min={0}
+                  max={estudantes.length || 1000}
+                  step={5}
+                  onChange={v => setFaltaConfig(p => ({ ...p, qtdEstudantes: v }))}
+                  hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
+                />
+                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                  Gerar Faltas (async)
+                </Btn>
               </Row>
             </Section>
 
@@ -1640,17 +1876,19 @@ export default function SeedTestPage() {
                         {tiposEnsinoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
                       </Sel>
                     </Field>
-                    <Field label="% Aprovação">
-                      <Inp type="number" min={0} max={100} value={avalConfig.aprovPct}
-                        onChange={e => setAvalConfig(p => ({ ...p, aprovPct: +e.target.value }))} />
-                    </Field>
+                    <NumberStepper
+                      label="% Aprovação"
+                      value={avalConfig.aprovPct}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onChange={v => setAvalConfig(p => ({ ...p, aprovPct: v }))}
+                      hint={`≈${Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovados`}
+                    />
                     <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
                       Avaliar TODOS ({estudantes.length}) async
                     </Btn>
                   </Row>
-                  <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                    {Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovações estimadas de {estudantes.length}
-                  </p>
                 </>
               )}
             </Section>
