@@ -34,11 +34,29 @@ interface Estudante {
   ano_escolar?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
+  curso_medio_id?: string;
+  curso_superior_id?: string;
   total_notas?: number;
   total_faltas?: number;
 }
-interface Turma { id?: string; codigo_turma: string; nivel: string; estudantes: string[]; curso_id?: string; status?: string; }
-interface Curso { id: string; nome: string; type: string; anos_academicos: string[]; periodos?: string[]; status?: string; }
+
+interface Turma {
+  id?: string;
+  codigo_turma: string;
+  nivel: string;
+  estudantes: string[];
+  curso_id?: string;
+  status?: string;
+}
+
+interface Curso {
+  id: string;
+  nome: string;
+  type: string;
+  anos_academicos: string[];
+  periodos?: string[];
+  status?: string;
+}
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -137,6 +155,64 @@ function getEscolaMode(academia: AcademiaInfo): EscolaMode {
   if (academia.nivel === "medio") return "medio";
   if (academia.nivel === "misto") return "misto";
   return "fundamental";
+}
+
+// ─── Compatibilidade estudante ↔ turma ────────────────────────────────────────
+
+/**
+ * Determina o tipo de ensino pelo sufixo do campo nivel.
+ * Espelha a lógica do back-end (inferirTipoEnsinoPorNivel).
+ */
+function inferirTipoEnsinoPorNivel(nivel: string): "fundamental" | "medio" | "superior" | "desconhecido" {
+  if (nivel.endsWith("_ano_fundamental")) return "fundamental";
+  if (nivel.endsWith("_ano_medio")) return "medio";
+  if (nivel.endsWith("_ano_superior")) return "superior";
+  return "desconhecido";
+}
+
+/**
+ * Retorna true se o estudante é compatível com a turma.
+ * Espelha exatamente a lógica de validarCompatibilidadeEstudanteTurma no back-end.
+ */
+function estudanteCompatívelComTurma(
+  estudante: Estudante,
+  turma: Turma,
+  academiaAnosAcademicos: string[],
+): boolean {
+  const tipo = inferirTipoEnsinoPorNivel(turma.nivel);
+
+  if (tipo === "fundamental") {
+    // Nivel da turma deve estar nos anos_academicos da academia
+    if (!academiaAnosAcademicos.includes(turma.nivel)) return false;
+    // Estudante deve ter ano_escolar correspondente
+    if (!estudante.ano_escolar) return false;
+    return estudante.ano_escolar === turma.nivel;
+  }
+
+  if (tipo === "medio") {
+    // Estudante deve ter ano_escolar_medio correspondente ao nivel
+    if (!estudante.ano_escolar_medio) return false;
+    if (estudante.ano_escolar_medio !== turma.nivel) return false;
+    // Turma deve ter curso_id
+    if (!turma.curso_id) return false;
+    // Estudante deve ter curso_medio_id correspondente
+    if (!estudante.curso_medio_id) return false;
+    return estudante.curso_medio_id === turma.curso_id;
+  }
+
+  if (tipo === "superior") {
+    // Estudante deve ter ano_superior correspondente ao nivel
+    if (!estudante.ano_superior) return false;
+    if (estudante.ano_superior !== turma.nivel) return false;
+    // Turma deve ter curso_id
+    if (!turma.curso_id) return false;
+    // Estudante deve ter curso_superior_id correspondente
+    if (!estudante.curso_superior_id) return false;
+    return estudante.curso_superior_id === turma.curso_id;
+  }
+
+  // Tipo desconhecido — não bloquear silenciosamente, deixar o back-end decidir
+  return true;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -567,7 +643,6 @@ export default function SeedTestPage() {
     const anosMedio = cursoMedioAlvo?.anos_academicos || [];
     const anosSuperior = cursoSuperiorAlvo?.anos_academicos || [];
 
-    // API /academia/estudante/register/async espera array puro de objetos
     const items: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
@@ -628,7 +703,6 @@ export default function SeedTestPage() {
       return payload;
     });
 
-    // ✅ Envia array puro — a API espera array de CriarEstudanteRequest
     const { ok, data } = await callApi("POST", "/academia/estudante/register/async", items, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -646,6 +720,9 @@ export default function SeedTestPage() {
   };
 
   // ─── Vincular Estudantes a Turmas ─────────────────────────────────────────────
+  //
+  // ATUALIZADO: agora filtra turmas compatíveis por estudante individualmente,
+  // respeitando as mesmas regras do back-end (ano académico + curso para médio/superior).
   const vincularEstudantesATurmas = async () => {
     if (!academia || turmas.length === 0 || estudantes.length === 0) {
       addLog("Sem turmas ou estudantes disponíveis", "warn");
@@ -660,35 +737,78 @@ export default function SeedTestPage() {
       return;
     }
 
-    addLog(`Vinculando ${semTurma.length} estudante(s) sem turma via async...`, "step");
-
     const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
-    let turmasAlvo: Turma[];
 
-    if (vincularConfig.turmaCodigo !== "random") {
-      const turmaEspecifica = turmasAtivas.find(t => t.codigo_turma === vincularConfig.turmaCodigo);
-      if (!turmaEspecifica) {
-        addLog(`Turma "${vincularConfig.turmaCodigo}" não encontrada ou inativa`, "err");
-        return;
-      }
-      turmasAlvo = [turmaEspecifica];
-      addLog(`  Usando turma específica: ${turmaEspecifica.codigo_turma} (${turmaEspecifica.nivel})`, "dim");
-    } else {
-      turmasAlvo = turmasAtivas;
-      addLog(`  Distribuindo entre ${turmasAlvo.length} turma(s) — cada estudante vai para APENAS UMA turma`, "dim");
-    }
-
-    if (turmasAlvo.length === 0) {
+    if (turmasAtivas.length === 0) {
       addLog("Nenhuma turma ativa disponível", "err");
       return;
     }
 
-    // Cada estudante é atribuído a exactamente UMA turma (round-robin)
-    // A API /academia/turma/estudante/async espera array de {codigo_turma, codigo_estudante}
-    const items: { codigo_turma: string; codigo_estudante: string }[] = semTurma.map((e, idx) => ({
-      codigo_turma: turmasAlvo[idx % turmasAlvo.length].codigo_turma,
-      codigo_estudante: e.codigo_estudante,
-    }));
+    addLog(`Vinculando ${semTurma.length} estudante(s) sem turma — modo compatível...`, "step");
+    addLog(`  Regra: estudante só é vinculado a turma compatível com seu ano e curso`, "dim");
+
+    const academiaAnosAcademicos = academia.anos_academicos || [];
+
+    // Determinar as turmas-alvo (específica ou todas ativas)
+    const turmasAlvo = vincularConfig.turmaCodigo !== "random"
+      ? turmasAtivas.filter(t => t.codigo_turma === vincularConfig.turmaCodigo)
+      : turmasAtivas;
+
+    if (turmasAlvo.length === 0) {
+      addLog(`Turma "${vincularConfig.turmaCodigo}" não encontrada ou inativa`, "err");
+      return;
+    }
+
+    // Construir os pares (estudante, turma) com filtragem de compatibilidade
+    const items: { codigo_turma: string; codigo_estudante: string }[] = [];
+    let semTurmaCompativel = 0;
+
+    // Para distribuição round-robin entre turmas compatíveis por estudante
+    const turmaIndexMap = new Map<string, number>(); // chave = nivel+cursoId → índice rotativo
+
+    for (const est of semTurma) {
+      if (cancelRef.current) break;
+
+      // Filtrar turmas compatíveis com este estudante específico
+      const turmasCompativeis = turmasAlvo.filter(t =>
+        estudanteCompatívelComTurma(est, t, academiaAnosAcademicos)
+      );
+
+      if (turmasCompativeis.length === 0) {
+        addLog(
+          `  ! ${est.codigo_estudante}: nenhuma turma compatível encontrada` +
+          ` (ano_escolar=${est.ano_escolar || est.ano_escolar_medio || est.ano_superior || "?"}` +
+          ` curso=${est.curso_medio_id || est.curso_superior_id || "—"})`,
+          "warn"
+        );
+        semTurmaCompativel++;
+        continue;
+      }
+
+      // Round-robin entre turmas compatíveis para distribuir estudantes
+      const chaveGrupo = turmasCompativeis.map(t => t.codigo_turma).sort().join(",");
+      const idx = (turmaIndexMap.get(chaveGrupo) ?? 0) % turmasCompativeis.length;
+      turmaIndexMap.set(chaveGrupo, idx + 1);
+
+      const turmaEscolhida = turmasCompativeis[idx];
+      items.push({
+        codigo_turma: turmaEscolhida.codigo_turma,
+        codigo_estudante: est.codigo_estudante,
+      });
+    }
+
+    if (semTurmaCompativel > 0) {
+      addLog(
+        `  ⚠ ${semTurmaCompativel} estudante(s) sem turma compatível — verifique se existem turmas` +
+        ` com o mesmo nível e curso dos estudantes`,
+        "warn"
+      );
+    }
+
+    if (items.length === 0) {
+      addLog("Nenhum vínculo compatível para realizar. Crie turmas com os níveis corretos primeiro.", "err");
+      return;
+    }
 
     // Log da distribuição
     const distribuicao = items.reduce<Record<string, number>>((acc, v) => {
@@ -699,7 +819,6 @@ export default function SeedTestPage() {
       addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
     });
 
-    // ✅ Envia array puro — a API espera array de {codigo_turma, codigo_estudante}
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -786,7 +905,6 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma nota nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} nota(s) via async...`, "dim");
 
-    // ✅ Envia array puro — a API espera array de RegistrarNotasRequest
     const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -857,7 +975,6 @@ export default function SeedTestPage() {
     if (batch.length === 0) { addLog("Nenhuma falta nova para registrar", "info"); return; }
     addLog(`  Enviando ${batch.length} falta(s) via async...`, "dim");
 
-    // ✅ Envia array puro — a API espera array de RegistrarFaltasRequest
     const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -944,7 +1061,6 @@ export default function SeedTestPage() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    // ✅ Envia array puro — a API espera array de RegistrarAvaliacaoFinalRequest
     const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
@@ -978,6 +1094,15 @@ export default function SeedTestPage() {
 
   const estudantesEmTurmaSet = new Set(turmas.flatMap(t => t.estudantes));
   const estudantesSemTurma = estudantes.filter(e => !estudantesEmTurmaSet.has(e.codigo_estudante));
+
+  // Contar quantos estudantes sem turma têm pelo menos uma turma compatível
+  const academiaAnosAcademicosLocal = academia?.anos_academicos || [];
+  const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
+  const estudantesSemTurmaComCompativeis = estudantesSemTurma.filter(est =>
+    turmasAtivas.some(t => estudanteCompatívelComTurma(est, t, academiaAnosAcademicosLocal))
+  );
+  const estudantesSemCompatibilidade = estudantesSemTurma.length - estudantesSemTurmaComCompativeis.length;
+
   const tiposCursoDisp = academia ? tiposCursoValidos(academia) : [];
   const tiposMateriaDisp = academia ? tiposMateriaValidos(academia) : [];
   const tiposEnsinoDisp = academia ? tiposEnsinoDisponiveis(academia, cursos) : [];
@@ -1121,6 +1246,7 @@ export default function SeedTestPage() {
                 { label: "Turmas", val: turmas.length, icon: "🏫" },
                 { label: "Estudantes", val: estudantes.length, icon: "👥" },
                 { label: "Sem turma", val: estudantesSemTurma.length, icon: "⚠️", warn: estudantesSemTurma.length > 0 },
+                ...(estudantesSemCompatibilidade > 0 ? [{ label: "Sem turma compatível", val: estudantesSemCompatibilidade, icon: "🔴", warn: true }] : []),
               ].map(s => (
                 <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1e293b" }}>
                   <span style={{ fontSize: 13, color: "#94a3b8" }}>{s.icon} {s.label}</span>
@@ -1136,6 +1262,19 @@ export default function SeedTestPage() {
                 </Row>
               </div>
             </Section>
+
+            {/* Legenda de compatibilidade */}
+            {turmas.length > 0 && estudantesSemTurma.length > 0 && (
+              <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Regra de vínculo</p>
+                <p style={{ margin: 0 }}>
+                  Estudantes só são vinculados a turmas do <strong style={{ color: "#94a3b8" }}>mesmo nível e curso</strong>.
+                  {estudantesSemCompatibilidade > 0 && (
+                    <span style={{ color: "#facc15" }}> {estudantesSemCompatibilidade} estudante(s) não têm turma compatível — crie turmas adequadas.</span>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* ─── Operações ───────────────────────────────────────────────── */}
@@ -1259,6 +1398,9 @@ export default function SeedTestPage() {
                     </Field>
                     <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
                   </Row>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
+                    ✦ Para vincular estudantes, as turmas devem ter o <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong> dos estudantes
+                  </p>
                 </>
               )}
             </Section>
@@ -1397,15 +1539,27 @@ export default function SeedTestPage() {
 
             {/* Vincular a Turmas */}
             {turmas.length > 0 && estudantes.length > 0 && (
-              <Section title="Vincular Estudantes a Turmas" badge={estudantesSemTurma.length > 0 ? `${estudantesSemTurma.length} sem turma` : "todos vinculados"}>
+              <Section title="Vincular Estudantes a Turmas" badge={
+                estudantesSemTurma.length === 0
+                  ? "todos vinculados"
+                  : estudantesSemCompatibilidade > 0
+                    ? `${estudantesSemTurmaComCompativeis.length} compatíveis de ${estudantesSemTurma.length} sem turma`
+                    : `${estudantesSemTurma.length} sem turma`
+              }>
                 {estudantesSemTurma.length === 0 ? (
                   <p style={{ color: "#4ade80", fontSize: 12, margin: 0 }}>✓ Todos os estudantes já estão vinculados a turmas.</p>
                 ) : (
                   <>
+                    {estudantesSemCompatibilidade > 0 && (
+                      <div style={{ background: "#1c1000", border: "1px solid #854d0e", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 11, color: "#fbbf24" }}>
+                        <strong>⚠ {estudantesSemCompatibilidade} estudante(s)</strong> não têm turma compatível com seu nível/curso.
+                        Crie turmas com os níveis e cursos correspondentes.
+                      </div>
+                    )}
                     <Row>
                       <Field label="Turma alvo">
                         <Sel value={vincularConfig.turmaCodigo} onChange={e => setVincularConfig({ turmaCodigo: e.target.value })} style={{ minWidth: 220 }}>
-                          <option value="random">Distribuir entre todas (round-robin)</option>
+                          <option value="random">Distribuir por compatibilidade (auto)</option>
                           {turmas.filter(t => t.status !== "inativo" && t.status !== "deletado").map(t => (
                             <option key={t.codigo_turma} value={t.codigo_turma}>
                               {t.codigo_turma} — {t.nivel.replace(/_ano_(fundamental|medio|superior)$/, "º $1")} ({t.estudantes.length} alunos)
@@ -1413,12 +1567,17 @@ export default function SeedTestPage() {
                           ))}
                         </Sel>
                       </Field>
-                      <Btn onClick={() => withLoading(vincularEstudantesATurmas)} color="#0f4c75">
-                        Vincular {estudantesSemTurma.length} → 1 turma cada (async)
+                      <Btn
+                        onClick={() => withLoading(vincularEstudantesATurmas)}
+                        color="#0f4c75"
+                        disabled={estudantesSemTurmaComCompativeis.length === 0}
+                      >
+                        Vincular {estudantesSemTurmaComCompativeis.length} compatíveis (async)
                       </Btn>
                     </Row>
                     <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                      ✦ Cada estudante é vinculado a <strong style={{ color: "#60a5fa" }}>exactamente uma</strong> turma, independentemente do nível de ensino
+                      ✦ Cada estudante é vinculado apenas a turmas do <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong>
+                      {" — "}distribuição automática por round-robin entre turmas compatíveis
                     </p>
                   </>
                 )}
