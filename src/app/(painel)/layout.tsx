@@ -7,53 +7,50 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import React from "react";
-import { tokenStorage, useApi, perfilService} from '@/lib/api';
+import { tokenStorage, useApi, perfilService } from '@/lib/api';
 import { setCookie } from '@/lib/utils/cookies';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import RouteGuard from "@/components/guards/RouteGuard";
 
-export default function PainelLayout({children}: {children: React.ReactNode}) {
+export default function PainelLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const hasLoadedProfile = useRef(false);
-  
-  const { user, loading: loadingUser } = useUserCookie();  
-  const {error: erroMeuPerfil, execute: executarPegarPerfil} = useApi(perfilService.meuPerfil);
+
+  const { user, loading: loadingUser } = useUserCookie();
+  const { execute: executarPegarPerfil } = useApi(perfilService.meuPerfil);
 
   useEffect(() => {
+    // Só executa uma vez por montagem do layout
+    if (hasLoadedProfile.current) return;
+    if (loadingUser) return;
+
     const token = tokenStorage.get();
+    if (!token) return;
 
-    // Recarregar perfil apenas se não tiver user
-    if (!loadingUser && !user && !hasLoadedProfile.current) {
-      hasLoadedProfile.current = true;
-      executarPegarPerfil(token).then((data) => {
-        if (data) {
-          setCookie("user", JSON.stringify(data), 1);
-          window.location.reload();
-        }
-      });
-    }
-    
-    // Atualizar cookie silenciosamente se user já existe
-    if (!loadingUser && user && !hasLoadedProfile.current) {
-      hasLoadedProfile.current = true;
-      executarPegarPerfil(token).then((data) => {
-        if (data) {
-          const userAtual = JSON.stringify(user);
-          const userNovo = JSON.stringify(data);
-          
-          if (userAtual !== userNovo) {
-            setCookie("user", JSON.stringify(data), 1);
-            window.location.reload();
-          } else {
-            setCookie("user", JSON.stringify(data), 1);
-          }
-        }
-      });
-    }
-  }, [router, user, loadingUser, executarPegarPerfil]);
+    hasLoadedProfile.current = true;
 
-  // Calcula padding-left baseado no estado da sidebar
+    executarPegarPerfil(token).then((data) => {
+      if (!data) return;
+
+      const userNovo = JSON.stringify(data);
+      const userAtual = user ? JSON.stringify(user) : null;
+
+      // Atualiza o cookie silenciosamente com a data mais recente do servidor
+      setCookie("user", userNovo, 1);
+
+      // Só recarrega a página se não havia dados antes (primeiro carregamento sem cookie)
+      // Evita o loop: se já havia user, NÃO recarrega — apenas atualiza o cookie
+      if (!userAtual) {
+        // Sem dados anteriores: força reload para o cookie novo ser lido pelos componentes
+        window.location.reload();
+      }
+    }).catch(() => {
+      // Silencia erros de perfil (ex: token expirado é tratado pelo RouteGuard)
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingUser]); // Só re-executa se o estado de loading mudar
+
   const contentPadding = isExpanded || isHovered
     ? "lg:pl-[290px]"
     : "lg:pl-[90px]";
@@ -63,10 +60,10 @@ export default function PainelLayout({children}: {children: React.ReactNode}) {
       <div className="flex min-h-screen">
         <AppSidebar />
         <Backdrop />
-        
+
         <div className={`flex flex-col flex-1 min-w-0 transition-all duration-300 ${contentPadding}`}>
           <AppHeader />
-          
+
           <div className="p-4 mx-auto w-full max-w-(--breakpoint-2xl) md:p-6">
             {children}
           </div>

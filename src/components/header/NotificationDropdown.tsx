@@ -12,8 +12,6 @@ import {
   type JobDetail,
   type JobItemResult,
 } from "@/lib/api";
-import { academiaService } from "@/lib/api";
-import type { CriarEstudanteRequest } from "@/types/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -195,12 +193,6 @@ function normalizeEventToNotif(event: JobStreamEvent): UiNotification {
 
 // ─── Retry helpers ────────────────────────────────────────────────────────────
 
-/**
- * Extrai os payloads dos itens com falha e reenvia como novo job assíncrono.
- * Suporta apenas register_estudante_batch por enquanto — adicionar outros tipos
- * conforme necessário (seguir o mesmo padrão: verificar job.type, chamar o
- * endpoint correspondente).
- */
 async function retryFailedItems(
   jobType: string,
   failures: JobItemResult[],
@@ -295,7 +287,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
   const failures  = detail?.results?.filter(r => !r.sucesso)  ?? [];
   const successes = detail?.results?.filter(r => r.sucesso)   ?? [];
 
-  // Botão de retry disponível quando: job falhou ou tem falhas, e há payloads para reenviar
   const canRetry = !retryDone
     && (notif.status === "failed" || failures.length > 0)
     && failures.some(f => f.payload != null)
@@ -317,7 +308,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
         return;
       }
 
-      // Criar notificação provisória para o novo job
       const newNotif: UiNotification = {
         id:          `${result.job_id}-enqueued-${Date.now()}`,
         jobId:       result.job_id,
@@ -408,7 +398,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                 ))}
               </div>
 
-              {/* Error message */}
               {detail.error && (
                 <div style={{ background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 14 }}>
                   <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em" }}>Erro do job</p>
@@ -416,7 +405,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                 </div>
               )}
 
-              {/* Failures list */}
               {failures.length > 0 && (
                 <div>
                   <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#f87171" }}>
@@ -438,7 +426,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                 </div>
               )}
 
-              {/* Success-only message */}
               {successes.length > 0 && failures.length === 0 && (
                 <div style={{ background: "#0a1e0f", border: "1px solid #14532d", borderRadius: 8, padding: 14 }}>
                   <p style={{ margin: 0, fontSize: 13, color: "#86efac" }}>
@@ -453,7 +440,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                 </div>
               )}
 
-              {/* Retry error */}
               {retryError && (
                 <div style={{ background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 12 }}>
                   <p style={{ margin: 0, fontSize: 13, color: "#fca5a5" }}>✗ {retryError}</p>
@@ -465,25 +451,17 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
 
         {/* Footer */}
         <div style={{ padding: "12px 20px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          {/* Retry button — only shown when there are failed items with payloads */}
           {canRetry && detail && (
             <button
               onClick={handleRetry}
               disabled={retrying}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
+                display: "flex", alignItems: "center", gap: 6,
                 background: retrying ? "#1e293b" : "#7c2d12",
                 color: retrying ? "#475569" : "#fed7aa",
-                border: "1px solid",
-                borderColor: retrying ? "#334155" : "#9a3412",
-                borderRadius: 8,
-                padding: "8px 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: retrying ? "not-allowed" : "pointer",
-                transition: "all 0.15s",
+                border: "1px solid", borderColor: retrying ? "#334155" : "#9a3412",
+                borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600,
+                cursor: retrying ? "not-allowed" : "pointer", transition: "all 0.15s",
               }}
               title={`Reenviar ${failures.length} item${failures.length !== 1 ? "s" : ""} com falha`}
             >
@@ -494,7 +472,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                 </>
               ) : (
                 <>
-                  {/* Refresh icon */}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="1 4 1 10 7 10" />
                     <path d="M3.51 15a9 9 0 1 0 .49-3.36" />
@@ -505,7 +482,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
             </button>
           )}
 
-          {/* Spacer when no retry */}
           {!canRetry && <span />}
 
           <button
@@ -517,7 +493,6 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
         </div>
       </div>
 
-      {/* Inline keyframe for spinner */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -546,12 +521,10 @@ function NotifItem({ notif, onClick }: { notif: UiNotification; onClick: () => v
       onItemClick={onClick}
       className={`flex gap-3 rounded-lg border-b border-gray-100 px-4 py-3 transition-colors cursor-pointer hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.04] ${!notif.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
     >
-      {/* Dot indicator */}
       <span className="flex-shrink-0 mt-1.5">
         <span className={`block h-2.5 w-2.5 rounded-full ${config.dot}`} />
       </span>
 
-      {/* Content */}
       <span className="block min-w-0 flex-1">
         <span className="flex items-start justify-between gap-2 mb-0.5">
           <span className={`text-sm font-semibold leading-tight block ${
@@ -605,13 +578,21 @@ function NotifItem({ notif, onClick }: { notif: UiNotification; onClick: () => v
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen]               = useState(false);
   const [notifications, setNotifications] = useState<UiNotification[]>([]);
-  const [unreadCount, setUnreadCount]     = useState(0);
+  // CORRIGIDO: unreadCount agora é derivado do estado de notificações,
+  // não um estado separado que causava re-renders em cascata
+  const [markedReadAt, setMarkedReadAt]   = useState<number>(0); // timestamp do último "marcar como lido"
   const [sseStatus, setSseStatus]         = useState<"connecting" | "connected" | "disconnected">("disconnected");
   const [selectedNotif, setSelectedNotif] = useState<UiNotification | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
+  /**
+   * CORRIGIDO: upsertNotif agora NÃO chama setUnreadCount separadamente.
+   * O unread count é computado via useMemo a partir das notificações,
+   * evitando o double-render que causava o loop de recarregamento.
+   */
   const upsertNotif = useCallback((notif: UiNotification) => {
     setNotifications(prev => {
+      // Para eventos de progresso: atualiza in-place se já existe
       const isProgress = notif.status === "processing" || notif.status === "pending";
       if (isProgress) {
         const existingIdx = prev.findIndex(n => n.jobId === notif.jobId && (n.status === "processing" || n.status === "pending"));
@@ -621,6 +602,7 @@ export default function NotificationDropdown() {
           return next;
         }
       }
+      // Para eventos terminais (done/failed): substitui qualquer notif do mesmo job
       if (notif.status === "done" || notif.status === "failed") {
         const existing = prev.findIndex(n => n.jobId === notif.jobId);
         if (existing >= 0) {
@@ -629,12 +611,24 @@ export default function NotificationDropdown() {
           return next;
         }
       }
+      // Nova notificação: adiciona ao início
       return [notif, ...prev].slice(0, MAX_NOTIFICATIONS);
     });
-    if (!notif.read) {
-      setUnreadCount(c => c + 1);
+  }, []); // Sem dependências — usa apenas setNotifications (estável)
+
+  // CORRIGIDO: unreadCount calculado via useMemo, não via useState separado
+  // Conta notificações não lidas que chegaram APÓS o último "marcar como lido"
+  const unreadCount = useMemo(() => {
+    if (markedReadAt === 0) {
+      return notifications.filter(n => !n.read).length;
     }
-  }, []);
+    // Quando o dropdown foi aberto, marcamos o timestamp; só contam notifs novas após esse momento
+    return notifications.filter(n => {
+      if (n.read) return false;
+      const createdMs = new Date(n.createdAt).getTime();
+      return createdMs > markedReadAt;
+    }).length;
+  }, [notifications, markedReadAt]);
 
   useEffect(() => {
     const token = tokenStorage.get();
@@ -648,10 +642,10 @@ export default function NotificationDropdown() {
         const recent = await jobApiService.list(token);
         if (!isMounted) return;
         const initial = (recent.jobs || []).slice(0, 10).map(normalizeJobSummaryToNotif);
+        // CORRIGIDO: apenas uma operação de estado, não duas (setNotifications + setUnreadCount)
         setNotifications(initial);
-        setUnreadCount(initial.filter(n => !n.read).length);
       } catch {
-        // History unavailable — continue with stream only
+        // Histórico indisponível — continua com stream
       }
 
       controllerRef.current = new AbortController();
@@ -688,7 +682,9 @@ export default function NotificationDropdown() {
   function handleOpen() {
     setIsOpen(prev => !prev);
     if (!isOpen) {
-      setUnreadCount(0);
+      // CORRIGIDO: ao abrir, registra o timestamp e marca notifs existentes como lidas
+      // sem precisar de um estado "unreadCount" separado
+      setMarkedReadAt(Date.now());
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     }
   }
@@ -700,10 +696,8 @@ export default function NotificationDropdown() {
     setSelectedNotif(notif);
   }
 
-  // Called by DetailModal when a retry job is successfully submitted
   const handleRetryStarted = useCallback((newNotif: UiNotification) => {
     upsertNotif(newNotif);
-    setUnreadCount(c => c + 1);
   }, [upsertNotif]);
 
   const sseIndicatorColor =
@@ -758,7 +752,7 @@ export default function NotificationDropdown() {
               </div>
               {notifications.length > 0 && (
                 <button
-                  onClick={() => { setNotifications([]); setUnreadCount(0); }}
+                  onClick={() => { setNotifications([]); setMarkedReadAt(0); }}
                   className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   title="Limpar notificações"
                 >
