@@ -237,7 +237,6 @@ function NumberStepper({
     if (!isNaN(parsed)) onChange(clamp(parsed));
   };
 
-  // Prevent scroll-to-top when clicking stepper buttons
   const handleBtnClick = (e: React.MouseEvent, newVal: number) => {
     e.preventDefault();
     e.stopPropagation();
@@ -385,7 +384,7 @@ function CategoryCheckboxes({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function SeedTestPage() {
+export default function PageContent() {
   const [currentUser, setCurrentUser] = useState<MeuPerfilResponse | null>(null);
   const [academia, setAcademia] = useState<AcademiaInfo | null>(null);
   const [authError, setAuthError] = useState<string>("");
@@ -426,7 +425,6 @@ export default function SeedTestPage() {
   const [running, setRunning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef(false);
-  // ─── FIX: scroll controlado — só rola quando addLog é chamado ───────────────
   const shouldScrollRef = useRef(false);
 
   const addLog = useCallback((msg: string, level: LogLevel = "info") => {
@@ -435,7 +433,6 @@ export default function SeedTestPage() {
     shouldScrollRef.current = true;
   }, []);
 
-  // Scroll só disparado quando logs mudam E addLog marcou o ref
   useEffect(() => {
     if (shouldScrollRef.current) {
       shouldScrollRef.current = false;
@@ -462,7 +459,6 @@ export default function SeedTestPage() {
         tipo: ac.type,
         nivel: ac.nivel_escolar,
         anos_academicos: ac.anos_academicos || [],
-        // ─── FIX: usa o campo ano_letivo direto do objeto academia ──────────
         ano_letivo: ac.ano_letivo,
       };
       setAcademia(acInfo);
@@ -515,7 +511,6 @@ export default function SeedTestPage() {
     }
   };
 
-  // ─── FIX: refreshData agora busca o ano letivo real via GET /academia/ano-letivo
   const refreshData = async (ac?: AcademiaInfo) => {
     const acad = ac || academia;
     if (!acad?.token) return;
@@ -526,7 +521,6 @@ export default function SeedTestPage() {
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
       callApi("GET", "/estudantes", undefined, tok),
-      // ─── Campo canônico do ano letivo ─────────────────────────────────────
       callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
 
@@ -540,7 +534,6 @@ export default function SeedTestPage() {
     setTurmas(turmasData);
     setEstudantes(estudantesData);
 
-    // Atualiza o ano letivo no estado da academia com o valor retornado pelo endpoint dedicado
     const anoLetivoAtual = (rAnoLetivo.data as any)?.ano_letivo as string | undefined;
     if (anoLetivoAtual) {
       setAcademia(prev => prev ? { ...prev, ano_letivo: anoLetivoAtual } : prev);
@@ -554,11 +547,22 @@ export default function SeedTestPage() {
     );
   };
 
+  // ─── acompanharJob ────────────────────────────────────────────────────────────
+  // Shared helper: polls a job until done, logging progress, and reports failures.
   const acompanharJob = async (jobId: string, titulo: string) => {
+    addLog(`  ⏳ [${titulo}] Aguardando conclusão do job ${jobId}...`, "info");
+
     const detail = await pollJob(jobId, {
       timeoutMs: 5 * 60 * 1000,
       onProgress: (summary) => {
-        addLog(`  📊 Progresso: ${summary.progress ?? 0}% (${summary.done_items ?? 0}/${summary.total_items ?? 0})`, "dim");
+        const pct = summary.progress ?? 0;
+        const done = summary.done_items ?? 0;
+        const fail = summary.fail_items ?? 0;
+        const total = summary.total_items ?? 0;
+        addLog(
+          `  📊 [${titulo}] ${pct}% — ${done} ✓  ${fail > 0 ? `${fail} ✗` : ""}  de ${total}`,
+          "dim"
+        );
       },
     });
 
@@ -566,7 +570,7 @@ export default function SeedTestPage() {
     const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
 
     if (failures.length > 0) {
-      addLog(`  ⚠ ${titulo}: ${failures.length} item(ns) com falha`, "warn");
+      addLog(`  ⚠ [${titulo}] ${failures.length} item(ns) com falha`, "warn");
       failures.slice(0, 8).forEach((f, i) => {
         const payloadAny = f.payload as any;
         const label =
@@ -575,17 +579,22 @@ export default function SeedTestPage() {
           payloadAny?.codigo ||
           payloadAny?.nome ||
           `item #${(f.index ?? i) + 1}`;
-        const motivo = resolveJobItemError(f) || detail.error || 'Falha sem detalhe retornado';
+        const motivo = resolveJobItemError(f) || detail.error || "Falha sem detalhe retornado";
         addLog(`    • ${label}: ${motivo}`, "warn");
       });
       if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
     }
 
     if (detail.status === "failed" && detail.error) {
-      addLog(`  ✗ ${titulo}: ${detail.error}`, "err");
+      addLog(`  ✗ [${titulo}] ${detail.error}`, "err");
     }
 
-    return { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
+    const resultado = { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
+    addLog(
+      `  ✓ [${titulo}] Concluído — ${resultado.ok} sucesso${resultado.err > 0 ? ` · ${resultado.err} falha(s)` : ""}`,
+      resultado.ok > 0 ? "ok" : "err"
+    );
+    return resultado;
   };
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -630,7 +639,7 @@ export default function SeedTestPage() {
           if (okA) addLog(`    ✓ Curso ativado`, "dim");
         }
       } else {
-        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
         addLog(`  ✗ "${t.nome}": ${errMsg}`, "warn");
       }
       await sleep(300);
@@ -711,7 +720,7 @@ export default function SeedTestPage() {
 
       const { ok, data } = await callApi("POST", "/academia/materia", payload, academia.token);
       if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
         addLog(`  ✗ "${nome}": ${errMsg}`, "warn");
         await sleep(300);
         continue;
@@ -732,7 +741,7 @@ export default function SeedTestPage() {
           if (okA) addLog(`    ✓ Matéria ativada`, "dim");
           else addLog(`    ! Falha ao ativar`, "warn");
         } else {
-          const errP = (dataP as any)?.message || (dataP as any)?.error || 'Erro';
+          const errP = (dataP as any)?.message || (dataP as any)?.error || "Erro";
           addLog(`    ✗ Falha ao definir período: ${errP}`, "warn");
         }
       } else if (tipo !== "superior" && id) {
@@ -817,7 +826,7 @@ export default function SeedTestPage() {
         criadas++;
         addLog(`  ✓ Turma ${payload.codigo_turma} (${nivel}, ${turno}) criada`, "ok");
       } else {
-        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
         addLog(`  ✗ Turma ${payload.codigo_turma}: ${errMsg}`, "warn");
       }
       await sleep(200);
@@ -909,13 +918,13 @@ export default function SeedTestPage() {
 
     const { ok, data } = await callApi("POST", "/academia/estudante/register/async", items, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
       return;
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  ⏳ Job ${jobId} criado (${(data as any)?.total_items} estudantes) — aguardando conclusão...`, "info");
+    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
 
     const result = await acompanharJob(jobId, "Estudantes");
     addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
@@ -1016,13 +1025,13 @@ export default function SeedTestPage() {
 
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
       return;
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  ⏳ Job ${jobId} criado (${items.length} vínculos) — aguardando...`, "info");
+    addLog(`  Job ${jobId} criado — ${items.length} vínculo(s) na fila`, "info");
 
     const result = await acompanharJob(jobId, "Vínculos");
     addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
@@ -1030,7 +1039,14 @@ export default function SeedTestPage() {
     await refreshData();
   };
 
-  // ─── Gerar Notas ─────────────────────────────────────────────────────────────
+  // ─── Gerar Notas ──────────────────────────────────────────────────────────────
+  //
+  // Uses POST /academia/notas-aluno/async (batch async endpoint).
+  //
+  // Pre-check: fetches existing notes per student via GET /notas-estudante/:codigo
+  // to avoid duplicate-note errors. This is intentional deduplication, not the
+  // registration route.
+  //
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes — crie-os primeiro", "warn");
@@ -1051,14 +1067,31 @@ export default function SeedTestPage() {
     const sample = estudantes.slice(0, total);
 
     addLog(`Gerando notas para ${sample.length} estudante(s) — categorias: ${categoriasAtivas.join(", ")}`, "step");
+    addLog(`  Fase 1/2: verificando notas existentes (${sample.length} estudantes)...`, "info");
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
     const batch: any[] = [];
 
-    for (const est of sample) {
+    for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
 
-      const { ok: rOk, data: notasData } = await callApi("GET", `/notas-estudante/${est.codigo_estudante}`, undefined, academia.token);
+      const est = sample[i];
+
+      // Progress log every 10 students or on first/last
+      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
+        addLog(
+          `  🔍 Verificando notas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
+          "dim"
+        );
+      }
+
+      // Fetch existing notes to deduplicate — uses GET /notas-estudante/:codigo (read route)
+      const { ok: rOk, data: notasData } = await callApi(
+        "GET",
+        `/notas-estudante/${est.codigo_estudante}`,
+        undefined,
+        academia.token
+      );
       const notasExistentes = new Set<string>();
       if (rOk) {
         const notas: any[] = (notasData as any)?.notas || [];
@@ -1102,27 +1135,43 @@ export default function SeedTestPage() {
           }
         }
       }
+
       await sleep(30);
     }
 
-    if (batch.length === 0) { addLog("Nenhuma nota nova para registrar", "info"); return; }
-    addLog(`  Enviando ${batch.length} nota(s) via async (${categoriasAtivas.length} categoria(s) × matérias × períodos)...`, "dim");
+    if (batch.length === 0) {
+      addLog("Nenhuma nota nova para registrar (todas já existem ou nenhuma matéria compatível)", "info");
+      return;
+    }
+
+    addLog(
+      `  Fase 2/2: registrando ${batch.length} nota(s) via POST /academia/notas-aluno/async` +
+      ` (${categoriasAtivas.length} categoria(s) × matérias × períodos)...`,
+      "info"
+    );
 
     const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
-      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro ao submeter batch de notas: ${errMsg}`, "err");
       return;
     }
+
     const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  ⏳ Job ${jobId} (${batch.length} notas) — aguardando...`, "info");
+    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
+    addLog(`  Job ${jobId} criado — ${batch.length} nota(s) na fila`, "info");
 
     const result = await acompanharJob(jobId, "Notas");
     addLog(`Notas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
+  //
+  // Uses POST /academia/faltas-aluno/async (batch async endpoint).
+  //
+  // Pre-check: fetches existing absences per student via GET /faltas-estudante/:codigo
+  // to avoid duplicate-absence errors on the same date+subject.
+  //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn");
@@ -1134,6 +1183,7 @@ export default function SeedTestPage() {
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
     addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
+    addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
 
     const tipoMaterias = academia.tipo === "superior" ? "superior" : "escolar";
     const materiasTipo = materias.filter(m => m.type === tipoMaterias);
@@ -1145,10 +1195,26 @@ export default function SeedTestPage() {
 
     const batch: any[] = [];
 
-    for (const est of sample) {
+    for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
 
-      const { ok: rOk, data: faltasData } = await callApi("GET", `/faltas-estudante/${est.codigo_estudante}`, undefined, academia.token);
+      const est = sample[i];
+
+      // Progress log every 10 students or on first/last
+      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
+        addLog(
+          `  🔍 Verificando faltas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
+          "dim"
+        );
+      }
+
+      // Fetch existing absences to deduplicate — uses GET /faltas-estudante/:codigo (read route)
+      const { ok: rOk, data: faltasData } = await callApi(
+        "GET",
+        `/faltas-estudante/${est.codigo_estudante}`,
+        undefined,
+        academia.token
+      );
       const faltasExistentes = new Set<string>();
       if (rOk) {
         const faltas: any[] = (faltasData as any)?.faltas || [];
@@ -1172,21 +1238,30 @@ export default function SeedTestPage() {
           quantidade: rnd(1, 3),
         });
       }
+
       await sleep(30);
     }
 
-    if (batch.length === 0) { addLog("Nenhuma falta nova para registrar", "info"); return; }
-    addLog(`  Enviando ${batch.length} falta(s) via async...`, "dim");
+    if (batch.length === 0) {
+      addLog("Nenhuma falta nova para registrar (todas já existem para estas datas/matérias)", "info");
+      return;
+    }
+
+    addLog(
+      `  Fase 2/2: registrando ${batch.length} falta(s) via POST /academia/faltas-aluno/async...`,
+      "info"
+    );
 
     const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
-      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro ao submeter batch de faltas: ${errMsg}`, "err");
       return;
     }
+
     const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  ⏳ Job ${jobId} (${batch.length} faltas) — aguardando...`, "info");
+    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
+    addLog(`  Job ${jobId} criado — ${batch.length} falta(s) na fila`, "info");
 
     const result = await acompanharJob(jobId, "Faltas");
     addLog(`Faltas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
@@ -1264,18 +1339,23 @@ export default function SeedTestPage() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
+    addLog(`  Submetendo ${batch.length} avaliação(ões) via POST /academia/avaliacao-final/async...`, "info");
+
     const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
       addLog(`  ✗ Erro: ${errMsg}`, "err");
       return;
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  ⏳ Job ${jobId} (${batch.length} avaliações) — aguardando...`, "info");
+    addLog(`  Job ${jobId} criado — ${batch.length} avaliação(ões) na fila`, "info");
 
     const result = await acompanharJob(jobId, "Avaliações");
-    addLog(`Avaliações: ${result.ok} ✓  ${result.err} ✗  (${nAprov} aprovações estimadas de ${sample.length} total)`, result.ok > 0 ? "ok" : "err");
+    addLog(
+      `Avaliações: ${result.ok} ✓  ${result.err} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
+      result.ok > 0 ? "ok" : "err"
+    );
   };
 
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
@@ -1288,7 +1368,7 @@ export default function SeedTestPage() {
       addLog(`Ano letivo ${ano} (tipo: ${tipo}) configurado ✓`, "ok");
       setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev);
     } else {
-      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
       addLog(`Ano letivo: ${errMsg}`, "warn");
     }
   };
@@ -1869,9 +1949,9 @@ export default function SeedTestPage() {
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                {tipoNota === "superior"
-                  ? "Tipo: superior · Período: definido por matéria · Categorias: selecionadas acima"
-                  : "Tipo: escolar · Categorias: selecionadas acima · Períodos: conforme seleção"}
+                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code> (deduplicação)
+                <br />
+                Fase 2: registra via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> com acompanhamento de progresso
               </p>
             </Section>
 
@@ -1891,6 +1971,11 @@ export default function SeedTestPage() {
                   Gerar Faltas (async)
                 </Btn>
               </Row>
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
+                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code> (deduplicação)
+                <br />
+                Fase 2: registra via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> com acompanhamento de progresso
+              </p>
             </Section>
 
             {/* Avaliações Finais */}
