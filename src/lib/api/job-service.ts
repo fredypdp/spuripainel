@@ -97,6 +97,8 @@ export interface AsyncBatchResponse {
   total_items: number;
   status: JobStatus;
   poll_url: string;
+  /** URL do canal SSE para acompanhamento em tempo real */
+  sse_url: string;
 }
 
 // =====================
