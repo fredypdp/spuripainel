@@ -237,6 +237,13 @@ function NumberStepper({
     if (!isNaN(parsed)) onChange(clamp(parsed));
   };
 
+  // Prevent scroll-to-top when clicking stepper buttons
+  const handleBtnClick = (e: React.MouseEvent, newVal: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onChange(clamp(newVal));
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       {label && (
@@ -247,7 +254,7 @@ function NumberStepper({
       <div style={{ display: "flex", alignItems: "center", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, overflow: "hidden", height: 34 }}>
         <button
           type="button"
-          onClick={() => onChange(clamp(value - step))}
+          onClick={(e) => handleBtnClick(e, value - step)}
           disabled={value <= min}
           style={{
             width: 32, height: "100%", background: "transparent", border: "none",
@@ -265,6 +272,7 @@ function NumberStepper({
           max={max}
           step={step}
           onChange={handleInput}
+          onWheel={(e) => e.currentTarget.blur()}
           style={{
             width: 60, height: "100%", background: "transparent", border: "none",
             color: "#e2e8f0", fontSize: 13, fontWeight: 600, textAlign: "center",
@@ -273,7 +281,7 @@ function NumberStepper({
         />
         <button
           type="button"
-          onClick={() => onChange(clamp(value + step))}
+          onClick={(e) => handleBtnClick(e, value + step)}
           disabled={value >= max}
           style={{
             width: 32, height: "100%", background: "transparent", border: "none",
@@ -305,7 +313,6 @@ function CategoryCheckboxes({
 }) {
   const toggle = (val: string) => {
     if (selected.includes(val)) {
-      // Keep at least one selected
       if (selected.length === 1) return;
       onChange(selected.filter(v => v !== val));
     } else {
@@ -316,7 +323,6 @@ function CategoryCheckboxes({
   const all = options.every(o => selected.includes(o.value));
   const toggleAll = () => {
     if (all) {
-      // keep only first
       onChange([options[0].value]);
     } else {
       onChange(options.map(o => o.value));
@@ -395,7 +401,6 @@ export default function SeedTestPage() {
   const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random" });
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
 
-  // Categorias selecionadas para registro de notas
   const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_escola", "nota_professor"]);
   const [categoriaSuperiorSel, setCategoriaSuperiorSel] = useState<string[]>(["nota_pp1", "nota_pp2", "nota_exame"]);
 
@@ -421,12 +426,25 @@ export default function SeedTestPage() {
   const [running, setRunning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef(false);
+  // ─── FIX: scroll controlado — só rola quando addLog é chamado ───────────────
+  const shouldScrollRef = useRef(false);
 
   const addLog = useCallback((msg: string, level: LogLevel = "info") => {
     const ts = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     setLogs(prev => [...prev, { ts, level, msg }].slice(-800));
-    setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
+    shouldScrollRef.current = true;
   }, []);
+
+  // Scroll só disparado quando logs mudam E addLog marcou o ref
+  useEffect(() => {
+    if (shouldScrollRef.current) {
+      shouldScrollRef.current = false;
+      const timer = setTimeout(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [logs]);
 
   useEffect(() => {
     const userCookie = getCookie("user");
@@ -444,6 +462,7 @@ export default function SeedTestPage() {
         tipo: ac.type,
         nivel: ac.nivel_escolar,
         anos_academicos: ac.anos_academicos || [],
+        // ─── FIX: usa o campo ano_letivo direto do objeto academia ──────────
         ano_letivo: ac.ano_letivo,
       };
       setAcademia(acInfo);
@@ -496,25 +515,43 @@ export default function SeedTestPage() {
     }
   };
 
+  // ─── FIX: refreshData agora busca o ano letivo real via GET /academia/ano-letivo
   const refreshData = async (ac?: AcademiaInfo) => {
     const acad = ac || academia;
     if (!acad?.token) return;
     const tok = acad.token;
-    const [rCursos, rMaterias, rTurmas, rEstudantes] = await Promise.all([
+
+    const [rCursos, rMaterias, rTurmas, rEstudantes, rAnoLetivo] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
       callApi("GET", "/estudantes", undefined, tok),
+      // ─── Campo canônico do ano letivo ─────────────────────────────────────
+      callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
+
     const cursosData: Curso[] = (rCursos.data as any)?.cursos || [];
     const materiasData: Materia[] = (rMaterias.data as any)?.materias?.filter((m: any) => m.status === "ativo") || [];
     const turmasData: Turma[] = (rTurmas.data as any)?.turmas || [];
     const estudantesData: Estudante[] = (rEstudantes.data as any)?.estudantes || [];
+
     setCursos(cursosData);
     setMaterias(materiasData);
     setTurmas(turmasData);
     setEstudantes(estudantesData);
-    addLog(`Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ${turmasData.length} turmas, ${estudantesData.length} estudantes`, "dim");
+
+    // Atualiza o ano letivo no estado da academia com o valor retornado pelo endpoint dedicado
+    const anoLetivoAtual = (rAnoLetivo.data as any)?.ano_letivo as string | undefined;
+    if (anoLetivoAtual) {
+      setAcademia(prev => prev ? { ...prev, ano_letivo: anoLetivoAtual } : prev);
+    }
+
+    addLog(
+      `Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ` +
+      `${turmasData.length} turmas, ${estudantesData.length} estudantes` +
+      (anoLetivoAtual ? `, ano letivo: ${anoLetivoAtual.replace("_", "/")}` : ""),
+      "dim"
+    );
   };
 
   const acompanharJob = async (jobId: string, titulo: string) => {
@@ -1050,7 +1087,6 @@ export default function SeedTestPage() {
           periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
         }
 
-        // Registrar uma nota por categoria selecionada × período
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
             const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
@@ -1299,7 +1335,6 @@ export default function SeedTestPage() {
     return [...new Set(pool)];
   })();
 
-  // Categorias e tipo de nota da academia
   const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
@@ -1389,14 +1424,12 @@ export default function SeedTestPage() {
         : cursos.find(c => c.id === estudanteConfig.cursoSuperiorId)?.anos_academicos || [])
     : [];
 
-  // Estimativa de notas a gerar
   const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
   const periodosMult = academia.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
   const estimativaNota = totalEstudantesNota * Math.min(3, materias.length) * categoriasAtivas.length * periodosMult;
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
-      {/* hide number input arrows globally */}
       <style>{`
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
