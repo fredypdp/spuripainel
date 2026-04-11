@@ -42,7 +42,6 @@ const ANOS_MEDIO    = ["primeiro_medio","segundo_medio","terceiro_medio","quarto
 const ANOS_SUPERIOR = ["primeiro_ano","segundo_ano","terceiro_ano","quarto_ano","quinto_ano","sexto_ano"];
 const ORDEM_ANOS    = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO, ...ANOS_SUPERIOR];
 
-/** Ordena anos académicos em ordem crescente conforme sequência pedagógica */
 function sortAnos(anos: string[]): string[] {
   return [...anos].sort((a, b) => {
     const ia = ORDEM_ANOS.indexOf(a); const ib = ORDEM_ANOS.indexOf(b);
@@ -61,11 +60,6 @@ const NIVEL_BASE: Record<string, string> = {
   quarto_ano:"4º Ano",           quinto_ano:"5º Ano",          sexto_ano:"6º Ano",
 };
 
-/**
- * Formata rótulo de um ano académico.
- * comSufixo=true → "1º Ano (Ensino Fundamental)" / "1º Médio (Ensino Médio)"
- * Superior nunca leva sufixo (já é implícito no contexto do curso).
- */
 function labelNivel(v: string, comSufixo = false): string {
   const base = NIVEL_BASE[v] ?? v.replace(/_/g, " ");
   if (!comSufixo) return base;
@@ -204,24 +198,32 @@ function TabelaNotasTurma({ notas, estudantes, isSuperior }: { notas:Nota[]; est
 }
 
 // ─── Modal de gestão de notas ─────────────────────────────────────────────────
+// Tabs: registrar | atualizar | deletar | categoria
 
-type ModalMode = "registrar" | "atualizar" | "categoria";
+type ModalMode = "registrar" | "atualizar" | "deletar" | "categoria";
 
 function ModalGestao({
   isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLectivo,
-  estudantes, materias, categorias, onRegistrar, onAtualizar, onCriarCategoria,
+  estudantes, materias, categorias, onRegistrar, onAtualizar, onDeletar, onCriarCategoria,
 }: {
-  isOpen:boolean; onClose:()=>void; isSuperior:boolean; tipoNota:TipoNota;
-  PERIODOS:{label:string;value:string}[]; anoLectivo:string;
-  estudantes:EstudanteDetalhado[]; materias:any[]; categorias:any[];
+  isOpen:boolean;
+  onClose:()=>void;
+  isSuperior:boolean;
+  tipoNota:TipoNota;
+  PERIODOS:{label:string;value:string}[];
+  anoLectivo:string;
+  estudantes:EstudanteDetalhado[];
+  materias:any[];
+  categorias:any[];
   onRegistrar:(d:RegistrarNotasRequest)=>Promise<void>;
-  onAtualizar:(d:AtualizarNotaRequest, codigoEst:string)=>Promise<void>;
+  onAtualizar:(d:AtualizarNotaRequest)=>Promise<void>;
+  onDeletar:(notaId:string, motivo:string)=>Promise<void>;
   onCriarCategoria:(d:CriarCategoriaNotaRequest)=>Promise<void>;
 }) {
   const [mode, setMode] = useState<ModalMode>("registrar");
   const [error, setError] = useState<string|null>(null);
 
-  // form registrar — ano_academico omitido (backend preenche automaticamente)
+  // form registrar
   const [codigoEst, setCodigoEst] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [materiaId, setMateriaId] = useState("");
@@ -237,12 +239,21 @@ function ModalGestao({
   const [notasEstudante, setNotasEstudante] = useState<Nota[]>([]);
   const { execute:carregarNotasEst } = useApi(consultasService.notasEstudante);
 
+  // form deletar
+  const [estDeletar, setEstDeletar]     = useState("");
+  const [notaIdDeletar, setNotaIdDeletar] = useState("");
+  const [motivoDeletar, setMotivoDeletar] = useState("");
+  const [notasEstDeletar, setNotasEstDeletar] = useState<Nota[]>([]);
+  const { execute:carregarNotasEstDeletar } = useApi(consultasService.notasEstudante);
+
   // form categoria
   const [nomeCateg, setNomeCateg] = useState("");
   const [descCateg, setDescCateg] = useState("");
 
   const CATS_FIXAS = isSuperior ? CATEGORIAS_FIXAS_SUPERIOR : CATEGORIAS_ESCOLAR;
   const todasCats  = [...CATS_FIXAS, ...categorias.map(c => ({ label:c.nome, value:c.nome }))];
+
+  // ── Registrar ────────────────────────────────────────────────────────────────
 
   async function handleRegistrar(e: React.FormEvent) {
     e.preventDefault(); setError(null);
@@ -252,7 +263,6 @@ function ModalGestao({
     const n = Number(nota);
     if (isNaN(n) || n < 0 || n > 20) { setError("Nota deve estar entre 0 e 20."); return; }
     try {
-      // ano_lectivo não enviado — backend determina com base no ano letivo ativo da academia
       await onRegistrar({
         codigo_estudante: codigoEst,
         periodo: periodo as any,
@@ -266,16 +276,47 @@ function ModalGestao({
     } catch (err: any) { setError(err?.message ?? "Erro ao registar nota."); }
   }
 
+  // ── Atualizar ────────────────────────────────────────────────────────────────
+
+  async function handleSelecionarEstAtualizar(codigo: string) {
+    setEstAtualizar(codigo); setNotaId(""); setNotaNova(""); setObsAtualizar("");
+    const res = await carregarNotasEst(codigo);
+    setNotasEstudante((res as any)?.notas ?? []);
+  }
+
   async function handleAtualizar(e: React.FormEvent) {
     e.preventDefault(); setError(null);
     if (!notaId || notaNova === "" || !obsAtualizar) { setError("Preencha todos os campos."); return; }
     const n = Number(notaNova);
     if (isNaN(n) || n < 0 || n > 20) { setError("Nota deve estar entre 0 e 20."); return; }
     try {
-      await onAtualizar({ id:notaId, nota_nova:n, observacao:obsAtualizar }, estAtualizar);
+      // Correto: onAtualizar recebe apenas AtualizarNotaRequest (sem segundo argumento)
+      await onAtualizar({ id:notaId, nota_nova:n, observacao:obsAtualizar });
       onClose();
     } catch (err: any) { setError(err?.message ?? "Erro ao atualizar nota."); }
   }
+
+  // ── Deletar ──────────────────────────────────────────────────────────────────
+  // DELETE /academia/nota/:id  (body: { motivo })
+
+  async function handleSelecionarEstDeletar(codigo: string) {
+    setEstDeletar(codigo); setNotaIdDeletar(""); setMotivoDeletar("");
+    const res = await carregarNotasEstDeletar(codigo);
+    setNotasEstDeletar((res as any)?.notas ?? []);
+  }
+
+  async function handleDeletar(e: React.FormEvent) {
+    e.preventDefault(); setError(null);
+    if (!notaIdDeletar || !motivoDeletar.trim()) {
+      setError("Selecione a nota e informe o motivo da exclusão."); return;
+    }
+    try {
+      await onDeletar(notaIdDeletar, motivoDeletar);
+      onClose();
+    } catch (err: any) { setError(err?.message ?? "Erro ao excluir nota."); }
+  }
+
+  // ── Categoria ────────────────────────────────────────────────────────────────
 
   async function handleCriarCategoria(e: React.FormEvent) {
     e.preventDefault(); setError(null);
@@ -285,89 +326,250 @@ function ModalGestao({
     catch (err: any) { setError(err?.message ?? "Erro ao criar categoria."); }
   }
 
-  async function handleSelecionarEstAtualizar(codigo: string) {
-    setEstAtualizar(codigo); setNotaId(""); setNotaNova(""); setObsAtualizar("");
-    const res = await carregarNotasEst(codigo);
-    setNotasEstudante((res as any)?.notas ?? []);
-  }
-
   if (!isOpen) return null;
+
+  const TABS: { key: ModalMode; label: string }[] = [
+    { key: "registrar", label: "Registar" },
+    { key: "atualizar", label: "Atualizar" },
+    { key: "deletar",   label: "Excluir" },
+    ...(isSuperior ? [{ key: "categoria" as ModalMode, label: "Categorias" }] : []),
+  ];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[560px] p-5 lg:p-8">
-      <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
-        {(["registrar","atualizar","categoria"] as ModalMode[]).map(k => (
-          <button key={k} onClick={() => setMode(k)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${mode===k?"bg-brand-500 text-white":"text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"}`}>
-            {k === "registrar" ? "Registar" : k === "atualizar" ? "Atualizar" : "Categorias"}
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4 flex-wrap">
+        {TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => { setMode(key); setError(null); }}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
+              mode === key
+                ? key === "deletar"
+                  ? "bg-red-500 text-white"
+                  : "bg-brand-500 text-white"
+                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+            }`}
+          >
+            {label}
           </button>
         ))}
       </div>
 
-      {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
+      {/* Error banner */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
+      {/* ── Registrar ── */}
       {mode === "registrar" && (
         <form onSubmit={handleRegistrar} className="space-y-4">
           <h4 className="font-semibold text-gray-900 dark:text-white">Registar Nota</h4>
           <div>
             <Label>Estudante *</Label>
-            <Dropdown value={codigoEst} options={estudantes.map(e=>({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))} onChange={e=>setCodigoEst(e.value)} placeholder="Selecione" className="w-full" filter/>
+            <Dropdown
+              value={codigoEst}
+              options={estudantes.map(e => ({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))}
+              onChange={e => setCodigoEst(e.value)}
+              placeholder="Selecione"
+              className="w-full"
+              filter
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div><Label>Período *</Label><Dropdown value={periodo} options={PERIODOS} onChange={e=>setPeriodo(e.value)} placeholder="Selecione" className="w-full"/></div>
-            <div><Label>Matéria *</Label>
-            <Dropdown value={materiaId} options={materias.map(m=>({ label:m.nome, value:m.id }))}
-              onChange={e => {
-                const id = e.value;
-                setMateriaId(id);
-                if (isSuperior) {
-                  const mat = (materias as any[]).find((m: any) => m.id === id);
-                  setPeriodo(mat?.periodo ?? "");
-                }
-              }} placeholder="Selecione" className="w-full" filter/></div>
+            <div>
+              <Label>Período *</Label>
+              <Dropdown
+                value={periodo}
+                options={PERIODOS}
+                onChange={e => setPeriodo(e.value)}
+                placeholder="Selecione"
+                className="w-full"
+              />
+            </div>
+            <div>
+              <Label>Matéria *</Label>
+              <Dropdown
+                value={materiaId}
+                options={materias.map(m => ({ label:m.nome, value:m.id }))}
+                onChange={e => {
+                  const id = e.value;
+                  setMateriaId(id);
+                  if (isSuperior) {
+                    const mat = (materias as any[]).find((m: any) => m.id === id);
+                    setPeriodo(mat?.periodo ?? "");
+                  }
+                }}
+                placeholder="Selecione"
+                className="w-full"
+                filter
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div><Label>Categoria *</Label><Dropdown value={categoria} options={todasCats} onChange={e=>setCategoria(e.value)} placeholder="Selecione" className="w-full"/></div>
-            <div><Label>Nota (0–20) *</Label><Input type="number" min="0" max="20" step={0.01} onChange={e=>setNota(e.target.value===""?"":Number(e.target.value))} placeholder="Ex: 14"/></div>
+            <div>
+              <Label>Categoria *</Label>
+              <Dropdown
+                value={categoria}
+                options={todasCats}
+                onChange={e => setCategoria(e.value)}
+                placeholder="Selecione"
+                className="w-full"
+              />
+            </div>
+            <div>
+              <Label>Nota (0–20) *</Label>
+              <Input
+                type="number"
+                min="0"
+                max="20"
+                step={0.01}
+                onChange={e => setNota(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder="Ex: 14"
+              />
+            </div>
           </div>
-          <div><Label>Observação</Label><Input onChange={e=>setObs(e.target.value)} placeholder="Opcional"/></div>
+          <div>
+            <Label>Observação</Label>
+            <Input onChange={e => setObs(e.target.value)} placeholder="Opcional"/>
+          </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Registar</button>
+            <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">
+              Registar
+            </button>
           </div>
         </form>
       )}
 
+      {/* ── Atualizar ── */}
       {mode === "atualizar" && (
         <form onSubmit={handleAtualizar} className="space-y-4">
           <h4 className="font-semibold text-gray-900 dark:text-white">Atualizar Nota</h4>
           <div>
             <Label>Estudante *</Label>
-            <Dropdown value={estAtualizar} options={estudantes.map(e=>({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))} onChange={e=>handleSelecionarEstAtualizar(e.value)} placeholder="Selecione" className="w-full" filter/>
+            <Dropdown
+              value={estAtualizar}
+              options={estudantes.map(e => ({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))}
+              onChange={e => handleSelecionarEstAtualizar(e.value)}
+              placeholder="Selecione"
+              className="w-full"
+              filter
+            />
           </div>
           {estAtualizar && (
             <div>
-              <Label>Nota *</Label>
-              <Dropdown value={notaId} options={notasEstudante.map(n=>({ label:`${n.materia_nome??n.materia_disciplinar_id} · ${PERIODOS_LABEL[n.periodo]??n.periodo} · ${formatCategoria(n.categoria)} → ${n.nota}`, value:n.id }))} onChange={e=>setNotaId(e.value)} placeholder="Selecione" className="w-full" filter/>
+              <Label>Nota a atualizar *</Label>
+              <Dropdown
+                value={notaId}
+                options={notasEstudante.map(n => ({
+                  label:`${n.materia_nome ?? n.materia_disciplinar_id} · ${PERIODOS_LABEL[n.periodo] ?? n.periodo} · ${formatCategoria(n.categoria)} → ${n.nota}`,
+                  value:n.id,
+                }))}
+                onChange={e => setNotaId(e.value)}
+                placeholder="Selecione"
+                className="w-full"
+                filter
+              />
             </div>
           )}
-          <div><Label>Nova nota (0–20) *</Label><Input type="number" min="0" max="20" step={0.01} onChange={e=>setNotaNova(e.target.value===""?"":Number(e.target.value))} placeholder="Ex: 14"/></div>
-          <div><Label>Justificação *</Label><Input onChange={e=>setObsAtualizar(e.target.value)} placeholder="Obrigatório"/></div>
+          <div>
+            <Label>Nova nota (0–20) *</Label>
+            <Input
+              type="number"
+              min="0"
+              max="20"
+              step={0.01}
+              onChange={e => setNotaNova(e.target.value === "" ? "" : Number(e.target.value))}
+              placeholder="Ex: 14"
+            />
+          </div>
+          <div>
+            <Label>Justificação *</Label>
+            <Input onChange={e => setObsAtualizar(e.target.value)} placeholder="Obrigatório"/>
+          </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Atualizar</button>
+            <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">
+              Atualizar
+            </button>
           </div>
         </form>
       )}
 
+      {/* ── Deletar ── */}
+      {mode === "deletar" && (
+        <form onSubmit={handleDeletar} className="space-y-4">
+          <h4 className="font-semibold text-gray-900 dark:text-white">Excluir Nota</h4>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            A nota é removida da projeção mas permanece no ledger para auditoria.
+          </p>
+          <div>
+            <Label>Estudante *</Label>
+            <Dropdown
+              value={estDeletar}
+              options={estudantes.map(e => ({ label:`${e.nome} (${e.codigo_estudante})`, value:e.codigo_estudante }))}
+              onChange={e => handleSelecionarEstDeletar(e.value)}
+              placeholder="Selecione"
+              className="w-full"
+              filter
+            />
+          </div>
+          {estDeletar && (
+            <div>
+              <Label>Nota a excluir *</Label>
+              <Dropdown
+                value={notaIdDeletar}
+                options={notasEstDeletar.map(n => ({
+                  label:`${n.materia_nome ?? n.materia_disciplinar_id} · ${PERIODOS_LABEL[n.periodo] ?? n.periodo} · ${formatCategoria(n.categoria)} → ${n.nota}`,
+                  value:n.id,
+                }))}
+                onChange={e => setNotaIdDeletar(e.value)}
+                placeholder="Selecione"
+                className="w-full"
+                filter
+              />
+            </div>
+          )}
+          <div>
+            <Label>Motivo da exclusão *</Label>
+            <Input
+              onChange={e => setMotivoDeletar(e.target.value)}
+              placeholder="Informe o motivo (obrigatório)"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+            >
+              Excluir Nota
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── Categoria ── */}
       {mode === "categoria" && (
         <form onSubmit={handleCriarCategoria} className="space-y-4">
           <h4 className="font-semibold text-gray-900 dark:text-white">Nova Categoria</h4>
-          <div><Label>Nome *</Label><Input onChange={e=>setNomeCateg(e.target.value)} placeholder="Ex: nota_trabalho"/><p className="text-xs text-gray-500 mt-1">Será prefixado com nota_ se necessário.</p></div>
-          <div><Label>Descrição</Label><Input onChange={e=>setDescCateg(e.target.value)} placeholder="Opcional"/></div>
+          <div>
+            <Label>Nome *</Label>
+            <Input onChange={e => setNomeCateg(e.target.value)} placeholder="Ex: nota_trabalho"/>
+            <p className="text-xs text-gray-500 mt-1">Será prefixado com nota_ se necessário.</p>
+          </div>
+          <div>
+            <Label>Descrição</Label>
+            <Input onChange={e => setDescCateg(e.target.value)} placeholder="Opcional"/>
+          </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Criar</button>
+            <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">
+              Criar
+            </button>
           </div>
         </form>
       )}
@@ -388,9 +590,6 @@ export default function NotasAcademia() {
   const isMisto       = academiaType === "escola" && nivelEscolar === "misto";
   const tipoNota: TipoNota = isSuperior ? "superior" : "escolar";
 
-  // PERIODOS é calculado uma vez aqui e passado para todos os lugares que precisam.
-  // - escolas (fundamental / médio / misto) → trimestres
-  // - superior → semestres
   const PERIODOS = isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA;
 
   const initLayer = (): Layer => {
@@ -451,7 +650,6 @@ export default function NotasAcademia() {
   const turmasPorNivel = (nivel: string)   => turmas.filter(t => t.nivel === nivel && t.status === "ativo");
   const turmasPorCurso = (cursoId: string) => turmas.filter(t => t.curso_id === cursoId && t.status === "ativo");
 
-  /** Anos de um curso ordenados crescentemente pela sequência pedagógica */
   const anosDosCurso = (c: Curso) => sortAnos(c.anos_academicos ?? []);
 
   const anosFundamentais = useMemo(() => {
@@ -459,14 +657,32 @@ export default function NotasAcademia() {
     return comTurmas.length > 0 ? comTurmas : ANOS_FUNDAMENTAL;
   }, [turmas]);
 
+  // POST /academia/notas-aluno
   async function handleRegistrar(d: RegistrarNotasRequest) {
     await academiaService.registrarNota(d, token);
     showAlert("success", "Nota registada com sucesso.");
   }
+
+  // PUT /academia/atualizar-nota
   async function handleAtualizar(d: AtualizarNotaRequest) {
     await academiaService.atualizarNota(d, token);
     showAlert("success", "Nota atualizada com sucesso.");
   }
+
+  // DELETE /academia/nota/:id  (body: { motivo })
+  async function handleDeletar(notaId: string, motivo: string) {
+    await academiaService.deletarNota(notaId, motivo, token);
+    // Invalidate the cache for any student that had this note
+    setNotasCache(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(codigo => {
+        next[codigo] = (next[codigo] ?? []).filter(n => n.id !== notaId);
+      });
+      return next;
+    });
+    showAlert("success", "Nota excluída com sucesso.");
+  }
+
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
     await academiaService.criarCategoriaNota(d, token);
     carregarCategorias(token);
@@ -482,10 +698,10 @@ export default function NotasAcademia() {
       const goAnos = () => setLayer({ mode:"fund", type:"anos" });
       const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
       const base = isMisto ? [{ label:"Início", onClick:goInicio }, anosCrumb] : [anosCrumb];
-      if (layer.type === "anos")    return base;
-      if (layer.type === "turmas")  return [...base, { label:labelNivel(layer.ano, true), onClick:()=>setLayer({mode:"fund",type:"turmas",ano:layer.ano}) }];
+      if (layer.type === "anos")     return base;
+      if (layer.type === "turmas")   return [...base, { label:labelNivel(layer.ano, true), onClick:()=>setLayer({mode:"fund",type:"turmas",ano:layer.ano}) }];
       if (layer.type === "periodos") return [...base, { label:labelNivel(layer.ano, true), onClick:()=>setLayer({mode:"fund",type:"turmas",ano:layer.ano}) }, { label:layer.turma.codigo_turma }];
-      if (layer.type === "notas")   return [...base, { label:labelNivel(layer.ano, true), onClick:()=>setLayer({mode:"fund",type:"turmas",ano:layer.ano}) }, { label:layer.turma.codigo_turma, onClick:()=>setLayer({mode:"fund",type:"periodos",ano:layer.ano,turma:layer.turma}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
+      if (layer.type === "notas")    return [...base, { label:labelNivel(layer.ano, true), onClick:()=>setLayer({mode:"fund",type:"turmas",ano:layer.ano}) }, { label:layer.turma.codigo_turma, onClick:()=>setLayer({mode:"fund",type:"periodos",ano:layer.ano,turma:layer.turma}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
     }
 
     if (layer.mode === "sup") {
@@ -509,7 +725,6 @@ export default function NotasAcademia() {
   function renderLayer() {
     const crumbs = buildCrumbs();
 
-    // Misto: escolha de nível
     if (layer.mode === "misto" && layer.type === "choose") return (
       <div className="space-y-6">
         <div>
@@ -523,7 +738,6 @@ export default function NotasAcademia() {
       </div>
     );
 
-    // Fundamental: lista de anos
     if (layer.mode === "fund" && layer.type === "anos") return (
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs}/>
@@ -537,7 +751,6 @@ export default function NotasAcademia() {
       </div>
     );
 
-    // Fundamental: turmas de um ano
     if (layer.mode === "fund" && layer.type === "turmas") {
       const ts = turmasPorNivel(layer.ano);
       return (
@@ -554,7 +767,6 @@ export default function NotasAcademia() {
       );
     }
 
-    // Fundamental: períodos
     if (layer.mode === "fund" && layer.type === "periodos") {
       const { ano, turma } = layer;
       return (
@@ -572,7 +784,6 @@ export default function NotasAcademia() {
       );
     }
 
-    // Fundamental: notas
     if (layer.mode === "fund" && layer.type === "notas") {
       const { ano, turma, periodo } = layer;
       const notas = notasDaTurmaEmPeriodo(turma, ano, periodo);
@@ -589,7 +800,6 @@ export default function NotasAcademia() {
       );
     }
 
-    // Superior/Médio: cursos
     if (layer.mode === "sup" && layer.type === "cursos") return (
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs}/>
@@ -603,7 +813,6 @@ export default function NotasAcademia() {
       </div>
     );
 
-    // Superior/Médio: anos do curso (ordenados crescentemente)
     if (layer.mode === "sup" && layer.type === "anos") {
       const { curso } = layer as { mode:"sup"; type:"anos"; curso:Curso };
       const anos = anosDosCurso(curso);
@@ -623,7 +832,6 @@ export default function NotasAcademia() {
       );
     }
 
-    // Superior/Médio: turmas
     if (layer.mode === "sup" && layer.type === "turmas") {
       const { curso, ano } = layer as { mode:"sup"; type:"turmas"; curso:Curso; ano:string };
       const ts = turmasPorCurso(curso.id).filter(t => t.nivel === ano);
@@ -641,9 +849,6 @@ export default function NotasAcademia() {
       );
     }
 
-    // Superior/Médio: períodos
-    // FIX: usa `PERIODOS` (calculado no topo) em vez de `PERIODOS_SUPERIOR` hardcoded.
-    // Isso garante que escolas do tipo "médio" mostrem trimestres, não semestres.
     if (layer.mode === "sup" && layer.type === "periodos") {
       const { curso, ano, turma } = layer as any;
       return (
@@ -661,7 +866,6 @@ export default function NotasAcademia() {
       );
     }
 
-    // Superior/Médio: notas
     if (layer.mode === "sup" && layer.type === "notas") {
       const { curso, ano, turma, periodo } = layer as any;
       const notas = notasDaTurmaEmPeriodo(turma, ano, periodo);
@@ -683,22 +887,48 @@ export default function NotasAcademia() {
 
   return (
     <div className="space-y-6">
-      {alert && <Alert variant={alert.variant} title={alert.variant==="success"?"Sucesso":"Erro"} message={alert.message}/>}
+      {alert && (
+        <Alert
+          variant={alert.variant}
+          title={alert.variant === "success" ? "Sucesso" : "Erro"}
+          message={alert.message}
+        />
+      )}
 
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Notas</h2>
         <div className="flex gap-2">
-          {isSuperior && <Button size="sm" variant="outline" startIcon={<Icon icon="mdi:tag-plus-outline"/>} onClick={openModal}>Categoria</Button>}
-          <Button size="sm" startIcon={<Icon icon="mdi:plus"/>} onClick={openModal}>Nova Nota</Button>
+          {isSuperior && (
+            <Button
+              size="sm"
+              variant="outline"
+              startIcon={<Icon icon="mdi:tag-plus-outline"/>}
+              onClick={openModal}
+            >
+              Categoria
+            </Button>
+          )}
+          <Button size="sm" startIcon={<Icon icon="mdi:plus"/>} onClick={openModal}>
+            Nova Nota
+          </Button>
         </div>
       </div>
 
       {renderLayer()}
 
       <ModalGestao
-        isOpen={isOpen} onClose={closeModal} isSuperior={isSuperior} tipoNota={tipoNota}
-        PERIODOS={PERIODOS} anoLectivo={anoLectivo} estudantes={estudantes} materias={materias}
-        categorias={categorias} onRegistrar={handleRegistrar} onAtualizar={handleAtualizar}
+        isOpen={isOpen}
+        onClose={closeModal}
+        isSuperior={isSuperior}
+        tipoNota={tipoNota}
+        PERIODOS={PERIODOS}
+        anoLectivo={anoLectivo}
+        estudantes={estudantes}
+        materias={materias}
+        categorias={categorias}
+        onRegistrar={handleRegistrar}
+        onAtualizar={handleAtualizar}
+        onDeletar={handleDeletar}
         onCriarCategoria={handleCriarCategoria}
       />
     </div>
