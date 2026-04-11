@@ -54,7 +54,9 @@ export type JobType =
   | 'desativar_academia_batch'
   // Admin — admins
   | 'ativar_admin_batch'
-  | 'desativar_admin_batch';
+  | 'desativar_admin_batch'
+  // Admin — rebuild de projeção
+  | 'rebuild_projection';
 
 export interface JobSummary {
   id: string;
@@ -91,13 +93,18 @@ export interface JobDetail extends JobSummary {
   results: JobItemResult[];
 }
 
+/**
+ * Resposta padrão de todas as rotas batch assíncronas (202 Accepted).
+ * Inclui `sse_url` desde a versão 1.0.9 do backend.
+ */
 export interface AsyncBatchResponse {
   message: string;
   job_id: string;
   total_items: number;
   status: JobStatus;
+  /** URL de polling: GET /jobs/:id */
   poll_url: string;
-  /** URL do canal SSE para acompanhamento em tempo real */
+  /** URL SSE para acompanhamento em tempo real: GET /jobs/stream */
   sse_url: string;
 }
 

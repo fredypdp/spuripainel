@@ -924,8 +924,11 @@ export const adminService = {
     ),
 
   /**
-   * Rebuild assíncrono — retorna 202 + job_id.
-   * Acompanhe via GET /jobs/:id ou GET /jobs/stream (SSE).
+   * Rebuild assíncrono — retorna 202 com job_id, poll_url e sse_url.
+   * Acompanhe via GET /jobs/:id (polling) ou GET /jobs/stream (SSE).
+   *
+   * Desde a versão 1.0.9 do backend, a resposta inclui `sse_url`
+   * padronizado junto com `poll_url`.
    */
   rebuildProjectionAsync: (name: string, token?: string) =>
     api.post<AsyncBatchResponse>(
