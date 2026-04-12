@@ -34,12 +34,13 @@ const PERIODOS_SUPERIOR = [{ label: "1º Semestre", value: "1_semestre" }, { lab
 const CATEGORIAS_ESCOLAR        = [{ label: "Nota Final", value: "nota_escola" }, { label: "Nota Professor", value: "nota_professor" }];
 const CATEGORIAS_FIXAS_SUPERIOR = [{ label: "PP1", value: "nota_pp1" }, { label: "PP2", value: "nota_pp2" }, { label: "Exame", value: "nota_exame" }];
 
+// Formato canônico da API: N_ano_fundamental | N_ano_medio | N_ano_superior
 const ANOS_FUNDAMENTAL = [
-  "primeiro_fundamental", "segundo_fundamental", "terceiro_fundamental", "quarto_fundamental",
-  "quinto_fundamental", "sexto_fundamental", "setimo_fundamental", "oitavo_fundamental", "nono_fundamental",
+  "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
+  "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental",
 ];
-const ANOS_MEDIO    = ["primeiro_medio", "segundo_medio", "terceiro_medio", "quarto_medio"];
-const ANOS_SUPERIOR = ["primeiro_ano", "segundo_ano", "terceiro_ano", "quarto_ano", "quinto_ano", "sexto_ano"];
+const ANOS_MEDIO    = ["1_ano_medio", "2_ano_medio", "3_ano_medio", "4_ano_medio"];
+const ANOS_SUPERIOR = ["1_ano_superior", "2_ano_superior", "3_ano_superior", "4_ano_superior", "5_ano_superior", "6_ano_superior"];
 const ORDEM_ANOS    = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO, ...ANOS_SUPERIOR];
 
 function sortAnos(anos: string[]): string[] {
@@ -52,14 +53,6 @@ function sortAnos(anos: string[]): string[] {
 }
 
 const NIVEL_BASE: Record<string, string> = {
-  // Formato antigo (usado nas notas/ano_academico)
-  primeiro_fundamental: "1º Ano", segundo_fundamental: "2º Ano", terceiro_fundamental: "3º Ano",
-  quarto_fundamental: "4º Ano",   quinto_fundamental: "5º Ano",  sexto_fundamental: "6º Ano",
-  setimo_fundamental: "7º Ano",   oitavo_fundamental: "8º Ano",  nono_fundamental: "9º Ano",
-  primeiro_medio: "1º Médio",     segundo_medio: "2º Médio",     terceiro_medio: "3º Médio",     quarto_medio: "4º Médio",
-  primeiro_ano: "1º Ano",         segundo_ano: "2º Ano",         terceiro_ano: "3º Ano",
-  quarto_ano: "4º Ano",           quinto_ano: "5º Ano",          sexto_ano: "6º Ano",
-  // Formato novo (usado nas turmas/nivel e nos estudantes)
   "1_ano_fundamental": "1º Ano", "2_ano_fundamental": "2º Ano", "3_ano_fundamental": "3º Ano",
   "4_ano_fundamental": "4º Ano", "5_ano_fundamental": "5º Ano", "6_ano_fundamental": "6º Ano",
   "7_ano_fundamental": "7º Ano", "8_ano_fundamental": "8º Ano", "9_ano_fundamental": "9º Ano",
@@ -784,7 +777,7 @@ export default function NotasAcademia() {
     if (layer.mode === "fund" && layer.type === "anos") return (
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos — Ensino Fundamental</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Acadêmicos — Ensino Fundamental</h2>
         {niveisFundamentais.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />

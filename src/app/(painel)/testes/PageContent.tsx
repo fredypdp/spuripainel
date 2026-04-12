@@ -522,21 +522,27 @@ export default function SeedTestPage() {
     const acad = ac || academia;
     if (!acad?.token) return;
     const tok = acad.token;
-    const [rCursos, rMaterias, rTurmas, rEstudantes] = await Promise.all([
+    const [rCursos, rMaterias, rTurmas, rEstudantes, rAnoLetivo] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
       callApi("GET", "/estudantes", undefined, tok),
+      callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
     const cursosData: Curso[] = (rCursos.data as any)?.cursos || [];
     const materiasData: Materia[] = (rMaterias.data as any)?.materias?.filter((m: any) => m.status === "ativo") || [];
     const turmasData: Turma[] = (rTurmas.data as any)?.turmas || [];
     const estudantesData: Estudante[] = (rEstudantes.data as any)?.estudantes || [];
+    // Ano letivo sempre buscado da API para estar atualizado
+    const anoLetivoApi: string | undefined = rAnoLetivo.ok ? (rAnoLetivo.data as any)?.ano_letivo : undefined;
     setCursos(cursosData);
     setMaterias(materiasData);
     setTurmas(turmasData);
     setEstudantes(estudantesData);
-    addLog(`Dados: ${cursosData.length} cursos · ${materiasData.length} matérias ativas · ${turmasData.length} turmas · ${estudantesData.length} estudantes`, "dim");
+    if (anoLetivoApi) {
+      setAcademia(prev => prev ? { ...prev, ano_letivo: anoLetivoApi } : prev);
+    }
+    addLog(`Dados: ${cursosData.length} cursos · ${materiasData.length} matérias ativas · ${turmasData.length} turmas · ${estudantesData.length} estudantes${anoLetivoApi ? ` · Ano letivo: ${anoLetivoApi.replace("_", "/")}` : ""}`, "dim");
   };
 
   /**
@@ -1475,22 +1481,15 @@ export default function SeedTestPage() {
               ))}
               <div style={{ marginTop: 12 }}>
                 <Row>
-                  <Btn onClick={() => withLoading(async () => { await configurarAnoLetivo(); })} color="#0f4c75">
-                    {academia.ano_letivo ? "✓ Ano letivo ok" : "Configurar ano letivo"}
-                  </Btn>
+                  {!academia.ano_letivo && (
+                    <Btn onClick={() => withLoading(async () => { await configurarAnoLetivo(); })} color="#0f4c75">
+                      Configurar ano letivo
+                    </Btn>
+                  )}
                   <Btn onClick={() => refreshData()} color="#334155">↻ Atualizar</Btn>
                 </Row>
               </div>
             </Section>
-
-            {/* Info sobre notificações */}
-            <div style={{ border: "1px solid #2d1b69", borderRadius: 8, padding: 12, background: "#0d0a1e", fontSize: 11, color: "#7c6fcd", lineHeight: 1.6, marginBottom: 12 }}>
-              <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#a78bfa" }}>🔔 Notificações em tempo real</p>
-              <p style={{ margin: 0 }}>
-                O progresso dos jobs é exibido automaticamente no ícone de notificações no cabeçalho (canto superior direito).
-                Clique em qualquer notificação para ver detalhes e falhas.
-              </p>
-            </div>
 
             {materiasCompativeisCount === 0 && materias.length > 0 && (
               <div style={{ border: "1px solid #78350f", borderRadius: 8, padding: 12, background: "#1c0a00", fontSize: 11, color: "#fbbf24", lineHeight: 1.6 }}>

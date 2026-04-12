@@ -19,17 +19,19 @@ const PERIODOS_LABEL: Record<string, string> = {
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
 
-const NIVEL_LABEL: Record<string,string> = {
-  primeiro_fundamental:"1º Ano",segundo_fundamental:"2º Ano",terceiro_fundamental:"3º Ano",quarto_fundamental:"4º Ano",
-  quinto_fundamental:"5º Ano",sexto_fundamental:"6º Ano",setimo_fundamental:"7º Ano",oitavo_fundamental:"8º Ano",nono_fundamental:"9º Ano",
-  primeiro_medio:"1º Médio",segundo_medio:"2º Médio",terceiro_medio:"3º Médio",quarto_medio:"4º Médio",
-  primeiro_ano:"1º Ano",segundo_ano:"2º Ano",terceiro_ano:"3º Ano",quarto_ano:"4º Ano",quinto_ano:"5º Ano",sexto_ano:"6º Ano",
+const NIVEL_LABEL: Record<string, string> = {
+  "1_ano_fundamental": "1º Ano", "2_ano_fundamental": "2º Ano", "3_ano_fundamental": "3º Ano",
+  "4_ano_fundamental": "4º Ano", "5_ano_fundamental": "5º Ano", "6_ano_fundamental": "6º Ano",
+  "7_ano_fundamental": "7º Ano", "8_ano_fundamental": "8º Ano", "9_ano_fundamental": "9º Ano",
+  "1_ano_medio": "1º Médio",     "2_ano_medio": "2º Médio",     "3_ano_medio": "3º Médio",     "4_ano_medio": "4º Médio",
+  "1_ano_superior": "1º Ano",    "2_ano_superior": "2º Ano",    "3_ano_superior": "3º Ano",
+  "4_ano_superior": "4º Ano",    "5_ano_superior": "5º Ano",    "6_ano_superior": "6º Ano",
 };
-function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g," "); }
+function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g, " "); }
 
 function formatCategoria(c: string) {
-  const m: Record<string,string> = { nota_escola:"Nota Final", nota_professor:"Nota Professor", nota_pp1:"PP1", nota_pp2:"PP2", nota_exame:"Exame" };
-  return m[c] ?? c.replace(/^nota_/,"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase());
+  const m: Record<string, string> = { nota_escola: "Nota Final", nota_professor: "Nota Professor", nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame" };
+  return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
 function corNota(n: number) {
@@ -40,7 +42,7 @@ function corNota(n: number) {
 
 function calcMedia(notas: Nota[]) {
   if (!notas.length) return null;
-  return notas.reduce((s,n)=>s+n.nota,0)/notas.length;
+  return notas.reduce((s, n) => s + n.nota, 0) / notas.length;
 }
 
 // ─── tipos ───────────────────────────────────────────────────────────────────
@@ -48,20 +50,20 @@ function calcMedia(notas: Nota[]) {
 type AcadInfo = { codigo: string; nome: string; type: string; nivel_escolar?: string };
 
 type Layer =
-  | { type:"academias" }
-  | { type:"academia"; a: AcadInfo }
-  | { type:"ano"; a: AcadInfo; ano: string }
-  | { type:"periodo"; a: AcadInfo; ano: string; periodo: string };
+  | { type: "academias" }
+  | { type: "academia"; a: AcadInfo }
+  | { type: "ano"; a: AcadInfo; ano: string }
+  | { type: "periodo"; a: AcadInfo; ano: string; periodo: string };
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
-function Breadcrumb({ crumbs }: { crumbs: { label:string; onClick?:()=>void }[] }) {
+function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void }[] }) {
   return (
     <nav className="flex items-center gap-1 text-sm flex-wrap mb-5">
-      {crumbs.map((c,i)=>(
+      {crumbs.map((c, i) => (
         <span key={i} className="flex items-center gap-1">
-          {i>0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400"/>}
-          {i===crumbs.length-1
+          {i > 0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />}
+          {i === crumbs.length - 1
             ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
             : <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">{c.label}</button>
           }
@@ -72,12 +74,12 @@ function Breadcrumb({ crumbs }: { crumbs: { label:string; onClick?:()=>void }[] 
 }
 
 function CardBtn({ icon, title, subtitle, badge, onClick }: {
-  icon: string; title: string; subtitle?: string; badge?: string; onClick?: ()=>void;
+  icon: string; title: string; subtitle?: string; badge?: string; onClick?: () => void;
 }) {
   return (
     <button onClick={onClick} className="w-full flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-300 hover:shadow-sm transition-all text-left">
       <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
-        <Icon icon={icon} width={22} className="text-brand-500"/>
+        <Icon icon={icon} width={22} className="text-brand-500" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{title}</p>
@@ -99,12 +101,12 @@ function StatItem({ label, value, color }: { label: string; value: string; color
 
 function StatsRow({ notas }: { notas: Nota[] }) {
   const media = calcMedia(notas);
-  const aprovadas = notas.filter(n=>n.nota>=10).length;
+  const aprovadas = notas.filter(n => n.nota >= 10).length;
   return (
     <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-      <StatItem label="Total" value={String(notas.length)}/>
-      <StatItem label="Média" value={media!==null?media.toFixed(1):"-"} color={media!==null?corNota(media):undefined}/>
-      <StatItem label="Aprovadas" value={`${aprovadas}/${notas.length}`} color="text-emerald-600 dark:text-emerald-400"/>
+      <StatItem label="Total" value={String(notas.length)} />
+      <StatItem label="Média" value={media !== null ? media.toFixed(1) : "-"} color={media !== null ? corNota(media) : undefined} />
+      <StatItem label="Aprovadas" value={`${aprovadas}/${notas.length}`} color="text-emerald-600 dark:text-emerald-400" />
     </div>
   );
 }
@@ -112,7 +114,7 @@ function StatsRow({ notas }: { notas: Nota[] }) {
 function TabelaNotas({ notas }: { notas: Nota[] }) {
   if (!notas.length) return (
     <div className="text-center py-12 text-gray-400">
-      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50"/>
+      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
       <p className="text-sm">Nenhuma nota neste período.</p>
     </div>
   );
@@ -121,19 +123,19 @@ function TabelaNotas({ notas }: { notas: Nota[] }) {
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            {["Matéria","Ano Académico","Categoria","Nota","Observação"].map(h=>(
-              <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h==="Nota"?"text-right":"text-left"}`}>{h}</th>
+            {["Matéria", "Ano Académico", "Categoria", "Nota", "Observação"].map(h => (
+              <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h === "Nota" ? "text-right" : "text-left"}`}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {notas.map(n=>(
+          {notas.map(n => (
             <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{n.materia_nome ?? n.materia_disciplinar_id}</td>
               <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
               <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
-              <td className="px-4 py-3 text-gray-400 text-xs">{n.observacao??"-"}</td>
+              <td className="px-4 py-3 text-gray-400 text-xs">{n.observacao ?? "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -145,95 +147,94 @@ function TabelaNotas({ notas }: { notas: Nota[] }) {
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function NotasEstudante() {
-  const [user] = useState<MeuPerfilResponse|null>(getUserFromCookie);
-  const [layer, setLayer] = useState<Layer>({ type:"academias" });
-  const token = tokenStorage.get()??undefined;
-  const codigoEstudante = user?.estudante?.codigo_estudante??"";
+  const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
+  const [layer, setLayer] = useState<Layer>({ type: "academias" });
+  const token = tokenStorage.get() ?? undefined;
+  const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
 
-  const { data:historico, execute:carregarNotas, loading } = useApi(consultasService.notasEstudante);
-  const { data:acadList, execute:carregarAcademias } = useApi(consultasService.listarAcademias);
+  const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
+  const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
 
-  useEffect(()=>{
-    if(codigoEstudante){
+  useEffect(() => {
+    if (codigoEstudante) {
       carregarNotas(codigoEstudante, token);
       carregarAcademias(token);
     }
-  },[codigoEstudante]);
+  }, [codigoEstudante]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const todasNotas: Nota[] = historico?.notas??[];
+  const todasNotas: Nota[] = historico?.notas ?? [];
 
   // Academias únicas nas notas
-  const academias = useMemo(():AcadInfo[]=>{
-    const map = new Map<string,AcadInfo>();
-    todasNotas.forEach(n=>{
-      if(!map.has(n.codigo_academia)){
-        const info = (acadList as any)?.academias?.find((a:any)=>a.codigo_academia===n.codigo_academia);
-        map.set(n.codigo_academia,{
+  const academias = useMemo((): AcadInfo[] => {
+    const map = new Map<string, AcadInfo>();
+    todasNotas.forEach(n => {
+      if (!map.has(n.codigo_academia)) {
+        const info = (acadList as any)?.academias?.find((a: any) => a.codigo_academia === n.codigo_academia);
+        map.set(n.codigo_academia, {
           codigo: n.codigo_academia,
-          nome: info?.nome??n.codigo_academia,
-          type: info?.type??"escola",
-          nivel_escolar: info?.nivel_escolar??undefined,
+          nome: info?.nome ?? n.codigo_academia,
+          type: info?.type ?? "escola",
+          nivel_escolar: info?.nivel_escolar ?? undefined,
         });
       }
     });
     return Array.from(map.values());
-  },[todasNotas, acadList]);
+  }, [todasNotas, acadList]);
 
-  const notasDe = (codigo:string) => todasNotas.filter(n=>n.codigo_academia===codigo);
+  const notasDe = (codigo: string) => todasNotas.filter(n => n.codigo_academia === codigo);
 
   // breadcrumbs
-  const crumbs = useMemo(()=>{
-    const base = { label:"Academias", onClick:()=>setLayer({type:"academias"}) };
-    if(layer.type==="academias") return [base];
-    if(layer.type==="academia") return [base, { label:layer.a.nome }];
-    if(layer.type==="ano") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:labelNivel(layer.ano) }];
-    if(layer.type==="periodo") return [base, { label:layer.a.nome, onClick:()=>setLayer({type:"academia",a:layer.a}) }, { label:labelNivel(layer.ano), onClick:()=>setLayer({type:"ano",a:layer.a,ano:layer.ano}) }, { label:PERIODOS_LABEL[layer.periodo]??layer.periodo }];
+  const crumbs = useMemo(() => {
+    const base = { label: "Academias", onClick: () => setLayer({ type: "academias" }) };
+    if (layer.type === "academias") return [base];
+    if (layer.type === "academia") return [base, { label: layer.a.nome }];
+    if (layer.type === "ano") return [base, { label: layer.a.nome, onClick: () => setLayer({ type: "academia", a: layer.a }) }, { label: labelNivel(layer.ano) }];
+    if (layer.type === "periodo") return [base, { label: layer.a.nome, onClick: () => setLayer({ type: "academia", a: layer.a }) }, { label: labelNivel(layer.ano), onClick: () => setLayer({ type: "ano", a: layer.a, ano: layer.ano }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
     return [base];
-  },[layer]);
+  }, [layer]);
 
-  if(loading) return (
+  if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500"/>
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
     </div>
   );
 
   // ── Academias ──
-  if(layer.type==="academias") return (
+  if (layer.type === "academias") return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Minhas Notas</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma academia</p>
       </div>
-      {academias.length===0
-        ? <div className="text-center py-16 text-gray-400"><Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40"/><p>Nenhuma nota registrada ainda.</p></div>
-        : <div className="grid gap-3 sm:grid-cols-2">{academias.map(a=>{
+      {academias.length === 0
+        ? <div className="text-center py-16 text-gray-400"><Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40" /><p>Nenhuma nota registrada ainda.</p></div>
+        : <div className="grid gap-3 sm:grid-cols-2">{academias.map(a => {
           const nts = notasDe(a.codigo);
           const med = calcMedia(nts);
-          return <CardBtn key={a.codigo} icon={a.type==="superior"?"mdi:university":"mdi:school"} title={a.nome} subtitle={`${nts.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"academia",a})}/>;
+          return <CardBtn key={a.codigo} icon={a.type === "superior" ? "mdi:university" : "mdi:school"} title={a.nome} subtitle={`${nts.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia", a })} />;
         })}</div>
       }
     </div>
   );
 
   // ── Academia ──
-  if(layer.type==="academia"){
+  if (layer.type === "academia") {
     const notas = notasDe(layer.a.codigo);
-    // Agrupar por ano_academico (ex: "terceiro_fundamental", "primeiro_medio")
-    const anosAcademicos = Array.from(new Set(notas.map(n=>n.ano_academico).filter(Boolean))) as string[];
+    const anosAcademicos = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
     return (
       <div className="space-y-6">
-        <Breadcrumb crumbs={crumbs}/>
+        <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.codigo}</p>
         </div>
-        <StatsRow notas={notas}/>
+        <StatsRow notas={notas} />
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Ano</h3>
-          <div className="grid gap-3 sm:grid-cols-2">{anosAcademicos.map(anoAcademico=>{
-            const np = notas.filter(n=>n.ano_academico===anoAcademico);
+          <div className="grid gap-3 sm:grid-cols-2">{anosAcademicos.map(anoAcademico => {
+            const np = notas.filter(n => n.ano_academico === anoAcademico);
             const med = calcMedia(np);
-            return <CardBtn key={anoAcademico} icon="mdi:numeric" title={labelNivel(anoAcademico)} subtitle={`${np.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"ano",a:layer.a,ano:anoAcademico})}/>;
+            return <CardBtn key={anoAcademico} icon="mdi:numeric" title={labelNivel(anoAcademico)} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "ano", a: layer.a, ano: anoAcademico })} />;
           })}</div>
         </div>
       </div>
@@ -241,20 +242,20 @@ export default function NotasEstudante() {
   }
 
   // ── Ano Académico ──
-  if(layer.type==="ano"){
-    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_academico===layer.ano);
-    const periodos = Array.from(new Set(notas.map(n=>n.periodo))).sort((a,b)=>ORDEM_PERIODOS.indexOf(a)-ORDEM_PERIODOS.indexOf(b));
+  if (layer.type === "ano") {
+    const notas = notasDe(layer.a.codigo).filter(n => n.ano_academico === layer.ano);
+    const periodos = Array.from(new Set(notas.map(n => n.periodo))).sort((a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b));
     return (
       <div className="space-y-6">
-        <Breadcrumb crumbs={crumbs}/>
+        <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.ano)}</h2>
-        <StatsRow notas={notas}/>
+        <StatsRow notas={notas} />
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
-          <div className="grid gap-3 sm:grid-cols-2">{periodos.map(p=>{
-            const np = notas.filter(n=>n.periodo===p);
+          <div className="grid gap-3 sm:grid-cols-2">{periodos.map(p => {
+            const np = notas.filter(n => n.periodo === p);
             const med = calcMedia(np);
-            return <CardBtn key={p} icon="mdi:clipboard-text-clock-outline" title={PERIODOS_LABEL[p]??p} subtitle={`${np.length} nota(s)${med!==null?` · Média ${med.toFixed(1)}`:""}`} onClick={()=>setLayer({type:"periodo",a:layer.a,ano:layer.ano,periodo:p})}/>;
+            return <CardBtn key={p} icon="mdi:clipboard-text-clock-outline" title={PERIODOS_LABEL[p] ?? p} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "periodo", a: layer.a, ano: layer.ano, periodo: p })} />;
           })}</div>
         </div>
       </div>
@@ -262,17 +263,17 @@ export default function NotasEstudante() {
   }
 
   // ── Período ──
-  if(layer.type==="periodo"){
-    const notas = notasDe(layer.a.codigo).filter(n=>n.ano_academico===layer.ano&&n.periodo===layer.periodo);
+  if (layer.type === "periodo") {
+    const notas = notasDe(layer.a.codigo).filter(n => n.ano_academico === layer.ano && n.periodo === layer.periodo);
     return (
       <div className="space-y-6">
-        <Breadcrumb crumbs={crumbs}/>
+        <Breadcrumb crumbs={crumbs} />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[layer.periodo]??layer.periodo}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[layer.periodo] ?? layer.periodo}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.nome} · {labelNivel(layer.ano)}</p>
         </div>
-        {notas.length>0 && <StatsRow notas={notas}/>}
-        <TabelaNotas notas={notas}/>
+        {notas.length > 0 && <StatsRow notas={notas} />}
+        <TabelaNotas notas={notas} />
       </div>
     );
   }
