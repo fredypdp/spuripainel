@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { jobApiService, tokenStorage } from "@/lib/api";
+import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
 import { resolveJobItemError } from "@/lib/api/job-service";
 import { getCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
@@ -71,7 +71,7 @@ const CATEGORIAS_SUPERIOR: { value: string; label: string }[] = [
   { value: "nota_exame", label: "Exame" },
 ];
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
 const NOMES_M = ["João","António","Manuel","Francisco","Domingos","Pedro","Paulo","Carlos","Luís","Miguel","Filipe","Rui","Hélder","Faustino","Simão","Narciso","Mário","Sérgio","Ezequiel","Armindo"];
 const NOMES_F = ["Maria","Ana","Sofia","Isabel","Filomena","Rosa","Conceição","Graça","Fernanda","Lurdes","Beatriz","Carla","Diana","Elisa","Fátima","Glória","Helena","Inês","Joana","Kátia"];
@@ -98,7 +98,7 @@ const MATERIAS_SUPERIOR = ["Álgebra Linear","Cálculo I","Programação","Estru
 const TURNOS = ["manha","tarde","noite"] as const;
 const DATAS_FALTA = ["2025-03-10","2025-04-07","2025-05-05","2025-06-02","2025-07-07","2025-09-01","2025-10-06","2025-11-03"];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const rnd = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -112,67 +112,6 @@ const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
   return new Date(Date.now() - dias * 86400000).toISOString();
 };
-
-/**
- * Mapeia o tipo da academia para o tipo de nota aceito pela API.
- * API aceita: 'escolar' | 'superior'
- */
-function getTipoNota(academia: AcademiaInfo): "escolar" | "superior" {
-  return academia.tipo === "superior" ? "superior" : "escolar";
-}
-
-/**
- * Retorna todas as matérias compatíveis com o tipo da academia (sem filtrar por ano).
- * Usado para o dropdown de matéria específica e contagem geral.
- */
-function getMateriasFiltradas(materias: Materia[], academia: AcademiaInfo): Materia[] {
-  if (academia.tipo === "superior") {
-    return materias.filter(m => m.type === "superior");
-  }
-  return materias.filter(m => m.type === "fundamental" || m.type === "medio");
-}
-
-/**
- * Retorna as matérias do ano académico específico do estudante.
- * Filtra por ano_escolar, ano_escolar_medio ou ano_superior conforme o estudante.
- * Se nenhuma matéria for encontrada por ano, faz fallback para todas as compatíveis.
- */
-function getMateriasParaEstudante(
-  estudante: Estudante,
-  materias: Materia[],
-  academia: AcademiaInfo
-): Materia[] {
-  const resultado: Materia[] = [];
-
-  if (academia.tipo === "escola") {
-    if (estudante.ano_escolar) {
-      const fund = materias.filter(
-        m => m.type === "fundamental" && Array.isArray(m.anos_academicos) && m.anos_academicos.includes(estudante.ano_escolar!)
-      );
-      resultado.push(...fund);
-    }
-    if (estudante.ano_escolar_medio) {
-      const medio = materias.filter(
-        m => m.type === "medio" && Array.isArray(m.anos_academicos) && m.anos_academicos.includes(estudante.ano_escolar_medio!)
-      );
-      resultado.push(...medio);
-    }
-  } else if (academia.tipo === "superior") {
-    if (estudante.ano_superior) {
-      const sup = materias.filter(
-        m => m.type === "superior" && Array.isArray(m.anos_academicos) && m.anos_academicos.includes(estudante.ano_superior!)
-      );
-      resultado.push(...sup);
-    }
-  }
-
-  // fallback: se o estudante não tem ano configurado, usa todas compatíveis
-  if (resultado.length === 0) {
-    return getMateriasFiltradas(materias, academia);
-  }
-
-  return resultado;
-}
 
 function tiposMateriaValidos(academia: AcademiaInfo): { value: "fundamental"|"medio"|"superior"; label: string }[] {
   if (academia.tipo === "superior") {
@@ -270,41 +209,101 @@ function estudanteCompatívelComTurma(
   return true;
 }
 
-// ─── NumberStepper ────────────────────────────────────────────────────────────
+// ─── NumberStepper Component ───────────────────────────────────────────────────
 
 function NumberStepper({
-  value, onChange, min = 0, max = 9999, step = 1, label, hint,
+  value,
+  onChange,
+  min = 0,
+  max = 9999,
+  step = 1,
+  label,
+  hint,
 }: {
-  value: number; onChange: (v: number) => void;
-  min?: number; max?: number; step?: number; label?: string; hint?: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  label?: string;
+  hint?: string;
 }) {
   const clamp = (v: number) => Math.max(min, Math.min(max, v));
+
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     if (raw === "" || raw === "-") { onChange(min); return; }
     const parsed = parseInt(raw, 10);
     if (!isNaN(parsed)) onChange(clamp(parsed));
   };
+
+  const handleBtnClick = (e: React.MouseEvent, newVal: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onChange(clamp(newVal));
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {label && <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>}
+      {label && (
+        <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {label}
+        </label>
+      )}
       <div style={{ display: "flex", alignItems: "center", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, overflow: "hidden", height: 34 }}>
-        <button type="button" onClick={() => onChange(clamp(value - step))} disabled={value <= min}
-          style={{ width: 32, height: "100%", background: "transparent", border: "none", color: value <= min ? "#334155" : "#94a3b8", cursor: value <= min ? "not-allowed" : "pointer", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #334155", flexShrink: 0 }}>−</button>
-        <input type="number" value={value} min={min} max={max} step={step} onChange={handleInput}
-          style={{ width: 60, height: "100%", background: "transparent", border: "none", color: "#e2e8f0", fontSize: 13, fontWeight: 600, textAlign: "center", outline: "none" }} />
-        <button type="button" onClick={() => onChange(clamp(value + step))} disabled={value >= max}
-          style={{ width: 32, height: "100%", background: "transparent", border: "none", color: value >= max ? "#334155" : "#94a3b8", cursor: value >= max ? "not-allowed" : "pointer", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", borderLeft: "1px solid #334155", flexShrink: 0 }}>+</button>
+        <button
+          type="button"
+          onClick={(e) => handleBtnClick(e, value - step)}
+          disabled={value <= min}
+          style={{
+            width: 32, height: "100%", background: "transparent", border: "none",
+            color: value <= min ? "#334155" : "#94a3b8", cursor: value <= min ? "not-allowed" : "pointer",
+            fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
+            borderRight: "1px solid #334155", flexShrink: 0, transition: "color 0.15s",
+          }}
+        >
+          −
+        </button>
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={handleInput}
+          onWheel={(e) => e.currentTarget.blur()}
+          style={{
+            width: 60, height: "100%", background: "transparent", border: "none",
+            color: "#e2e8f0", fontSize: 13, fontWeight: 600, textAlign: "center",
+            outline: "none", MozAppearance: "textfield" as any,
+          }}
+        />
+        <button
+          type="button"
+          onClick={(e) => handleBtnClick(e, value + step)}
+          disabled={value >= max}
+          style={{
+            width: 32, height: "100%", background: "transparent", border: "none",
+            color: value >= max ? "#334155" : "#94a3b8", cursor: value >= max ? "not-allowed" : "pointer",
+            fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
+            borderLeft: "1px solid #334155", flexShrink: 0, transition: "color 0.15s",
+          }}
+        >
+          +
+        </button>
       </div>
       {hint && <span style={{ fontSize: 10, color: "#475569" }}>{hint}</span>}
     </div>
   );
 }
 
-// ─── CategoryCheckboxes ────────────────────────────────────────────────────────
+// ─── CategoryCheckboxes Component ─────────────────────────────────────────────
 
 function CategoryCheckboxes({
-  options, selected, onChange, label,
+  options,
+  selected,
+  onChange,
+  label,
 }: {
   options: { value: string; label: string }[];
   selected: string[];
@@ -319,24 +318,60 @@ function CategoryCheckboxes({
       onChange([...selected, val]);
     }
   };
+
   const all = options.every(o => selected.includes(o.value));
-  const toggleAll = () => { if (all) { onChange([options[0].value]); } else { onChange(options.map(o => o.value)); } };
+  const toggleAll = () => {
+    if (all) {
+      onChange([options[0].value]);
+    } else {
+      onChange(options.map(o => o.value));
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {label && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>
-          <button type="button" onClick={toggleAll} style={{ fontSize: 10, color: "#60a5fa", background: "none", border: "none", cursor: "pointer", padding: 0 }}>{all ? "desmarcar todas" : "todas"}</button>
+          <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {label}
+          </label>
+          <button
+            type="button"
+            onClick={toggleAll}
+            style={{ fontSize: 10, color: "#60a5fa", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            {all ? "desmarcar todas" : "todas"}
+          </button>
         </div>
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {options.map(opt => {
           const checked = selected.includes(opt.value);
           return (
-            <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 20, cursor: "pointer", border: `1px solid ${checked ? "#3b82f6" : "#334155"}`, background: checked ? "#1e3a5f" : "#1e293b", color: checked ? "#93c5fd" : "#64748b", fontSize: 12, fontWeight: checked ? 600 : 400, transition: "all 0.15s" }}>
-              <span style={{ width: 12, height: 12, borderRadius: 3, border: `1.5px solid ${checked ? "#3b82f6" : "#475569"}`, background: checked ? "#3b82f6" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {checked && <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => toggle(opt.value)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                border: `1px solid ${checked ? "#3b82f6" : "#334155"}`,
+                background: checked ? "#1e3a5f" : "#1e293b",
+                color: checked ? "#93c5fd" : "#64748b",
+                fontSize: 12, fontWeight: checked ? 600 : 400,
+                transition: "all 0.15s",
+              }}
+            >
+              <span style={{
+                width: 12, height: 12, borderRadius: 3, border: `1.5px solid ${checked ? "#3b82f6" : "#475569"}`,
+                background: checked ? "#3b82f6" : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                {checked && (
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                    <path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </span>
               {opt.label}
             </button>
@@ -347,73 +382,9 @@ function CategoryCheckboxes({
   );
 }
 
-// ─── MateriaSelector ──────────────────────────────────────────────────────────
-// Toggle entre "Todas as matérias do ano" e "Matéria específica"
-
-function MateriaSelector({
-  mode, onModeChange, materiaId, onMateriaChange, materias, disabled,
-}: {
-  mode: "all" | "specific";
-  onModeChange: (m: "all" | "specific") => void;
-  materiaId: string;
-  onMateriaChange: (id: string) => void;
-  materias: Materia[];
-  disabled?: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Matérias</label>
-      <div style={{ display: "flex", gap: 0, border: "1px solid #334155", borderRadius: 8, overflow: "hidden", height: 34, width: "fit-content" }}>
-        {(["all", "specific"] as const).map((m, i) => (
-          <button key={m} type="button" onClick={() => { if (!disabled) onModeChange(m); }}
-            style={{
-              padding: "0 14px", fontSize: 12, fontWeight: mode === m ? 700 : 400, cursor: disabled ? "not-allowed" : "pointer",
-              background: mode === m ? "#1e3a5f" : "#1e293b",
-              color: mode === m ? "#93c5fd" : "#64748b",
-              border: "none",
-              borderLeft: i === 1 ? "1px solid #334155" : "none",
-              transition: "all 0.15s", whiteSpace: "nowrap",
-            }}>
-            {m === "all" ? "Todas do ano" : "Específica"}
-          </button>
-        ))}
-      </div>
-
-      {mode === "specific" && (
-        <select value={materiaId} onChange={e => onMateriaChange(e.target.value)}
-          disabled={disabled || materias.length === 0}
-          style={{ background: "#1e293b", border: "1px solid #334155", color: materias.length === 0 ? "#475569" : "#e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer", height: 34, minWidth: 220 }}>
-          {materias.length === 0 ? (
-            <option value="">Nenhuma matéria disponível</option>
-          ) : (
-            <>
-              {!materiaId && <option value="">Selecione uma matéria</option>}
-              {materias.map(m => (
-                <option key={m.id} value={m.id}>{m.nome} <span style={{ color: "#64748b" }}>({m.type})</span></option>
-              ))}
-            </>
-          )}
-        </select>
-      )}
-
-      {mode === "all" && (
-        <p style={{ margin: 0, fontSize: 11, color: "#475569", lineHeight: 1.5 }}>
-          Gera notas para todas as matérias do ano académico do estudante.<br />
-          Estudantes sem ano configurado usam todas as matérias compatíveis.
-        </p>
-      )}
-      {mode === "specific" && (
-        <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-          Gera notas para a matéria selecionada em todos os estudantes.
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function SeedTestPage() {
+export default function PageContent() {
   const [currentUser, setCurrentUser] = useState<MeuPerfilResponse | null>(null);
   const [academia, setAcademia] = useState<AcademiaInfo | null>(null);
   const [authError, setAuthError] = useState<string>("");
@@ -432,21 +403,8 @@ export default function SeedTestPage() {
   const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_escola", "nota_professor"]);
   const [categoriaSuperiorSel, setCategoriaSuperiorSel] = useState<string[]>(["nota_pp1", "nota_pp2", "nota_exame"]);
 
-  // ── Nota config — agora com modo de matéria ──────────────────────────────────
-  const [notaConfig, setNotaConfig] = useState({
-    qtdEstudantes: 0,
-    periodo: "random",
-    materiaMode: "all" as "all" | "specific",
-    materiaEspecificaId: "",
-  });
-
-  // ── Falta config — agora com modo de matéria ─────────────────────────────────
-  const [faltaConfig, setFaltaConfig] = useState({
-    qtdEstudantes: 0,
-    materiaMode: "all" as "all" | "specific",
-    materiaEspecificaId: "",
-  });
-
+  const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
+  const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
   const [avalConfig, setAvalConfig] = useState({ tipoEnsino: "fundamental" as string, aprovPct: 70 });
 
   const [estudanteConfig, setEstudanteConfig] = useState({
@@ -467,12 +425,23 @@ export default function SeedTestPage() {
   const [running, setRunning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef(false);
+  const shouldScrollRef = useRef(false);
 
   const addLog = useCallback((msg: string, level: LogLevel = "info") => {
     const ts = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     setLogs(prev => [...prev, { ts, level, msg }].slice(-800));
-    setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
+    shouldScrollRef.current = true;
   }, []);
+
+  useEffect(() => {
+    if (shouldScrollRef.current) {
+      shouldScrollRef.current = false;
+      const timer = setTimeout(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [logs]);
 
   useEffect(() => {
     const userCookie = getCookie("user");
@@ -493,10 +462,12 @@ export default function SeedTestPage() {
         ano_letivo: ac.ano_letivo,
       };
       setAcademia(acInfo);
+
       const tiposCurso = tiposCursoValidos(acInfo);
       if (tiposCurso.length > 0) setCursoConfig(p => ({ ...p, tipo: tiposCurso[0].value }));
       const tiposMateria = tiposMateriaValidos(acInfo);
       if (tiposMateria.length > 0) setMateriaConfig(p => ({ ...p, tipo: tiposMateria[0].value }));
+
       if (acInfo.nivel === "misto") {
         setEstudanteConfig(p => ({ ...p, modoPrincipal: "fundamental" }));
       }
@@ -518,22 +489,7 @@ export default function SeedTestPage() {
     }
   }, [estudantes.length]);
 
-  useEffect(() => { if (academia) refreshData(academia); }, [academia?.codigo]); // eslint-disable-line
-
-  // Limpar materiaEspecificaId se não existir mais nas matérias
-  useEffect(() => {
-    if (notaConfig.materiaEspecificaId && materias.length > 0) {
-      const existe = materias.some(m => m.id === notaConfig.materiaEspecificaId);
-      if (!existe) setNotaConfig(p => ({ ...p, materiaEspecificaId: "" }));
-    }
-  }, [materias]);
-
-  useEffect(() => {
-    if (faltaConfig.materiaEspecificaId && materias.length > 0) {
-      const existe = materias.some(m => m.id === faltaConfig.materiaEspecificaId);
-      if (!existe) setFaltaConfig(p => ({ ...p, materiaEspecificaId: "" }));
-    }
-  }, [materias]);
+  useEffect(() => { if (academia) refreshData(academia); }, [academia?.codigo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const apiUrl = () => {
     const url = process.env.NEXT_PUBLIC_API_URL || "";
@@ -541,17 +497,55 @@ export default function SeedTestPage() {
     return url;
   };
 
-  const callApi = async (method: string, path: string, body: unknown, tok?: string) => {
+  // ─── callApi: chamada HTTP base ────────────────────────────────────────────
+  // IMPORTANTE: não usa timeout automático para evitar que requisições POST/async
+  // sejam consideradas falhas quando o servidor ainda está processando.
+  // Timeouts só são aplicados explicitamente via AbortController nas chamadas GET de verificação.
+  const callApi = async (
+    method: string,
+    path: string,
+    body: unknown,
+    tok?: string,
+    signal?: AbortSignal
+  ) => {
     const url = apiUrl() + path;
     const token = tok || academia?.token || tokenStorage.get() || "";
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const r = await fetch(url, { method, headers, body: body != null ? JSON.stringify(body) : undefined });
+      const r = await fetch(url, {
+        method,
+        headers,
+        body: body != null ? JSON.stringify(body) : undefined,
+        signal,
+      });
       const data = await r.json().catch(() => ({}));
       return { ok: r.status >= 200 && r.status < 300, status: r.status, data };
-    } catch (e) {
+    } catch (e: any) {
+      // Distingue abort de erro de rede real
+      if (e?.name === "AbortError") {
+        return { ok: false, status: 0, data: { error: "timeout", _aborted: true } };
+      }
       return { ok: false, status: 0, data: { error: String(e) } };
+    }
+  };
+
+  // ─── callApiWithTimeout: GET com timeout controlado ───────────────────────
+  // Usado apenas para requisições de leitura (GET) que não devem reenviar dados.
+  // Se der timeout, retorna erro sem reenviar nada.
+  const callApiWithTimeout = async (
+    method: string,
+    path: string,
+    body: unknown,
+    tok?: string,
+    timeoutMs = 15_000
+  ) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await callApi(method, path, body, tok, controller.signal);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -559,6 +553,7 @@ export default function SeedTestPage() {
     const acad = ac || academia;
     if (!acad?.token) return;
     const tok = acad.token;
+
     const [rCursos, rMaterias, rTurmas, rEstudantes, rAnoLetivo] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
@@ -566,58 +561,95 @@ export default function SeedTestPage() {
       callApi("GET", "/estudantes", undefined, tok),
       callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
+
     const cursosData: Curso[] = (rCursos.data as any)?.cursos || [];
     const materiasData: Materia[] = (rMaterias.data as any)?.materias?.filter((m: any) => m.status === "ativo") || [];
     const turmasData: Turma[] = (rTurmas.data as any)?.turmas || [];
     const estudantesData: Estudante[] = (rEstudantes.data as any)?.estudantes || [];
-    const anoLetivoApi: string | undefined = rAnoLetivo.ok ? (rAnoLetivo.data as any)?.ano_letivo : undefined;
+
     setCursos(cursosData);
     setMaterias(materiasData);
     setTurmas(turmasData);
     setEstudantes(estudantesData);
-    if (anoLetivoApi) {
-      setAcademia(prev => prev ? { ...prev, ano_letivo: anoLetivoApi } : prev);
+
+    const anoLetivoAtual = (rAnoLetivo.data as any)?.ano_letivo as string | undefined;
+    if (anoLetivoAtual) {
+      setAcademia(prev => prev ? { ...prev, ano_letivo: anoLetivoAtual } : prev);
     }
-    addLog(`Dados: ${cursosData.length} cursos · ${materiasData.length} matérias ativas · ${turmasData.length} turmas · ${estudantesData.length} estudantes${anoLetivoApi ? ` · Ano letivo: ${anoLetivoApi.replace("_", "/")}` : ""}`, "dim");
+
+    addLog(
+      `Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ` +
+      `${turmasData.length} turmas, ${estudantesData.length} estudantes` +
+      (anoLetivoAtual ? `, ano letivo: ${anoLetivoAtual.replace("_", "/")}` : ""),
+      "dim"
+    );
   };
 
+  // ─── acompanharJob ────────────────────────────────────────────────────────────
+  // Faz polling até o job ser concluído. Não re-submete nada — apenas lê o estado.
+  // Timeout de polling (5 min) não causa reenvio; apenas encerra o acompanhamento
+  // com aviso. O job continua no servidor e pode ser visto nas notificações.
   const acompanharJob = async (jobId: string, titulo: string) => {
-    const deadline = Date.now() + 5 * 60 * 1000;
-    let interval = 1500;
-    addLog(`  ⏳ Job ${jobId} criado — acompanhe o progresso nas notificações do header`, "info");
-    while (Date.now() < deadline) {
-      await sleep(interval);
-      if (cancelRef.current) return { ok: 0, err: 0, total: 0 };
-      try {
-        const summary = await jobApiService.getStatus(jobId, academia?.token || undefined);
-        addLog(`  📊 ${titulo}: ${summary.progress ?? 0}% · ${summary.done_items ?? 0}/${summary.total_items ?? 0} processados`, "dim");
-        if (summary.status === "done" || summary.status === "failed") {
-          const detailResponse = await jobApiService.getDetail(jobId, academia?.token || undefined);
-          const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
-          if (failures.length > 0) {
-            addLog(`  ⚠ ${titulo}: ${failures.length} item(ns) com falha`, "warn");
-            failures.slice(0, 8).forEach((f, i) => {
-              const payloadAny = f.payload as any;
-              const label = payloadAny?.codigo_estudante || payloadAny?.codigo_turma || payloadAny?.codigo || payloadAny?.nome || `item #${(f.index ?? i) + 1}`;
-              const motivo = resolveJobItemError(f) || "Falha sem detalhe retornado";
-              addLog(`    • ${label}: ${motivo}`, "warn");
-            });
-            if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
-          }
-          const detail = detailResponse.job;
-          if (detail.status === "failed" && detail.error) {
-            addLog(`  ✗ ${titulo}: ${detail.error}`, "err");
-          }
-          return { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
-        }
-        interval = Math.min(interval * 1.3, 8000);
-      } catch (err) {
-        addLog(`  ! Erro ao consultar job: ${err instanceof Error ? err.message : String(err)}`, "warn");
-        interval = Math.min(interval * 2, 8000);
-      }
+    addLog(`  ⏳ [${titulo}] Aguardando conclusão do job ${jobId}...`, "info");
+
+    let detail: Awaited<ReturnType<typeof pollJob>>;
+    try {
+      detail = await pollJob(jobId, {
+        timeoutMs: 5 * 60 * 1000,
+        onProgress: (summary) => {
+          const pct = summary.progress ?? 0;
+          const done = summary.done_items ?? 0;
+          const fail = summary.fail_items ?? 0;
+          const total = summary.total_items ?? 0;
+          addLog(
+            `  📊 [${titulo}] ${pct}% — ${done} ✓  ${fail > 0 ? `${fail} ✗` : ""}  de ${total}`,
+            "dim"
+          );
+        },
+      });
+    } catch (pollErr: any) {
+      // Timeout de polling: job ainda está rodando no servidor.
+      // NÃO re-submetemos. Apenas avisamos e saímos.
+      addLog(
+        `  ⚠ [${titulo}] Timeout ao acompanhar o job ${jobId} — o processamento continua no servidor.`,
+        "warn"
+      );
+      addLog(
+        `  ℹ [${titulo}] Acompanhe o progresso pelo sino de notificações no canto superior direito.`,
+        "info"
+      );
+      return { ok: 0, err: 0, total: 0, timedOut: true };
     }
-    addLog(`  ✗ ${titulo}: timeout — verifique nas notificações do header`, "err");
-    return { ok: 0, err: 0, total: 0 };
+
+    const detailResponse = await jobApiService.getDetail(jobId, academia?.token);
+    const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
+
+    if (failures.length > 0) {
+      addLog(`  ⚠ [${titulo}] ${failures.length} item(ns) com falha`, "warn");
+      failures.slice(0, 8).forEach((f, i) => {
+        const payloadAny = f.payload as any;
+        const label =
+          payloadAny?.codigo_estudante ||
+          payloadAny?.codigo_turma ||
+          payloadAny?.codigo ||
+          payloadAny?.nome ||
+          `item #${(f.index ?? i) + 1}`;
+        const motivo = resolveJobItemError(f) || detail.error || "Falha sem detalhe retornado";
+        addLog(`    • ${label}: ${motivo}`, "warn");
+      });
+      if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
+    }
+
+    if (detail.status === "failed" && detail.error) {
+      addLog(`  ✗ [${titulo}] ${detail.error}`, "err");
+    }
+
+    const resultado = { ok: detail.done_items, err: detail.fail_items, total: detail.total_items, timedOut: false };
+    addLog(
+      `  ✓ [${titulo}] Concluído — ${resultado.ok} sucesso${resultado.err > 0 ? ` · ${resultado.err} falha(s)` : ""}`,
+      resultado.ok > 0 ? "ok" : "err"
+    );
+    return resultado;
   };
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -630,16 +662,28 @@ export default function SeedTestPage() {
   const gerarCursos = async () => {
     if (!academia) return;
     const tiposValidos = tiposCursoValidos(academia);
-    if (tiposValidos.length === 0) { addLog("  ✗ Esta academia (fundamental) não suporta cursos", "err"); return; }
+    if (tiposValidos.length === 0) {
+      addLog("  ✗ Esta academia (fundamental) não suporta cursos", "err");
+      return;
+    }
     const { tipo, qtd } = cursoConfig;
-    if (!tiposValidos.find(t => t.value === tipo)) { addLog(`  ✗ Tipo de curso "${tipo}" não é válido para esta academia`, "err"); return; }
+    if (!tiposValidos.find(t => t.value === tipo)) {
+      addLog(`  ✗ Tipo de curso "${tipo}" não é válido para esta academia`, "err");
+      return;
+    }
     addLog(`Gerando ${qtd} curso(s) do tipo ${tipo}...`, "step");
     const templates = tipo === "medio" ? CURSOS_MEDIO : CURSOS_SUPERIOR;
     const picked = pickN(templates, Math.min(qtd, templates.length));
     for (const t of picked) {
       if (cancelRef.current) break;
-      const payload: any = { nome: t.nome, type: tipo, anos_academicos: t.anos };
-      if (tipo === "superior") payload.periodos = (t as any).periodos;
+      const payload: any = {
+        nome: t.nome,
+        type: tipo,
+        anos_academicos: t.anos,
+      };
+      if (tipo === "superior") {
+        payload.periodos = (t as any).periodos;
+      }
       const { ok, data } = await callApi("POST", "/academia/curso", payload, academia.token);
       if (ok) {
         const id = (data as any).data?.id;
@@ -665,43 +709,82 @@ export default function SeedTestPage() {
     if (!academia) return;
     const tiposValidos = tiposMateriaValidos(academia);
     const { tipo, qtd, cursoId } = materiaConfig;
-    if (!tiposValidos.find(t => t.value === tipo)) { addLog(`  ✗ Tipo de matéria "${tipo}" não é válido para esta academia`, "err"); return; }
+
+    if (!tiposValidos.find(t => t.value === tipo)) {
+      addLog(`  ✗ Tipo de matéria "${tipo}" não é válido para esta academia (${academia.tipo}/${academia.nivel})`, "err");
+      return;
+    }
+
     if (tipo === "medio" || tipo === "superior") {
       const cursoDisponivel = cursoId && cursoId !== "auto"
         ? cursos.find(c => c.id === cursoId && c.type === tipo && c.status === "ativo")
         : cursos.find(c => c.type === tipo && c.status === "ativo");
-      if (!cursoDisponivel) { addLog(`  ✗ Nenhum curso "${tipo}" ativo disponível — crie e ative cursos primeiro`, "err"); return; }
+      if (!cursoDisponivel) {
+        addLog(`  ✗ Nenhum curso "${tipo}" ativo disponível — crie e ative cursos primeiro`, "err");
+        return;
+      }
     }
+
     addLog(`Gerando ${qtd} matéria(s) do tipo ${tipo}...`, "step");
+
     const pool = tipo === "fundamental" ? MATERIAS_FUND : tipo === "medio" ? MATERIAS_MEDIO : MATERIAS_SUPERIOR;
     const cursoAlvo = (tipo === "medio" || tipo === "superior")
       ? (cursoId && cursoId !== "auto"
           ? cursos.find(c => c.id === cursoId && c.type === tipo && c.status === "ativo")
           : cursos.find(c => c.type === tipo && c.status === "ativo"))
       : null;
+
     let anosDisponiveis: string[] = [];
     if (tipo === "fundamental") {
       anosDisponiveis = (academia.anos_academicos || []).filter(a => a.includes("fundamental"));
-      if (anosDisponiveis.length === 0) { addLog("  ✗ Academia não tem anos fundamentais configurados", "err"); return; }
+      if (anosDisponiveis.length === 0) {
+        addLog("  ✗ Academia não tem anos fundamentais configurados", "err");
+        return;
+      }
     } else if (cursoAlvo) {
       anosDisponiveis = cursoAlvo.anos_academicos || [];
     }
-    if ((tipo === "medio" || tipo === "superior") && anosDisponiveis.length === 0) { addLog(`  ✗ Curso "${cursoAlvo?.nome}" não tem anos académicos configurados`, "err"); return; }
-    const materiasExistentesNomes = materias.filter(m => m.type === tipo && (cursoAlvo ? m.curso_id === cursoAlvo.id : true)).map(m => m.nome.toLowerCase());
+
+    if ((tipo === "medio" || tipo === "superior") && anosDisponiveis.length === 0) {
+      addLog(`  ✗ Curso "${cursoAlvo?.nome}" não tem anos académicos configurados`, "err");
+      return;
+    }
+
+    const materiasExistentesNomes = materias
+      .filter(m => m.type === tipo && (cursoAlvo ? m.curso_id === cursoAlvo.id : true))
+      .map(m => m.nome.toLowerCase());
     const poolFiltrado = pool.filter(n => !materiasExistentesNomes.includes(n.toLowerCase()));
-    if (poolFiltrado.length === 0) { addLog("  ✗ Todas as matérias do pool já existem para este tipo/curso", "warn"); return; }
+    if (poolFiltrado.length === 0) {
+      addLog("  ✗ Todas as matérias do pool já existem para este tipo/curso", "warn");
+      return;
+    }
+
     const picked = pickN(poolFiltrado, Math.min(qtd, poolFiltrado.length));
     let criadas = 0;
+
     for (const nome of picked) {
       if (cancelRef.current) break;
+
       const anoSelecionado = pick(anosDisponiveis);
-      const payload: any = { nome, type: tipo, anos_academicos: [anoSelecionado] };
+      const payload: any = {
+        nome,
+        type: tipo,
+        anos_academicos: [anoSelecionado],
+      };
       if (cursoAlvo) payload.curso_id = cursoAlvo.id;
+
       const { ok, data } = await callApi("POST", "/academia/materia", payload, academia.token);
-      if (!ok) { addLog(`  ✗ "${nome}": ${(data as any)?.message || (data as any)?.error || "Erro desconhecido"}`, "warn"); await sleep(300); continue; }
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+        addLog(`  ✗ "${nome}": ${errMsg}`, "warn");
+        await sleep(300);
+        continue;
+      }
+
       const id = (data as any).data?.id;
       criadas++;
       addLog(`  ✓ Matéria "${nome}" (${anoSelecionado}) ${cursoAlvo ? `→ ${cursoAlvo.nome}` : ""} criada`, "ok");
+
       if (tipo === "superior" && id && cursoAlvo?.periodos?.length) {
         await sleep(300);
         const periodo = pick(cursoAlvo.periodos);
@@ -713,14 +796,17 @@ export default function SeedTestPage() {
           if (okA) addLog(`    ✓ Matéria ativada`, "dim");
           else addLog(`    ! Falha ao ativar`, "warn");
         } else {
-          addLog(`    ✗ Falha ao definir período: ${(dataP as any)?.message || (dataP as any)?.error || "Erro"}`, "warn");
+          const errP = (dataP as any)?.message || (dataP as any)?.error || "Erro";
+          addLog(`    ✗ Falha ao definir período: ${errP}`, "warn");
         }
       } else if (tipo !== "superior" && id) {
         await sleep(300);
         await callApi("PUT", `/academia/materia/${id}/ativar`, {}, academia.token);
       }
+
       await sleep(300);
     }
+
     await sleep(3000);
     await refreshData();
     addLog(`${criadas} matéria(s) gerada(s) ✓`, "ok");
@@ -732,6 +818,7 @@ export default function SeedTestPage() {
     const { qtd } = turmaConfig;
     addLog(`Gerando ${qtd} turma(s)...`, "step");
     let criadas = 0;
+
     const niveisDisponiveis: string[] = [];
     if (academia.tipo === "escola") {
       if (academia.nivel === "fundamental" || academia.nivel === "misto") {
@@ -745,33 +832,58 @@ export default function SeedTestPage() {
       const cursosSup = cursos.filter(c => c.type === "superior" && c.status === "ativo");
       for (const curso of cursosSup) niveisDisponiveis.push(...curso.anos_academicos);
     }
-    if (niveisDisponiveis.length === 0) { addLog("  ✗ Nenhum nível disponível para criar turmas.", "err"); return; }
+
+    if (niveisDisponiveis.length === 0) {
+      addLog("  ✗ Nenhum nível disponível para criar turmas.", "err");
+      return;
+    }
+
     const tipoCurso = academia.tipo === "superior" ? "superior" : "medio";
     const cursosAtivos = cursos.filter(c => c.type === tipoCurso && c.status === "ativo");
-    const cursoEspecifico = turmaConfig.cursoId !== "random" ? cursosAtivos.find(c => c.id === turmaConfig.cursoId) : undefined;
-    if (turmaConfig.cursoId !== "random" && !cursoEspecifico) { addLog(`  ✗ Curso selecionado não encontrado ou inativo`, "err"); return; }
+
+    const cursoEspecifico = turmaConfig.cursoId !== "random"
+      ? cursosAtivos.find(c => c.id === turmaConfig.cursoId)
+      : undefined;
+
+    if (turmaConfig.cursoId !== "random" && !cursoEspecifico) {
+      addLog(`  ✗ Curso selecionado não encontrado ou inativo`, "err");
+      return;
+    }
+
     for (let i = 0; i < qtd; i++) {
       if (cancelRef.current) break;
+
       const nivel = turmaConfig.nivel === "random" ? pick(niveisDisponiveis) : turmaConfig.nivel;
       const turno = turmaConfig.turno === "random" ? pick([...TURNOS]) : turmaConfig.turno as typeof TURNOS[number];
       const letra = String.fromCharCode(65 + (i % 26));
       const payload: any = { codigo_turma: `T${rnd(1, 9)}${letra}${rnd(10, 99)}`, nivel, turno };
+
       if (nivel.includes("medio") || nivel.includes("superior")) {
         let cursoAlvo: Curso | undefined;
         if (cursoEspecifico) {
           cursoAlvo = cursoEspecifico;
         } else if (turmaConfig.cursoId === "random") {
           const cursosCompativeis = cursosAtivos.filter(c => c.anos_academicos.includes(nivel));
-          cursoAlvo = cursosCompativeis.length > 0 ? pick(cursosCompativeis) : (cursosAtivos.length > 0 ? pick(cursosAtivos) : undefined);
+          if (cursosCompativeis.length > 0) {
+            cursoAlvo = pick(cursosCompativeis);
+          } else {
+            cursoAlvo = cursosAtivos.length > 0 ? pick(cursosAtivos) : undefined;
+          }
         }
         if (cursoAlvo) {
           payload.curso_id = cursoAlvo.id;
           addLog(`  · Turma ${payload.codigo_turma} → ${cursoAlvo.nome} (${nivel})`, "dim");
         }
       }
+
       const { ok, data } = await callApi("POST", "/academia/turma", payload, academia.token);
-      if (ok) { criadas++; addLog(`  ✓ Turma ${payload.codigo_turma} (${nivel}, ${turno}) criada`, "ok"); }
-      else { addLog(`  ✗ Turma ${payload.codigo_turma}: ${(data as any)?.message || (data as any)?.error || "Erro desconhecido"}`, "warn"); }
+      if (ok) {
+        criadas++;
+        addLog(`  ✓ Turma ${payload.codigo_turma} (${nivel}, ${turno}) criada`, "ok");
+      } else {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+        addLog(`  ✗ Turma ${payload.codigo_turma}: ${errMsg}`, "warn");
+      }
       await sleep(200);
     }
     await sleep(2000);
@@ -784,167 +896,285 @@ export default function SeedTestPage() {
     if (!academia) return;
     const cfg = estudanteConfig;
     const modo = getEscolaMode(academia);
+
     addLog(`Gerando ${cfg.qtd} estudante(s) via async (modo: ${modo})...`, "step");
-    const cursoMedioAlvo = cfg.cursoMedioId === "random" ? cursos.find(c => c.type === "medio" && c.status === "ativo") : cursos.find(c => c.id === cfg.cursoMedioId && c.status === "ativo");
-    const cursoSuperiorAlvo = cfg.cursoSuperiorId === "random" ? cursos.find(c => c.type === "superior" && c.status === "ativo") : cursos.find(c => c.id === cfg.cursoSuperiorId && c.status === "ativo");
+
+    const cursoMedioAlvo = cfg.cursoMedioId === "random"
+      ? cursos.find(c => c.type === "medio" && c.status === "ativo")
+      : cursos.find(c => c.id === cfg.cursoMedioId && c.status === "ativo");
+
+    const cursoSuperiorAlvo = cfg.cursoSuperiorId === "random"
+      ? cursos.find(c => c.type === "superior" && c.status === "ativo")
+      : cursos.find(c => c.id === cfg.cursoSuperiorId && c.status === "ativo");
+
     const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental"));
     const anosMedio = cursoMedioAlvo?.anos_academicos || [];
     const anosSuperior = cursoSuperiorAlvo?.anos_academicos || [];
+
     const items: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
       const { nome, genero } = gerarNome();
-      const payload: any = { nome, genero, data_nascimento: gerarDataNasc(), bilhete_identidade: `${rnd(100000000, 999999999)}LA0${rnd(10, 99)}` };
+      const payload: any = {
+        nome,
+        genero,
+        data_nascimento: gerarDataNasc(),
+        bilhete_identidade: `${rnd(100000000, 999999999)}LA0${rnd(10, 99)}`,
+      };
+
       if (modo === "superior") {
         if (cursoSuperiorAlvo) {
-          payload.ano_superior = cfg.anoSuperior === "random" ? (anosSuperior.length > 0 ? pick(anosSuperior) : "1_ano_superior") : cfg.anoSuperior;
+          const ano = cfg.anoSuperior === "random"
+            ? (anosSuperior.length > 0 ? pick(anosSuperior) : "1_ano_superior")
+            : cfg.anoSuperior;
+          payload.ano_superior = ano;
           payload.status_superior = cfg.statusSuperior;
           payload.curso_superior_id = cursoSuperiorAlvo.id;
+        } else {
+          addLog(`  ! Est. #${idx + 1}: nenhum curso superior ativo — criado sem vínculo de curso`, "warn");
         }
       } else if (modo === "medio") {
         if (cursoMedioAlvo && anosMedio.length > 0) {
-          payload.ano_escolar_medio = cfg.anoMedio === "random" ? pick(anosMedio) : cfg.anoMedio;
+          const ano = cfg.anoMedio === "random"
+            ? pick(anosMedio)
+            : cfg.anoMedio;
+          payload.ano_escolar_medio = ano;
           payload.status_escolar_medio = cfg.statusMedio;
           payload.curso_medio_id = cursoMedioAlvo.id;
+        } else {
+          addLog(`  ! Est. #${idx + 1}: nenhum curso médio ativo — criado sem vínculo de curso`, "warn");
         }
       } else if (modo === "fundamental") {
         if (anosF.length > 0) {
-          payload.ano_escolar = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
+          const ano = cfg.anoFundamental === "random"
+            ? pick(anosF)
+            : cfg.anoFundamental;
+          payload.ano_escolar = ano;
           payload.status_escolar_fundamental = cfg.statusFundamental;
         }
       } else if (modo === "misto") {
         const isFund = idx < Math.floor(cfg.qtd * cfg.pctFundamental / 100);
         if (isFund) {
           if (anosF.length > 0) {
-            payload.ano_escolar = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
+            const ano = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
+            payload.ano_escolar = ano;
             payload.status_escolar_fundamental = cfg.statusFundamental;
           }
         } else {
           if (cursoMedioAlvo && anosMedio.length > 0) {
-            payload.ano_escolar_medio = cfg.anoMedio === "random" ? pick(anosMedio) : cfg.anoMedio;
+            const ano = cfg.anoMedio === "random" ? pick(anosMedio) : cfg.anoMedio;
+            payload.ano_escolar_medio = ano;
             payload.status_escolar_medio = cfg.statusMedio;
             payload.curso_medio_id = cursoMedioAlvo.id;
           }
         }
       }
+
       return payload;
     });
+
     const { ok, data } = await callApi("POST", "/academia/estudante/register/async", items, academia.token);
-    if (!ok) { addLog(`  ✗ Erro ao submeter: ${(data as any)?.message || (data as any)?.error || "Erro ao submeter"}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} enviado (${(data as any)?.total_items} estudantes)`, "info");
+    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+
     const result = await acompanharJob(jobId, "Estudantes");
-    addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    if (!result.timedOut) {
+      addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    }
     await sleep(3000);
     await refreshData();
   };
 
-  // ─── Vincular a Turmas ────────────────────────────────────────────────────────
+  // ─── Vincular Estudantes a Turmas ─────────────────────────────────────────────
   const vincularEstudantesATurmas = async () => {
-    if (!academia || turmas.length === 0 || estudantes.length === 0) { addLog("Sem turmas ou estudantes disponíveis", "warn"); return; }
+    if (!academia || turmas.length === 0 || estudantes.length === 0) {
+      addLog("Sem turmas ou estudantes disponíveis", "warn");
+      return;
+    }
+
     const estudantesEmTurma = new Set(turmas.flatMap(t => t.estudantes));
     const semTurma = estudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
-    if (semTurma.length === 0) { addLog("Todos os estudantes já estão vinculados a alguma turma", "info"); return; }
+
+    if (semTurma.length === 0) {
+      addLog("Todos os estudantes já estão vinculados a alguma turma", "info");
+      return;
+    }
+
     const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
-    if (turmasAtivas.length === 0) { addLog("Nenhuma turma ativa disponível", "err"); return; }
+
+    if (turmasAtivas.length === 0) {
+      addLog("Nenhuma turma ativa disponível", "err");
+      return;
+    }
+
     addLog(`Vinculando ${semTurma.length} estudante(s) sem turma — modo compatível...`, "step");
+    addLog(`  Regra: estudante só é vinculado a turma compatível com seu ano e curso`, "dim");
+
     const academiaAnosAcademicos = academia.anos_academicos || [];
-    const turmasAlvo = vincularConfig.turmaCodigo !== "random" ? turmasAtivas.filter(t => t.codigo_turma === vincularConfig.turmaCodigo) : turmasAtivas;
-    if (turmasAlvo.length === 0) { addLog(`Turma "${vincularConfig.turmaCodigo}" não encontrada ou inativa`, "err"); return; }
+
+    const turmasAlvo = vincularConfig.turmaCodigo !== "random"
+      ? turmasAtivas.filter(t => t.codigo_turma === vincularConfig.turmaCodigo)
+      : turmasAtivas;
+
+    if (turmasAlvo.length === 0) {
+      addLog(`Turma "${vincularConfig.turmaCodigo}" não encontrada ou inativa`, "err");
+      return;
+    }
+
     const items: { codigo_turma: string; codigo_estudante: string }[] = [];
     let semTurmaCompativel = 0;
+
     const turmaIndexMap = new Map<string, number>();
+
     for (const est of semTurma) {
       if (cancelRef.current) break;
-      const turmasCompativeis = turmasAlvo.filter(t => estudanteCompatívelComTurma(est, t, academiaAnosAcademicos));
-      if (turmasCompativeis.length === 0) { semTurmaCompativel++; continue; }
+
+      const turmasCompativeis = turmasAlvo.filter(t =>
+        estudanteCompatívelComTurma(est, t, academiaAnosAcademicos)
+      );
+
+      if (turmasCompativeis.length === 0) {
+        addLog(
+          `  ! ${est.codigo_estudante}: nenhuma turma compatível encontrada` +
+          ` (ano_escolar=${est.ano_escolar || est.ano_escolar_medio || est.ano_superior || "?"}` +
+          ` curso=${est.curso_medio_id || est.curso_superior_id || "—"})`,
+          "warn"
+        );
+        semTurmaCompativel++;
+        continue;
+      }
+
       const chaveGrupo = turmasCompativeis.map(t => t.codigo_turma).sort().join(",");
       const idx = (turmaIndexMap.get(chaveGrupo) ?? 0) % turmasCompativeis.length;
       turmaIndexMap.set(chaveGrupo, idx + 1);
-      items.push({ codigo_turma: turmasCompativeis[idx].codigo_turma, codigo_estudante: est.codigo_estudante });
+
+      const turmaEscolhida = turmasCompativeis[idx];
+      items.push({
+        codigo_turma: turmaEscolhida.codigo_turma,
+        codigo_estudante: est.codigo_estudante,
+      });
     }
-    if (semTurmaCompativel > 0) addLog(`  ⚠ ${semTurmaCompativel} estudante(s) sem turma compatível`, "warn");
-    if (items.length === 0) { addLog("Nenhum vínculo compatível para realizar.", "err"); return; }
+
+    if (semTurmaCompativel > 0) {
+      addLog(
+        `  ⚠ ${semTurmaCompativel} estudante(s) sem turma compatível — verifique se existem turmas` +
+        ` com o mesmo nível e curso dos estudantes`,
+        "warn"
+      );
+    }
+
+    if (items.length === 0) {
+      addLog("Nenhum vínculo compatível para realizar. Crie turmas com os níveis corretos primeiro.", "err");
+      return;
+    }
+
+    const distribuicao = items.reduce<Record<string, number>>((acc, v) => {
+      acc[v.codigo_turma] = (acc[v.codigo_turma] || 0) + 1;
+      return acc;
+    }, {});
+    Object.entries(distribuicao).forEach(([turma, qtd]) => {
+      addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
+    });
+
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
-    if (!ok) { addLog(`  ✗ Erro ao submeter: ${(data as any)?.message || (data as any)?.error || "Erro ao submeter"}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} enviado (${items.length} vínculos)`, "info");
+    addLog(`  Job ${jobId} criado — ${items.length} vínculo(s) na fila`, "info");
+
     const result = await acompanharJob(jobId, "Vínculos");
-    addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    if (!result.timedOut) {
+      addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    }
     await sleep(2000);
     await refreshData();
   };
 
-  // ─── Gerar Notas ─────────────────────────────────────────────────────────────
-  /**
-   * ATUALIZADO:
-   * - materiaMode "all": gera notas para TODAS as matérias do ano académico do estudante
-   * - materiaMode "specific": gera notas apenas para a matéria selecionada
-   */
+  // ─── Gerar Notas ──────────────────────────────────────────────────────────────
+  //
+  // IMPORTANTE: A fase de submissão (POST /async) usa callApi SEM timeout.
+  // Apenas a fase de verificação (GET por estudante) usa callApiWithTimeout.
+  // Se o POST async der qualquer erro de rede, não re-tentamos — logamos e paramos.
+  // Se o pollJob der timeout (5 min), apenas paramos o acompanhamento;
+  // o job continua no servidor e aparece nas notificações.
+  //
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
-      addLog("Sem matérias ou estudantes — crie-os primeiro", "warn"); return;
+      addLog("Sem matérias ou estudantes — crie-os primeiro", "warn");
+      return;
     }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
-    const tipoNota = getTipoNota(academia);
-    const materiasCompativeis = getMateriasFiltradas(materias, academia);
-
-    if (materiasCompativeis.length === 0) {
-      addLog(`  ✗ Nenhuma matéria compatível. Academia tipo "${academia.tipo}"${academia.nivel ? ` / nível "${academia.nivel}"` : ""}.`, "err"); return;
-    }
-
-    // Validar matéria específica
-    if (notaConfig.materiaMode === "specific") {
-      if (!notaConfig.materiaEspecificaId) {
-        addLog("  ✗ Selecione uma matéria específica antes de gerar", "err"); return;
-      }
-      const existe = materiasCompativeis.find(m => m.id === notaConfig.materiaEspecificaId);
-      if (!existe) {
-        addLog("  ✗ Matéria selecionada não encontrada ou incompatível", "err"); return;
-      }
-    }
-
+    const tipoNota = academia.tipo === "superior" ? "superior" : "escolar";
     const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
-    if (categoriasAtivas.length === 0) { addLog("Nenhuma categoria de nota selecionada", "warn"); return; }
+
+    if (categoriasAtivas.length === 0) {
+      addLog("Nenhuma categoria de nota selecionada", "warn");
+      return;
+    }
 
     const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
 
-    const modoLabel = notaConfig.materiaMode === "all" ? "todas as matérias do ano" : `matéria específica`;
-    addLog(`Gerando notas para ${sample.length} estudante(s) — tipo: ${tipoNota} · modo: ${modoLabel} · categorias: ${categoriasAtivas.join(", ")}`, "step");
+    addLog(`Gerando notas para ${sample.length} estudante(s) — categorias: ${categoriasAtivas.join(", ")}`, "step");
+    addLog(`  Fase 1/2: verificando notas existentes (${sample.length} estudantes)...`, "info");
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
     const batch: any[] = [];
-    let estudantesSemMaterias = 0;
 
-    for (const est of sample) {
+    for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
 
-      // Determinar matérias para este estudante
-      let materiasSample: Materia[];
-      if (notaConfig.materiaMode === "specific") {
-        const mat = materiasCompativeis.find(m => m.id === notaConfig.materiaEspecificaId);
-        materiasSample = mat ? [mat] : [];
-      } else {
-        // "all": matérias do ano académico do estudante
-        materiasSample = getMateriasParaEstudante(est, materias, academia);
+      const est = sample[i];
+
+      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
+        addLog(
+          `  🔍 Verificando notas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
+          "dim"
+        );
       }
 
-      if (materiasSample.length === 0) {
-        estudantesSemMaterias++;
-        continue;
+      // GET com timeout de 15s — se der timeout, pula este estudante (não re-submete)
+      const { ok: rOk, data: notasData } = await callApiWithTimeout(
+        "GET",
+        `/notas-estudante/${est.codigo_estudante}`,
+        undefined,
+        academia.token,
+        15_000
+      );
+
+      const notasExistentes = new Set<string>();
+      if (rOk) {
+        const notas: any[] = (notasData as any)?.notas || [];
+        const anoLetivo = academia.ano_letivo;
+        for (const n of notas) {
+          if (n.ano_lectivo === anoLetivo) {
+            notasExistentes.add(`${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`);
+          }
+        }
       }
+
+      const materiasTipo = materias.filter(m => m.type === tipoNota);
+      if (materiasTipo.length === 0) continue;
+      const materiasSample = pickN(materiasTipo, Math.min(3, materiasTipo.length));
 
       for (const mat of materiasSample) {
         let periodos: string[];
-        if (tipoNota === "superior") {
+        if (academia.tipo === "superior") {
           if (mat.periodo) {
             periodos = [mat.periodo];
           } else {
             const cursoMat = cursos.find(c => c.id === mat.curso_id);
-            periodos = cursoMat?.periodos?.length ? [pick(cursoMat.periodos)] : ["1_semestre"];
+            periodos = cursoMat?.periodos || ["1_semestre"];
           }
         } else {
           periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
@@ -952,6 +1182,8 @@ export default function SeedTestPage() {
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
+            const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
+            if (notasExistentes.has(chave)) continue;
             batch.push({
               codigo_estudante: est.codigo_estudante,
               periodo: p,
@@ -963,94 +1195,106 @@ export default function SeedTestPage() {
           }
         }
       }
-    }
 
-    if (estudantesSemMaterias > 0) {
-      addLog(`  ⚠ ${estudantesSemMaterias} estudante(s) sem matérias no seu ano — ignorados`, "warn");
+      await sleep(30);
     }
 
     if (batch.length === 0) {
-      addLog("Nenhuma nota para enviar (estudantes sem matérias correspondentes)", "warn"); return;
+      addLog("Nenhuma nota nova para registrar (todas já existem ou nenhuma matéria compatível)", "info");
+      return;
     }
 
-    addLog(`  Enviando ${batch.length} nota(s) (${sample.length - estudantesSemMaterias} estudantes × matérias × ${categoriasAtivas.length} categorias × períodos)`, "dim");
-    addLog(`  Nota: duplicatas existentes serão rejeitadas pela API — isso é normal`, "dim");
+    addLog(
+      `  Fase 2/2: submetendo ${batch.length} nota(s) via POST /academia/notas-aluno/async...`,
+      "info"
+    );
 
-    const LOTE = 2000;
-    let totalOk = 0, totalErr = 0;
-
-    for (let i = 0; i < batch.length; i += LOTE) {
-      if (cancelRef.current) break;
-      const lote = batch.slice(i, i + LOTE);
-      addLog(`  Lote ${Math.floor(i / LOTE) + 1}/${Math.ceil(batch.length / LOTE)}: ${lote.length} notas`, "dim");
-      const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", lote, academia.token);
-      if (!ok) { addLog(`  ✗ Erro no lote: ${(data as any)?.message || (data as any)?.error || "Erro ao submeter"}`, "err"); continue; }
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); continue; }
-      addLog(`  Job ${jobId} criado (${lote.length} notas) — veja progresso nas notificações ↗`, "info");
-      const result = await acompanharJob(jobId, "Notas");
-      totalOk += result.ok;
-      totalErr += result.err;
+    // POST async SEM timeout — o servidor aceita e processa em background.
+    // Se der erro de rede genuíno (não timeout), logamos e paramos.
+    // NUNCA re-submetemos automaticamente.
+    const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro ao submeter batch de notas: ${errMsg}`, "err");
+      addLog(`  ℹ Se a submissão chegou ao servidor, o job pode estar em execução — verifique as notificações.`, "info");
+      return;
     }
 
-    addLog(`Notas: ${totalOk} ✓  ${totalErr} ✗`, totalOk > 0 ? "ok" : "warn");
+    const jobId = (data as any)?.job_id;
+    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
+    addLog(`  Job ${jobId} criado — ${batch.length} nota(s) na fila`, "info");
+    addLog(`  ℹ Acompanhe pelo sino de notificações ou via SSE`, "dim");
+
+    const result = await acompanharJob(jobId, "Notas");
+    if (!result.timedOut) {
+      addLog(`Notas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    }
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
-  /**
-   * ATUALIZADO:
-   * - materiaMode "all": gera faltas para TODAS as matérias do ano do estudante
-   * - materiaMode "specific": gera faltas apenas para a matéria selecionada
-   */
+  //
+  // Mesma lógica de notas: GET de verificação com timeout, POST async sem timeout.
+  //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
-      addLog("Sem matérias ou estudantes", "warn"); return;
+      addLog("Sem matérias ou estudantes", "warn");
+      return;
     }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
-
-    const materiasCompativeis = getMateriasFiltradas(materias, academia);
-    if (materiasCompativeis.length === 0) {
-      addLog(`  ✗ Nenhuma matéria compatível para esta academia`, "err"); return;
-    }
-
-    if (faltaConfig.materiaMode === "specific") {
-      if (!faltaConfig.materiaEspecificaId) {
-        addLog("  ✗ Selecione uma matéria específica antes de gerar", "err"); return;
-      }
-      const existe = materiasCompativeis.find(m => m.id === faltaConfig.materiaEspecificaId);
-      if (!existe) {
-        addLog("  ✗ Matéria selecionada não encontrada ou incompatível", "err"); return;
-      }
-    }
 
     const { qtdEstudantes } = faltaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
+    addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
+    addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
 
-    const modoLabel = faltaConfig.materiaMode === "all" ? "todas as matérias do ano" : "matéria específica";
-    addLog(`Gerando faltas para ${sample.length} estudante(s) — modo: ${modoLabel}`, "step");
+    const tipoMaterias = academia.tipo === "superior" ? "superior" : "escolar";
+    const materiasTipo = materias.filter(m => m.type === tipoMaterias);
+
+    if (materiasTipo.length === 0) {
+      addLog(`  ✗ Nenhuma matéria do tipo "${tipoMaterias}" ativa`, "err");
+      return;
+    }
 
     const batch: any[] = [];
-    let estudantesSemMaterias = 0;
 
-    for (const est of sample) {
+    for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
 
-      let materiasSample: Materia[];
-      if (faltaConfig.materiaMode === "specific") {
-        const mat = materiasCompativeis.find(m => m.id === faltaConfig.materiaEspecificaId);
-        materiasSample = mat ? [mat] : [];
-      } else {
-        materiasSample = getMateriasParaEstudante(est, materias, academia);
+      const est = sample[i];
+
+      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
+        addLog(
+          `  🔍 Verificando faltas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
+          "dim"
+        );
       }
 
-      if (materiasSample.length === 0) {
-        estudantesSemMaterias++;
-        continue;
+      // GET com timeout de 15s — se der timeout, pula este estudante (não re-submete)
+      const { ok: rOk, data: faltasData } = await callApiWithTimeout(
+        "GET",
+        `/faltas-estudante/${est.codigo_estudante}`,
+        undefined,
+        academia.token,
+        15_000
+      );
+
+      const faltasExistentes = new Set<string>();
+      if (rOk) {
+        const faltas: any[] = (faltasData as any)?.faltas || [];
+        const anoLetivo = academia.ano_letivo;
+        for (const f of faltas) {
+          if (f.ano_lectivo === anoLetivo) {
+            faltasExistentes.add(`${f.materia_disciplinar_id}|${f.data}`);
+          }
+        }
       }
 
+      const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);
+        const chave = `${mat.id}|${dataFalta}`;
+        if (faltasExistentes.has(chave)) continue;
         batch.push({
           codigo_estudante: est.codigo_estudante,
           data: dataFalta,
@@ -1058,75 +1302,96 @@ export default function SeedTestPage() {
           quantidade: rnd(1, 3),
         });
       }
-    }
 
-    if (estudantesSemMaterias > 0) {
-      addLog(`  ⚠ ${estudantesSemMaterias} estudante(s) sem matérias no seu ano — ignorados`, "warn");
+      await sleep(30);
     }
 
     if (batch.length === 0) {
-      addLog("Nenhuma falta para enviar (estudantes sem matérias correspondentes)", "warn"); return;
+      addLog("Nenhuma falta nova para registrar (todas já existem para estas datas/matérias)", "info");
+      return;
     }
 
-    addLog(`  Enviando ${batch.length} falta(s) — duplicatas serão rejeitadas pela API`, "dim");
+    addLog(
+      `  Fase 2/2: submetendo ${batch.length} falta(s) via POST /academia/faltas-aluno/async...`,
+      "info"
+    );
 
-    const LOTE = 2000;
-    let totalOk = 0, totalErr = 0;
-
-    for (let i = 0; i < batch.length; i += LOTE) {
-      if (cancelRef.current) break;
-      const lote = batch.slice(i, i + LOTE);
-      const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", lote, academia.token);
-      if (!ok) { addLog(`  ✗ Erro: ${(data as any)?.message || (data as any)?.error || "Erro ao submeter"}`, "err"); continue; }
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); continue; }
-      addLog(`  Job ${jobId} criado (${lote.length} faltas) — veja progresso nas notificações ↗`, "info");
-      const result = await acompanharJob(jobId, "Faltas");
-      totalOk += result.ok;
-      totalErr += result.err;
+    // POST async SEM timeout — não re-submetemos em caso de demora.
+    const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro ao submeter batch de faltas: ${errMsg}`, "err");
+      addLog(`  ℹ Se a submissão chegou ao servidor, o job pode estar em execução — verifique as notificações.`, "info");
+      return;
     }
 
-    addLog(`Faltas: ${totalOk} ✓  ${totalErr} ✗`, totalOk > 0 ? "ok" : "warn");
+    const jobId = (data as any)?.job_id;
+    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
+    addLog(`  Job ${jobId} criado — ${batch.length} falta(s) na fila`, "info");
+    addLog(`  ℹ Acompanhe pelo sino de notificações ou via SSE`, "dim");
+
+    const result = await acompanharJob(jobId, "Faltas");
+    if (!result.timedOut) {
+      addLog(`Faltas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    }
   };
 
   // ─── Gerar Avaliações Finais ───────────────────────────────────────────────────
   const gerarAvaliacoes = async () => {
     if (!academia || estudantes.length === 0) { addLog("Sem estudantes disponíveis", "warn"); return; }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
+
     const { tipoEnsino, aprovPct } = avalConfig;
     const sample = [...estudantes];
     const nAprov = Math.floor(sample.length * aprovPct / 100);
-    addLog(`Gerando avaliações finais (${tipoEnsino}) para ${sample.length} estudante(s)...`, "step");
+    addLog(`Gerando avaliações finais (${tipoEnsino}) para ${sample.length} estudante(s) via async...`, "step");
+
     const batch: any[] = [];
+
     for (let idx = 0; idx < sample.length; idx++) {
       const est = sample[idx];
       const aprovado = idx < nAprov;
       let nivelAtual = "";
       let proximoNivel: string | undefined;
+
       if (tipoEnsino === "fundamental") {
         const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental")).sort();
         const anoAtual = est.ano_escolar || (anosF.length > 0 ? pick(anosF) : "1_ano_fundamental");
         nivelAtual = anoAtual;
         const idx2 = anosF.indexOf(anoAtual);
-        if (aprovado && idx2 >= 0 && idx2 < anosF.length - 1) proximoNivel = anosF[idx2 + 1];
+        if (aprovado && idx2 >= 0 && idx2 < anosF.length - 1) {
+          proximoNivel = anosF[idx2 + 1];
+        }
       } else if (tipoEnsino === "medio") {
         const c = cursos.find(x => x.type === "medio" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];
-        if (anos.length === 0) { addLog(`  ! Nenhum curso médio ativo — ignorando ${est.codigo_estudante}`, "warn"); continue; }
+        if (anos.length === 0) {
+          addLog(`  ! Nenhum curso médio ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
+          continue;
+        }
         const anoAtual = est.ano_escolar_medio || anos[0];
         nivelAtual = anoAtual;
         const idx2 = anos.indexOf(anoAtual);
-        if (aprovado && idx2 >= 0 && idx2 < anos.length - 1) proximoNivel = anos[idx2 + 1];
+        if (aprovado && idx2 >= 0 && idx2 < anos.length - 1) {
+          proximoNivel = anos[idx2 + 1];
+        }
       } else if (tipoEnsino === "superior") {
         const c = cursos.find(x => x.type === "superior" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];
-        if (anos.length === 0) { addLog(`  ! Nenhum curso superior ativo — ignorando ${est.codigo_estudante}`, "warn"); continue; }
+        if (anos.length === 0) {
+          addLog(`  ! Nenhum curso superior ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
+          continue;
+        }
         const anoAtual = est.ano_superior || anos[0];
         nivelAtual = anoAtual;
         const idx2 = anos.indexOf(anoAtual);
-        if (aprovado && idx2 >= 0 && idx2 < anos.length - 1) proximoNivel = anos[idx2 + 1];
+        if (aprovado && idx2 >= 0 && idx2 < anos.length - 1) {
+          proximoNivel = anos[idx2 + 1];
+        }
       }
+
       if (!nivelAtual) continue;
+
       const item: any = {
         codigo_estudante: est.codigo_estudante,
         tipo_ensino: tipoEnsino,
@@ -1134,17 +1399,34 @@ export default function SeedTestPage() {
         aprovado,
         observacao: "Avaliação gerada pelo painel de testes",
       };
-      if (aprovado && proximoNivel) item.proximo_ano_academico = proximoNivel;
+      if (aprovado && proximoNivel) {
+        item.proximo_ano_academico = proximoNivel;
+      }
+
       batch.push(item);
     }
+
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
+
+    addLog(`  Submetendo ${batch.length} avaliação(ões) via POST /academia/avaliacao-final/async...`, "info");
+
     const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
-    if (!ok) { addLog(`  ✗ Erro: ${(data as any)?.message || (data as any)?.error || "Erro ao submeter"}`, "err"); return; }
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      return;
+    }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado (${batch.length} avaliações) — veja progresso nas notificações ↗`, "info");
+    addLog(`  Job ${jobId} criado — ${batch.length} avaliação(ões) na fila`, "info");
+
     const result = await acompanharJob(jobId, "Avaliações");
-    addLog(`Avaliações: ${result.ok} ✓  ${result.err} ✗  (${nAprov} aprovações de ${sample.length} total)`, result.ok > 0 ? "ok" : "err");
+    if (!result.timedOut) {
+      addLog(
+        `Avaliações: ${result.ok} ✓  ${result.err} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
+        result.ok > 0 ? "ok" : "err"
+      );
+    }
   };
 
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
@@ -1157,7 +1439,8 @@ export default function SeedTestPage() {
       addLog(`Ano letivo ${ano} (tipo: ${tipo}) configurado ✓`, "ok");
       setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev);
     } else {
-      addLog(`Ano letivo: ${(data as any)?.message || (data as any)?.error || "Erro desconhecido"}`, "warn");
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+      addLog(`Ano letivo: ${errMsg}`, "warn");
     }
   };
 
@@ -1165,9 +1448,12 @@ export default function SeedTestPage() {
 
   const estudantesEmTurmaSet = new Set(turmas.flatMap(t => t.estudantes));
   const estudantesSemTurma = estudantes.filter(e => !estudantesEmTurmaSet.has(e.codigo_estudante));
+
   const academiaAnosAcademicosLocal = academia?.anos_academicos || [];
   const turmasAtivas = turmas.filter(t => t.status !== "inativo" && t.status !== "deletado");
-  const estudantesSemTurmaComCompativeis = estudantesSemTurma.filter(est => turmasAtivas.some(t => estudanteCompatívelComTurma(est, t, academiaAnosAcademicosLocal)));
+  const estudantesSemTurmaComCompativeis = estudantesSemTurma.filter(est =>
+    turmasAtivas.some(t => estudanteCompatívelComTurma(est, t, academiaAnosAcademicosLocal))
+  );
   const estudantesSemCompatibilidade = estudantesSemTurma.length - estudantesSemTurmaComCompativeis.length;
 
   const tiposCursoDisp = academia ? tiposCursoValidos(academia) : [];
@@ -1182,36 +1468,34 @@ export default function SeedTestPage() {
   const cursosSuperiorAtivos = cursos.filter(c => c.type === "superior" && c.status === "ativo");
 
   const niveisParaTurma: string[] = (() => {
-    const cursoEscolhido = turmaConfig.cursoId !== "random" ? cursosParaTurma.find(c => c.id === turmaConfig.cursoId) : undefined;
+    const cursoEscolhido = turmaConfig.cursoId !== "random"
+      ? cursosParaTurma.find(c => c.id === turmaConfig.cursoId)
+      : undefined;
     if (cursoEscolhido) return cursoEscolhido.anos_academicos;
     const pool: string[] = [];
     if (academia?.tipo === "escola") {
-      if (academia.nivel === "fundamental" || academia.nivel === "misto") pool.push(...(academia.anos_academicos?.filter(a => a.includes("fundamental")) || []));
-      if (academia.nivel === "medio" || academia.nivel === "misto") { for (const c of cursosParaTurma) pool.push(...c.anos_academicos); }
+      if (academia.nivel === "fundamental" || academia.nivel === "misto") {
+        pool.push(...(academia.anos_academicos?.filter(a => a.includes("fundamental")) || []));
+      }
+      if (academia.nivel === "medio" || academia.nivel === "misto") {
+        for (const c of cursosParaTurma) pool.push(...c.anos_academicos);
+      }
     } else if (academia?.tipo === "superior") {
       for (const c of cursosParaTurma) pool.push(...c.anos_academicos);
     }
     return [...new Set(pool)];
   })();
 
-  const tipoNota = academia ? getTipoNota(academia) : "escolar";
-  const materiasCompativeisCount = academia ? getMateriasFiltradas(materias, academia).length : 0;
-  const materiasCompativeisLista = academia ? getMateriasFiltradas(materias, academia) : [];
+  const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
   const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
 
-  // Estimativa de notas
-  const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
-  const periodosMult = tipoNota === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
-  const estimativaNota = notaConfig.materiaMode === "specific"
-    ? (notaConfig.materiaEspecificaId ? totalEstudantesNota * 1 * categoriasAtivas.length * periodosMult : 0)
-    : totalEstudantesNota * materiasCompativeisCount * categoriasAtivas.length * periodosMult;
-  const estimativaNotaLabel = notaConfig.materiaMode === "all" ? `≈${estimativaNota} (máx)` : `≈${estimativaNota}`;
-
   // ─── Render helpers ────────────────────────────────────────────────────────────
 
-  const logColors: Record<LogLevel, string> = { ok: "#4ade80", err: "#f87171", warn: "#facc15", info: "#94a3b8", step: "#60a5fa", dim: "#475569" };
+  const logColors: Record<LogLevel, string> = {
+    ok: "#4ade80", err: "#f87171", warn: "#facc15", info: "#94a3b8", step: "#60a5fa", dim: "#475569"
+  };
   const logIcons: Record<LogLevel, string> = { ok: "✓", err: "✗", warn: "!", info: "·", step: "▶", dim: "·" };
 
   if (authError) {
@@ -1267,13 +1551,12 @@ export default function SeedTestPage() {
   );
 
   const Btn = ({ onClick, children, color = "#2563eb", disabled = false }: { onClick: () => void; children: React.ReactNode; color?: string; disabled?: boolean }) => (
-    <button onClick={onClick} disabled={disabled || running}
-      style={{ background: disabled || running ? "#1e293b" : color, color: disabled || running ? "#475569" : "#fff", border: "none", borderRadius: 8, padding: "0 18px", height: 34, fontSize: 13, fontWeight: 600, cursor: disabled || running ? "not-allowed" : "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}>
+    <button onClick={onClick} disabled={disabled || running} style={{ background: disabled || running ? "#1e293b" : color, color: disabled || running ? "#475569" : "#fff", border: "none", borderRadius: 8, padding: "0 18px", height: 34, fontSize: 13, fontWeight: 600, cursor: disabled || running ? "not-allowed" : "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}>
       {children}
     </button>
   );
 
-  const periodosNotaDisponiveis = tipoNota !== "superior" ? [
+  const periodosNotaDisponiveis = academia.tipo !== "superior" ? [
     { value: "random", label: "Todos os trimestres" },
     { value: "1_trimestre", label: "1º Trimestre" },
     { value: "2_trimestre", label: "2º Trimestre" },
@@ -1281,12 +1564,20 @@ export default function SeedTestPage() {
   ] : [];
 
   const anosMedioParaConfig = cursosMedioAtivos.length > 0
-    ? (estudanteConfig.cursoMedioId === "random" ? cursosMedioAtivos[0]?.anos_academicos || [] : cursos.find(c => c.id === estudanteConfig.cursoMedioId)?.anos_academicos || [])
+    ? (estudanteConfig.cursoMedioId === "random"
+        ? cursosMedioAtivos[0]?.anos_academicos || []
+        : cursos.find(c => c.id === estudanteConfig.cursoMedioId)?.anos_academicos || [])
     : [];
 
   const anosSuperiorParaConfig = cursosSuperiorAtivos.length > 0
-    ? (estudanteConfig.cursoSuperiorId === "random" ? cursosSuperiorAtivos[0]?.anos_academicos || [] : cursos.find(c => c.id === estudanteConfig.cursoSuperiorId)?.anos_academicos || [])
+    ? (estudanteConfig.cursoSuperiorId === "random"
+        ? cursosSuperiorAtivos[0]?.anos_academicos || []
+        : cursos.find(c => c.id === estudanteConfig.cursoSuperiorId)?.anos_academicos || [])
     : [];
+
+  const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
+  const periodosMult = academia.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
+  const estimativaNota = totalEstudantesNota * Math.min(3, materias.length) * categoriasAtivas.length * periodosMult;
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
@@ -1305,8 +1596,7 @@ export default function SeedTestPage() {
             Academia: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{academia.codigo}</span>
             {" · "}{academia.tipo}{academia.nivel ? ` · ${academia.nivel}` : ""}
             {academia.ano_letivo ? ` · Ano letivo: ${academia.ano_letivo.replace("_", "/")}` : " · ⚠ sem ano letivo"}
-            {" · "}<span style={{ color: "#facc15" }}>⚡ Async</span>
-            {" · "}<span style={{ color: "#a78bfa" }}>🔔 Progresso nas notificações ↗</span>
+            {" · "}<span style={{ color: "#facc15" }}>⚡ Modo Assíncrono</span>
           </p>
         </div>
 
@@ -1317,7 +1607,6 @@ export default function SeedTestPage() {
               {[
                 { label: "Cursos", val: cursos.length, icon: "📚" },
                 { label: "Matérias ativas", val: materias.length, icon: "📖" },
-                { label: "Matérias compatíveis", val: materiasCompativeisCount, icon: "✓", warn: materiasCompativeisCount === 0 },
                 { label: "Turmas", val: turmas.length, icon: "🏫" },
                 { label: "Estudantes", val: estudantes.length, icon: "👥" },
                 { label: "Sem turma", val: estudantesSemTurma.length, icon: "⚠️", warn: estudantesSemTurma.length > 0 },
@@ -1330,33 +1619,35 @@ export default function SeedTestPage() {
               ))}
               <div style={{ marginTop: 12 }}>
                 <Row>
-                  {!academia.ano_letivo && (
-                    <Btn onClick={() => withLoading(async () => { await configurarAnoLetivo(); })} color="#0f4c75">Configurar ano letivo</Btn>
-                  )}
+                  <Btn onClick={() => withLoading(async () => { await configurarAnoLetivo(); })} color="#0f4c75">
+                    {academia.ano_letivo ? "✓ Ano letivo ok" : "Configurar ano letivo"}
+                  </Btn>
                   <Btn onClick={() => refreshData()} color="#334155">↻ Atualizar</Btn>
                 </Row>
               </div>
             </Section>
 
-            {materiasCompativeisCount === 0 && materias.length > 0 && (
-              <div style={{ border: "1px solid #78350f", borderRadius: 8, padding: 12, background: "#1c0a00", fontSize: 11, color: "#fbbf24", lineHeight: 1.6 }}>
-                <p style={{ margin: "0 0 4px", fontWeight: 700 }}>⚠ Matérias incompatíveis</p>
+            {turmas.length > 0 && estudantesSemTurma.length > 0 && (
+              <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Regra de vínculo</p>
                 <p style={{ margin: 0 }}>
-                  Academia tipo <strong>{academia.tipo}</strong>{academia.nivel ? ` / nível ${academia.nivel}` : ""}.
-                  {academia.tipo === "escola" ? " Crie matérias do tipo 'fundamental' ou 'medio'." : " Crie matérias do tipo 'superior'."}
+                  Estudantes só são vinculados a turmas do <strong style={{ color: "#94a3b8" }}>mesmo nível e curso</strong>.
+                  {estudantesSemCompatibilidade > 0 && (
+                    <span style={{ color: "#facc15" }}> {estudantesSemCompatibilidade} estudante(s) não têm turma compatível — crie turmas adequadas.</span>
+                  )}
                 </p>
               </div>
             )}
 
-            {turmas.length > 0 && estudantesSemTurma.length > 0 && (
-              <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 8 }}>
-                <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Regra de vínculo</p>
-                <p style={{ margin: 0 }}>
-                  Estudantes só são vinculados a turmas do <strong style={{ color: "#94a3b8" }}>mesmo nível e curso</strong>.
-                  {estudantesSemCompatibilidade > 0 && <span style={{ color: "#facc15" }}> {estudantesSemCompatibilidade} estudante(s) sem turma compatível.</span>}
-                </p>
-              </div>
-            )}
+            {/* Aviso sobre comportamento de timeout */}
+            <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
+              <p style={{ margin: 0 }}>
+                Ao submeter um job, o servidor processa em background.
+                Se o acompanhamento der timeout, o job <strong style={{ color: "#94a3b8" }}>continua no servidor</strong>.
+                Acompanhe pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
+              </p>
+            </div>
           </div>
 
           {/* ─── Operações ───────────────────────────────────────────────── */}
@@ -1367,10 +1658,16 @@ export default function SeedTestPage() {
                 <Row>
                   <Field label="Tipo">
                     <Sel value={cursoConfig.tipo} onChange={e => setCursoConfig(p => ({ ...p, tipo: e.target.value as any }))}>
-                      {tiposCursoDisp.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      {tiposCursoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
                     </Sel>
                   </Field>
-                  <NumberStepper label="Quantidade" value={cursoConfig.qtd} min={1} max={5} onChange={v => setCursoConfig(p => ({ ...p, qtd: v }))} />
+                  <NumberStepper
+                    label="Quantidade"
+                    value={cursoConfig.qtd}
+                    min={1}
+                    max={5}
+                    onChange={v => setCursoConfig(p => ({ ...p, qtd: v }))}
+                  />
                   <Btn onClick={() => withLoading(gerarCursos)} color="#7c3aed">Gerar Cursos</Btn>
                 </Row>
                 {cursos.length > 0 && (
@@ -1386,7 +1683,7 @@ export default function SeedTestPage() {
             )}
 
             {/* Matérias */}
-            <Section title="Matérias Disciplinares" badge={`${materias.length} ativas · ${materiasCompativeisCount} compatíveis`}>
+            <Section title="Matérias Disciplinares" badge={`${materias.length} ativas`}>
               {tiposMateriaDisp.length === 0 ? (
                 <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>Tipo de academia não suporta matérias nesta configuração.</p>
               ) : (
@@ -1394,7 +1691,7 @@ export default function SeedTestPage() {
                   <Row>
                     <Field label="Tipo">
                       <Sel value={materiaConfig.tipo} onChange={e => { const newTipo = e.target.value as any; setMateriaConfig(p => ({ ...p, tipo: newTipo, cursoId: "auto" })); }}>
-                        {tiposMateriaDisp.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        {tiposMateriaDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
                       </Sel>
                     </Field>
                     {(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") && (
@@ -1405,9 +1702,18 @@ export default function SeedTestPage() {
                         </Sel>
                       </Field>
                     )}
-                    <NumberStepper label="Quantidade" value={materiaConfig.qtd} min={1} max={10} onChange={v => setMateriaConfig(p => ({ ...p, qtd: v }))} />
-                    <Btn onClick={() => withLoading(gerarMaterias)} color="#7c3aed"
-                      disabled={(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") && cursos.filter(c => c.type === materiaConfig.tipo && c.status === "ativo").length === 0}>
+                    <NumberStepper
+                      label="Quantidade"
+                      value={materiaConfig.qtd}
+                      min={1}
+                      max={10}
+                      onChange={v => setMateriaConfig(p => ({ ...p, qtd: v }))}
+                    />
+                    <Btn
+                      onClick={() => withLoading(gerarMaterias)}
+                      color="#7c3aed"
+                      disabled={(materiaConfig.tipo === "medio" || materiaConfig.tipo === "superior") && cursos.filter(c => c.type === materiaConfig.tipo && c.status === "ativo").length === 0}
+                    >
                       Gerar Matérias
                     </Btn>
                   </Row>
@@ -1427,59 +1733,90 @@ export default function SeedTestPage() {
               ) : academia.nivel === "medio" && cursosParaTurma.length === 0 ? (
                 <p style={{ color: "#f87171", fontSize: 12, margin: 0 }}>✗ Academia de nível médio sem cursos ativos — crie cursos primeiro</p>
               ) : (
-                <Row>
-                  <NumberStepper label="Quantidade" value={turmaConfig.qtd} min={1} max={20} onChange={v => setTurmaConfig(p => ({ ...p, qtd: v }))} />
-                  <Field label="Turno">
-                    <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
-                      <option value="random">Aleatório</option>
-                      <option value="manha">Manhã</option>
-                      <option value="tarde">Tarde</option>
-                      <option value="noite">Noite</option>
-                    </Sel>
-                  </Field>
-                  {cursosParaTurma.length > 0 && (
-                    <Field label="Curso">
-                      <Sel value={turmaConfig.cursoId} onChange={e => setTurmaConfig(p => ({ ...p, cursoId: e.target.value, nivel: "random" }))} style={{ minWidth: 200 }}>
-                        <option value="random">Aleatório (todos os cursos)</option>
-                        {cursosParaTurma.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                <>
+                  <Row>
+                    <NumberStepper
+                      label="Quantidade"
+                      value={turmaConfig.qtd}
+                      min={1}
+                      max={20}
+                      onChange={v => setTurmaConfig(p => ({ ...p, qtd: v }))}
+                    />
+                    <Field label="Turno">
+                      <Sel value={turmaConfig.turno} onChange={e => setTurmaConfig(p => ({ ...p, turno: e.target.value }))}>
+                        <option value="random">Aleatório</option>
+                        <option value="manha">Manhã</option>
+                        <option value="tarde">Tarde</option>
+                        <option value="noite">Noite</option>
                       </Sel>
                     </Field>
-                  )}
-                  <Field label="Nível">
-                    <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
-                      <option value="random">Aleatório</option>
-                      {(academia.nivel === "fundamental" || academia.nivel === "misto") &&
-                        (academia.anos_academicos || []).filter(a => a.includes("fundamental")).map(a => (
-                          <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
+                    {cursosParaTurma.length > 0 && (
+                      <Field label="Curso">
+                        <Sel
+                          value={turmaConfig.cursoId}
+                          onChange={e => setTurmaConfig(p => ({ ...p, cursoId: e.target.value, nivel: "random" }))}
+                          style={{ minWidth: 200 }}
+                        >
+                          <option value="random">Aleatório (todos os cursos)</option>
+                          {cursosParaTurma.map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
+                        </Sel>
+                      </Field>
+                    )}
+                    <Field label="Nível">
+                      <Sel value={turmaConfig.nivel} onChange={e => setTurmaConfig(p => ({ ...p, nivel: e.target.value }))}>
+                        <option value="random">Aleatório</option>
+                        {(academia.nivel === "fundamental" || academia.nivel === "misto") &&
+                          (academia.anos_academicos || []).filter(a => a.includes("fundamental")).map(a => (
+                            <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
+                          ))
+                        }
+                        {niveisParaTurma.filter(a => !a.includes("fundamental")).map(a => (
+                          <option key={a} value={a}>
+                            {a.includes("medio") ? a.replace(/_ano_medio$/, "º Médio") : a.replace(/_ano_superior$/, "º Superior")}
+                          </option>
                         ))}
-                      {niveisParaTurma.filter(a => !a.includes("fundamental")).map(a => (
-                        <option key={a} value={a}>
-                          {a.includes("medio") ? a.replace(/_ano_medio$/, "º Médio") : a.replace(/_ano_superior$/, "º Superior")}
-                        </option>
-                      ))}
-                    </Sel>
-                  </Field>
-                  <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
-                </Row>
+                      </Sel>
+                    </Field>
+                    <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
+                  </Row>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
+                    ✦ Para vincular estudantes, as turmas devem ter o <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong> dos estudantes
+                  </p>
+                </>
               )}
             </Section>
 
             {/* Estudantes */}
             <Section title="Estudantes" badge={`${estudantes.length} cadastrados`}>
               <Row>
-                <NumberStepper label="Quantidade" value={estudanteConfig.qtd} min={1} max={1000} step={10} onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))} hint="máx. 1000 por job" />
+                <NumberStepper
+                  label="Quantidade"
+                  value={estudanteConfig.qtd}
+                  min={1}
+                  max={1000}
+                  step={10}
+                  onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))}
+                  hint={`máx. 1000 por job`}
+                />
               </Row>
+
               {(modo === "fundamental" || modo === "misto") && (
                 <SubSection title="Ensino Fundamental">
                   <Row>
                     <Field label="Ano escolar">
-                      <Sel value={estudanteConfig.anoFundamental} onChange={e => setEstudanteConfig(p => ({ ...p, anoFundamental: e.target.value }))}>
+                      <Sel value={estudanteConfig.anoFundamental}
+                        onChange={e => setEstudanteConfig(p => ({ ...p, anoFundamental: e.target.value }))}>
                         <option value="random">Aleatório</option>
-                        {anosDispFundamental.map(a => <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>)}
+                        {anosDispFundamental.map(a => (
+                          <option key={a} value={a}>{a.replace(/_ano_fundamental$/, "º Fundamental")}</option>
+                        ))}
                       </Sel>
                     </Field>
                     <Field label="Status fundamental">
-                      <Sel value={estudanteConfig.statusFundamental} onChange={e => setEstudanteConfig(p => ({ ...p, statusFundamental: e.target.value }))}>
+                      <Sel value={estudanteConfig.statusFundamental}
+                        onChange={e => setEstudanteConfig(p => ({ ...p, statusFundamental: e.target.value }))}>
                         <option value="em_andamento">Em andamento</option>
                         <option value="inativo">Inativo</option>
                         <option value="finalizado">Finalizado</option>
@@ -1488,6 +1825,7 @@ export default function SeedTestPage() {
                   </Row>
                 </SubSection>
               )}
+
               {(modo === "medio" || modo === "misto") && (
                 <SubSection title="Ensino Médio">
                   {cursosMedioAtivos.length === 0 ? (
@@ -1495,19 +1833,26 @@ export default function SeedTestPage() {
                   ) : (
                     <Row>
                       <Field label="Curso médio">
-                        <Sel value={estudanteConfig.cursoMedioId} onChange={e => setEstudanteConfig(p => ({ ...p, cursoMedioId: e.target.value, anoMedio: "random" }))}>
+                        <Sel value={estudanteConfig.cursoMedioId}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoMedioId: e.target.value, anoMedio: "random" }))}>
                           <option value="random">Primeiro ativo</option>
-                          {cursosMedioAtivos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                          {cursosMedioAtivos.map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
                         </Sel>
                       </Field>
                       <Field label="Ano médio">
-                        <Sel value={estudanteConfig.anoMedio} onChange={e => setEstudanteConfig(p => ({ ...p, anoMedio: e.target.value }))}>
+                        <Sel value={estudanteConfig.anoMedio}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, anoMedio: e.target.value }))}>
                           <option value="random">Aleatório</option>
-                          {anosMedioParaConfig.map(a => <option key={a} value={a}>{a.replace(/_ano_medio$/, "º Médio")}</option>)}
+                          {anosMedioParaConfig.map(a => (
+                            <option key={a} value={a}>{a.replace(/_ano_medio$/, "º Médio")}</option>
+                          ))}
                         </Sel>
                       </Field>
                       <Field label="Status médio">
-                        <Sel value={estudanteConfig.statusMedio} onChange={e => setEstudanteConfig(p => ({ ...p, statusMedio: e.target.value }))}>
+                        <Sel value={estudanteConfig.statusMedio}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, statusMedio: e.target.value }))}>
                           <option value="em_andamento">Em andamento</option>
                           <option value="inativo">Inativo</option>
                           <option value="finalizado">Finalizado</option>
@@ -1517,6 +1862,7 @@ export default function SeedTestPage() {
                   )}
                 </SubSection>
               )}
+
               {modo === "superior" && (
                 <SubSection title="Ensino Superior">
                   {cursosSuperiorAtivos.length === 0 ? (
@@ -1524,19 +1870,26 @@ export default function SeedTestPage() {
                   ) : (
                     <Row>
                       <Field label="Curso superior">
-                        <Sel value={estudanteConfig.cursoSuperiorId} onChange={e => setEstudanteConfig(p => ({ ...p, cursoSuperiorId: e.target.value, anoSuperior: "random" }))}>
+                        <Sel value={estudanteConfig.cursoSuperiorId}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoSuperiorId: e.target.value, anoSuperior: "random" }))}>
                           <option value="random">Primeiro ativo</option>
-                          {cursosSuperiorAtivos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                          {cursosSuperiorAtivos.map(c => (
+                            <option key={c.id} value={c.id}>{c.nome}</option>
+                          ))}
                         </Sel>
                       </Field>
                       <Field label="Ano superior">
-                        <Sel value={estudanteConfig.anoSuperior} onChange={e => setEstudanteConfig(p => ({ ...p, anoSuperior: e.target.value }))}>
+                        <Sel value={estudanteConfig.anoSuperior}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, anoSuperior: e.target.value }))}>
                           <option value="random">Aleatório</option>
-                          {anosSuperiorParaConfig.map(a => <option key={a} value={a}>{a.replace(/_ano_superior$/, "º Superior")}</option>)}
+                          {anosSuperiorParaConfig.map(a => (
+                            <option key={a} value={a}>{a.replace(/_ano_superior$/, "º Superior")}</option>
+                          ))}
                         </Sel>
                       </Field>
                       <Field label="Status superior">
-                        <Sel value={estudanteConfig.statusSuperior} onChange={e => setEstudanteConfig(p => ({ ...p, statusSuperior: e.target.value }))}>
+                        <Sel value={estudanteConfig.statusSuperior}
+                          onChange={e => setEstudanteConfig(p => ({ ...p, statusSuperior: e.target.value }))}>
                           <option value="em_andamento">Em andamento</option>
                           <option value="inativo">Inativo</option>
                           <option value="finalizado">Finalizado</option>
@@ -1546,10 +1899,18 @@ export default function SeedTestPage() {
                   )}
                 </SubSection>
               )}
+
               {modo === "misto" && (
                 <SubSection title="Distribuição Misto">
                   <Row>
-                    <NumberStepper label="% Fundamental" value={estudanteConfig.pctFundamental} min={0} max={100} step={5} onChange={v => setEstudanteConfig(p => ({ ...p, pctFundamental: v }))} />
+                    <NumberStepper
+                      label="% Fundamental"
+                      value={estudanteConfig.pctFundamental}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onChange={v => setEstudanteConfig(p => ({ ...p, pctFundamental: v }))}
+                    />
                   </Row>
                   <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>
                     ≈ {Math.floor(estudanteConfig.qtd * estudanteConfig.pctFundamental / 100)} fundamental
@@ -1557,18 +1918,24 @@ export default function SeedTestPage() {
                   </p>
                 </SubSection>
               )}
+
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
                   Gerar {estudanteConfig.qtd} Estudante(s) (async)
                 </Btn>
               </div>
+              <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                Usa endpoint assíncrono — limite: 1000 por job
+              </p>
             </Section>
 
             {/* Vincular a Turmas */}
             {turmas.length > 0 && estudantes.length > 0 && (
               <Section title="Vincular Estudantes a Turmas" badge={
-                estudantesSemTurma.length === 0 ? "todos vinculados"
-                  : estudantesSemCompatibilidade > 0 ? `${estudantesSemTurmaComCompativeis.length} compatíveis de ${estudantesSemTurma.length} sem turma`
+                estudantesSemTurma.length === 0
+                  ? "todos vinculados"
+                  : estudantesSemCompatibilidade > 0
+                    ? `${estudantesSemTurmaComCompativeis.length} compatíveis de ${estudantesSemTurma.length} sem turma`
                     : `${estudantesSemTurma.length} sem turma`
               }>
                 {estudantesSemTurma.length === 0 ? (
@@ -1577,7 +1944,8 @@ export default function SeedTestPage() {
                   <>
                     {estudantesSemCompatibilidade > 0 && (
                       <div style={{ background: "#1c1000", border: "1px solid #854d0e", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 11, color: "#fbbf24" }}>
-                        <strong>⚠ {estudantesSemCompatibilidade} estudante(s)</strong> sem turma compatível.
+                        <strong>⚠ {estudantesSemCompatibilidade} estudante(s)</strong> não têm turma compatível com seu nível/curso.
+                        Crie turmas com os níveis e cursos correspondentes.
                       </div>
                     )}
                     <Row>
@@ -1591,28 +1959,25 @@ export default function SeedTestPage() {
                           ))}
                         </Sel>
                       </Field>
-                      <Btn onClick={() => withLoading(vincularEstudantesATurmas)} color="#0f4c75" disabled={estudantesSemTurmaComCompativeis.length === 0}>
+                      <Btn
+                        onClick={() => withLoading(vincularEstudantesATurmas)}
+                        color="#0f4c75"
+                        disabled={estudantesSemTurmaComCompativeis.length === 0}
+                      >
                         Vincular {estudantesSemTurmaComCompativeis.length} compatíveis (async)
                       </Btn>
                     </Row>
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
+                      ✦ Cada estudante é vinculado apenas a turmas do <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong>
+                      {" — "}distribuição automática por round-robin entre turmas compatíveis
+                    </p>
                   </>
                 )}
               </Section>
             )}
 
-            {/* ─── Notas ─────────────────────────────────────────────────── */}
-            <Section title="Notas" badge={
-              materiasCompativeisCount === 0 ? "⚠ sem matérias compatíveis"
-                : `${estimativaNotaLabel} notas · ${materiasCompativeisCount} matérias`
-            }>
-              {materiasCompativeisCount === 0 && (
-                <div style={{ background: "#1c0a00", border: "1px solid #7c2d12", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#fca5a5" }}>
-                  ✗ Nenhuma matéria compatível.
-                  {academia.tipo === "escola" ? " Crie matérias do tipo 'fundamental' ou 'medio'." : " Crie matérias do tipo 'superior'."}
-                </div>
-              )}
-
-              {/* Categorias */}
+            {/* Notas */}
+            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
               <SubSection title={`Categorias — ${tipoNota === "escolar" ? "Escolar" : "Superior"}`}>
                 <CategoryCheckboxes
                   label="Registrar notas para"
@@ -1620,22 +1985,15 @@ export default function SeedTestPage() {
                   selected={categoriasAtivas}
                   onChange={setCategoriasAtivas}
                 />
+                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                  {tipoNota === "escolar"
+                    ? "Categorias fixas do ensino escolar"
+                    : "Categorias fixas do ensino superior"}
+                  {" · "}{categoriasAtivas.length} de {categoriasDisponiveis.length} selecionada(s)
+                </p>
               </SubSection>
 
-              {/* Seleção de matérias */}
-              <SubSection title="Seleção de matérias">
-                <MateriaSelector
-                  mode={notaConfig.materiaMode}
-                  onModeChange={m => setNotaConfig(p => ({ ...p, materiaMode: m, materiaEspecificaId: "" }))}
-                  materiaId={notaConfig.materiaEspecificaId}
-                  onMateriaChange={id => setNotaConfig(p => ({ ...p, materiaEspecificaId: id }))}
-                  materias={materiasCompativeisLista}
-                  disabled={running}
-                />
-              </SubSection>
-
-              {/* Quantidade e período */}
-              {tipoNota !== "superior" ? (
+              {academia.tipo !== "superior" ? (
                 <Row>
                   <NumberStepper
                     label="Nº estudantes (0 = todos)"
@@ -1648,14 +2006,10 @@ export default function SeedTestPage() {
                   />
                   <Field label="Período">
                     <Sel value={notaConfig.periodo} onChange={e => setNotaConfig(p => ({ ...p, periodo: e.target.value }))}>
-                      {periodosNotaDisponiveis.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                      {periodosNotaDisponiveis.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
                     </Sel>
                   </Field>
-                  <Btn
-                    onClick={() => withLoading(gerarNotas)}
-                    color="#b45309"
-                    disabled={materiasCompativeisCount === 0 || estudantes.length === 0 || (notaConfig.materiaMode === "specific" && !notaConfig.materiaEspecificaId)}
-                  >
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
                     Gerar Notas (async)
                   </Btn>
                 </Row>
@@ -1670,45 +2024,20 @@ export default function SeedTestPage() {
                     onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
                     hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                   />
-                  <Btn
-                    onClick={() => withLoading(gerarNotas)}
-                    color="#b45309"
-                    disabled={materiasCompativeisCount === 0 || estudantes.length === 0 || (notaConfig.materiaMode === "specific" && !notaConfig.materiaEspecificaId)}
-                  >
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
                     Gerar Notas (async)
                   </Btn>
                 </Row>
               )}
-
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Tipo API: <strong style={{ color: "#94a3b8" }}>{tipoNota}</strong>
-                {" · "}Modo: <strong style={{ color: "#94a3b8" }}>{notaConfig.materiaMode === "all" ? "todas as matérias do ano" : "matéria específica"}</strong>
-                {" · "}Duplicatas são rejeitadas automaticamente pela API
+                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code> (com timeout por estudante)
+                <br />
+                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> — sem timeout (job fica no servidor)
               </p>
             </Section>
 
-            {/* ─── Faltas ─────────────────────────────────────────────────── */}
-            <Section title="Faltas" badge={
-              materiasCompativeisCount === 0 ? "⚠ sem matérias compatíveis" : undefined
-            }>
-              {materiasCompativeisCount === 0 && (
-                <div style={{ background: "#1c0a00", border: "1px solid #7c2d12", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#fca5a5" }}>
-                  ✗ Nenhuma matéria compatível.
-                </div>
-              )}
-
-              {/* Seleção de matérias */}
-              <SubSection title="Seleção de matérias">
-                <MateriaSelector
-                  mode={faltaConfig.materiaMode}
-                  onModeChange={m => setFaltaConfig(p => ({ ...p, materiaMode: m, materiaEspecificaId: "" }))}
-                  materiaId={faltaConfig.materiaEspecificaId}
-                  onMateriaChange={id => setFaltaConfig(p => ({ ...p, materiaEspecificaId: id }))}
-                  materias={materiasCompativeisLista}
-                  disabled={running}
-                />
-              </SubSection>
-
+            {/* Faltas */}
+            <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
               <Row>
                 <NumberStepper
                   label="Nº estudantes (0 = todos)"
@@ -1719,18 +2048,14 @@ export default function SeedTestPage() {
                   onChange={v => setFaltaConfig(p => ({ ...p, qtdEstudantes: v }))}
                   hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                 />
-                <Btn
-                  onClick={() => withLoading(gerarFaltas)}
-                  color="#b45309"
-                  disabled={materiasCompativeisCount === 0 || estudantes.length === 0 || (faltaConfig.materiaMode === "specific" && !faltaConfig.materiaEspecificaId)}
-                >
+                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
                   Gerar Faltas (async)
                 </Btn>
               </Row>
-
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Modo: <strong style={{ color: "#94a3b8" }}>{faltaConfig.materiaMode === "all" ? "todas as matérias do ano" : "matéria específica"}</strong>
-                {" · "}Duplicatas rejeitadas pela API
+                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code> (com timeout por estudante)
+                <br />
+                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> — sem timeout (job fica no servidor)
               </p>
             </Section>
 
@@ -1743,25 +2068,27 @@ export default function SeedTestPage() {
                     : "Crie e ative cursos para habilitar avaliações"}
                 </p>
               ) : (
-                <Row>
-                  <Field label="Tipo ensino">
-                    <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
-                      {tiposEnsinoDisp.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </Sel>
-                  </Field>
-                  <NumberStepper
-                    label="% Aprovação"
-                    value={avalConfig.aprovPct}
-                    min={0}
-                    max={100}
-                    step={5}
-                    onChange={v => setAvalConfig(p => ({ ...p, aprovPct: v }))}
-                    hint={`≈${Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovados`}
-                  />
-                  <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
-                    Avaliar TODOS ({estudantes.length}) async
-                  </Btn>
-                </Row>
+                <>
+                  <Row>
+                    <Field label="Tipo ensino">
+                      <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
+                        {tiposEnsinoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                      </Sel>
+                    </Field>
+                    <NumberStepper
+                      label="% Aprovação"
+                      value={avalConfig.aprovPct}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onChange={v => setAvalConfig(p => ({ ...p, aprovPct: v }))}
+                      hint={`≈${Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovados`}
+                    />
+                    <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
+                      Avaliar TODOS ({estudantes.length}) async
+                    </Btn>
+                  </Row>
+                </>
               )}
             </Section>
           </div>
@@ -1774,13 +2101,11 @@ export default function SeedTestPage() {
               <span style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>LOG · {logs.length} entradas</span>
               <div style={{ display: "flex", gap: 10 }}>
                 {running && (
-                  <button onClick={() => { cancelRef.current = true; addLog("Cancelando...", "warn"); }}
-                    style={{ background: "#7f1d1d", color: "#fca5a5", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
+                  <button onClick={() => { cancelRef.current = true; addLog("Cancelando...", "warn"); }} style={{ background: "#7f1d1d", color: "#fca5a5", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
                     ✕ Cancelar
                   </button>
                 )}
-                <button onClick={() => setLogs([])}
-                  style={{ background: "transparent", color: "#475569", border: "1px solid #1e293b", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
+                <button onClick={() => setLogs([])} style={{ background: "transparent", color: "#475569", border: "1px solid #1e293b", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
                   Limpar
                 </button>
               </div>
