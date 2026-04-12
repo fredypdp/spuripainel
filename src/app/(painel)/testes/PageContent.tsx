@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
+import { jobApiService, tokenStorage } from "@/lib/api";
 import { resolveJobItemError } from "@/lib/api/job-service";
 import { getCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
@@ -22,7 +22,7 @@ interface AcademiaInfo {
 interface Materia {
   id: string;
   nome: string;
-  type: string;
+  type: string; // 'fundamental' | 'medio' | 'superior'
   anos_academicos: string[];
   periodo?: string;
   curso_id?: string;
@@ -112,6 +112,31 @@ const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
   return new Date(Date.now() - dias * 86400000).toISOString();
 };
+
+/**
+ * CORRIGIDO: Mapeia o tipo da academia para o tipo de nota aceito pela API.
+ * API aceita: 'escolar' | 'superior'
+ * Matérias têm type: 'fundamental' | 'medio' | 'superior'
+ * 
+ * Para academias do tipo 'escola', o tipo de nota é sempre 'escolar',
+ * independente de a matéria ser 'fundamental' ou 'medio'.
+ */
+function getTipoNota(academia: AcademiaInfo): "escolar" | "superior" {
+  return academia.tipo === "superior" ? "superior" : "escolar";
+}
+
+/**
+ * CORRIGIDO: Filtra matérias compatíveis com o tipo de academia.
+ * - Academia escola: matérias fundamental e medio
+ * - Academia superior: matérias superior
+ */
+function getMateriasFiltradas(materias: Materia[], academia: AcademiaInfo): Materia[] {
+  if (academia.tipo === "superior") {
+    return materias.filter(m => m.type === "superior");
+  }
+  // escola: matérias fundamental e medio são usadas com tipo nota 'escolar'
+  return materias.filter(m => m.type === "fundamental" || m.type === "medio");
+}
 
 function tiposMateriaValidos(academia: AcademiaInfo): { value: "fundamental"|"medio"|"superior"; label: string }[] {
   if (academia.tipo === "superior") {
@@ -237,12 +262,6 @@ function NumberStepper({
     if (!isNaN(parsed)) onChange(clamp(parsed));
   };
 
-  const handleBtnClick = (e: React.MouseEvent, newVal: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onChange(clamp(newVal));
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       {label && (
@@ -253,7 +272,7 @@ function NumberStepper({
       <div style={{ display: "flex", alignItems: "center", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, overflow: "hidden", height: 34 }}>
         <button
           type="button"
-          onClick={(e) => handleBtnClick(e, value - step)}
+          onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
           style={{
             width: 32, height: "100%", background: "transparent", border: "none",
@@ -271,7 +290,6 @@ function NumberStepper({
           max={max}
           step={step}
           onChange={handleInput}
-          onWheel={(e) => e.currentTarget.blur()}
           style={{
             width: 60, height: "100%", background: "transparent", border: "none",
             color: "#e2e8f0", fontSize: 13, fontWeight: 600, textAlign: "center",
@@ -280,7 +298,7 @@ function NumberStepper({
         />
         <button
           type="button"
-          onClick={(e) => handleBtnClick(e, value + step)}
+          onClick={() => onChange(clamp(value + step))}
           disabled={value >= max}
           style={{
             width: 32, height: "100%", background: "transparent", border: "none",
@@ -384,7 +402,7 @@ function CategoryCheckboxes({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function PageContent() {
+export default function SeedTestPage() {
   const [currentUser, setCurrentUser] = useState<MeuPerfilResponse | null>(null);
   const [academia, setAcademia] = useState<AcademiaInfo | null>(null);
   const [authError, setAuthError] = useState<string>("");
@@ -425,23 +443,12 @@ export default function PageContent() {
   const [running, setRunning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef(false);
-  const shouldScrollRef = useRef(false);
 
   const addLog = useCallback((msg: string, level: LogLevel = "info") => {
     const ts = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     setLogs(prev => [...prev, { ts, level, msg }].slice(-800));
-    shouldScrollRef.current = true;
+    setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
   }, []);
-
-  useEffect(() => {
-    if (shouldScrollRef.current) {
-      shouldScrollRef.current = false;
-      const timer = setTimeout(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [logs]);
 
   useEffect(() => {
     const userCookie = getCookie("user");
@@ -515,86 +522,75 @@ export default function PageContent() {
     const acad = ac || academia;
     if (!acad?.token) return;
     const tok = acad.token;
-
-    const [rCursos, rMaterias, rTurmas, rEstudantes, rAnoLetivo] = await Promise.all([
+    const [rCursos, rMaterias, rTurmas, rEstudantes] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
       callApi("GET", "/estudantes", undefined, tok),
-      callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
-
     const cursosData: Curso[] = (rCursos.data as any)?.cursos || [];
     const materiasData: Materia[] = (rMaterias.data as any)?.materias?.filter((m: any) => m.status === "ativo") || [];
     const turmasData: Turma[] = (rTurmas.data as any)?.turmas || [];
     const estudantesData: Estudante[] = (rEstudantes.data as any)?.estudantes || [];
-
     setCursos(cursosData);
     setMaterias(materiasData);
     setTurmas(turmasData);
     setEstudantes(estudantesData);
-
-    const anoLetivoAtual = (rAnoLetivo.data as any)?.ano_letivo as string | undefined;
-    if (anoLetivoAtual) {
-      setAcademia(prev => prev ? { ...prev, ano_letivo: anoLetivoAtual } : prev);
-    }
-
-    addLog(
-      `Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ` +
-      `${turmasData.length} turmas, ${estudantesData.length} estudantes` +
-      (anoLetivoAtual ? `, ano letivo: ${anoLetivoAtual.replace("_", "/")}` : ""),
-      "dim"
-    );
+    addLog(`Dados: ${cursosData.length} cursos · ${materiasData.length} matérias ativas · ${turmasData.length} turmas · ${estudantesData.length} estudantes`, "dim");
   };
 
-  // ─── acompanharJob ────────────────────────────────────────────────────────────
-  // Shared helper: polls a job until done, logging progress, and reports failures.
+  /**
+   * Acompanha job via polling e loga progresso — as notificações em tempo real
+   * chegam automaticamente pelo SSE do NotificationDropdown no header.
+   */
   const acompanharJob = async (jobId: string, titulo: string) => {
-    addLog(`  ⏳ [${titulo}] Aguardando conclusão do job ${jobId}...`, "info");
+    const deadline = Date.now() + 5 * 60 * 1000;
+    let interval = 1500;
 
-    const detail = await pollJob(jobId, {
-      timeoutMs: 5 * 60 * 1000,
-      onProgress: (summary) => {
-        const pct = summary.progress ?? 0;
-        const done = summary.done_items ?? 0;
-        const fail = summary.fail_items ?? 0;
-        const total = summary.total_items ?? 0;
-        addLog(
-          `  📊 [${titulo}] ${pct}% — ${done} ✓  ${fail > 0 ? `${fail} ✗` : ""}  de ${total}`,
-          "dim"
-        );
-      },
-    });
+    addLog(`  ⏳ Job ${jobId} criado — acompanhe o progresso nas notificações do header`, "info");
 
-    const detailResponse = await jobApiService.getDetail(jobId, academia?.token);
-    const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
+    while (Date.now() < deadline) {
+      await sleep(interval);
+      if (cancelRef.current) return { ok: 0, err: 0, total: 0 };
 
-    if (failures.length > 0) {
-      addLog(`  ⚠ [${titulo}] ${failures.length} item(ns) com falha`, "warn");
-      failures.slice(0, 8).forEach((f, i) => {
-        const payloadAny = f.payload as any;
-        const label =
-          payloadAny?.codigo_estudante ||
-          payloadAny?.codigo_turma ||
-          payloadAny?.codigo ||
-          payloadAny?.nome ||
-          `item #${(f.index ?? i) + 1}`;
-        const motivo = resolveJobItemError(f) || detail.error || "Falha sem detalhe retornado";
-        addLog(`    • ${label}: ${motivo}`, "warn");
-      });
-      if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
+      try {
+        const summary = await jobApiService.getStatus(jobId, academia?.token || undefined);
+        addLog(`  📊 ${titulo}: ${summary.progress ?? 0}% · ${summary.done_items ?? 0}/${summary.total_items ?? 0} processados`, "dim");
+
+        if (summary.status === "done" || summary.status === "failed") {
+          const detailResponse = await jobApiService.getDetail(jobId, academia?.token || undefined);
+          const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
+
+          if (failures.length > 0) {
+            addLog(`  ⚠ ${titulo}: ${failures.length} item(ns) com falha`, "warn");
+            failures.slice(0, 8).forEach((f, i) => {
+              const payloadAny = f.payload as any;
+              const label =
+                payloadAny?.codigo_estudante || payloadAny?.codigo_turma ||
+                payloadAny?.codigo || payloadAny?.nome || `item #${(f.index ?? i) + 1}`;
+              const motivo = resolveJobItemError(f) || "Falha sem detalhe retornado";
+              addLog(`    • ${label}: ${motivo}`, "warn");
+            });
+            if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
+          }
+
+          const detail = detailResponse.job;
+          if (detail.status === "failed" && detail.error) {
+            addLog(`  ✗ ${titulo}: ${detail.error}`, "err");
+          }
+
+          return { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
+        }
+
+        interval = Math.min(interval * 1.3, 8000);
+      } catch (err) {
+        addLog(`  ! Erro ao consultar job: ${err instanceof Error ? err.message : String(err)}`, "warn");
+        interval = Math.min(interval * 2, 8000);
+      }
     }
 
-    if (detail.status === "failed" && detail.error) {
-      addLog(`  ✗ [${titulo}] ${detail.error}`, "err");
-    }
-
-    const resultado = { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
-    addLog(
-      `  ✓ [${titulo}] Concluído — ${resultado.ok} sucesso${resultado.err > 0 ? ` · ${resultado.err} falha(s)` : ""}`,
-      resultado.ok > 0 ? "ok" : "err"
-    );
-    return resultado;
+    addLog(`  ✗ ${titulo}: timeout — verifique nas notificações do header`, "err");
+    return { ok: 0, err: 0, total: 0 };
   };
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -656,7 +652,7 @@ export default function PageContent() {
     const { tipo, qtd, cursoId } = materiaConfig;
 
     if (!tiposValidos.find(t => t.value === tipo)) {
-      addLog(`  ✗ Tipo de matéria "${tipo}" não é válido para esta academia (${academia.tipo}/${academia.nivel})`, "err");
+      addLog(`  ✗ Tipo de matéria "${tipo}" não é válido para esta academia`, "err");
       return;
     }
 
@@ -873,25 +869,17 @@ export default function PageContent() {
           payload.ano_superior = ano;
           payload.status_superior = cfg.statusSuperior;
           payload.curso_superior_id = cursoSuperiorAlvo.id;
-        } else {
-          addLog(`  ! Est. #${idx + 1}: nenhum curso superior ativo — criado sem vínculo de curso`, "warn");
         }
       } else if (modo === "medio") {
         if (cursoMedioAlvo && anosMedio.length > 0) {
-          const ano = cfg.anoMedio === "random"
-            ? pick(anosMedio)
-            : cfg.anoMedio;
+          const ano = cfg.anoMedio === "random" ? pick(anosMedio) : cfg.anoMedio;
           payload.ano_escolar_medio = ano;
           payload.status_escolar_medio = cfg.statusMedio;
           payload.curso_medio_id = cursoMedioAlvo.id;
-        } else {
-          addLog(`  ! Est. #${idx + 1}: nenhum curso médio ativo — criado sem vínculo de curso`, "warn");
         }
       } else if (modo === "fundamental") {
         if (anosF.length > 0) {
-          const ano = cfg.anoFundamental === "random"
-            ? pick(anosF)
-            : cfg.anoFundamental;
+          const ano = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
           payload.ano_escolar = ano;
           payload.status_escolar_fundamental = cfg.statusFundamental;
         }
@@ -924,7 +912,7 @@ export default function PageContent() {
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+    addLog(`  Job ${jobId} enviado (${(data as any)?.total_items} estudantes)`, "info");
 
     const result = await acompanharJob(jobId, "Estudantes");
     addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
@@ -955,7 +943,6 @@ export default function PageContent() {
     }
 
     addLog(`Vinculando ${semTurma.length} estudante(s) sem turma — modo compatível...`, "step");
-    addLog(`  Regra: estudante só é vinculado a turma compatível com seu ano e curso`, "dim");
 
     const academiaAnosAcademicos = academia.anos_academicos || [];
 
@@ -981,12 +968,6 @@ export default function PageContent() {
       );
 
       if (turmasCompativeis.length === 0) {
-        addLog(
-          `  ! ${est.codigo_estudante}: nenhuma turma compatível encontrada` +
-          ` (ano_escolar=${est.ano_escolar || est.ano_escolar_medio || est.ano_superior || "?"}` +
-          ` curso=${est.curso_medio_id || est.curso_superior_id || "—"})`,
-          "warn"
-        );
         semTurmaCompativel++;
         continue;
       }
@@ -1003,25 +984,13 @@ export default function PageContent() {
     }
 
     if (semTurmaCompativel > 0) {
-      addLog(
-        `  ⚠ ${semTurmaCompativel} estudante(s) sem turma compatível — verifique se existem turmas` +
-        ` com o mesmo nível e curso dos estudantes`,
-        "warn"
-      );
+      addLog(`  ⚠ ${semTurmaCompativel} estudante(s) sem turma compatível`, "warn");
     }
 
     if (items.length === 0) {
-      addLog("Nenhum vínculo compatível para realizar. Crie turmas com os níveis corretos primeiro.", "err");
+      addLog("Nenhum vínculo compatível para realizar.", "err");
       return;
     }
-
-    const distribuicao = items.reduce<Record<string, number>>((acc, v) => {
-      acc[v.codigo_turma] = (acc[v.codigo_turma] || 0) + 1;
-      return acc;
-    }, {});
-    Object.entries(distribuicao).forEach(([turma, qtd]) => {
-      addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
-    });
 
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
     if (!ok) {
@@ -1031,7 +1000,7 @@ export default function PageContent() {
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${items.length} vínculo(s) na fila`, "info");
+    addLog(`  Job ${jobId} enviado (${items.length} vínculos)`, "info");
 
     const result = await acompanharJob(jobId, "Vínculos");
     addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
@@ -1039,14 +1008,16 @@ export default function PageContent() {
     await refreshData();
   };
 
-  // ─── Gerar Notas ──────────────────────────────────────────────────────────────
-  //
-  // Uses POST /academia/notas-aluno/async (batch async endpoint).
-  //
-  // Pre-check: fetches existing notes per student via GET /notas-estudante/:codigo
-  // to avoid duplicate-note errors. This is intentional deduplication, not the
-  // registration route.
-  //
+  // ─── Gerar Notas ─────────────────────────────────────────────────────────────
+  /**
+   * CORRIGIDO:
+   * 1. Usa getMateriasFiltradas() que filtra por 'fundamental'/'medio' para escolas
+   *    em vez de filtrar por tipoNota ('escolar'), que é o tipo enviado na API.
+   * 2. Não faz GET por estudante antes — gera o batch diretamente e deixa
+   *    a API rejeitar duplicatas (409). Isso é mais eficiente e garante que
+   *    todas as notas possíveis sejam enviadas.
+   * 3. As notificações chegam via SSE no NotificationDropdown do header.
+   */
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes — crie-os primeiro", "warn");
@@ -1054,7 +1025,16 @@ export default function PageContent() {
     }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
-    const tipoNota = academia.tipo === "superior" ? "superior" : "escolar";
+    // CORRIGIDO: tipoNota para a API ('escolar' | 'superior')
+    const tipoNota = getTipoNota(academia);
+    // CORRIGIDO: filtrar matérias compatíveis com a academia
+    const materiasCompativeis = getMateriasFiltradas(materias, academia);
+
+    if (materiasCompativeis.length === 0) {
+      addLog(`  ✗ Nenhuma matéria compatível encontrada. Academia tipo "${academia.tipo}"${academia.nivel ? ` / nível "${academia.nivel}"` : ""}. Matérias disponíveis: ${materias.map(m => `${m.nome}(${m.type})`).join(", ") || "nenhuma"}`, "err");
+      return;
+    }
+
     const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
 
     if (categoriasAtivas.length === 0) {
@@ -1066,64 +1046,34 @@ export default function PageContent() {
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
 
-    addLog(`Gerando notas para ${sample.length} estudante(s) — categorias: ${categoriasAtivas.join(", ")}`, "step");
-    addLog(`  Fase 1/2: verificando notas existentes (${sample.length} estudantes)...`, "info");
+    addLog(`Gerando notas para ${sample.length} estudante(s) — tipo: ${tipoNota} · categorias: ${categoriasAtivas.join(", ")} · ${materiasCompativeis.length} matérias disponíveis`, "step");
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
     const batch: any[] = [];
 
-    for (let i = 0; i < sample.length; i++) {
+    for (const est of sample) {
       if (cancelRef.current) break;
 
-      const est = sample[i];
-
-      // Progress log every 10 students or on first/last
-      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
-        addLog(
-          `  🔍 Verificando notas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
-          "dim"
-        );
-      }
-
-      // Fetch existing notes to deduplicate — uses GET /notas-estudante/:codigo (read route)
-      const { ok: rOk, data: notasData } = await callApi(
-        "GET",
-        `/notas-estudante/${est.codigo_estudante}`,
-        undefined,
-        academia.token
-      );
-      const notasExistentes = new Set<string>();
-      if (rOk) {
-        const notas: any[] = (notasData as any)?.notas || [];
-        const anoLetivo = academia.ano_letivo;
-        for (const n of notas) {
-          if (n.ano_lectivo === anoLetivo) {
-            notasExistentes.add(`${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`);
-          }
-        }
-      }
-
-      const materiasTipo = materias.filter(m => m.type === tipoNota);
-      if (materiasTipo.length === 0) continue;
-      const materiasSample = pickN(materiasTipo, Math.min(3, materiasTipo.length));
+      // Selecionar até 3 matérias aleatórias
+      const materiasSample = pickN(materiasCompativeis, Math.min(3, materiasCompativeis.length));
 
       for (const mat of materiasSample) {
         let periodos: string[];
-        if (academia.tipo === "superior") {
+        if (tipoNota === "superior") {
+          // Para matérias superiores, usa o período da matéria
           if (mat.periodo) {
             periodos = [mat.periodo];
           } else {
             const cursoMat = cursos.find(c => c.id === mat.curso_id);
-            periodos = cursoMat?.periodos || ["1_semestre"];
+            periodos = cursoMat?.periodos?.length ? [pick(cursoMat.periodos)] : ["1_semestre"];
           }
         } else {
+          // Para matérias escolares (fundamental/medio)
           periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
         }
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
-            const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
-            if (notasExistentes.has(chave)) continue;
             batch.push({
               codigo_estudante: est.codigo_estudante,
               periodo: p,
@@ -1135,43 +1085,47 @@ export default function PageContent() {
           }
         }
       }
-
-      await sleep(30);
     }
 
     if (batch.length === 0) {
-      addLog("Nenhuma nota nova para registrar (todas já existem ou nenhuma matéria compatível)", "info");
+      addLog("Nenhuma nota para enviar (sem estudantes × matérias)", "warn");
       return;
     }
 
-    addLog(
-      `  Fase 2/2: registrando ${batch.length} nota(s) via POST /academia/notas-aluno/async` +
-      ` (${categoriasAtivas.length} categoria(s) × matérias × períodos)...`,
-      "info"
-    );
+    addLog(`  Enviando ${batch.length} nota(s) (${sample.length} estudantes × ${Math.min(3, materiasCompativeis.length)} matérias × ${categoriasAtivas.length} categorias × períodos)`, "dim");
+    addLog(`  Nota: duplicatas existentes serão rejeitadas pela API — isso é normal`, "dim");
 
-    const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter batch de notas: ${errMsg}`, "err");
-      return;
+    // Enviar em lotes de 2000 (limite da API)
+    const LOTE = 2000;
+    let totalOk = 0, totalErr = 0;
+
+    for (let i = 0; i < batch.length; i += LOTE) {
+      if (cancelRef.current) break;
+      const lote = batch.slice(i, i + LOTE);
+      addLog(`  Lote ${Math.floor(i / LOTE) + 1}/${Math.ceil(batch.length / LOTE)}: ${lote.length} notas`, "dim");
+
+      const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", lote, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no lote: ${errMsg}`, "err");
+        continue;
+      }
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); continue; }
+      addLog(`  Job ${jobId} criado (${lote.length} notas) — veja progresso nas notificações ↗`, "info");
+
+      const result = await acompanharJob(jobId, "Notas");
+      totalOk += result.ok;
+      totalErr += result.err;
     }
 
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${batch.length} nota(s) na fila`, "info");
-
-    const result = await acompanharJob(jobId, "Notas");
-    addLog(`Notas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    addLog(`Notas: ${totalOk} ✓  ${totalErr} ✗`, totalOk > 0 ? "ok" : "warn");
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
-  //
-  // Uses POST /academia/faltas-aluno/async (batch async endpoint).
-  //
-  // Pre-check: fetches existing absences per student via GET /faltas-estudante/:codigo
-  // to avoid duplicate-absence errors on the same date+subject.
-  //
+  /**
+   * CORRIGIDO: usa getMateriasFiltradas() em vez de filtrar por 'escolar'.
+   */
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn");
@@ -1179,58 +1133,26 @@ export default function PageContent() {
     }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
 
-    const { qtdEstudantes } = faltaConfig;
-    const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
-    const sample = estudantes.slice(0, total);
-    addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
-    addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
+    const materiasCompativeis = getMateriasFiltradas(materias, academia);
 
-    const tipoMaterias = academia.tipo === "superior" ? "superior" : "escolar";
-    const materiasTipo = materias.filter(m => m.type === tipoMaterias);
-
-    if (materiasTipo.length === 0) {
-      addLog(`  ✗ Nenhuma matéria do tipo "${tipoMaterias}" ativa`, "err");
+    if (materiasCompativeis.length === 0) {
+      addLog(`  ✗ Nenhuma matéria compatível encontrada para esta academia`, "err");
       return;
     }
 
+    const { qtdEstudantes } = faltaConfig;
+    const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
+    const sample = estudantes.slice(0, total);
+    addLog(`Gerando faltas para ${sample.length} estudante(s) — ${materiasCompativeis.length} matérias disponíveis`, "step");
+
     const batch: any[] = [];
 
-    for (let i = 0; i < sample.length; i++) {
+    for (const est of sample) {
       if (cancelRef.current) break;
 
-      const est = sample[i];
-
-      // Progress log every 10 students or on first/last
-      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
-        addLog(
-          `  🔍 Verificando faltas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
-          "dim"
-        );
-      }
-
-      // Fetch existing absences to deduplicate — uses GET /faltas-estudante/:codigo (read route)
-      const { ok: rOk, data: faltasData } = await callApi(
-        "GET",
-        `/faltas-estudante/${est.codigo_estudante}`,
-        undefined,
-        academia.token
-      );
-      const faltasExistentes = new Set<string>();
-      if (rOk) {
-        const faltas: any[] = (faltasData as any)?.faltas || [];
-        const anoLetivo = academia.ano_letivo;
-        for (const f of faltas) {
-          if (f.ano_lectivo === anoLetivo) {
-            faltasExistentes.add(`${f.materia_disciplinar_id}|${f.data}`);
-          }
-        }
-      }
-
-      const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
+      const materiasSample = pickN(materiasCompativeis, Math.min(2, materiasCompativeis.length));
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);
-        const chave = `${mat.id}|${dataFalta}`;
-        if (faltasExistentes.has(chave)) continue;
         batch.push({
           codigo_estudante: est.codigo_estudante,
           data: dataFalta,
@@ -1238,33 +1160,38 @@ export default function PageContent() {
           quantidade: rnd(1, 3),
         });
       }
-
-      await sleep(30);
     }
 
     if (batch.length === 0) {
-      addLog("Nenhuma falta nova para registrar (todas já existem para estas datas/matérias)", "info");
+      addLog("Nenhuma falta para enviar", "warn");
       return;
     }
 
-    addLog(
-      `  Fase 2/2: registrando ${batch.length} falta(s) via POST /academia/faltas-aluno/async...`,
-      "info"
-    );
+    addLog(`  Enviando ${batch.length} falta(s) via async — duplicatas serão rejeitadas pela API`, "dim");
 
-    const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter batch de faltas: ${errMsg}`, "err");
-      return;
+    const LOTE = 2000;
+    let totalOk = 0, totalErr = 0;
+
+    for (let i = 0; i < batch.length; i += LOTE) {
+      if (cancelRef.current) break;
+      const lote = batch.slice(i, i + LOTE);
+
+      const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", lote, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro: ${errMsg}`, "err");
+        continue;
+      }
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); continue; }
+      addLog(`  Job ${jobId} criado (${lote.length} faltas) — veja progresso nas notificações ↗`, "info");
+
+      const result = await acompanharJob(jobId, "Faltas");
+      totalOk += result.ok;
+      totalErr += result.err;
     }
 
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${batch.length} falta(s) na fila`, "info");
-
-    const result = await acompanharJob(jobId, "Faltas");
-    addLog(`Faltas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    addLog(`Faltas: ${totalOk} ✓  ${totalErr} ✗`, totalOk > 0 ? "ok" : "warn");
   };
 
   // ─── Gerar Avaliações Finais ───────────────────────────────────────────────────
@@ -1275,7 +1202,7 @@ export default function PageContent() {
     const { tipoEnsino, aprovPct } = avalConfig;
     const sample = [...estudantes];
     const nAprov = Math.floor(sample.length * aprovPct / 100);
-    addLog(`Gerando avaliações finais (${tipoEnsino}) para ${sample.length} estudante(s) via async...`, "step");
+    addLog(`Gerando avaliações finais (${tipoEnsino}) para ${sample.length} estudante(s)...`, "step");
 
     const batch: any[] = [];
 
@@ -1297,7 +1224,7 @@ export default function PageContent() {
         const c = cursos.find(x => x.type === "medio" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];
         if (anos.length === 0) {
-          addLog(`  ! Nenhum curso médio ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
+          addLog(`  ! Nenhum curso médio ativo — ignorando ${est.codigo_estudante}`, "warn");
           continue;
         }
         const anoAtual = est.ano_escolar_medio || anos[0];
@@ -1310,7 +1237,7 @@ export default function PageContent() {
         const c = cursos.find(x => x.type === "superior" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];
         if (anos.length === 0) {
-          addLog(`  ! Nenhum curso superior ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
+          addLog(`  ! Nenhum curso superior ativo — ignorando ${est.codigo_estudante}`, "warn");
           continue;
         }
         const anoAtual = est.ano_superior || anos[0];
@@ -1339,8 +1266,6 @@ export default function PageContent() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    addLog(`  Submetendo ${batch.length} avaliação(ões) via POST /academia/avaliacao-final/async...`, "info");
-
     const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
     if (!ok) {
       const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
@@ -1349,13 +1274,10 @@ export default function PageContent() {
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${batch.length} avaliação(ões) na fila`, "info");
+    addLog(`  Job ${jobId} criado (${batch.length} avaliações) — veja progresso nas notificações ↗`, "info");
 
     const result = await acompanharJob(jobId, "Avaliações");
-    addLog(
-      `Avaliações: ${result.ok} ✓  ${result.err} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
-      result.ok > 0 ? "ok" : "err"
-    );
+    addLog(`Avaliações: ${result.ok} ✓  ${result.err} ✗  (${nAprov} aprovações de ${sample.length} total)`, result.ok > 0 ? "ok" : "err");
   };
 
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
@@ -1415,10 +1337,17 @@ export default function PageContent() {
     return [...new Set(pool)];
   })();
 
-  const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
+  // CORRIGIDO: tipo de nota e matérias filtradas para exibição
+  const tipoNota = academia ? getTipoNota(academia) : "escolar";
+  const materiasCompativeisCount = academia ? getMateriasFiltradas(materias, academia).length : 0;
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
   const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
+
+  // Estimativa de notas a gerar
+  const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
+  const periodosMult = tipoNota === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
+  const estimativaNota = totalEstudantesNota * Math.min(3, materiasCompativeisCount) * categoriasAtivas.length * periodosMult;
 
   // ─── Render helpers ────────────────────────────────────────────────────────────
 
@@ -1485,7 +1414,7 @@ export default function PageContent() {
     </button>
   );
 
-  const periodosNotaDisponiveis = academia.tipo !== "superior" ? [
+  const periodosNotaDisponiveis = tipoNota !== "superior" ? [
     { value: "random", label: "Todos os trimestres" },
     { value: "1_trimestre", label: "1º Trimestre" },
     { value: "2_trimestre", label: "2º Trimestre" },
@@ -1504,10 +1433,6 @@ export default function PageContent() {
         : cursos.find(c => c.id === estudanteConfig.cursoSuperiorId)?.anos_academicos || [])
     : [];
 
-  const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
-  const periodosMult = academia.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
-  const estimativaNota = totalEstudantesNota * Math.min(3, materias.length) * categoriasAtivas.length * periodosMult;
-
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
       <style>{`
@@ -1525,7 +1450,8 @@ export default function PageContent() {
             Academia: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{academia.codigo}</span>
             {" · "}{academia.tipo}{academia.nivel ? ` · ${academia.nivel}` : ""}
             {academia.ano_letivo ? ` · Ano letivo: ${academia.ano_letivo.replace("_", "/")}` : " · ⚠ sem ano letivo"}
-            {" · "}<span style={{ color: "#facc15" }}>⚡ Modo Assíncrono</span>
+            {" · "}<span style={{ color: "#facc15" }}>⚡ Async</span>
+            {" · "}<span style={{ color: "#a78bfa" }}>🔔 Progresso nas notificações ↗</span>
           </p>
         </div>
 
@@ -1536,6 +1462,7 @@ export default function PageContent() {
               {[
                 { label: "Cursos", val: cursos.length, icon: "📚" },
                 { label: "Matérias ativas", val: materias.length, icon: "📖" },
+                { label: "Matérias compatíveis", val: materiasCompativeisCount, icon: "✓", warn: materiasCompativeisCount === 0 },
                 { label: "Turmas", val: turmas.length, icon: "🏫" },
                 { label: "Estudantes", val: estudantes.length, icon: "👥" },
                 { label: "Sem turma", val: estudantesSemTurma.length, icon: "⚠️", warn: estudantesSemTurma.length > 0 },
@@ -1556,13 +1483,35 @@ export default function PageContent() {
               </div>
             </Section>
 
+            {/* Info sobre notificações */}
+            <div style={{ border: "1px solid #2d1b69", borderRadius: 8, padding: 12, background: "#0d0a1e", fontSize: 11, color: "#7c6fcd", lineHeight: 1.6, marginBottom: 12 }}>
+              <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#a78bfa" }}>🔔 Notificações em tempo real</p>
+              <p style={{ margin: 0 }}>
+                O progresso dos jobs é exibido automaticamente no ícone de notificações no cabeçalho (canto superior direito).
+                Clique em qualquer notificação para ver detalhes e falhas.
+              </p>
+            </div>
+
+            {materiasCompativeisCount === 0 && materias.length > 0 && (
+              <div style={{ border: "1px solid #78350f", borderRadius: 8, padding: 12, background: "#1c0a00", fontSize: 11, color: "#fbbf24", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 4px", fontWeight: 700 }}>⚠ Matérias incompatíveis</p>
+                <p style={{ margin: 0 }}>
+                  Academia tipo <strong>{academia.tipo}</strong>{academia.nivel ? ` / nível ${academia.nivel}` : ""}.
+                  Matérias existentes: {materias.map(m => `${m.nome}(${m.type})`).slice(0, 3).join(", ")}{materias.length > 3 ? "..." : ""}.
+                  {academia.tipo === "escola"
+                    ? " Crie matérias do tipo 'fundamental' ou 'medio'."
+                    : " Crie matérias do tipo 'superior'."}
+                </p>
+              </div>
+            )}
+
             {turmas.length > 0 && estudantesSemTurma.length > 0 && (
-              <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>
+              <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 8 }}>
                 <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Regra de vínculo</p>
                 <p style={{ margin: 0 }}>
                   Estudantes só são vinculados a turmas do <strong style={{ color: "#94a3b8" }}>mesmo nível e curso</strong>.
                   {estudantesSemCompatibilidade > 0 && (
-                    <span style={{ color: "#facc15" }}> {estudantesSemCompatibilidade} estudante(s) não têm turma compatível — crie turmas adequadas.</span>
+                    <span style={{ color: "#facc15" }}> {estudantesSemCompatibilidade} estudante(s) sem turma compatível.</span>
                   )}
                 </p>
               </div>
@@ -1602,7 +1551,7 @@ export default function PageContent() {
             )}
 
             {/* Matérias */}
-            <Section title="Matérias Disciplinares" badge={`${materias.length} ativas`}>
+            <Section title="Matérias Disciplinares" badge={`${materias.length} ativas · ${materiasCompativeisCount} compatíveis`}>
               {tiposMateriaDisp.length === 0 ? (
                 <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>Tipo de academia não suporta matérias nesta configuração.</p>
               ) : (
@@ -1700,9 +1649,6 @@ export default function PageContent() {
                     </Field>
                     <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
                   </Row>
-                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                    ✦ Para vincular estudantes, as turmas devem ter o <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong> dos estudantes
-                  </p>
                 </>
               )}
             </Section>
@@ -1717,7 +1663,7 @@ export default function PageContent() {
                   max={1000}
                   step={10}
                   onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))}
-                  hint={`máx. 1000 por job`}
+                  hint="máx. 1000 por job"
                 />
               </Row>
 
@@ -1843,9 +1789,6 @@ export default function PageContent() {
                   Gerar {estudanteConfig.qtd} Estudante(s) (async)
                 </Btn>
               </div>
-              <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                Usa endpoint assíncrono — limite: 1000 por job
-              </p>
             </Section>
 
             {/* Vincular a Turmas */}
@@ -1863,8 +1806,7 @@ export default function PageContent() {
                   <>
                     {estudantesSemCompatibilidade > 0 && (
                       <div style={{ background: "#1c1000", border: "1px solid #854d0e", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 11, color: "#fbbf24" }}>
-                        <strong>⚠ {estudantesSemCompatibilidade} estudante(s)</strong> não têm turma compatível com seu nível/curso.
-                        Crie turmas com os níveis e cursos correspondentes.
+                        <strong>⚠ {estudantesSemCompatibilidade} estudante(s)</strong> sem turma compatível.
                       </div>
                     )}
                     <Row>
@@ -1886,17 +1828,26 @@ export default function PageContent() {
                         Vincular {estudantesSemTurmaComCompativeis.length} compatíveis (async)
                       </Btn>
                     </Row>
-                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                      ✦ Cada estudante é vinculado apenas a turmas do <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong>
-                      {" — "}distribuição automática por round-robin entre turmas compatíveis
-                    </p>
                   </>
                 )}
               </Section>
             )}
 
             {/* Notas */}
-            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
+            <Section title="Notas" badge={
+              materiasCompativeisCount === 0
+                ? "⚠ sem matérias compatíveis"
+                : `≈${estimativaNota} notas estimadas · ${materiasCompativeisCount} matérias`
+            }>
+              {materiasCompativeisCount === 0 && (
+                <div style={{ background: "#1c0a00", border: "1px solid #7c2d12", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#fca5a5" }}>
+                  ✗ Nenhuma matéria compatível com esta academia.
+                  {academia.tipo === "escola"
+                    ? " Crie matérias do tipo 'fundamental' ou 'medio'."
+                    : " Crie matérias do tipo 'superior'."}
+                </div>
+              )}
+
               <SubSection title={`Categorias — ${tipoNota === "escolar" ? "Escolar" : "Superior"}`}>
                 <CategoryCheckboxes
                   label="Registrar notas para"
@@ -1904,15 +1855,9 @@ export default function PageContent() {
                   selected={categoriasAtivas}
                   onChange={setCategoriasAtivas}
                 />
-                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                  {tipoNota === "escolar"
-                    ? "Categorias fixas do ensino escolar"
-                    : "Categorias fixas do ensino superior"}
-                  {" · "}{categoriasAtivas.length} de {categoriasDisponiveis.length} selecionada(s)
-                </p>
               </SubSection>
 
-              {academia.tipo !== "superior" ? (
+              {tipoNota !== "superior" ? (
                 <Row>
                   <NumberStepper
                     label="Nº estudantes (0 = todos)"
@@ -1928,7 +1873,11 @@ export default function PageContent() {
                       {periodosNotaDisponiveis.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
                     </Sel>
                   </Field>
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                  <Btn
+                    onClick={() => withLoading(gerarNotas)}
+                    color="#b45309"
+                    disabled={materiasCompativeisCount === 0 || estudantes.length === 0}
+                  >
                     Gerar Notas (async)
                   </Btn>
                 </Row>
@@ -1943,20 +1892,25 @@ export default function PageContent() {
                     onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
                     hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                   />
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                  <Btn
+                    onClick={() => withLoading(gerarNotas)}
+                    color="#b45309"
+                    disabled={materiasCompativeisCount === 0 || estudantes.length === 0}
+                  >
                     Gerar Notas (async)
                   </Btn>
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code> (deduplicação)
-                <br />
-                Fase 2: registra via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> com acompanhamento de progresso
+                Tipo API: <strong style={{ color: "#94a3b8" }}>{tipoNota}</strong>
+                {" · "}Duplicatas são rejeitadas automaticamente pela API (não é um erro)
               </p>
             </Section>
 
             {/* Faltas */}
-            <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
+            <Section title="Faltas" badge={
+              materiasCompativeisCount === 0 ? "⚠ sem matérias compatíveis" : undefined
+            }>
               <Row>
                 <NumberStepper
                   label="Nº estudantes (0 = todos)"
@@ -1967,15 +1921,14 @@ export default function PageContent() {
                   onChange={v => setFaltaConfig(p => ({ ...p, qtdEstudantes: v }))}
                   hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                 />
-                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                <Btn
+                  onClick={() => withLoading(gerarFaltas)}
+                  color="#b45309"
+                  disabled={materiasCompativeisCount === 0 || estudantes.length === 0}
+                >
                   Gerar Faltas (async)
                 </Btn>
               </Row>
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code> (deduplicação)
-                <br />
-                Fase 2: registra via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> com acompanhamento de progresso
-              </p>
             </Section>
 
             {/* Avaliações Finais */}
@@ -1987,27 +1940,25 @@ export default function PageContent() {
                     : "Crie e ative cursos para habilitar avaliações"}
                 </p>
               ) : (
-                <>
-                  <Row>
-                    <Field label="Tipo ensino">
-                      <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
-                        {tiposEnsinoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
-                      </Sel>
-                    </Field>
-                    <NumberStepper
-                      label="% Aprovação"
-                      value={avalConfig.aprovPct}
-                      min={0}
-                      max={100}
-                      step={5}
-                      onChange={v => setAvalConfig(p => ({ ...p, aprovPct: v }))}
-                      hint={`≈${Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovados`}
-                    />
-                    <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
-                      Avaliar TODOS ({estudantes.length}) async
-                    </Btn>
-                  </Row>
-                </>
+                <Row>
+                  <Field label="Tipo ensino">
+                    <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
+                      {tiposEnsinoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                    </Sel>
+                  </Field>
+                  <NumberStepper
+                    label="% Aprovação"
+                    value={avalConfig.aprovPct}
+                    min={0}
+                    max={100}
+                    step={5}
+                    onChange={v => setAvalConfig(p => ({ ...p, aprovPct: v }))}
+                    hint={`≈${Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovados`}
+                  />
+                  <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
+                    Avaliar TODOS ({estudantes.length}) async
+                  </Btn>
+                </Row>
               )}
             </Section>
           </div>
