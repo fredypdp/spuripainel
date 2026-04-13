@@ -1121,6 +1121,12 @@ export default function PageContent() {
       return;
     }
 
+    // Mapeia o tipoNota ("escolar"/"superior") para os tipos de matéria equivalentes
+    // MateriaDTO.type usa "fundamental"|"medio"|"superior", enquanto NotaDTO.tipo usa "escolar"|"superior"
+    const tiposMateriasCompativeis = academia.tipo === "superior"
+      ? ["superior"]
+      : ["fundamental", "medio"]; // escolas podem ter matérias fundamentais e/ou médias
+
     const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
@@ -1163,7 +1169,9 @@ export default function PageContent() {
         }
       }
 
-      const materiasTipo = materias.filter(m => m.type === tipoNota);
+      // Filtra matérias pelo tipo correto de MateriaDTO ("fundamental"|"medio"|"superior"),
+      // não pelo tipo da nota ("escolar"|"superior") — esses são sistemas distintos
+      const materiasTipo = materias.filter(m => tiposMateriasCompativeis.includes(m.type));
       if (materiasTipo.length === 0) continue;
       const materiasSample = pickN(materiasTipo, Math.min(3, materiasTipo.length));
 
@@ -1248,11 +1256,15 @@ export default function PageContent() {
     addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
     addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
 
-    const tipoMaterias = academia.tipo === "superior" ? "superior" : "escolar";
-    const materiasTipo = materias.filter(m => m.type === tipoMaterias);
+    // Mesma lógica de notas: MateriaDTO.type usa "fundamental"|"medio"|"superior",
+    // não "escolar"|"superior" — esses são sistemas de tipos distintos
+    const tiposMateriasCompativeisFalta = academia.tipo === "superior"
+      ? ["superior"]
+      : ["fundamental", "medio"];
+    const materiasTipo = materias.filter(m => tiposMateriasCompativeisFalta.includes(m.type));
 
     if (materiasTipo.length === 0) {
-      addLog(`  ✗ Nenhuma matéria do tipo "${tipoMaterias}" ativa`, "err");
+      addLog(`  ✗ Nenhuma matéria ativa compatível com esta academia (${academia.tipo}/${academia.nivel || "—"})`, "err");
       return;
     }
 
@@ -1487,6 +1499,8 @@ export default function PageContent() {
   })();
 
   const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
+  // Tipos de MateriaDTO compatíveis com esta academia (sistema de tipos diferente do tipoNota da nota)
+  const tiposMateriaParaNota = academia?.tipo === "superior" ? ["superior"] : ["fundamental", "medio"];
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
   const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
@@ -1576,8 +1590,9 @@ export default function PageContent() {
     : [];
 
   const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
-  const periodosMult = academia.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
-  const estimativaNota = totalEstudantesNota * Math.min(3, materias.length) * categoriasAtivas.length * periodosMult;
+  const periodosMult = academia?.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
+  const materiasParaNota = materias.filter(m => tiposMateriaParaNota.includes(m.type));
+  const estimativaNota = totalEstudantesNota * Math.min(3, materiasParaNota.length) * categoriasAtivas.length * periodosMult;
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
@@ -1977,7 +1992,7 @@ export default function PageContent() {
             )}
 
             {/* Notas */}
-            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
+            <Section title="Notas" badge={materiasParaNota.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
               <SubSection title={`Categorias — ${tipoNota === "escolar" ? "Escolar" : "Superior"}`}>
                 <CategoryCheckboxes
                   label="Registrar notas para"
@@ -2009,7 +2024,7 @@ export default function PageContent() {
                       {periodosNotaDisponiveis.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
                     </Sel>
                   </Field>
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
                     Gerar Notas (async)
                   </Btn>
                 </Row>
@@ -2024,7 +2039,7 @@ export default function PageContent() {
                     onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
                     hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                   />
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
                     Gerar Notas (async)
                   </Btn>
                 </Row>
@@ -2037,7 +2052,7 @@ export default function PageContent() {
             </Section>
 
             {/* Faltas */}
-            <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
+            <Section title="Faltas" badge={materiasParaNota.length === 0 ? "crie matérias primeiro" : undefined}>
               <Row>
                 <NumberStepper
                   label="Nº estudantes (0 = todos)"
@@ -2048,7 +2063,7 @@ export default function PageContent() {
                   onChange={v => setFaltaConfig(p => ({ ...p, qtdEstudantes: v }))}
                   hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                 />
-                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
+                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
                   Gerar Faltas (async)
                 </Btn>
               </Row>
