@@ -498,15 +498,13 @@ export default function PageContent() {
   };
 
   // ─── callApi: chamada HTTP base ────────────────────────────────────────────
-  // IMPORTANTE: não usa timeout automático para evitar que requisições POST/async
-  // sejam consideradas falhas quando o servidor ainda está processando.
-  // Timeouts só são aplicados explicitamente via AbortController nas chamadas GET de verificação.
+  // Sem timeout — aguarda indefinidamente. O backend não impõe limite de tempo
+  // nem nos GETs de verificação nem nos POSTs async.
   const callApi = async (
     method: string,
     path: string,
     body: unknown,
-    tok?: string,
-    signal?: AbortSignal
+    tok?: string
   ) => {
     const url = apiUrl() + path;
     const token = tok || academia?.token || tokenStorage.get() || "";
@@ -517,37 +515,17 @@ export default function PageContent() {
         method,
         headers,
         body: body != null ? JSON.stringify(body) : undefined,
-        signal,
       });
       const data = await r.json().catch(() => ({}));
       return { ok: r.status >= 200 && r.status < 300, status: r.status, data };
     } catch (e: any) {
-      // Distingue abort de erro de rede real
-      if (e?.name === "AbortError") {
-        return { ok: false, status: 0, data: { error: "timeout", _aborted: true } };
-      }
       return { ok: false, status: 0, data: { error: String(e) } };
     }
   };
 
-  // ─── callApiWithTimeout: GET com timeout controlado ───────────────────────
-  // Usado apenas para requisições de leitura (GET) que não devem reenviar dados.
-  // Se der timeout, retorna erro sem reenviar nada.
-  const callApiWithTimeout = async (
-    method: string,
-    path: string,
-    body: unknown,
-    tok?: string,
-    timeoutMs = 15_000
-  ) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await callApi(method, path, body, tok, controller.signal);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
+  // ─── Nota: sem timeout em nenhuma requisição ─────────────────────────────
+  // callApi não usa AbortController — aguarda indefinidamente.
+  // O backend não impõe timeout nos GETs nem nos POSTs async.
 
   const refreshData = async (ac?: AcademiaInfo) => {
     const acad = ac || academia;
@@ -1100,8 +1078,7 @@ export default function PageContent() {
 
   // ─── Gerar Notas ──────────────────────────────────────────────────────────────
   //
-  // IMPORTANTE: A fase de submissão (POST /async) usa callApi SEM timeout.
-  // Apenas a fase de verificação (GET por estudante) usa callApiWithTimeout.
+  // Sem timeout em nenhuma fase — callApi aguarda indefinidamente.
   // Se o POST async der qualquer erro de rede, não re-tentamos — logamos e paramos.
   // Se o pollJob der timeout (5 min), apenas paramos o acompanhamento;
   // o job continua no servidor e aparece nas notificações.
@@ -1149,13 +1126,11 @@ export default function PageContent() {
         );
       }
 
-      // GET com timeout de 15s — se der timeout, pula este estudante (não re-submete)
-      const { ok: rOk, data: notasData } = await callApiWithTimeout(
+      const { ok: rOk, data: notasData } = await callApi(
         "GET",
         `/notas-estudante/${est.codigo_estudante}`,
         undefined,
-        academia.token,
-        15_000
+        academia.token
       );
 
       const notasExistentes = new Set<string>();
@@ -1263,7 +1238,7 @@ export default function PageContent() {
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
   //
-  // Mesma lógica de notas: GET de verificação com timeout, POST async sem timeout.
+  // Sem timeout em nenhuma fase — callApi aguarda indefinidamente.
   //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
@@ -1304,13 +1279,12 @@ export default function PageContent() {
         );
       }
 
-      // GET com timeout de 15s — se der timeout, pula este estudante (não re-submete)
-      const { ok: rOk, data: faltasData } = await callApiWithTimeout(
+      // GET sem timeout — aguarda resposta do servidor indefinidamente
+      const { ok: rOk, data: faltasData } = await callApi(
         "GET",
         `/faltas-estudante/${est.codigo_estudante}`,
         undefined,
-        academia.token,
-        15_000
+        academia.token
       );
 
       const faltasExistentes = new Set<string>();
@@ -1730,8 +1704,8 @@ export default function PageContent() {
               <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
               <p style={{ margin: 0 }}>
                 Ao submeter um job, o servidor processa em background.
-                Se o acompanhamento der timeout, o job <strong style={{ color: "#94a3b8" }}>continua no servidor</strong>.
-                Acompanhe pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
+                Todas as requisições aguardam sem timeout — não há corte automático de conexão.
+                Acompanhe o progresso pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
               </p>
             </div>
           </div>
@@ -2116,9 +2090,9 @@ export default function PageContent() {
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code> (com timeout por estudante)
+                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code>
                 <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> — sem timeout (job fica no servidor)
+                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> — job fica no servidor
               </p>
             </Section>
 
@@ -2139,9 +2113,9 @@ export default function PageContent() {
                 </Btn>
               </Row>
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code> (com timeout por estudante)
+                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code>
                 <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> — sem timeout (job fica no servidor)
+                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> — job fica no servidor
               </p>
             </Section>
 
