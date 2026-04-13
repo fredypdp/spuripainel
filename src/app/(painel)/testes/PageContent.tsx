@@ -1212,31 +1212,53 @@ export default function PageContent() {
       return;
     }
 
+    // Divide em chunks de 2000 (limite da API)
+    const CHUNK_SIZE = 2000;
+    const chunks: any[][] = [];
+    for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
+      chunks.push(batch.slice(i, i + CHUNK_SIZE));
+    }
+
     addLog(
-      `  Fase 2/2: submetendo ${batch.length} nota(s) via POST /academia/notas-aluno/async...`,
+      `  Fase 2/2: submetendo ${batch.length} nota(s) em ${chunks.length} job(s) de até ${CHUNK_SIZE} itens...`,
       "info"
     );
 
-    // POST async SEM timeout — o servidor aceita e processa em background.
-    // Se der erro de rede genuíno (não timeout), logamos e paramos.
-    // NUNCA re-submetemos automaticamente.
-    const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter batch de notas: ${errMsg}`, "err");
-      addLog(`  ℹ Se a submissão chegou ao servidor, o job pode estar em execução — verifique as notificações.`, "info");
-      return;
+    let totalOk = 0;
+    let totalErr = 0;
+
+    for (let ci = 0; ci < chunks.length; ci++) {
+      if (cancelRef.current) break;
+      const chunk = chunks[ci];
+      const label = chunks.length > 1 ? `Notas ${ci + 1}/${chunks.length}` : "Notas";
+      addLog(`  📦 Submetendo job ${ci + 1}/${chunks.length} — ${chunk.length} nota(s)...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", chunk, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
+        addLog(`  ℹ Verifique as notificações para jobs que possam ter sido criados.`, "info");
+        break;
+      }
+
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
+      addLog(`  Job ${jobId} criado — ${chunk.length} nota(s) na fila`, "dim");
+
+      const result = await acompanharJob(jobId, label);
+      if (!result.timedOut) {
+        totalOk += result.ok;
+        totalErr += result.err;
+      }
+
+      // Pequena pausa entre jobs para não sobrecarregar o servidor
+      if (ci < chunks.length - 1 && !cancelRef.current) await sleep(500);
     }
 
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${batch.length} nota(s) na fila`, "info");
-    addLog(`  ℹ Acompanhe pelo sino de notificações ou via SSE`, "dim");
-
-    const result = await acompanharJob(jobId, "Notas");
-    if (!result.timedOut) {
-      addLog(`Notas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
-    }
+    addLog(
+      `Notas concluídas: ${totalOk} ✓  ${totalErr} ✗  (${batch.length} total)`,
+      totalOk > 0 ? "ok" : "err"
+    );
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
@@ -1323,29 +1345,52 @@ export default function PageContent() {
       return;
     }
 
+    // Divide em chunks de 2000 (limite da API)
+    const CHUNK_SIZE_FALTA = 2000;
+    const chunksFalta: any[][] = [];
+    for (let i = 0; i < batch.length; i += CHUNK_SIZE_FALTA) {
+      chunksFalta.push(batch.slice(i, i + CHUNK_SIZE_FALTA));
+    }
+
     addLog(
-      `  Fase 2/2: submetendo ${batch.length} falta(s) via POST /academia/faltas-aluno/async...`,
+      `  Fase 2/2: submetendo ${batch.length} falta(s) em ${chunksFalta.length} job(s) de até ${CHUNK_SIZE_FALTA} itens...`,
       "info"
     );
 
-    // POST async SEM timeout — não re-submetemos em caso de demora.
-    const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter batch de faltas: ${errMsg}`, "err");
-      addLog(`  ℹ Se a submissão chegou ao servidor, o job pode estar em execução — verifique as notificações.`, "info");
-      return;
+    let totalOkFalta = 0;
+    let totalErrFalta = 0;
+
+    for (let ci = 0; ci < chunksFalta.length; ci++) {
+      if (cancelRef.current) break;
+      const chunk = chunksFalta[ci];
+      const label = chunksFalta.length > 1 ? `Faltas ${ci + 1}/${chunksFalta.length}` : "Faltas";
+      addLog(`  📦 Submetendo job ${ci + 1}/${chunksFalta.length} — ${chunk.length} falta(s)...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", chunk, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
+        addLog(`  ℹ Verifique as notificações para jobs que possam ter sido criados.`, "info");
+        break;
+      }
+
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
+      addLog(`  Job ${jobId} criado — ${chunk.length} falta(s) na fila`, "dim");
+
+      const result = await acompanharJob(jobId, label);
+      if (!result.timedOut) {
+        totalOkFalta += result.ok;
+        totalErrFalta += result.err;
+      }
+
+      if (ci < chunksFalta.length - 1 && !cancelRef.current) await sleep(500);
     }
 
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado pelo servidor`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${batch.length} falta(s) na fila`, "info");
-    addLog(`  ℹ Acompanhe pelo sino de notificações ou via SSE`, "dim");
-
-    const result = await acompanharJob(jobId, "Faltas");
-    if (!result.timedOut) {
-      addLog(`Faltas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
-    }
+    addLog(
+      `Faltas concluídas: ${totalOkFalta} ✓  ${totalErrFalta} ✗  (${batch.length} total)`,
+      totalOkFalta > 0 ? "ok" : "err"
+    );
   };
 
   // ─── Gerar Avaliações Finais ───────────────────────────────────────────────────
@@ -1420,25 +1465,51 @@ export default function PageContent() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    addLog(`  Submetendo ${batch.length} avaliação(ões) via POST /academia/avaliacao-final/async...`, "info");
-
-    const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro: ${errMsg}`, "err");
-      return;
+    // Divide em chunks de 1000 (limite da API para avaliações)
+    const CHUNK_SIZE_AVAL = 1000;
+    const chunksAval: any[][] = [];
+    for (let i = 0; i < batch.length; i += CHUNK_SIZE_AVAL) {
+      chunksAval.push(batch.slice(i, i + CHUNK_SIZE_AVAL));
     }
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${batch.length} avaliação(ões) na fila`, "info");
 
-    const result = await acompanharJob(jobId, "Avaliações");
-    if (!result.timedOut) {
-      addLog(
-        `Avaliações: ${result.ok} ✓  ${result.err} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
-        result.ok > 0 ? "ok" : "err"
-      );
+    addLog(
+      `  Submetendo ${batch.length} avaliação(ões) em ${chunksAval.length} job(s) de até ${CHUNK_SIZE_AVAL} itens...`,
+      "info"
+    );
+
+    let totalOkAval = 0;
+    let totalErrAval = 0;
+
+    for (let ci = 0; ci < chunksAval.length; ci++) {
+      if (cancelRef.current) break;
+      const chunk = chunksAval[ci];
+      const label = chunksAval.length > 1 ? `Avaliações ${ci + 1}/${chunksAval.length}` : "Avaliações";
+      addLog(`  📦 Submetendo job ${ci + 1}/${chunksAval.length} — ${chunk.length} avaliação(ões)...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", chunk, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
+        break;
+      }
+
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
+      addLog(`  Job ${jobId} criado — ${chunk.length} avaliação(ões) na fila`, "dim");
+
+      const result = await acompanharJob(jobId, label);
+      if (!result.timedOut) {
+        totalOkAval += result.ok;
+        totalErrAval += result.err;
+      }
+
+      if (ci < chunksAval.length - 1 && !cancelRef.current) await sleep(500);
     }
+
+    addLog(
+      `Avaliações concluídas: ${totalOkAval} ✓  ${totalErrAval} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
+      totalOkAval > 0 ? "ok" : "err"
+    );
   };
 
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
