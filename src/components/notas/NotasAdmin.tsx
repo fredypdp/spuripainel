@@ -24,7 +24,6 @@ const NIVEL_LABEL: Record<string, string> = {
 };
 function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g, " "); }
 
-/** Converte código de província (ex: "LUA") para nome legível (ex: "LUANDA") */
 function nomeProvinciaDeCodigo(codigo: string): string {
   return Provincias.find(p => p.codigo === codigo?.toUpperCase())?.nome ?? codigo;
 }
@@ -34,10 +33,12 @@ function corNota(n: number) {
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
   return "text-red-600 dark:text-red-400";
 }
+
 function calcMedia(notas: Nota[]) {
   if (!notas.length) return null;
   return notas.reduce((s, n) => s + n.nota, 0) / notas.length;
 }
+
 function formatCategoria(c: string) {
   const m: Record<string, string> = { nota_escola: "Nota Final", nota_professor: "Nota Prof.", nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame" };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
@@ -60,7 +61,8 @@ type Layer =
   | { type: "academia_anos"; academia: AcadInfo }
   | { type: "academia_turmas"; academia: AcadInfo; ano: string }
   | { type: "academia_periodos"; academia: AcadInfo; ano: string; turma: string }
-  | { type: "academia_notas"; academia: AcadInfo; ano: string; turma: string; periodo: string };
+  | { type: "academia_materias"; academia: AcadInfo; ano: string; periodo: string }
+  | { type: "academia_notas"; academia: AcadInfo; ano: string; periodo: string; materiaId: string; materiaNome: string };
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
@@ -92,7 +94,11 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
         <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
         {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
-      {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{badge}</span>}
+      {badge && (
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize flex-shrink-0">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -113,7 +119,7 @@ function TabelaNotasAdmin({ notas, estudantesMap }: { notas: Nota[]; estudantesM
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
-      <p className="text-sm">Nenhuma nota neste período.</p>
+      <p className="text-sm">Nenhuma nota nesta matéria para este período.</p>
     </div>
   );
   return (
@@ -121,7 +127,7 @@ function TabelaNotasAdmin({ notas, estudantesMap }: { notas: Nota[]; estudantesM
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            {["Estudante", "Código", "Matéria", "Ano Académico", "Categoria", "Nota"].map(h => (
+            {["Estudante", "Código", "Ano Académico", "Categoria", "Nota"].map(h => (
               <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h === "Nota" ? "text-right" : "text-left"}`}>{h}</th>
             ))}
           </tr>
@@ -131,7 +137,6 @@ function TabelaNotasAdmin({ notas, estudantesMap }: { notas: Nota[]; estudantesM
             <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudantesMap[n.codigo_estudante] ?? "-"}</td>
               <td className="px-4 py-3 text-gray-400 font-mono text-xs">{n.codigo_estudante}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{n.materia_nome ?? n.materia_disciplinar_id}</td>
               <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
               <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
               <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
@@ -216,14 +221,81 @@ export default function NotasAdmin() {
     return ps.sort((a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b));
   }
 
+  // Retorna matérias com contagem de notas e média para um ano+período
+  function materiasNoAnoEPeriodo(
+    codigoAcademia: string,
+    ano: string,
+    periodo: string
+  ): { id: string; nome: string; notasCount: number; media: number | null }[] {
+    const notas = notasDeAcademia(codigoAcademia).filter(
+      n => n.ano_lectivo === ano && n.periodo === periodo
+    );
+    const map = new Map<string, { nome: string; count: number; sum: number }>();
+    notas.forEach(n => {
+      const existing = map.get(n.materia_disciplinar_id);
+      if (existing) {
+        existing.count++;
+        existing.sum += n.nota;
+      } else {
+        map.set(n.materia_disciplinar_id, {
+          nome: n.materia_nome ?? n.materia_disciplinar_id,
+          count: 1,
+          sum: n.nota,
+        });
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, { nome, count, sum }]) => ({
+        id,
+        nome,
+        notasCount: count,
+        media: count > 0 ? sum / count : null,
+      }))
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
   function buildCrumbs(): { label: string; onClick?: () => void }[] {
     const provs = { label: "Províncias", onClick: () => setLayer({ type: "provincias" }) };
     if (layer.type === "provincias") return [provs];
-    if (layer.type === "academias") return [provs, { label: nomeProvinciaDeCodigo(layer.provincia) }];
-    if (layer.type === "academia_anos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome }];
-    if (layer.type === "academia_turmas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/") }];
-    if (layer.type === "academia_periodos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano }) }, { label: `Turma ${layer.turma}` }];
-    if (layer.type === "academia_notas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
+
+    if (layer.type === "academias") return [
+      provs,
+      { label: nomeProvinciaDeCodigo(layer.provincia) },
+    ];
+
+    if (layer.type === "academia_anos") return [
+      provs,
+      { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) },
+      { label: layer.academia.nome },
+    ];
+
+    if (layer.type === "academia_turmas") return [
+      provs,
+      { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) },
+      { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) },
+      { label: layer.ano.replace(/_/g, "/") },
+    ];
+
+    if (layer.type === "academia_materias") return [
+      provs,
+      { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) },
+      { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) },
+      { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano }) },
+      { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo },
+    ];
+
+    if (layer.type === "academia_notas") return [
+      provs,
+      { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) },
+      { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) },
+      { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano }) },
+      { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ type: "academia_materias", academia: layer.academia, ano: layer.ano, periodo: layer.periodo }) },
+      { label: layer.materiaNome },
+    ];
+
+    // academia_periodos: redireciona imediatamente
+    if (layer.type === "academia_periodos") return [provs];
+
     return [provs];
   }
 
@@ -243,7 +315,15 @@ export default function NotasAdmin() {
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
         {provincias.map(prov => {
           const acads = academiasNaProvincia(prov);
-          return <CardBtn key={prov} icon="mdi:map-marker-radius" title={nomeProvinciaDeCodigo(prov)} subtitle={`${acads.length} academia(s)`} onClick={() => setLayer({ type: "academias", provincia: prov })} />;
+          return (
+            <CardBtn
+              key={prov}
+              icon="mdi:map-marker-radius"
+              title={nomeProvinciaDeCodigo(prov)}
+              subtitle={`${acads.length} academia(s)`}
+              onClick={() => setLayer({ type: "academias", provincia: prov })}
+            />
+          );
         })}
       </div>
     </div>
@@ -258,7 +338,17 @@ export default function NotasAdmin() {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Província {nomeProvinciaDeCodigo(layer.provincia)}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {acads.map(a => (
-            <CardBtn key={a.codigo_academia} icon={a.type === "superior" ? "mdi:university" : "mdi:school"} title={a.nome} subtitle={`${a.codigo_academia} · ${a.status === "ativo" ? "Activa" : "Inactiva"}`} badge={a.type} onClick={async () => { await carregarNotasAcademia(a); setLayer({ type: "academia_anos", academia: a }); }} />
+            <CardBtn
+              key={a.codigo_academia}
+              icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
+              title={a.nome}
+              subtitle={`${a.codigo_academia} · ${a.status === "ativo" ? "Activa" : "Inactiva"}`}
+              badge={a.type}
+              onClick={async () => {
+                await carregarNotasAcademia(a);
+                setLayer({ type: "academia_anos", academia: a });
+              }}
+            />
           ))}
         </div>
       </div>
@@ -282,11 +372,23 @@ export default function NotasAdmin() {
           ? <div className="flex items-center justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" /></div>
           : anos.length === 0
             ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma nota registada nesta academia.</p>
-            : <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano => {
-              const np = notas.filter(n => n.ano_lectivo === ano);
-              const med = calcMedia(np);
-              return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g, "/")}`} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_turmas", academia, ano })} />;
-            })}</div>
+            : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {anos.map(ano => {
+                  const np = notas.filter(n => n.ano_lectivo === ano);
+                  const med = calcMedia(np);
+                  return (
+                    <CardBtn
+                      key={ano}
+                      icon="mdi:calendar-school"
+                      title={`Ano ${ano.replace(/_/g, "/")}`}
+                      subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                      onClick={() => setLayer({ type: "academia_turmas", academia, ano })}
+                    />
+                  );
+                })}
+              </div>
+            )
         }
       </div>
     );
@@ -308,7 +410,15 @@ export default function NotasAdmin() {
             {periodos.map(p => {
               const np = notas.filter(n => n.periodo === p);
               const med = calcMedia(np);
-              return <CardBtn key={p} icon="mdi:clipboard-text-clock-outline" title={PERIODOS_LABEL[p] ?? p} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_notas", academia, ano, turma: "geral", periodo: p })} />;
+              return (
+                <CardBtn
+                  key={p}
+                  icon="mdi:clipboard-text-clock-outline"
+                  title={PERIODOS_LABEL[p] ?? p}
+                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  onClick={() => setLayer({ type: "academia_materias", academia, ano, periodo: p })}
+                />
+              );
             })}
           </div>
         </div>
@@ -316,21 +426,81 @@ export default function NotasAdmin() {
     );
   }
 
+  // Redireciona academia_periodos (compatibilidade)
   if (layer.type === "academia_periodos") {
-    setLayer({ type: "academia_notas", academia: layer.academia, ano: layer.ano, turma: layer.turma, periodo: "1_trimestre" });
+    setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano });
     return null;
   }
 
-  // ── Notas de uma academia num período ──
-  if (layer.type === "academia_notas") {
+  // ── Matérias de um período ──
+  if (layer.type === "academia_materias") {
     const { academia, ano, periodo } = layer;
-    const notas = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano && n.periodo === periodo);
+    const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, periodo);
+    const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(
+      n => n.ano_lectivo === ano && n.periodo === periodo
+    );
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo}</h2>
-          <p className="text-sm text-gray-500 mt-1">{academia.nome} · {ano.replace(/_/g, "/")}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {PERIODOS_LABEL[periodo] ?? periodo} — Matérias
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {academia.nome} · {ano.replace(/_/g, "/")}
+          </p>
+        </div>
+        {notasPeriodo.length > 0 && <StatsRow notas={notasPeriodo} />}
+        {materiasLista.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" />
+            <p className="text-sm">Nenhuma matéria com notas neste período.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {materiasLista.map(m => (
+              <CardBtn
+                key={m.id}
+                icon="mdi:book-open-variant"
+                title={m.nome}
+                subtitle={
+                  m.notasCount > 0
+                    ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}`
+                    : "Sem notas"
+                }
+                badge={m.notasCount === 0 ? "vazia" : undefined}
+                onClick={() =>
+                  setLayer({
+                    type: "academia_notas",
+                    academia,
+                    ano,
+                    periodo,
+                    materiaId: m.id,
+                    materiaNome: m.nome,
+                  })
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Notas de uma academia num período, filtradas por matéria ──
+  if (layer.type === "academia_notas") {
+    const { academia, ano, periodo, materiaId, materiaNome } = layer;
+    const notas = notasDeAcademia(academia.codigo_academia).filter(
+      n => n.ano_lectivo === ano && n.periodo === periodo && n.materia_disciplinar_id === materiaId
+    );
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={buildCrumbs()} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {academia.nome} · {ano.replace(/_/g, "/")} · {PERIODOS_LABEL[periodo] ?? periodo}
+          </p>
         </div>
         {notas.length > 0 && <StatsRow notas={notas} />}
         <TabelaNotasAdmin notas={notas} estudantesMap={estudantesMap} />

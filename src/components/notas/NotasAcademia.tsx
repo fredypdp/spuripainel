@@ -34,7 +34,6 @@ const PERIODOS_SUPERIOR = [{ label: "1º Semestre", value: "1_semestre" }, { lab
 const CATEGORIAS_ESCOLAR        = [{ label: "Nota Final", value: "nota_escola" }, { label: "Nota Professor", value: "nota_professor" }];
 const CATEGORIAS_FIXAS_SUPERIOR = [{ label: "PP1", value: "nota_pp1" }, { label: "PP2", value: "nota_pp2" }, { label: "Exame", value: "nota_exame" }];
 
-// Formato canônico da API: N_ano_fundamental | N_ano_medio | N_ano_superior
 const ANOS_FUNDAMENTAL = [
   "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
   "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental",
@@ -85,7 +84,6 @@ function formatCategoria(c: string) {
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
-/** Verifica se uma turma está ativa (aceita undefined/null/string variada) */
 function turmaAtiva(turma: Turma): boolean {
   const s = turma.status ?? "";
   return s !== "inativo" && s !== "deletado";
@@ -97,14 +95,16 @@ type LayerFund =
   | { mode: "fund"; type: "anos" }
   | { mode: "fund"; type: "turmas"; nivel: string }
   | { mode: "fund"; type: "periodos"; nivel: string; turma: Turma }
-  | { mode: "fund"; type: "notas"; nivel: string; turma: Turma; periodo: string };
+  | { mode: "fund"; type: "materias"; nivel: string; turma: Turma; periodo: string }
+  | { mode: "fund"; type: "notas"; nivel: string; turma: Turma; periodo: string; materiaId: string; materiaNome: string };
 
 type LayerSup =
   | { mode: "sup"; type: "cursos" }
   | { mode: "sup"; type: "anos"; curso: Curso }
   | { mode: "sup"; type: "turmas"; curso: Curso; nivel: string }
   | { mode: "sup"; type: "periodos"; curso: Curso; nivel: string; turma: Turma }
-  | { mode: "sup"; type: "notas"; curso: Curso; nivel: string; turma: Turma; periodo: string };
+  | { mode: "sup"; type: "materias"; curso: Curso; nivel: string; turma: Turma; periodo: string }
+  | { mode: "sup"; type: "notas"; curso: Curso; nivel: string; turma: Turma; periodo: string; materiaId: string; materiaNome: string };
 
 type LayerMisto =
   | { mode: "misto"; type: "choose" }
@@ -131,8 +131,8 @@ function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void 
   );
 }
 
-function CardBtn({ icon, title, subtitle, onClick }: {
-  icon: string; title: string; subtitle?: string; onClick: () => void;
+function CardBtn({ icon, title, subtitle, badge, onClick }: {
+  icon: string; title: string; subtitle?: string; badge?: string; onClick: () => void;
 }) {
   return (
     <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
@@ -143,6 +143,11 @@ function CardBtn({ icon, title, subtitle, onClick }: {
         <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
         {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
+      {badge && (
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize flex-shrink-0">
+          {badge}
+        </span>
+      )}
       <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0" />
     </button>
   );
@@ -160,11 +165,11 @@ function StatsRow({ notas, label }: { notas: Nota[]; label: string }) {
   );
 }
 
-function TabelaNotasTurma({ notas, estudantes, isSuperior }: { notas: Nota[]; estudantes: EstudanteDetalhado[]; isSuperior: boolean }) {
+function TabelaNotasTurma({ notas, estudantes }: { notas: Nota[]; estudantes: EstudanteDetalhado[] }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
-      <p className="text-sm">Nenhuma nota registrada neste período.</p>
+      <p className="text-sm">Nenhuma nota registrada nesta matéria para este período.</p>
     </div>
   );
   const estudantesNotas = Array.from(new Set(notas.map(n => n.codigo_estudante)));
@@ -175,7 +180,6 @@ function TabelaNotasTurma({ notas, estudantes, isSuperior }: { notas: Nota[]; es
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
@@ -193,7 +197,6 @@ function TabelaNotasTurma({ notas, estudantes, isSuperior }: { notas: Nota[]; es
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
                   </>
                 )}
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{nota.materia_nome ?? nota.materia_disciplinar_id}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{nota.ano_academico ? labelNivel(nota.ano_academico) : "-"}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(nota.categoria)}</td>
                 <td className={`px-4 py-3 text-right font-bold ${corNota(nota.nota)}`}>{nota.nota}</td>
@@ -231,7 +234,6 @@ function ModalGestao({
   const [mode, setMode] = useState<ModalMode>("registrar");
   const [error, setError] = useState<string | null>(null);
 
-  // form registrar
   const [codigoEst, setCodigoEst] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [materiaId, setMateriaId] = useState("");
@@ -239,7 +241,6 @@ function ModalGestao({
   const [nota, setNota] = useState<number | "">("");
   const [obs, setObs] = useState("");
 
-  // form atualizar
   const [estAtualizar, setEstAtualizar]       = useState("");
   const [notaId, setNotaId]                   = useState("");
   const [notaNova, setNotaNova]               = useState<number | "">("");
@@ -247,14 +248,12 @@ function ModalGestao({
   const [notasEstudante, setNotasEstudante]   = useState<Nota[]>([]);
   const { execute: carregarNotasEst }         = useApi(consultasService.notasEstudante);
 
-  // form deletar
   const [estDeletar, setEstDeletar]           = useState("");
   const [notaIdDeletar, setNotaIdDeletar]     = useState("");
   const [motivoDeletar, setMotivoDeletar]     = useState("");
   const [notasEstDeletar, setNotasEstDeletar] = useState<Nota[]>([]);
   const { execute: carregarNotasEstDeletar }  = useApi(consultasService.notasEstudante);
 
-  // form categoria
   const [nomeCateg, setNomeCateg] = useState("");
   const [descCateg, setDescCateg] = useState("");
 
@@ -610,7 +609,6 @@ export default function NotasAcademia() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // CORRIGIDO: turmas extraídas corretamente do response
   const turmas: Turma[] = useMemo(() => {
     const raw = dataTurmas as any;
     return raw?.turmas ?? [];
@@ -621,15 +619,12 @@ export default function NotasAcademia() {
   const materias                         = useMemo(() => (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [], [dataMaterias]);
   const categorias                       = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
   const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
-
-  // CORRIGIDO: turmas ativas com status checado corretamente
-  const turmasAtivas: Turma[] = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
+  const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
 
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  // Carrega notas de todos os estudantes de uma turma e armazena no cache
   async function carregarNotasTurma(turma: Turma) {
     const codigos = turma.estudantes.filter(c => !notasCache[c]);
     if (codigos.length === 0) return;
@@ -641,58 +636,107 @@ export default function NotasAcademia() {
     }));
   }
 
-  /**
-   * CORRIGIDO: filtra notas do período sem comparar com ano_lectivo (campo do ano letivo "2025_2026").
-   * As notas são filtradas apenas por período — o ano letivo ativo garante que só há notas do ciclo atual.
-   * Se necessário, pode-se filtrar também por ano_lectivo usando o anoLectivo da academia.
-   */
+  // Retorna notas de uma turma num período (todas as matérias)
   function notasDaTurmaEmPeriodo(turma: Turma, periodo: string): Nota[] {
     return turma.estudantes.flatMap(codigo => {
       const notas = notasCache[codigo] ?? [];
       return notas.filter(n => {
         const matchPeriodo = n.periodo === periodo;
-        // Se academia tem ano letivo configurado, filtra por ele
         const matchAno = anoLectivo ? n.ano_lectivo === anoLectivo : true;
         return matchPeriodo && matchAno;
       });
     });
   }
 
-  // CORRIGIDO: filtrar turmas por nível usando o campo nivel da turma
-  const turmasPorNivel = (nivel: string) =>
-    turmasAtivas.filter(t => t.nivel === nivel);
+  // Retorna notas de uma turma num período filtradas por matéria
+  function notasDaTurmaEmPeriodoEMateria(turma: Turma, periodo: string, materiaId: string): Nota[] {
+    return turma.estudantes.flatMap(codigo => {
+      const notas = notasCache[codigo] ?? [];
+      return notas.filter(n => {
+        const matchPeriodo = n.periodo === periodo;
+        const matchAno = anoLectivo ? n.ano_lectivo === anoLectivo : true;
+        const matchMateria = n.materia_disciplinar_id === materiaId;
+        return matchPeriodo && matchAno && matchMateria;
+      });
+    });
+  }
 
-  // CORRIGIDO: filtrar turmas por curso_id
-  const turmasPorCurso = (cursoId: string) =>
-    turmasAtivas.filter(t => t.curso_id === cursoId);
+  // Retorna matérias para o contexto atual com contagem e média de notas
+  function getMateriasPorContexto(
+    nivel: string,
+    turma: Turma,
+    periodo: string,
+    curso?: Curso
+  ): { id: string; nome: string; notasCount: number; media: number | null }[] {
+    const tipoNivel = nivel.includes("fundamental")
+      ? "fundamental"
+      : nivel.includes("medio")
+      ? "medio"
+      : "superior";
 
+    const materiasContexto = (materias as any[]).filter((m: any) => {
+      if (m.type !== tipoNivel) return false;
+      if (tipoNivel === "fundamental") {
+        return m.anos_academicos?.includes(nivel);
+      }
+      if (tipoNivel === "medio") {
+        return turma.curso_id ? m.curso_id === turma.curso_id : m.anos_academicos?.includes(nivel);
+      }
+      // superior
+      return curso ? m.curso_id === curso.id && m.periodo === periodo : false;
+    });
+
+    // Também inclui matérias com notas no cache mas não na lista (ex: matéria desativada)
+    const notasPeriodo = notasDaTurmaEmPeriodo(turma, periodo);
+    const materiasDeNotas = new Map<string, string>();
+    notasPeriodo.forEach(n => {
+      if (!materiasDeNotas.has(n.materia_disciplinar_id)) {
+        materiasDeNotas.set(n.materia_disciplinar_id, n.materia_nome ?? n.materia_disciplinar_id);
+      }
+    });
+
+    // Merge: lista de matérias do contexto + matérias encontradas em notas
+    const merged = new Map<string, string>();
+    materiasContexto.forEach((m: any) => merged.set(m.id, m.nome));
+    materiasDeNotas.forEach((nome, id) => { if (!merged.has(id)) merged.set(id, nome); });
+
+    return Array.from(merged.entries())
+      .map(([id, nome]) => {
+        const notasMateria = notasDaTurmaEmPeriodoEMateria(turma, periodo, id);
+        return {
+          id,
+          nome,
+          notasCount: notasMateria.length,
+          media: calcMedia(notasMateria),
+        };
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
+  const turmasPorNivel = (nivel: string) => turmasAtivas.filter(t => t.nivel === nivel);
+  const turmasPorCurso = (cursoId: string) => turmasAtivas.filter(t => t.curso_id === cursoId);
   const anosDosCurso = (c: Curso) => sortAnos(c.anos_academicos ?? []);
 
-  // Níveis fundamentais: usa os anos_academicos da academia que contém "fundamental"
   const niveisFundamentais = useMemo(() => {
     const anosAcademia = user?.academia?.anos_academicos ?? [];
     const comTurmas = anosAcademia.filter(a =>
       a.includes("fundamental") && turmasAtivas.some(t => t.nivel === a)
     );
-    // Se não tem turmas ainda, mostra todos os anos da academia
     return comTurmas.length > 0
       ? comTurmas
       : anosAcademia.filter(a => a.includes("fundamental"));
   }, [turmasAtivas, user]);
 
-  // POST /academia/notas-aluno
   async function handleRegistrar(d: RegistrarNotasRequest) {
     await academiaService.registrarNota(d, token);
     showAlert("success", "Nota registada com sucesso.");
   }
 
-  // PUT /academia/atualizar-nota
   async function handleAtualizar(d: AtualizarNotaRequest) {
     await academiaService.atualizarNota(d, token);
     showAlert("success", "Nota atualizada com sucesso.");
   }
 
-  // DELETE /academia/nota/:id
   async function handleDeletar(notaId: string, motivo: string) {
     await academiaService.deletarNota(notaId, motivo, token);
     setNotasCache(prev => {
@@ -720,22 +764,78 @@ export default function NotasAcademia() {
       const goAnos = () => setLayer({ mode: "fund", type: "anos" });
       const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
       const base = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
-      if (layer.type === "anos")     return base;
-      if (layer.type === "turmas")   return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }];
-      if (layer.type === "periodos") return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma }];
-      if (layer.type === "notas")    return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
+
+      if (layer.type === "anos") return base;
+
+      if (layer.type === "turmas") return [
+        ...base,
+        { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
+      ];
+
+      if (layer.type === "periodos") return [
+        ...base,
+        { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
+        { label: layer.turma.codigo_turma },
+      ];
+
+      if (layer.type === "materias") return [
+        ...base,
+        { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
+        { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) },
+        { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo },
+      ];
+
+      if (layer.type === "notas") return [
+        ...base,
+        { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
+        { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) },
+        { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: layer.turma, periodo: layer.periodo }) },
+        { label: layer.materiaNome },
+      ];
     }
 
     if (layer.mode === "sup") {
       const goCursos = () => setLayer({ mode: "sup", type: "cursos" });
-      const cursosCrumb = { label: "Cursos", onClick: goCursos };
+      const cursosCrumb = { label: isMisto ? "Médio" : "Cursos", onClick: goCursos };
       const base = isMisto ? [{ label: "Início", onClick: goInicio }, cursosCrumb] : [cursosCrumb];
       const l = layer as any;
-      if (layer.type === "cursos")   return base;
-      if (layer.type === "anos")     return [...base, { label: l.curso.nome }];
-      if (layer.type === "turmas")   return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel) }];
-      if (layer.type === "periodos") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: l.turma.codigo_turma }];
-      if (layer.type === "notas")    return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: l.turma.codigo_turma, onClick: () => setLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma }) }, { label: PERIODOS_LABEL[l.periodo] ?? l.periodo }];
+
+      if (layer.type === "cursos") return base;
+
+      if (layer.type === "anos") return [
+        ...base,
+        { label: l.curso.nome },
+      ];
+
+      if (layer.type === "turmas") return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel) },
+      ];
+
+      if (layer.type === "periodos") return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) },
+        { label: l.turma.codigo_turma },
+      ];
+
+      if (layer.type === "materias") return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) },
+        { label: l.turma.codigo_turma, onClick: () => setLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma }) },
+        { label: PERIODOS_LABEL[l.periodo] ?? l.periodo },
+      ];
+
+      if (layer.type === "notas") return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) },
+        { label: l.turma.codigo_turma, onClick: () => setLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma }) },
+        { label: PERIODOS_LABEL[l.periodo] ?? l.periodo, onClick: () => setLayer({ mode: "sup", type: "materias", curso: l.curso, nivel: l.nivel, turma: l.turma, periodo: l.periodo }) },
+        { label: l.materiaNome },
+      ];
     }
 
     if (layer.mode === "misto" && layer.type === "choose") return [{ label: "Início" }];
@@ -747,7 +847,6 @@ export default function NotasAcademia() {
   function renderLayer() {
     const crumbs = buildCrumbs();
 
-    // Loading state
     if (loadingTurmas) {
       return (
         <div className="flex items-center justify-center py-16">
@@ -777,7 +876,7 @@ export default function NotasAcademia() {
     if (layer.mode === "fund" && layer.type === "anos") return (
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Acadêmicos — Ensino Fundamental</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
         {niveisFundamentais.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />
@@ -813,7 +912,6 @@ export default function NotasAcademia() {
             <div className="text-center py-12 text-gray-400">
               <Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" />
               <p className="text-sm">Nenhuma turma ativa para este nível.</p>
-              <p className="text-xs mt-1 text-gray-300 dark:text-gray-600">Total de turmas carregadas: {turmas.length} ({turmasAtivas.length} ativas)</p>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -846,10 +944,10 @@ export default function NotasAcademia() {
                 key={p.value}
                 icon="mdi:clipboard-text-clock-outline"
                 title={p.label}
-                subtitle="Ver notas"
+                subtitle="Ver matérias"
                 onClick={async () => {
                   await carregarNotasTurma(turma);
-                  setLayer({ mode: "fund", type: "notas", nivel, turma, periodo: p.value });
+                  setLayer({ mode: "fund", type: "materias", nivel, turma, periodo: p.value });
                 }}
               />
             ))}
@@ -858,19 +956,76 @@ export default function NotasAcademia() {
       );
     }
 
-    // ── Fundamental: notas ──
-    if (layer.mode === "fund" && layer.type === "notas") {
+    // ── Fundamental: matérias ──
+    if (layer.mode === "fund" && layer.type === "materias") {
       const { nivel, turma, periodo } = layer;
-      const notas = notasDaTurmaEmPeriodo(turma, periodo);
+      const materiasContexto = getMateriasPorContexto(nivel, turma, periodo);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo]}</h2>
-            <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {labelNivel(nivel, true)}</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {PERIODOS_LABEL[periodo] ?? periodo} — Matérias
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Turma {turma.codigo_turma} · {labelNivel(nivel, true)}
+            </p>
+          </div>
+          {materiasContexto.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Nenhuma matéria encontrada para este período.</p>
+              <p className="text-xs mt-1 text-gray-300 dark:text-gray-600">
+                Crie matérias do tipo fundamental para este ano académico.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {materiasContexto.map(m => (
+                <CardBtn
+                  key={m.id}
+                  icon="mdi:book-open-variant"
+                  title={m.nome}
+                  subtitle={
+                    m.notasCount > 0
+                      ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}`
+                      : "Sem notas registadas"
+                  }
+                  badge={m.notasCount === 0 ? "vazia" : undefined}
+                  onClick={() =>
+                    setLayer({
+                      mode: "fund",
+                      type: "notas",
+                      nivel,
+                      turma,
+                      periodo,
+                      materiaId: m.id,
+                      materiaNome: m.nome,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Fundamental: notas ──
+    if (layer.mode === "fund" && layer.type === "notas") {
+      const { nivel, turma, periodo, materiaId, materiaNome } = layer;
+      const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {labelNivel(nivel, true)}
+            </p>
           </div>
           {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
-          <TabelaNotasTurma notas={notas} estudantes={estudantes} isSuperior={false} />
+          <TabelaNotasTurma notas={notas} estudantes={estudantes} />
         </div>
       );
     }
@@ -971,10 +1126,10 @@ export default function NotasAcademia() {
                 key={p.value}
                 icon="mdi:clipboard-text-clock-outline"
                 title={p.label}
-                subtitle="Ver notas"
+                subtitle="Ver matérias"
                 onClick={async () => {
                   await carregarNotasTurma(turma);
-                  setLayer({ mode: "sup", type: "notas", curso, nivel, turma, periodo: p.value });
+                  setLayer({ mode: "sup", type: "materias", curso, nivel, turma, periodo: p.value });
                 }}
               />
             ))}
@@ -983,19 +1138,77 @@ export default function NotasAcademia() {
       );
     }
 
-    // ── Superior: notas ──
-    if (layer.mode === "sup" && layer.type === "notas") {
+    // ── Superior: matérias ──
+    if (layer.mode === "sup" && layer.type === "materias") {
       const { curso, nivel, turma, periodo } = layer as any;
-      const notas = notasDaTurmaEmPeriodo(turma, periodo);
+      const materiasContexto = getMateriasPorContexto(nivel, turma, periodo, curso);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo]}</h2>
-            <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {curso.nome} · {labelNivel(nivel)}</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {PERIODOS_LABEL[periodo] ?? periodo} — Matérias
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Turma {turma.codigo_turma} · {labelNivel(nivel)} · {curso.nome}
+            </p>
+          </div>
+          {materiasContexto.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Nenhuma matéria encontrada para este período.</p>
+              <p className="text-xs mt-1 text-gray-300 dark:text-gray-600">
+                Crie matérias do tipo superior com o período correto.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {materiasContexto.map(m => (
+                <CardBtn
+                  key={m.id}
+                  icon="mdi:book-open-variant"
+                  title={m.nome}
+                  subtitle={
+                    m.notasCount > 0
+                      ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}`
+                      : "Sem notas registadas"
+                  }
+                  badge={m.notasCount === 0 ? "vazia" : undefined}
+                  onClick={() =>
+                    setLayer({
+                      mode: "sup",
+                      type: "notas",
+                      curso,
+                      nivel,
+                      turma,
+                      periodo,
+                      materiaId: m.id,
+                      materiaNome: m.nome,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Superior: notas ──
+    if (layer.mode === "sup" && layer.type === "notas") {
+      const { curso, nivel, turma, periodo, materiaId, materiaNome } = layer as any;
+      const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {curso.nome} · {labelNivel(nivel)}
+            </p>
           </div>
           {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
-          <TabelaNotasTurma notas={notas} estudantes={estudantes} isSuperior={isSuperior} />
+          <TabelaNotasTurma notas={notas} estudantes={estudantes} />
         </div>
       );
     }
