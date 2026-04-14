@@ -80,7 +80,13 @@ function calcMedia(notas: Nota[]) {
 }
 
 function formatCategoria(c: string) {
-  const m: Record<string, string> = { nota_escola: "Nota Final", nota_professor: "Nota Prof.", nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame" };
+  const m: Record<string, string> = {
+    nota_escola: "Nota Final",
+    nota_professor: "Nota Prof.",
+    nota_pp1: "PP1",
+    nota_pp2: "PP2",
+    nota_exame: "Exame",
+  };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
@@ -165,29 +171,138 @@ function StatsRow({ notas, label }: { notas: Nota[]; label: string }) {
   );
 }
 
-function TabelaNotasTurma({ notas, estudantes }: { notas: Nota[]; estudantes: EstudanteDetalhado[] }) {
+function LoadingTable() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">Carregando notas...</p>
+    </div>
+  );
+}
+
+// Tabela de notas escolar com colunas: Nome, Código, Nota Professor, Nota Final
+function TabelaNotasTurmaEscolar({
+  notas,
+  estudantes,
+  loading,
+}: {
+  notas: Nota[];
+  estudantes: EstudanteDetalhado[];
+  loading: boolean;
+}) {
+  if (loading) return <LoadingTable />;
+
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
-      <p className="text-sm">Nenhuma nota registrada nesta matéria para este período.</p>
+      <p className="text-sm">Nenhuma nota registada nesta matéria para este período.</p>
     </div>
   );
-  const estudantesNotas = Array.from(new Set(notas.map(n => n.codigo_estudante)));
+
+  // Agrupa por estudante
+  const porEstudante = new Map<string, Nota[]>();
+  notas.forEach(n => {
+    if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
+    porEstudante.get(n.codigo_estudante)!.push(n);
+  });
+
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
+            const est = estudantes.find(e => e.codigo_estudante === codigo);
+            const notaProfessorItem = notasEst.find(n => n.categoria === "nota_professor");
+            const notaFinalItem = notasEst.find(n => n.categoria === "nota_escola");
+            const anoAcademico = notasEst[0]?.ano_academico;
+
+            // Fallback: se não tem categorias escolar padrão, usa o que tem
+            if (!notaProfessorItem && !notaFinalItem) {
+              return notasEst.map((nota, i) => (
+                <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  {i === 0 && (
+                    <>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{est?.nome ?? "-"}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400" rowSpan={notasEst.length}>
+                        {anoAcademico ? labelNivel(anoAcademico) : "-"}
+                      </td>
+                    </>
+                  )}
+                  <td className="px-4 py-3 text-right text-gray-400">—</td>
+                  <td className={`px-4 py-3 text-right font-bold ${corNota(nota.nota)}`}>{nota.nota}</td>
+                </tr>
+              ));
+            }
+
+            return (
+              <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{anoAcademico ? labelNivel(anoAcademico) : "-"}</td>
+                <td className={`px-4 py-3 text-right font-bold ${notaProfessorItem ? corNota(notaProfessorItem.nota) : "text-gray-400"}`}>
+                  {notaProfessorItem?.nota ?? "—"}
+                </td>
+                <td className={`px-4 py-3 text-right font-bold ${notaFinalItem ? corNota(notaFinalItem.nota) : "text-gray-400"}`}>
+                  {notaFinalItem?.nota ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Tabela superior: colunas Nome, Código, Ano Académico, Categoria, Nota
+function TabelaNotasTurmaSuperior({
+  notas,
+  estudantes,
+  loading,
+}: {
+  notas: Nota[];
+  estudantes: EstudanteDetalhado[];
+  loading: boolean;
+}) {
+  if (loading) return <LoadingTable />;
+
+  if (!notas.length) return (
+    <div className="text-center py-10 text-gray-400">
+      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
+      <p className="text-sm">Nenhuma nota registada nesta matéria para este período.</p>
+    </div>
+  );
+
+  const porEstudante = new Map<string, Nota[]>();
+  notas.forEach(n => {
+    if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
+    porEstudante.get(n.codigo_estudante)!.push(n);
+  });
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800/70">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {estudantesNotas.map(codigo => {
-            const notasEst = notas.filter(n => n.codigo_estudante === codigo);
+          {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
             const est = estudantes.find(e => e.codigo_estudante === codigo);
             return notasEst.map((nota, i) => (
               <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
@@ -586,8 +701,9 @@ export default function NotasAcademia() {
     if (isMisto)       return { mode: "misto", type: "choose" };
     return { mode: "sup", type: "cursos" };
   };
-  const [layer, setLayer]   = useState<Layer>(initLayer);
-  const [alert, setAlert]   = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [layer, setLayer]           = useState<Layer>(initLayer);
+  const [loadingNotas, setLoadingNotas] = useState(false);
+  const [alert, setAlert]           = useState<{ variant: "success" | "error"; message: string } | null>(null);
 
   const { data: dataTurmas,     loading: loadingTurmas,     execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
@@ -625,15 +741,18 @@ export default function NotasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  async function carregarNotasTurma(turma: Turma) {
+  // Carrega notas da turma com feedback de loading
+  async function carregarNotasTurmaComLoading(turma: Turma) {
     const codigos = turma.estudantes.filter(c => !notasCache[c]);
     if (codigos.length === 0) return;
+    setLoadingNotas(true);
     await Promise.all(codigos.map(async codigo => {
       try {
         const res = await consultasService.notasEstudante(codigo, token);
         setNotasCache(prev => ({ ...prev, [codigo]: (res as any)?.notas ?? [] }));
       } catch {}
     }));
+    setLoadingNotas(false);
   }
 
   // Retorna notas de uma turma num período (todas as matérias)
@@ -682,11 +801,9 @@ export default function NotasAcademia() {
       if (tipoNivel === "medio") {
         return turma.curso_id ? m.curso_id === turma.curso_id : m.anos_academicos?.includes(nivel);
       }
-      // superior
       return curso ? m.curso_id === curso.id && m.periodo === periodo : false;
     });
 
-    // Também inclui matérias com notas no cache mas não na lista (ex: matéria desativada)
     const notasPeriodo = notasDaTurmaEmPeriodo(turma, periodo);
     const materiasDeNotas = new Map<string, string>();
     notasPeriodo.forEach(n => {
@@ -695,7 +812,6 @@ export default function NotasAcademia() {
       }
     });
 
-    // Merge: lista de matérias do contexto + matérias encontradas em notas
     const merged = new Map<string, string>();
     materiasContexto.forEach((m: any) => merged.set(m.id, m.nome));
     materiasDeNotas.forEach((nome, id) => { if (!merged.has(id)) merged.set(id, nome); });
@@ -946,7 +1062,7 @@ export default function NotasAcademia() {
                 title={p.label}
                 subtitle="Ver matérias"
                 onClick={async () => {
-                  await carregarNotasTurma(turma);
+                  await carregarNotasTurmaComLoading(turma);
                   setLayer({ mode: "fund", type: "materias", nivel, turma, periodo: p.value });
                 }}
               />
@@ -971,7 +1087,9 @@ export default function NotasAcademia() {
               Turma {turma.codigo_turma} · {labelNivel(nivel, true)}
             </p>
           </div>
-          {materiasContexto.length === 0 ? (
+          {loadingNotas ? (
+            <LoadingTable />
+          ) : materiasContexto.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" />
               <p className="text-sm">Nenhuma matéria encontrada para este período.</p>
@@ -1024,8 +1142,8 @@ export default function NotasAcademia() {
               {PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {labelNivel(nivel, true)}
             </p>
           </div>
-          {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
-          <TabelaNotasTurma notas={notas} estudantes={estudantes} />
+          {!loadingNotas && notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
+          <TabelaNotasTurmaEscolar notas={notas} estudantes={estudantes} loading={loadingNotas} />
         </div>
       );
     }
@@ -1128,7 +1246,7 @@ export default function NotasAcademia() {
                 title={p.label}
                 subtitle="Ver matérias"
                 onClick={async () => {
-                  await carregarNotasTurma(turma);
+                  await carregarNotasTurmaComLoading(turma);
                   setLayer({ mode: "sup", type: "materias", curso, nivel, turma, periodo: p.value });
                 }}
               />
@@ -1153,7 +1271,9 @@ export default function NotasAcademia() {
               Turma {turma.codigo_turma} · {labelNivel(nivel)} · {curso.nome}
             </p>
           </div>
-          {materiasContexto.length === 0 ? (
+          {loadingNotas ? (
+            <LoadingTable />
+          ) : materiasContexto.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" />
               <p className="text-sm">Nenhuma matéria encontrada para este período.</p>
@@ -1207,8 +1327,8 @@ export default function NotasAcademia() {
               {PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {curso.nome} · {labelNivel(nivel)}
             </p>
           </div>
-          {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
-          <TabelaNotasTurma notas={notas} estudantes={estudantes} />
+          {!loadingNotas && notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
+          <TabelaNotasTurmaSuperior notas={notas} estudantes={estudantes} loading={loadingNotas} />
         </div>
       );
     }

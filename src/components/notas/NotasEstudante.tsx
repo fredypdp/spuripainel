@@ -30,7 +30,13 @@ const NIVEL_LABEL: Record<string, string> = {
 function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g, " "); }
 
 function formatCategoria(c: string) {
-  const m: Record<string, string> = { nota_escola: "Nota Final", nota_professor: "Nota Professor", nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame" };
+  const m: Record<string, string> = {
+    nota_escola: "Nota Final",
+    nota_professor: "Nota Professor",
+    nota_pp1: "PP1",
+    nota_pp2: "PP2",
+    nota_exame: "Exame",
+  };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
@@ -43,6 +49,22 @@ function corNota(n: number) {
 function calcMedia(notas: Nota[]) {
   if (!notas.length) return null;
   return notas.reduce((s, n) => s + n.nota, 0) / notas.length;
+}
+
+// Extrai nota_professor e nota_escola (ou nota_pp1/pp2/exame para superior) de um grupo de notas
+function extrairNotasPorCategoria(notas: Nota[]): {
+  notaProfessor: number | null;
+  notaFinal: number | null;
+  outras: Nota[];
+} {
+  const notaProfessorItem = notas.find(n => n.categoria === "nota_professor");
+  const notaFinalItem = notas.find(n => n.categoria === "nota_escola");
+  const outras = notas.filter(n => n.categoria !== "nota_professor" && n.categoria !== "nota_escola");
+  return {
+    notaProfessor: notaProfessorItem?.nota ?? null,
+    notaFinal: notaFinalItem?.nota ?? null,
+    outras,
+  };
 }
 
 // ─── tipos ───────────────────────────────────────────────────────────────────
@@ -111,33 +133,139 @@ function StatsRow({ notas }: { notas: Nota[] }) {
   );
 }
 
-function TabelaNotas({ notas }: { notas: Nota[] }) {
+function LoadingTable() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">Carregando notas...</p>
+    </div>
+  );
+}
+
+// Tabela de notas do estudante com colunas: Nome, Código, Nota Professor, Nota Final
+function TabelaNotasEstudante({
+  notas,
+  estudanteNome,
+  estudanteCodigo,
+  isSuperior,
+  loading,
+}: {
+  notas: Nota[];
+  estudanteNome: string;
+  estudanteCodigo: string;
+  isSuperior: boolean;
+  loading: boolean;
+}) {
+  if (loading) return <LoadingTable />;
+
   if (!notas.length) return (
     <div className="text-center py-12 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
       <p className="text-sm">Nenhuma nota neste período.</p>
     </div>
   );
+
+  // Agrupa notas por matéria
+  const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
+  notas.forEach(n => {
+    const id = n.materia_disciplinar_id;
+    if (!porMateria.has(id)) {
+      porMateria.set(id, { nome: n.materia_nome ?? id, notas: [] });
+    }
+    porMateria.get(id)!.notas.push(n);
+  });
+
+  if (isSuperior) {
+    // Para superior: colunas Matéria, Ano Académico, Categoria, Nota
+    return (
+      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-800/70">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+            {Array.from(porMateria.entries()).map(([materiaId, { nome, notas: notasMateria }]) =>
+              notasMateria.map((n, i) => (
+                <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  {i === 0 && (
+                    <>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasMateria.length}>{estudanteNome}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasMateria.length}>{estudanteCodigo}</td>
+                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90" rowSpan={notasMateria.length}>{nome}</td>
+                    </>
+                  )}
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
+                  <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Para escolar: colunas Nome, Código, Nota Professor, Nota Final
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            {["Matéria", "Ano Académico", "Categoria", "Nota", "Observação"].map(h => (
-              <th key={h} className={`px-4 py-3 font-medium text-gray-600 dark:text-gray-400 ${h === "Nota" ? "text-right" : "text-left"}`}>{h}</th>
-            ))}
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {notas.map(n => (
-            <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{n.materia_nome ?? n.materia_disciplinar_id}</td>
-              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
-              <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
-              <td className="px-4 py-3 text-gray-400 text-xs">{n.observacao ?? "-"}</td>
-            </tr>
-          ))}
+          {Array.from(porMateria.entries()).map(([materiaId, { nome, notas: notasMateria }]) => {
+            const { notaProfessor, notaFinal, outras } = extrairNotasPorCategoria(notasMateria);
+            // Se não há nota_escola nem nota_professor, renderiza linha genérica por categoria
+            if (notaProfessor === null && notaFinal === null && outras.length > 0) {
+              return outras.map((n, i) => (
+                <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  {i === 0 && (
+                    <>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={outras.length}>{estudanteNome}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={outras.length}>{estudanteCodigo}</td>
+                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90" rowSpan={outras.length}>{nome}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400" rowSpan={outras.length}>
+                        {n.ano_academico ? labelNivel(n.ano_academico) : "-"}
+                      </td>
+                    </>
+                  )}
+                  <td className="px-4 py-3 text-right text-gray-400">—</td>
+                  <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
+                </tr>
+              ));
+            }
+
+            const anoAcademico = notasMateria[0]?.ano_academico;
+            return (
+              <tr key={materiaId} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudanteNome}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{estudanteCodigo}</td>
+                <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90">{nome}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{anoAcademico ? labelNivel(anoAcademico) : "-"}</td>
+                <td className={`px-4 py-3 text-right font-bold text-base ${notaProfessor !== null ? corNota(notaProfessor) : "text-gray-400"}`}>
+                  {notaProfessor !== null ? notaProfessor : "—"}
+                </td>
+                <td className={`px-4 py-3 text-right font-bold text-base ${notaFinal !== null ? corNota(notaFinal) : "text-gray-400"}`}>
+                  {notaFinal !== null ? notaFinal : "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -149,8 +277,10 @@ function TabelaNotas({ notas }: { notas: Nota[] }) {
 export default function NotasEstudante() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const [layer, setLayer] = useState<Layer>({ type: "academias" });
+  const [loadingPeriodo, setLoadingPeriodo] = useState(false);
   const token = tokenStorage.get() ?? undefined;
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
+  const estudanteNome = user?.estudante?.nome ?? "Estudante";
 
   const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
   const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
@@ -163,6 +293,9 @@ export default function NotasEstudante() {
   }, [codigoEstudante]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const todasNotas: Nota[] = historico?.notas ?? [];
+
+  // Detecta se é academia superior com base nas notas
+  const isSuperior = todasNotas.some(n => n.tipo === "superior");
 
   // Academias únicas nas notas
   const academias = useMemo((): AcadInfo[] => {
@@ -183,13 +316,31 @@ export default function NotasEstudante() {
 
   const notasDe = (codigo: string) => todasNotas.filter(n => n.codigo_academia === codigo);
 
+  // Ao clicar num período, simula loading para melhor UX
+  const entrarNoPeriodo = async (newLayer: Layer) => {
+    setLoadingPeriodo(true);
+    // Pequeno delay para mostrar feedback visual
+    await new Promise(r => setTimeout(r, 120));
+    setLayer(newLayer);
+    setLoadingPeriodo(false);
+  };
+
   // breadcrumbs
   const crumbs = useMemo(() => {
     const base = { label: "Academias", onClick: () => setLayer({ type: "academias" }) };
     if (layer.type === "academias") return [base];
     if (layer.type === "academia") return [base, { label: layer.a.nome }];
-    if (layer.type === "ano") return [base, { label: layer.a.nome, onClick: () => setLayer({ type: "academia", a: layer.a }) }, { label: labelNivel(layer.ano) }];
-    if (layer.type === "periodo") return [base, { label: layer.a.nome, onClick: () => setLayer({ type: "academia", a: layer.a }) }, { label: labelNivel(layer.ano), onClick: () => setLayer({ type: "ano", a: layer.a, ano: layer.ano }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
+    if (layer.type === "ano") return [
+      base,
+      { label: layer.a.nome, onClick: () => setLayer({ type: "academia", a: layer.a }) },
+      { label: labelNivel(layer.ano) },
+    ];
+    if (layer.type === "periodo") return [
+      base,
+      { label: layer.a.nome, onClick: () => setLayer({ type: "academia", a: layer.a }) },
+      { label: labelNivel(layer.ano), onClick: () => setLayer({ type: "ano", a: layer.a, ano: layer.ano }) },
+      { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo },
+    ];
     return [base];
   }, [layer]);
 
@@ -207,12 +358,29 @@ export default function NotasEstudante() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma academia</p>
       </div>
       {academias.length === 0
-        ? <div className="text-center py-16 text-gray-400"><Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40" /><p>Nenhuma nota registrada ainda.</p></div>
-        : <div className="grid gap-3 sm:grid-cols-2">{academias.map(a => {
-          const nts = notasDe(a.codigo);
-          const med = calcMedia(nts);
-          return <CardBtn key={a.codigo} icon={a.type === "superior" ? "mdi:university" : "mdi:school"} title={a.nome} subtitle={`${nts.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia", a })} />;
-        })}</div>
+        ? (
+          <div className="text-center py-16 text-gray-400">
+            <Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40" />
+            <p>Nenhuma nota registada ainda.</p>
+          </div>
+        )
+        : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {academias.map(a => {
+              const nts = notasDe(a.codigo);
+              const med = calcMedia(nts);
+              return (
+                <CardBtn
+                  key={a.codigo}
+                  icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
+                  title={a.nome}
+                  subtitle={`${nts.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  onClick={() => setLayer({ type: "academia", a })}
+                />
+              );
+            })}
+          </div>
+        )
       }
     </div>
   );
@@ -231,11 +399,21 @@ export default function NotasEstudante() {
         <StatsRow notas={notas} />
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Ano</h3>
-          <div className="grid gap-3 sm:grid-cols-2">{anosAcademicos.map(anoAcademico => {
-            const np = notas.filter(n => n.ano_academico === anoAcademico);
-            const med = calcMedia(np);
-            return <CardBtn key={anoAcademico} icon="mdi:numeric" title={labelNivel(anoAcademico)} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "ano", a: layer.a, ano: anoAcademico })} />;
-          })}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {anosAcademicos.map(anoAcademico => {
+              const np = notas.filter(n => n.ano_academico === anoAcademico);
+              const med = calcMedia(np);
+              return (
+                <CardBtn
+                  key={anoAcademico}
+                  icon="mdi:numeric"
+                  title={labelNivel(anoAcademico)}
+                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  onClick={() => setLayer({ type: "ano", a: layer.a, ano: anoAcademico })}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -244,7 +422,9 @@ export default function NotasEstudante() {
   // ── Ano Académico ──
   if (layer.type === "ano") {
     const notas = notasDe(layer.a.codigo).filter(n => n.ano_academico === layer.ano);
-    const periodos = Array.from(new Set(notas.map(n => n.periodo))).sort((a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b));
+    const periodos = Array.from(new Set(notas.map(n => n.periodo))).sort(
+      (a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b)
+    );
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs} />
@@ -252,11 +432,21 @@ export default function NotasEstudante() {
         <StatsRow notas={notas} />
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
-          <div className="grid gap-3 sm:grid-cols-2">{periodos.map(p => {
-            const np = notas.filter(n => n.periodo === p);
-            const med = calcMedia(np);
-            return <CardBtn key={p} icon="mdi:clipboard-text-clock-outline" title={PERIODOS_LABEL[p] ?? p} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "periodo", a: layer.a, ano: layer.ano, periodo: p })} />;
-          })}</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {periodos.map(p => {
+              const np = notas.filter(n => n.periodo === p);
+              const med = calcMedia(np);
+              return (
+                <CardBtn
+                  key={p}
+                  icon="mdi:clipboard-text-clock-outline"
+                  title={PERIODOS_LABEL[p] ?? p}
+                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  onClick={() => entrarNoPeriodo({ type: "periodo", a: layer.a, ano: layer.ano, periodo: p })}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -264,16 +454,31 @@ export default function NotasEstudante() {
 
   // ── Período ──
   if (layer.type === "periodo") {
-    const notas = notasDe(layer.a.codigo).filter(n => n.ano_academico === layer.ano && n.periodo === layer.periodo);
+    const notas = notasDe(layer.a.codigo).filter(
+      n => n.ano_academico === layer.ano && n.periodo === layer.periodo
+    );
+    const acadType = layer.a.type;
+    const periodoIsSuperior = acadType === "superior" || notas.some(n => n.tipo === "superior");
+
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs} />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[layer.periodo] ?? layer.periodo}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.nome} · {labelNivel(layer.ano)}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {PERIODOS_LABEL[layer.periodo] ?? layer.periodo}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {layer.a.nome} · {labelNivel(layer.ano)}
+          </p>
         </div>
-        {notas.length > 0 && <StatsRow notas={notas} />}
-        <TabelaNotas notas={notas} />
+        {!loadingPeriodo && notas.length > 0 && <StatsRow notas={notas} />}
+        <TabelaNotasEstudante
+          notas={notas}
+          estudanteNome={estudanteNome}
+          estudanteCodigo={codigoEstudante}
+          isSuperior={periodoIsSuperior}
+          loading={loadingPeriodo}
+        />
       </div>
     );
   }
