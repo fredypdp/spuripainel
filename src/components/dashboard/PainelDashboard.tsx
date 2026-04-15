@@ -621,10 +621,10 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
   const estudante = user.estudante!;
 
   const { data: dataNotas, loading: loadingNotas, execute: fetchNotas } =
-    useApi(estudanteService.minhasNotas);
+    useApi(consultasService.notasEstudante);
 
   const { data: dataFaltas, loading: loadingFaltas, execute: fetchFaltas } =
-    useApi(estudanteService.minhasFaltas);
+    useApi(consultasService.faltasEstudante);
 
   const { data: dataAvaliacoes, loading: loadingAval, execute: fetchAval } =
     useApi(estudanteService.minhasAvaliacoes);
