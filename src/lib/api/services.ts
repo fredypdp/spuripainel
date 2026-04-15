@@ -254,16 +254,6 @@ export const estudanteService = {
     api.get<ListarAvaliacoesResponse>('/estudante/minhas-avaliacoes', {
       token: token || tokenStorage.get() || undefined,
     }),
-
-  minhasNotas: (token?: string) =>
-    api.get<NotasEstudanteResponse>('/estudante/minhas-notas', {
-      token: token || tokenStorage.get() || undefined,
-    }),
-
-  minhasFaltas: (token?: string) =>
-    api.get<import('@/types/api').FaltasEstudanteResponse>('/estudante/minhas-faltas', {
-      token: token || tokenStorage.get() || undefined,
-    }),
 };
 
 // =====================
