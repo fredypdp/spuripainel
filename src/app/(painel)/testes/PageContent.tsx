@@ -1139,7 +1139,9 @@ export default function PageContent() {
         const anoLetivo = academia.ano_letivo;
         for (const n of notas) {
           if (n.ano_lectivo === anoLetivo) {
-            notasExistentes.add(`${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`);
+            // Chave de idempotência conforme documentação: anoLectivo|periodo|materiaID|tipo|categoria
+            // O estudante não faz parte da chave porque cada aggregate já é escopo do próprio estudante
+            notasExistentes.add(`${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`);
           }
         }
       }
@@ -1165,7 +1167,8 @@ export default function PageContent() {
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
-            const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
+            // Chave de idempotência conforme documentação: anoLectivo|periodo|materiaID|tipo|categoria
+            const chave = `${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
             if (notasExistentes.has(chave)) continue;
             batch.push({
               codigo_estudante: est.codigo_estudante,
