@@ -14,15 +14,20 @@ const PERIODOS_LABEL: Record<string, string> = {
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
 
-const NIVEL_LABEL: Record<string, string> = {
-  "1_ano_fundamental": "1º Ano", "2_ano_fundamental": "2º Ano", "3_ano_fundamental": "3º Ano",
-  "4_ano_fundamental": "4º Ano", "5_ano_fundamental": "5º Ano", "6_ano_fundamental": "6º Ano",
-  "7_ano_fundamental": "7º Ano", "8_ano_fundamental": "8º Ano", "9_ano_fundamental": "9º Ano",
-  "1_ano_medio": "1º Médio",     "2_ano_medio": "2º Médio",     "3_ano_medio": "3º Médio",     "4_ano_medio": "4º Médio",
-  "1_ano_superior": "1º Ano",    "2_ano_superior": "2º Ano",    "3_ano_superior": "3º Ano",
-  "4_ano_superior": "4º Ano",    "5_ano_superior": "5º Ano",    "6_ano_superior": "6º Ano",
-};
-function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g, " "); }
+/**
+ * Retorna label explícito do nível académico.
+ * - Fundamental: "1º Ano do Ensino Fundamental"
+ * - Médio:       "1º Ano do Ensino Médio"
+ * - Superior:    "1º Ano" (formato original)
+ */
+function labelNivel(v: string): string {
+  const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return v.replace(/_/g, " ");
+  const [, n, tipo] = match;
+  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
+  return `${n}º Ano`;
+}
 
 function nomeProvinciaDeCodigo(codigo: string): string {
   return Provincias.find(p => p.codigo === codigo?.toUpperCase())?.nome ?? codigo;
@@ -245,7 +250,6 @@ export default function NotasAdmin() {
   const token = tokenStorage.get() ?? undefined;
   const [layer, setLayer] = useState<Layer>({ type: "provincias" });
   const [loadingNotasAcad, setLoadingNotasAcad] = useState(false);
-  // spinner ao entrar no período (camada de matérias)
   const [loadingPeriodo, setLoadingPeriodo] = useState(false);
 
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } = useApi(consultasService.listarAcademias);
@@ -427,11 +431,29 @@ export default function NotasAdmin() {
     const { academia, ano } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano);
     const periodos = periodosNoAno(academia.codigo_academia, ano);
+
+    // Notas agrupadas por ano_academico para mostrar labels corretos
+    const anosAcademicos = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
+
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano {ano.replace(/_/g, "/")}</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano letivo {ano.replace(/_/g, "/")}</h2>
         <StatsRow notas={notas} />
+
+        {anosAcademicos.length > 0 && (
+          <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Níveis com notas</p>
+            <div className="flex flex-wrap gap-2">
+              {anosAcademicos.map(a => (
+                <span key={a} className="text-xs px-2 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium">
+                  {labelNivel(a)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -463,12 +485,23 @@ export default function NotasAdmin() {
     const { academia, ano, periodo } = layer;
     const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, periodo);
     const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano && n.periodo === periodo);
+
+    // Labels dos níveis presentes neste período
+    const niveisPresentes = Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[];
+
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
-          <p className="text-sm text-gray-500 mt-1">{academia.nome} · {ano.replace(/_/g, "/")}</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {academia.nome} · {ano.replace(/_/g, "/")}
+            {niveisPresentes.length > 0 && (
+              <span className="ml-1">
+                · {niveisPresentes.map(labelNivel).join(", ")}
+              </span>
+            )}
+          </p>
         </div>
         {loadingPeriodo
           ? <LoadingSpinner message="Carregando matérias e notas..." />
@@ -498,12 +531,21 @@ export default function NotasAdmin() {
       n => n.ano_lectivo === ano && n.periodo === periodo && n.materia_disciplinar_id === materiaId
     );
     const isSup = isAcademiaSuperior(academia.codigo_academia);
+
+    // Label do nível predominante nestas notas
+    const niveisNotas = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
+
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
-          <p className="text-sm text-gray-500 mt-1">{academia.nome} · {ano.replace(/_/g, "/")} · {PERIODOS_LABEL[periodo] ?? periodo}</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {academia.nome} · {ano.replace(/_/g, "/")} · {PERIODOS_LABEL[periodo] ?? periodo}
+            {niveisNotas.length > 0 && (
+              <span className="ml-1">· {niveisNotas.map(labelNivel).join(", ")}</span>
+            )}
+          </p>
         </div>
         {notas.length > 0 && <StatsRow notas={notas} />}
         {isSup

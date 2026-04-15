@@ -19,20 +19,25 @@ const PERIODOS_LABEL: Record<string, string> = {
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
 
-const NIVEL_LABEL: Record<string, string> = {
-  "1_ano_fundamental": "1º Ano", "2_ano_fundamental": "2º Ano", "3_ano_fundamental": "3º Ano",
-  "4_ano_fundamental": "4º Ano", "5_ano_fundamental": "5º Ano", "6_ano_fundamental": "6º Ano",
-  "7_ano_fundamental": "7º Ano", "8_ano_fundamental": "8º Ano", "9_ano_fundamental": "9º Ano",
-  "1_ano_medio": "1º Médio",     "2_ano_medio": "2º Médio",     "3_ano_medio": "3º Médio",     "4_ano_medio": "4º Médio",
-  "1_ano_superior": "1º Ano",    "2_ano_superior": "2º Ano",    "3_ano_superior": "3º Ano",
-  "4_ano_superior": "4º Ano",    "5_ano_superior": "5º Ano",    "6_ano_superior": "6º Ano",
-};
-function labelNivel(v: string) { return NIVEL_LABEL[v] ?? v.replace(/_/g, " "); }
+/**
+ * Retorna label explícito do nível académico.
+ * - Fundamental: "1º Ano do Ensino Fundamental"
+ * - Médio:       "1º Ano do Ensino Médio"
+ * - Superior:    "1º Ano" (formato original)
+ */
+function labelNivel(v: string): string {
+  const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return v.replace(/_/g, " ");
+  const [, n, tipo] = match;
+  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
+  return `${n}º Ano`;
+}
 
 function formatCategoria(c: string) {
   const m: Record<string, string> = {
     nota_escola: "Nota Final",
-    nota_professor: "Nota Professor",
+    nota_professor: "Nota do Professor",
     nota_pp1: "PP1",
     nota_pp2: "PP2",
     nota_exame: "Exame",
@@ -44,11 +49,6 @@ function corNota(n: number) {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
   return "text-red-600 dark:text-red-400";
-}
-
-function calcMedia(notas: Nota[]) {
-  if (!notas.length) return null;
-  return notas.reduce((s, n) => s + n.nota, 0) / notas.length;
 }
 
 // ─── tipos ───────────────────────────────────────────────────────────────────
@@ -96,29 +96,6 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
   );
 }
 
-function StatsRow({ notas }: { notas: Nota[] }) {
-  const media = calcMedia(notas);
-  const aprovadas = notas.filter(n => n.nota >= 10).length;
-  return (
-    <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-      <div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total</p>
-        <p className="text-2xl font-bold mt-0.5 text-gray-900 dark:text-white">{notas.length}</p>
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Média</p>
-        <p className={`text-2xl font-bold mt-0.5 ${media !== null ? corNota(media) : "text-gray-900 dark:text-white"}`}>
-          {media !== null ? media.toFixed(1) : "-"}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Aprovadas</p>
-        <p className="text-2xl font-bold mt-0.5 text-emerald-600 dark:text-emerald-400">{aprovadas}/{notas.length}</p>
-      </div>
-    </div>
-  );
-}
-
 function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -128,15 +105,15 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
   );
 }
 
-// Tabela escolar: Nome, Código, Matéria, Nota Professor, Nota Final
-function TabelaNotasEscolar({
+/**
+ * Tabela para visão do estudante — escolar.
+ * Colunas: Matéria Disciplinar | Nota do Professor | Nota Final
+ * Sem médias.
+ */
+function TabelaNotasEscolarEstudante({
   notas,
-  estudanteNome,
-  estudanteCodigo,
 }: {
   notas: Nota[];
-  estudanteNome: string;
-  estudanteCodigo: string;
 }) {
   if (!notas.length) return (
     <div className="text-center py-12 text-gray-400">
@@ -158,9 +135,7 @@ function TabelaNotasEscolar({
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria Disciplinar</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
           </tr>
@@ -170,16 +145,12 @@ function TabelaNotasEscolar({
             const notaProf = nm.find(n => n.categoria === "nota_professor");
             const notaFinal = nm.find(n => n.categoria === "nota_escola");
 
-            // Fallback: categorias não padrão
+            // Fallback: categorias não padrão — exibir uma linha por nota
             if (!notaProf && !notaFinal) {
               return nm.map((n, i) => (
                 <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   {i === 0 && (
-                    <>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={nm.length}>{estudanteNome}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={nm.length}>{estudanteCodigo}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300" rowSpan={nm.length}>{nome}</td>
-                    </>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>
                   )}
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
                   <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
@@ -189,9 +160,7 @@ function TabelaNotasEscolar({
 
             return (
               <tr key={nome} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudanteNome}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{estudanteCodigo}</td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{nome}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
                 <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>
                   {notaProf?.nota ?? "—"}
                 </td>
@@ -207,15 +176,15 @@ function TabelaNotasEscolar({
   );
 }
 
-// Tabela superior: Nome, Código, Matéria, Categoria, Nota
-function TabelaNotasSuperior({
+/**
+ * Tabela para visão do estudante — superior.
+ * Colunas: Matéria Disciplinar | Categoria | Nota
+ * Sem médias.
+ */
+function TabelaNotasSuperiorEstudante({
   notas,
-  estudanteNome,
-  estudanteCodigo,
 }: {
   notas: Nota[];
-  estudanteNome: string;
-  estudanteCodigo: string;
 }) {
   if (!notas.length) return (
     <div className="text-center py-12 text-gray-400">
@@ -236,9 +205,7 @@ function TabelaNotasSuperior({
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria Disciplinar</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
           </tr>
@@ -248,11 +215,7 @@ function TabelaNotasSuperior({
             nm.map((n, i) => (
               <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 {i === 0 && (
-                  <>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={nm.length}>{estudanteNome}</td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={nm.length}>{estudanteCodigo}</td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300" rowSpan={nm.length}>{nome}</td>
-                  </>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>
                 )}
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
                 <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
@@ -273,7 +236,6 @@ export default function NotasEstudante() {
   const [loadingLayer, setLoadingLayer] = useState(false);
   const token = tokenStorage.get() ?? undefined;
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
-  const estudanteNome = user?.estudante?.nome ?? "Estudante";
 
   const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
   const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
@@ -357,13 +319,12 @@ export default function NotasEstudante() {
           <div className="grid gap-3 sm:grid-cols-2">
             {academias.map(a => {
               const nts = notasDe(a.codigo);
-              const med = calcMedia(nts);
               return (
                 <CardBtn
                   key={a.codigo}
                   icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
                   title={a.nome}
-                  subtitle={`${nts.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  subtitle={`${nts.length} nota(s)`}
                   onClick={() => setLayer({ type: "academia", a })}
                 />
               );
@@ -385,19 +346,17 @@ export default function NotasEstudante() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{layer.a.codigo}</p>
         </div>
-        <StatsRow notas={notas} />
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Ano</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {anosAcademicos.map(anoAcademico => {
               const np = notas.filter(n => n.ano_academico === anoAcademico);
-              const med = calcMedia(np);
               return (
                 <CardBtn
                   key={anoAcademico}
                   icon="mdi:numeric"
                   title={labelNivel(anoAcademico)}
-                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  subtitle={`${np.length} nota(s)`}
                   onClick={() => setLayer({ type: "ano", a: layer.a, ano: anoAcademico })}
                 />
               );
@@ -418,19 +377,17 @@ export default function NotasEstudante() {
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.ano)}</h2>
-        <StatsRow notas={notas} />
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {periodos.map(p => {
               const np = notas.filter(n => n.periodo === p);
-              const med = calcMedia(np);
               return (
                 <CardBtn
                   key={p}
                   icon="mdi:clipboard-text-clock-outline"
                   title={PERIODOS_LABEL[p] ?? p}
-                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  subtitle={`${np.length} nota(s)`}
                   onClick={() => navegar({ type: "periodo", a: layer.a, ano: layer.ano, periodo: p })}
                 />
               );
@@ -462,13 +419,9 @@ export default function NotasEstudante() {
         {loadingLayer
           ? <LoadingSpinner message="Carregando notas..." />
           : (
-            <>
-              {notas.length > 0 && <StatsRow notas={notas} />}
-              {isSup
-                ? <TabelaNotasSuperior notas={notas} estudanteNome={estudanteNome} estudanteCodigo={codigoEstudante} />
-                : <TabelaNotasEscolar notas={notas} estudanteNome={estudanteNome} estudanteCodigo={codigoEstudante} />
-              }
-            </>
+            isSup
+              ? <TabelaNotasSuperiorEstudante notas={notas} />
+              : <TabelaNotasEscolarEstudante notas={notas} />
           )
         }
       </div>

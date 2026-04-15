@@ -51,21 +51,20 @@ function sortAnos(anos: string[]): string[] {
   });
 }
 
-const NIVEL_BASE: Record<string, string> = {
-  "1_ano_fundamental": "1º Ano", "2_ano_fundamental": "2º Ano", "3_ano_fundamental": "3º Ano",
-  "4_ano_fundamental": "4º Ano", "5_ano_fundamental": "5º Ano", "6_ano_fundamental": "6º Ano",
-  "7_ano_fundamental": "7º Ano", "8_ano_fundamental": "8º Ano", "9_ano_fundamental": "9º Ano",
-  "1_ano_medio": "1º Médio",     "2_ano_medio": "2º Médio",     "3_ano_medio": "3º Médio",     "4_ano_medio": "4º Médio",
-  "1_ano_superior": "1º Ano",    "2_ano_superior": "2º Ano",    "3_ano_superior": "3º Ano",
-  "4_ano_superior": "4º Ano",    "5_ano_superior": "5º Ano",    "6_ano_superior": "6º Ano",
-};
-
-function labelNivel(v: string, comSufixo = false): string {
-  const base = NIVEL_BASE[v] ?? v.replace(/_/g, " ");
-  if (!comSufixo) return base;
-  if (v.includes("fundamental")) return `${base} (Fundamental)`;
-  if (v.includes("medio"))       return `${base} (Médio)`;
-  return base;
+/**
+ * Retorna label explícito do nível académico.
+ * - Fundamental: "1º Ano do Ensino Fundamental"
+ * - Médio:       "1º Ano do Ensino Médio"
+ * - Superior:    "1º Ano" (formato original)
+ * comSufixo: ignorado — já embutido no label
+ */
+function labelNivel(v: string, _comSufixo = false): string {
+  const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return v.replace(/_/g, " ");
+  const [, n, tipo] = match;
+  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
+  return `${n}º Ano`;
 }
 
 function corNota(n: number) {
@@ -553,7 +552,6 @@ export default function NotasAcademia() {
     return { mode: "sup", type: "cursos" };
   };
   const [layer, setLayer]           = useState<Layer>(initLayer);
-  // loadingNotas: true enquanto busca notas dos estudantes da turma (ao entrar no período)
   const [loadingNotas, setLoadingNotas] = useState(false);
   const [alert, setAlert]           = useState<{ variant: "success" | "error"; message: string } | null>(null);
 
@@ -589,7 +587,6 @@ export default function NotasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  // Carrega notas dos estudantes da turma, mostrando spinner durante o fetch
   async function carregarNotasTurma(turma: Turma, nextLayer: Layer) {
     const codigos = turma.estudantes.filter(c => !notasCache[c]);
     if (codigos.length === 0) {
@@ -597,7 +594,7 @@ export default function NotasAcademia() {
       return;
     }
     setLoadingNotas(true);
-    setLayer(nextLayer); // já navega mas mostra spinner
+    setLayer(nextLayer);
     await Promise.all(codigos.map(async codigo => {
       try {
         const res = await consultasService.notasEstudante(codigo, token);
@@ -693,10 +690,10 @@ export default function NotasAcademia() {
       const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
       const base = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
       if (layer.type === "anos") return base;
-      if (layer.type === "turmas") return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }];
-      if (layer.type === "periodos") return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma }];
-      if (layer.type === "materias") return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
-      if (layer.type === "notas") return [...base, { label: labelNivel(layer.nivel, true), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: layer.turma, periodo: layer.periodo }) }, { label: layer.materiaNome }];
+      if (layer.type === "turmas") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }];
+      if (layer.type === "periodos") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma }];
+      if (layer.type === "materias") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
+      if (layer.type === "notas") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: layer.turma, periodo: layer.periodo }) }, { label: layer.materiaNome }];
     }
     if (layer.mode === "sup") {
       const goCursos = () => setLayer({ mode: "sup", type: "cursos" });
@@ -757,7 +754,7 @@ export default function NotasAcademia() {
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel, true)}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel)}</h2>
           {ts.length === 0
             ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma turma ativa para este nível.</p></div>
             : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={() => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: t })} />))}</div>
@@ -772,7 +769,7 @@ export default function NotasAcademia() {
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
-          <p className="text-sm text-gray-500">{labelNivel(nivel, true)}</p>
+          <p className="text-sm text-gray-500">{labelNivel(nivel)}</p>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {PERIODOS_ESCOLA.map(p => (
               <CardBtn
@@ -796,7 +793,7 @@ export default function NotasAcademia() {
           <Breadcrumb crumbs={crumbs} />
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
-            <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {labelNivel(nivel, true)}</p>
+            <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {labelNivel(nivel)}</p>
           </div>
           {loadingNotas
             ? <LoadingSpinner message="Carregando matérias e notas..." />
@@ -816,7 +813,7 @@ export default function NotasAcademia() {
           <Breadcrumb crumbs={crumbs} />
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
-            <p className="text-sm text-gray-500 mt-1">{PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {labelNivel(nivel, true)}</p>
+            <p className="text-sm text-gray-500 mt-1">{PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {labelNivel(nivel)}</p>
           </div>
           {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
           <TabelaNotasEscolar notas={notas} estudantes={estudantes} />
