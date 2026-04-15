@@ -113,6 +113,43 @@ const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   return new Date(Date.now() - dias * 86400000).toISOString();
 };
 
+/**
+ * Infere o ano_academico de um estudante para uma matéria específica.
+ * Replica exatamente a lógica do backend:
+ *   - Se estudante.ano_escolar preenchido (fundamental) → usa esse valor
+ *   - Se estudante.ano_escolar_medio preenchido (médio) → usa esse valor
+ *   - Se estudante.ano_superior preenchido (superior) → usa esse valor
+ *   - Caso contrário → usa materia.anos_academicos[0]
+ */
+function inferirAnoAcademico(estudante: Estudante, materia: Materia): string {
+  if (materia.type === "fundamental" && estudante.ano_escolar) {
+    return estudante.ano_escolar;
+  }
+  if (materia.type === "medio" && estudante.ano_escolar_medio) {
+    return estudante.ano_escolar_medio;
+  }
+  if (materia.type === "superior" && estudante.ano_superior) {
+    return estudante.ano_superior;
+  }
+  // Fallback: primeiro ano da matéria
+  return materia.anos_academicos?.[0] ?? "";
+}
+
+/**
+ * Verifica se uma matéria é compatível com o estudante.
+ * Para médio/superior, o curso_id da matéria deve coincidir com o do estudante.
+ */
+function materiaCompativelComEstudante(materia: Materia, estudante: Estudante): boolean {
+  if (materia.type === "fundamental") return true;
+  if (materia.type === "medio") {
+    return !materia.curso_id || materia.curso_id === estudante.curso_medio_id;
+  }
+  if (materia.type === "superior") {
+    return !materia.curso_id || materia.curso_id === estudante.curso_superior_id;
+  }
+  return true;
+}
+
 function tiposMateriaValidos(academia: AcademiaInfo): { value: "fundamental"|"medio"|"superior"; label: string }[] {
   if (academia.tipo === "superior") {
     return [{ value: "superior", label: "Superior" }];
@@ -384,7 +421,7 @@ function CategoryCheckboxes({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function PageContent() {
+export default function SeedTestPage() {
   const [currentUser, setCurrentUser] = useState<MeuPerfilResponse | null>(null);
   const [academia, setAcademia] = useState<AcademiaInfo | null>(null);
   const [authError, setAuthError] = useState<string>("");
@@ -497,35 +534,19 @@ export default function PageContent() {
     return url;
   };
 
-  // ─── callApi: chamada HTTP base ────────────────────────────────────────────
-  // Sem timeout — aguarda indefinidamente. O backend não impõe limite de tempo
-  // nem nos GETs de verificação nem nos POSTs async.
-  const callApi = async (
-    method: string,
-    path: string,
-    body: unknown,
-    tok?: string
-  ) => {
+  const callApi = async (method: string, path: string, body: unknown, tok?: string) => {
     const url = apiUrl() + path;
     const token = tok || academia?.token || tokenStorage.get() || "";
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const r = await fetch(url, {
-        method,
-        headers,
-        body: body != null ? JSON.stringify(body) : undefined,
-      });
+      const r = await fetch(url, { method, headers, body: body != null ? JSON.stringify(body) : undefined });
       const data = await r.json().catch(() => ({}));
       return { ok: r.status >= 200 && r.status < 300, status: r.status, data };
-    } catch (e: any) {
+    } catch (e) {
       return { ok: false, status: 0, data: { error: String(e) } };
     }
   };
-
-  // ─── Nota: sem timeout em nenhuma requisição ─────────────────────────────
-  // callApi não usa AbortController — aguarda indefinidamente.
-  // O backend não impõe timeout nos GETs nem nos POSTs async.
 
   const refreshData = async (ac?: AcademiaInfo) => {
     const acad = ac || academia;
@@ -563,47 +584,19 @@ export default function PageContent() {
     );
   };
 
-  // ─── acompanharJob ────────────────────────────────────────────────────────────
-  // Faz polling até o job ser concluído. Não re-submete nada — apenas lê o estado.
-  // Timeout de polling (5 min) não causa reenvio; apenas encerra o acompanhamento
-  // com aviso. O job continua no servidor e pode ser visto nas notificações.
   const acompanharJob = async (jobId: string, titulo: string) => {
-    addLog(`  ⏳ [${titulo}] Aguardando conclusão do job ${jobId}...`, "info");
-
-    let detail: Awaited<ReturnType<typeof pollJob>>;
-    try {
-      detail = await pollJob(jobId, {
-        timeoutMs: 5 * 60 * 1000,
-        onProgress: (summary) => {
-          const pct = summary.progress ?? 0;
-          const done = summary.done_items ?? 0;
-          const fail = summary.fail_items ?? 0;
-          const total = summary.total_items ?? 0;
-          addLog(
-            `  📊 [${titulo}] ${pct}% — ${done} ✓  ${fail > 0 ? `${fail} ✗` : ""}  de ${total}`,
-            "dim"
-          );
-        },
-      });
-    } catch (pollErr: any) {
-      // Timeout de polling: job ainda está rodando no servidor.
-      // NÃO re-submetemos. Apenas avisamos e saímos.
-      addLog(
-        `  ⚠ [${titulo}] Timeout ao acompanhar o job ${jobId} — o processamento continua no servidor.`,
-        "warn"
-      );
-      addLog(
-        `  ℹ [${titulo}] Acompanhe o progresso pelo sino de notificações no canto superior direito.`,
-        "info"
-      );
-      return { ok: 0, err: 0, total: 0, timedOut: true };
-    }
+    const detail = await pollJob(jobId, {
+      timeoutMs: 5 * 60 * 1000,
+      onProgress: (summary) => {
+        addLog(`  📊 Progresso: ${summary.progress ?? 0}% (${summary.done_items ?? 0}/${summary.total_items ?? 0})`, "dim");
+      },
+    });
 
     const detailResponse = await jobApiService.getDetail(jobId, academia?.token);
     const failures = (detailResponse.results ?? []).filter((item) => !item.sucesso);
 
     if (failures.length > 0) {
-      addLog(`  ⚠ [${titulo}] ${failures.length} item(ns) com falha`, "warn");
+      addLog(`  ⚠ ${titulo}: ${failures.length} item(ns) com falha`, "warn");
       failures.slice(0, 8).forEach((f, i) => {
         const payloadAny = f.payload as any;
         const label =
@@ -612,22 +605,17 @@ export default function PageContent() {
           payloadAny?.codigo ||
           payloadAny?.nome ||
           `item #${(f.index ?? i) + 1}`;
-        const motivo = resolveJobItemError(f) || detail.error || "Falha sem detalhe retornado";
+        const motivo = resolveJobItemError(f) || detail.error || 'Falha sem detalhe retornado';
         addLog(`    • ${label}: ${motivo}`, "warn");
       });
       if (failures.length > 8) addLog(`    • ...e mais ${failures.length - 8} falha(s)`, "dim");
     }
 
     if (detail.status === "failed" && detail.error) {
-      addLog(`  ✗ [${titulo}] ${detail.error}`, "err");
+      addLog(`  ✗ ${titulo}: ${detail.error}`, "err");
     }
 
-    const resultado = { ok: detail.done_items, err: detail.fail_items, total: detail.total_items, timedOut: false };
-    addLog(
-      `  ✓ [${titulo}] Concluído — ${resultado.ok} sucesso${resultado.err > 0 ? ` · ${resultado.err} falha(s)` : ""}`,
-      resultado.ok > 0 ? "ok" : "err"
-    );
-    return resultado;
+    return { ok: detail.done_items, err: detail.fail_items, total: detail.total_items };
   };
 
   const withLoading = async (fn: () => Promise<void>) => {
@@ -672,7 +660,7 @@ export default function PageContent() {
           if (okA) addLog(`    ✓ Curso ativado`, "dim");
         }
       } else {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
         addLog(`  ✗ "${t.nome}": ${errMsg}`, "warn");
       }
       await sleep(300);
@@ -753,7 +741,7 @@ export default function PageContent() {
 
       const { ok, data } = await callApi("POST", "/academia/materia", payload, academia.token);
       if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
         addLog(`  ✗ "${nome}": ${errMsg}`, "warn");
         await sleep(300);
         continue;
@@ -774,7 +762,7 @@ export default function PageContent() {
           if (okA) addLog(`    ✓ Matéria ativada`, "dim");
           else addLog(`    ! Falha ao ativar`, "warn");
         } else {
-          const errP = (dataP as any)?.message || (dataP as any)?.error || "Erro";
+          const errP = (dataP as any)?.message || (dataP as any)?.error || 'Erro';
           addLog(`    ✗ Falha ao definir período: ${errP}`, "warn");
         }
       } else if (tipo !== "superior" && id) {
@@ -859,7 +847,7 @@ export default function PageContent() {
         criadas++;
         addLog(`  ✓ Turma ${payload.codigo_turma} (${nivel}, ${turno}) criada`, "ok");
       } else {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+        const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
         addLog(`  ✗ Turma ${payload.codigo_turma}: ${errMsg}`, "warn");
       }
       await sleep(200);
@@ -951,18 +939,16 @@ export default function PageContent() {
 
     const { ok, data } = await callApi("POST", "/academia/estudante/register/async", items, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
       return;
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+    addLog(`  ⏳ Job ${jobId} criado (${(data as any)?.total_items} estudantes) — aguardando conclusão...`, "info");
 
     const result = await acompanharJob(jobId, "Estudantes");
-    if (!result.timedOut) {
-      addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
-    }
+    addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
     await sleep(3000);
     await refreshData();
   };
@@ -1060,29 +1046,46 @@ export default function PageContent() {
 
     const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
     if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
       addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
       return;
     }
     const jobId = (data as any)?.job_id;
     if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${items.length} vínculo(s) na fila`, "info");
+    addLog(`  ⏳ Job ${jobId} criado (${items.length} vínculos) — aguardando...`, "info");
 
     const result = await acompanharJob(jobId, "Vínculos");
-    if (!result.timedOut) {
-      addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
-    }
+    addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
     await sleep(2000);
     await refreshData();
   };
 
-  // ─── Gerar Notas ──────────────────────────────────────────────────────────────
-  //
-  // Sem timeout em nenhuma fase — callApi aguarda indefinidamente.
-  // Se o POST async der qualquer erro de rede, não re-tentamos — logamos e paramos.
-  // Se o pollJob der timeout (5 min), apenas paramos o acompanhamento;
-  // o job continua no servidor e aparece nas notificações.
-  //
+  // ─── Gerar Notas ─────────────────────────────────────────────────────────────
+  /**
+   * LÓGICA CORRIGIDA — Evita colisões de idempotência com o backend.
+   *
+   * O backend rejeita qualquer nota cuja chave de idempotência já exista:
+   *   chave = anoLectivo + "_" + periodo + "_" + materiaID + "_" + tipo + "_" + categoria
+   *
+   * Erros anteriores:
+   *   1. Chave local não incluía ano_academico — diferente do campo usado no backend.
+   *   2. ano_academico não era inferido por estudante+matéria (igual ao backend).
+   *   3. Notas existentes eram filtradas apenas por ano_lectivo, perdendo combinações
+   *      estudante+matéria+período+categoria já registradas.
+   *   4. Matérias não eram filtradas por compatibilidade com o curso do estudante,
+   *      gerando itens que o backend rejeitaria de qualquer forma.
+   *
+   * Correções aplicadas:
+   *   - inferirAnoAcademico() replica a lógica do backend por estudante+matéria.
+   *   - materiaCompativelComEstudante() filtra matérias por tipo/curso antes de gerar itens.
+   *   - A chave de idempotência local usa os mesmos 5 campos do backend:
+   *       anoLectivo|materiaId|periodo|tipo|categoria
+   *   - O Set de chaves é construído POR ESTUDANTE a partir das notas reais da API.
+   *   - O batch acumula chaves já adicionadas para evitar duplicatas dentro do próprio lote
+   *     (dois estudantes no mesmo lote com mesma matéria/período/categoria não conflitam
+   *      porque a chave inclui o codigo_estudante; mas a mesma nota para o mesmo estudante
+   *      não pode aparecer duas vezes no lote).
+   */
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes — crie-os primeiro", "warn");
@@ -1098,34 +1101,31 @@ export default function PageContent() {
       return;
     }
 
-    // Mapeia o tipoNota ("escolar"/"superior") para os tipos de matéria equivalentes
-    // MateriaDTO.type usa "fundamental"|"medio"|"superior", enquanto NotaDTO.tipo usa "escolar"|"superior"
-    const tiposMateriasCompativeis = academia.tipo === "superior"
-      ? ["superior"]
-      : ["fundamental", "medio"]; // escolas podem ter matérias fundamentais e/ou médias
-
     const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
+    const anoLetivo = academia.ano_letivo;
 
     addLog(`Gerando notas para ${sample.length} estudante(s) — categorias: ${categoriasAtivas.join(", ")}`, "step");
-    addLog(`  Fase 1/2: verificando notas existentes (${sample.length} estudantes)...`, "info");
+
+    // Filtrar matérias ativas compatíveis com o tipo de nota
+    const materiasDoTipo = materias.filter(m => m.type === tipoNota);
+    if (materiasDoTipo.length === 0) {
+      addLog(`  ✗ Nenhuma matéria ativa do tipo "${tipoNota}"`, "err");
+      return;
+    }
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
     const batch: any[] = [];
 
-    for (let i = 0; i < sample.length; i++) {
+    // Chaves globais do lote para evitar duplicatas dentro do próprio batch
+    // Formato: "codigoEstudante|materiaId|periodo|tipo|categoria"
+    const chavesNoBatch = new Set<string>();
+
+    for (const est of sample) {
       if (cancelRef.current) break;
 
-      const est = sample[i];
-
-      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
-        addLog(
-          `  🔍 Verificando notas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
-          "dim"
-        );
-      }
-
+      // Buscar notas já existentes para este estudante
       const { ok: rOk, data: notasData } = await callApi(
         "GET",
         `/notas-estudante/${est.codigo_estudante}`,
@@ -1133,40 +1133,71 @@ export default function PageContent() {
         academia.token
       );
 
-      const notasExistentes = new Set<string>();
+      // Chaves de idempotência já registradas no backend para este estudante.
+      // Formato igual ao backend: anoLectivo|materiaId|periodo|tipo|categoria
+      const chavesExistentes = new Set<string>();
       if (rOk) {
-        const notas: any[] = (notasData as any)?.notas || [];
-        const anoLetivo = academia.ano_letivo;
-        for (const n of notas) {
-          if (n.ano_lectivo === anoLetivo) {
-            notasExistentes.add(`${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`);
-          }
+        const notasExistentes: any[] = (notasData as any)?.notas || [];
+        for (const n of notasExistentes) {
+          // Só considerar notas do ano letivo atual
+          if (n.ano_lectivo !== anoLetivo) continue;
+          const chave = `${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`;
+          chavesExistentes.add(chave);
         }
       }
 
-      // Filtra matérias pelo tipo correto de MateriaDTO ("fundamental"|"medio"|"superior"),
-      // não pelo tipo da nota ("escolar"|"superior") — esses são sistemas distintos
-      const materiasTipo = materias.filter(m => tiposMateriasCompativeis.includes(m.type));
-      if (materiasTipo.length === 0) continue;
-      const materiasSample = pickN(materiasTipo, Math.min(3, materiasTipo.length));
+      // Filtrar matérias compatíveis com este estudante (tipo + curso)
+      const materiasCompativeis = materiasDoTipo.filter(m =>
+        materiaCompativelComEstudante(m, est)
+      );
+
+      if (materiasCompativeis.length === 0) {
+        addLog(
+          `  ! ${est.codigo_estudante}: nenhuma matéria compatível` +
+          ` (curso_medio=${est.curso_medio_id || "—"} curso_sup=${est.curso_superior_id || "—"})`,
+          "dim"
+        );
+        continue;
+      }
+
+      // Amostrar até 3 matérias compatíveis
+      const materiasSample = pickN(materiasCompativeis, Math.min(3, materiasCompativeis.length));
 
       for (const mat of materiasSample) {
+        // Inferir ano_academico exatamente como o backend faz
+        const anoAcademico = inferirAnoAcademico(est, mat);
+        if (!anoAcademico) {
+          addLog(`  ! ${est.codigo_estudante} × ${mat.nome}: ano_academico não determinado — ignorado`, "dim");
+          continue;
+        }
+
+        // Determinar períodos a registrar
         let periodos: string[];
         if (academia.tipo === "superior") {
-          if (mat.periodo) {
-            periodos = [mat.periodo];
-          } else {
-            const cursoMat = cursos.find(c => c.id === mat.curso_id);
-            periodos = cursoMat?.periodos || ["1_semestre"];
+          // Superior: usa o período da matéria (obrigatório)
+          if (!mat.periodo) {
+            addLog(`  ! Matéria "${mat.nome}" sem período definido — ignorada`, "dim");
+            continue;
           }
+          periodos = [mat.periodo];
         } else {
-          periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
+          // Escolar: todos os trimestres ou o selecionado
+          periodos = periodoConfig !== "random" ? [periodoConfig] : [...periodosEscolares];
         }
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
-            const chave = `${mat.id}|${p}|${tipoNota}|${categoria}`;
-            if (notasExistentes.has(chave)) continue;
+            // Chave de idempotência (mesmos campos do backend)
+            const chaveBackend = `${mat.id}|${p}|${tipoNota}|${categoria}`;
+            // Chave única no lote (inclui estudante para não confundir entre estudantes)
+            const chaveLote = `${est.codigo_estudante}|${chaveBackend}`;
+
+            // Pular se já existe no backend
+            if (chavesExistentes.has(chaveBackend)) continue;
+            // Pular se já está no lote atual (evita duplicatas no mesmo batch)
+            if (chavesNoBatch.has(chaveLote)) continue;
+
+            chavesNoBatch.add(chaveLote);
             batch.push({
               codigo_estudante: est.codigo_estudante,
               periodo: p,
@@ -1183,63 +1214,31 @@ export default function PageContent() {
     }
 
     if (batch.length === 0) {
-      addLog("Nenhuma nota nova para registrar (todas já existem ou nenhuma matéria compatível)", "info");
+      addLog("Nenhuma nota nova para registrar — todas as combinações já existem no backend", "info");
       return;
     }
 
-    // Divide em chunks de 2000 (limite da API)
-    const CHUNK_SIZE = 2000;
-    const chunks: any[][] = [];
-    for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
-      chunks.push(batch.slice(i, i + CHUNK_SIZE));
-    }
-
     addLog(
-      `  Fase 2/2: submetendo ${batch.length} nota(s) em ${chunks.length} job(s) de até ${CHUNK_SIZE} itens...`,
-      "info"
+      `  Enviando ${batch.length} nota(s) via async` +
+      ` (${categoriasAtivas.length} categoria(s) × matérias × períodos, duplicatas removidas)...`,
+      "dim"
     );
 
-    let totalOk = 0;
-    let totalErr = 0;
-
-    for (let ci = 0; ci < chunks.length; ci++) {
-      if (cancelRef.current) break;
-      const chunk = chunks[ci];
-      const label = chunks.length > 1 ? `Notas ${ci + 1}/${chunks.length}` : "Notas";
-      addLog(`  📦 Submetendo job ${ci + 1}/${chunks.length} — ${chunk.length} nota(s)...`, "info");
-
-      const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", chunk, academia.token);
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
-        addLog(`  ℹ Verifique as notificações para jobs que possam ter sido criados.`, "info");
-        break;
-      }
-
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
-      addLog(`  Job ${jobId} criado — ${chunk.length} nota(s) na fila`, "dim");
-
-      const result = await acompanharJob(jobId, label);
-      if (!result.timedOut) {
-        totalOk += result.ok;
-        totalErr += result.err;
-      }
-
-      // Pequena pausa entre jobs para não sobrecarregar o servidor
-      if (ci < chunks.length - 1 && !cancelRef.current) await sleep(500);
+    const { ok, data } = await callApi("POST", "/academia/notas-aluno/async", batch, academia.token);
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      return;
     }
+    const jobId = (data as any)?.job_id;
+    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
+    addLog(`  ⏳ Job ${jobId} (${batch.length} notas) — aguardando...`, "info");
 
-    addLog(
-      `Notas concluídas: ${totalOk} ✓  ${totalErr} ✗  (${batch.length} total)`,
-      totalOk > 0 ? "ok" : "err"
-    );
+    const result = await acompanharJob(jobId, "Notas");
+    addLog(`Notas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
-  //
-  // Sem timeout em nenhuma fase — callApi aguarda indefinidamente.
-  //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn");
@@ -1250,59 +1249,48 @@ export default function PageContent() {
     const { qtdEstudantes } = faltaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
+    const anoLetivo = academia.ano_letivo;
     addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
-    addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
 
-    // Mesma lógica de notas: MateriaDTO.type usa "fundamental"|"medio"|"superior",
-    // não "escolar"|"superior" — esses são sistemas de tipos distintos
-    const tiposMateriasCompativeisFalta = academia.tipo === "superior"
-      ? ["superior"]
-      : ["fundamental", "medio"];
-    const materiasTipo = materias.filter(m => tiposMateriasCompativeisFalta.includes(m.type));
+    const tipoMaterias = academia.tipo === "superior" ? "superior" : "escolar";
+    const materiasTipo = materias.filter(m => m.type === tipoMaterias);
 
     if (materiasTipo.length === 0) {
-      addLog(`  ✗ Nenhuma matéria ativa compatível com esta academia (${academia.tipo}/${academia.nivel || "—"})`, "err");
+      addLog(`  ✗ Nenhuma matéria do tipo "${tipoMaterias}" ativa`, "err");
       return;
     }
 
     const batch: any[] = [];
+    // Chave: codigoEstudante|materiaId|data — evita duplicatas no lote e no backend
+    const chavesNoBatch = new Set<string>();
 
-    for (let i = 0; i < sample.length; i++) {
+    for (const est of sample) {
       if (cancelRef.current) break;
 
-      const est = sample[i];
-
-      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
-        addLog(
-          `  🔍 Verificando faltas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
-          "dim"
-        );
-      }
-
-      // GET sem timeout — aguarda resposta do servidor indefinidamente
-      const { ok: rOk, data: faltasData } = await callApi(
-        "GET",
-        `/faltas-estudante/${est.codigo_estudante}`,
-        undefined,
-        academia.token
-      );
-
-      const faltasExistentes = new Set<string>();
+      const { ok: rOk, data: faltasData } = await callApi("GET", `/faltas-estudante/${est.codigo_estudante}`, undefined, academia.token);
+      const chavesExistentes = new Set<string>();
       if (rOk) {
         const faltas: any[] = (faltasData as any)?.faltas || [];
-        const anoLetivo = academia.ano_letivo;
         for (const f of faltas) {
-          if (f.ano_lectivo === anoLetivo) {
-            faltasExistentes.add(`${f.materia_disciplinar_id}|${f.data}`);
-          }
+          if (f.ano_lectivo !== anoLetivo) continue;
+          chavesExistentes.add(`${f.materia_disciplinar_id}|${f.data}`);
         }
       }
 
-      const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
+      // Filtrar matérias compatíveis com este estudante
+      const materiasCompativeis = materiasTipo.filter(m => materiaCompativelComEstudante(m, est));
+      if (materiasCompativeis.length === 0) continue;
+
+      const materiasSample = pickN(materiasCompativeis, Math.min(2, materiasCompativeis.length));
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);
-        const chave = `${mat.id}|${dataFalta}`;
-        if (faltasExistentes.has(chave)) continue;
+        const chaveBackend = `${mat.id}|${dataFalta}`;
+        const chaveLote = `${est.codigo_estudante}|${chaveBackend}`;
+
+        if (chavesExistentes.has(chaveBackend)) continue;
+        if (chavesNoBatch.has(chaveLote)) continue;
+
+        chavesNoBatch.add(chaveLote);
         batch.push({
           codigo_estudante: est.codigo_estudante,
           data: dataFalta,
@@ -1310,61 +1298,24 @@ export default function PageContent() {
           quantidade: rnd(1, 3),
         });
       }
-
       await sleep(30);
     }
 
-    if (batch.length === 0) {
-      addLog("Nenhuma falta nova para registrar (todas já existem para estas datas/matérias)", "info");
+    if (batch.length === 0) { addLog("Nenhuma falta nova para registrar", "info"); return; }
+    addLog(`  Enviando ${batch.length} falta(s) via async...`, "dim");
+
+    const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", batch, academia.token);
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
       return;
     }
+    const jobId = (data as any)?.job_id;
+    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
+    addLog(`  ⏳ Job ${jobId} (${batch.length} faltas) — aguardando...`, "info");
 
-    // Divide em chunks de 2000 (limite da API)
-    const CHUNK_SIZE_FALTA = 2000;
-    const chunksFalta: any[][] = [];
-    for (let i = 0; i < batch.length; i += CHUNK_SIZE_FALTA) {
-      chunksFalta.push(batch.slice(i, i + CHUNK_SIZE_FALTA));
-    }
-
-    addLog(
-      `  Fase 2/2: submetendo ${batch.length} falta(s) em ${chunksFalta.length} job(s) de até ${CHUNK_SIZE_FALTA} itens...`,
-      "info"
-    );
-
-    let totalOkFalta = 0;
-    let totalErrFalta = 0;
-
-    for (let ci = 0; ci < chunksFalta.length; ci++) {
-      if (cancelRef.current) break;
-      const chunk = chunksFalta[ci];
-      const label = chunksFalta.length > 1 ? `Faltas ${ci + 1}/${chunksFalta.length}` : "Faltas";
-      addLog(`  📦 Submetendo job ${ci + 1}/${chunksFalta.length} — ${chunk.length} falta(s)...`, "info");
-
-      const { ok, data } = await callApi("POST", "/academia/faltas-aluno/async", chunk, academia.token);
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
-        addLog(`  ℹ Verifique as notificações para jobs que possam ter sido criados.`, "info");
-        break;
-      }
-
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
-      addLog(`  Job ${jobId} criado — ${chunk.length} falta(s) na fila`, "dim");
-
-      const result = await acompanharJob(jobId, label);
-      if (!result.timedOut) {
-        totalOkFalta += result.ok;
-        totalErrFalta += result.err;
-      }
-
-      if (ci < chunksFalta.length - 1 && !cancelRef.current) await sleep(500);
-    }
-
-    addLog(
-      `Faltas concluídas: ${totalOkFalta} ✓  ${totalErrFalta} ✗  (${batch.length} total)`,
-      totalOkFalta > 0 ? "ok" : "err"
-    );
+    const result = await acompanharJob(jobId, "Faltas");
+    addLog(`Faltas: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
   };
 
   // ─── Gerar Avaliações Finais ───────────────────────────────────────────────────
@@ -1439,51 +1390,18 @@ export default function PageContent() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    // Divide em chunks de 1000 (limite da API para avaliações)
-    const CHUNK_SIZE_AVAL = 1000;
-    const chunksAval: any[][] = [];
-    for (let i = 0; i < batch.length; i += CHUNK_SIZE_AVAL) {
-      chunksAval.push(batch.slice(i, i + CHUNK_SIZE_AVAL));
+    const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", batch, academia.token);
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro ao submeter';
+      addLog(`  ✗ Erro: ${errMsg}`, "err");
+      return;
     }
+    const jobId = (data as any)?.job_id;
+    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
+    addLog(`  ⏳ Job ${jobId} (${batch.length} avaliações) — aguardando...`, "info");
 
-    addLog(
-      `  Submetendo ${batch.length} avaliação(ões) em ${chunksAval.length} job(s) de até ${CHUNK_SIZE_AVAL} itens...`,
-      "info"
-    );
-
-    let totalOkAval = 0;
-    let totalErrAval = 0;
-
-    for (let ci = 0; ci < chunksAval.length; ci++) {
-      if (cancelRef.current) break;
-      const chunk = chunksAval[ci];
-      const label = chunksAval.length > 1 ? `Avaliações ${ci + 1}/${chunksAval.length}` : "Avaliações";
-      addLog(`  📦 Submetendo job ${ci + 1}/${chunksAval.length} — ${chunk.length} avaliação(ões)...`, "info");
-
-      const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", chunk, academia.token);
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
-        break;
-      }
-
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
-      addLog(`  Job ${jobId} criado — ${chunk.length} avaliação(ões) na fila`, "dim");
-
-      const result = await acompanharJob(jobId, label);
-      if (!result.timedOut) {
-        totalOkAval += result.ok;
-        totalErrAval += result.err;
-      }
-
-      if (ci < chunksAval.length - 1 && !cancelRef.current) await sleep(500);
-    }
-
-    addLog(
-      `Avaliações concluídas: ${totalOkAval} ✓  ${totalErrAval} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
-      totalOkAval > 0 ? "ok" : "err"
-    );
+    const result = await acompanharJob(jobId, "Avaliações");
+    addLog(`Avaliações: ${result.ok} ✓  ${result.err} ✗  (${nAprov} aprovações estimadas de ${sample.length} total)`, result.ok > 0 ? "ok" : "err");
   };
 
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
@@ -1496,7 +1414,7 @@ export default function PageContent() {
       addLog(`Ano letivo ${ano} (tipo: ${tipo}) configurado ✓`, "ok");
       setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev);
     } else {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
+      const errMsg = (data as any)?.message || (data as any)?.error || 'Erro desconhecido';
       addLog(`Ano letivo: ${errMsg}`, "warn");
     }
   };
@@ -1544,8 +1462,6 @@ export default function PageContent() {
   })();
 
   const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
-  // Tipos de MateriaDTO compatíveis com esta academia (sistema de tipos diferente do tipoNota da nota)
-  const tiposMateriaParaNota = academia?.tipo === "superior" ? ["superior"] : ["fundamental", "medio"];
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
   const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
@@ -1635,9 +1551,8 @@ export default function PageContent() {
     : [];
 
   const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
-  const periodosMult = academia?.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
-  const materiasParaNota = materias.filter(m => tiposMateriaParaNota.includes(m.type));
-  const estimativaNota = totalEstudantesNota * Math.min(3, materiasParaNota.length) * categoriasAtivas.length * periodosMult;
+  const periodosMult = academia.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
+  const estimativaNota = totalEstudantesNota * Math.min(3, materias.length) * categoriasAtivas.length * periodosMult;
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
@@ -1698,16 +1613,6 @@ export default function PageContent() {
                 </p>
               </div>
             )}
-
-            {/* Aviso sobre comportamento de timeout */}
-            <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
-              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
-              <p style={{ margin: 0 }}>
-                Ao submeter um job, o servidor processa em background.
-                Todas as requisições aguardam sem timeout — não há corte automático de conexão.
-                Acompanhe o progresso pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
-              </p>
-            </div>
           </div>
 
           {/* ─── Operações ───────────────────────────────────────────────── */}
@@ -2037,7 +1942,7 @@ export default function PageContent() {
             )}
 
             {/* Notas */}
-            <Section title="Notas" badge={materiasParaNota.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
+            <Section title="Notas" badge={materias.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
               <SubSection title={`Categorias — ${tipoNota === "escolar" ? "Escolar" : "Superior"}`}>
                 <CategoryCheckboxes
                   label="Registrar notas para"
@@ -2069,7 +1974,7 @@ export default function PageContent() {
                       {periodosNotaDisponiveis.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
                     </Sel>
                   </Field>
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
                     Gerar Notas (async)
                   </Btn>
                 </Row>
@@ -2084,20 +1989,20 @@ export default function PageContent() {
                     onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
                     hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                   />
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
+                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
                     Gerar Notas (async)
                   </Btn>
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code>
-                <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> — job fica no servidor
+                {tipoNota === "superior"
+                  ? "Tipo: superior · Período: definido por matéria · Compatibilidade de curso verificada · Duplicatas removidas automaticamente"
+                  : "Tipo: escolar · Categorias: selecionadas acima · Duplicatas removidas automaticamente"}
               </p>
             </Section>
 
             {/* Faltas */}
-            <Section title="Faltas" badge={materiasParaNota.length === 0 ? "crie matérias primeiro" : undefined}>
+            <Section title="Faltas" badge={materias.length === 0 ? "crie matérias primeiro" : undefined}>
               <Row>
                 <NumberStepper
                   label="Nº estudantes (0 = todos)"
@@ -2108,15 +2013,10 @@ export default function PageContent() {
                   onChange={v => setFaltaConfig(p => ({ ...p, qtdEstudantes: v }))}
                   hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                 />
-                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
+                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materias.length === 0 || estudantes.length === 0}>
                   Gerar Faltas (async)
                 </Btn>
               </Row>
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code>
-                <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> — job fica no servidor
-              </p>
             </Section>
 
             {/* Avaliações Finais */}
