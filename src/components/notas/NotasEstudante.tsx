@@ -51,22 +51,6 @@ function calcMedia(notas: Nota[]) {
   return notas.reduce((s, n) => s + n.nota, 0) / notas.length;
 }
 
-// Extrai nota_professor e nota_escola (ou nota_pp1/pp2/exame para superior) de um grupo de notas
-function extrairNotasPorCategoria(notas: Nota[]): {
-  notaProfessor: number | null;
-  notaFinal: number | null;
-  outras: Nota[];
-} {
-  const notaProfessorItem = notas.find(n => n.categoria === "nota_professor");
-  const notaFinalItem = notas.find(n => n.categoria === "nota_escola");
-  const outras = notas.filter(n => n.categoria !== "nota_professor" && n.categoria !== "nota_escola");
-  return {
-    notaProfessor: notaProfessorItem?.nota ?? null,
-    notaFinal: notaFinalItem?.nota ?? null,
-    outras,
-  };
-}
-
 // ─── tipos ───────────────────────────────────────────────────────────────────
 
 type AcadInfo = { codigo: string; nome: string; type: string; nivel_escolar?: string };
@@ -78,6 +62,15 @@ type Layer =
   | { type: "periodo"; a: AcadInfo; ano: string; periodo: string };
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
+
+function Spinner({ label = "Carregando..." }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+    </div>
+  );
+}
 
 function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void }[] }) {
   return (
@@ -95,11 +88,16 @@ function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void 
   );
 }
 
-function CardBtn({ icon, title, subtitle, badge, onClick }: {
-  icon: string; title: string; subtitle?: string; badge?: string; onClick?: () => void;
+function CardBtn({ icon, title, subtitle, badge, onClick, disabled }: {
+  icon: string; title: string; subtitle?: string; badge?: string;
+  onClick?: () => void; disabled?: boolean;
 }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-300 hover:shadow-sm transition-all text-left">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-300 hover:shadow-sm transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+    >
       <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
         <Icon icon={icon} width={22} className="text-brand-500" />
       </div>
@@ -112,52 +110,31 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
   );
 }
 
-function StatItem({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-bold mt-0.5 ${color ?? "text-gray-900 dark:text-white"}`}>{value}</p>
-    </div>
-  );
-}
-
 function StatsRow({ notas }: { notas: Nota[] }) {
   const media = calcMedia(notas);
   const aprovadas = notas.filter(n => n.nota >= 10).length;
   return (
     <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-      <StatItem label="Total" value={String(notas.length)} />
-      <StatItem label="Média" value={media !== null ? media.toFixed(1) : "-"} color={media !== null ? corNota(media) : undefined} />
-      <StatItem label="Aprovadas" value={`${aprovadas}/${notas.length}`} color="text-emerald-600 dark:text-emerald-400" />
+      <div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total</p>
+        <p className="text-2xl font-bold mt-0.5 text-gray-900 dark:text-white">{notas.length}</p>
+      </div>
+      <div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Média</p>
+        <p className={`text-2xl font-bold mt-0.5 ${media !== null ? corNota(media) : "text-gray-900 dark:text-white"}`}>
+          {media !== null ? media.toFixed(1) : "-"}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Aprovadas</p>
+        <p className="text-2xl font-bold mt-0.5 text-emerald-600 dark:text-emerald-400">{aprovadas}/{notas.length}</p>
+      </div>
     </div>
   );
 }
 
-function LoadingTable() {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
-      <p className="text-sm text-gray-500 dark:text-gray-400">Carregando notas...</p>
-    </div>
-  );
-}
-
-// Tabela de notas do estudante com colunas: Nome, Código, Nota Professor, Nota Final
-function TabelaNotasEstudante({
-  notas,
-  estudanteNome,
-  estudanteCodigo,
-  isSuperior,
-  loading,
-}: {
-  notas: Nota[];
-  estudanteNome: string;
-  estudanteCodigo: string;
-  isSuperior: boolean;
-  loading: boolean;
-}) {
-  if (loading) return <LoadingTable />;
-
+// Tabela escolar: Nome, Código, Matéria, Nota Professor, Nota Final
+function TabelaEscolar({ notas, nome, codigo }: { notas: Nota[]; nome: string; codigo: string }) {
   if (!notas.length) return (
     <div className="text-center py-12 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
@@ -165,55 +142,13 @@ function TabelaNotasEstudante({
     </div>
   );
 
-  // Agrupa notas por matéria
-  const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
+  const porMateria = new Map<string, Nota[]>();
   notas.forEach(n => {
     const id = n.materia_disciplinar_id;
-    if (!porMateria.has(id)) {
-      porMateria.set(id, { nome: n.materia_nome ?? id, notas: [] });
-    }
-    porMateria.get(id)!.notas.push(n);
+    if (!porMateria.has(id)) porMateria.set(id, []);
+    porMateria.get(id)!.push(n);
   });
 
-  if (isSuperior) {
-    // Para superior: colunas Matéria, Ano Académico, Categoria, Nota
-    return (
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800/70">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-            {Array.from(porMateria.entries()).map(([materiaId, { nome, notas: notasMateria }]) =>
-              notasMateria.map((n, i) => (
-                <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                  {i === 0 && (
-                    <>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasMateria.length}>{estudanteNome}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasMateria.length}>{estudanteCodigo}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90" rowSpan={notasMateria.length}>{nome}</td>
-                    </>
-                  )}
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{n.ano_academico ? labelNivel(n.ano_academico) : "-"}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
-                  <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  // Para escolar: colunas Nome, Código, Nota Professor, Nota Final
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
@@ -222,49 +157,97 @@ function TabelaNotasEstudante({
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Académico</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porMateria.entries()).map(([materiaId, { nome, notas: notasMateria }]) => {
-            const { notaProfessor, notaFinal, outras } = extrairNotasPorCategoria(notasMateria);
-            // Se não há nota_escola nem nota_professor, renderiza linha genérica por categoria
-            if (notaProfessor === null && notaFinal === null && outras.length > 0) {
-              return outras.map((n, i) => (
+          {Array.from(porMateria.entries()).map(([, notasMateria]) => {
+            const nomeMateria = notasMateria[0]?.materia_nome ?? notasMateria[0]?.materia_disciplinar_id ?? "-";
+            const notaProf  = notasMateria.find(n => n.categoria === "nota_professor");
+            const notaFinal = notasMateria.find(n => n.categoria === "nota_escola");
+
+            // Fallback: categorias não padrão
+            if (!notaProf && !notaFinal) {
+              return notasMateria.map((n, i) => (
                 <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   {i === 0 && (
                     <>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={outras.length}>{estudanteNome}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={outras.length}>{estudanteCodigo}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90" rowSpan={outras.length}>{nome}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400" rowSpan={outras.length}>
-                        {n.ano_academico ? labelNivel(n.ano_academico) : "-"}
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasMateria.length}>{nome}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasMateria.length}>{codigo}</td>
+                      <td className="px-4 py-3 text-gray-800 dark:text-white/90" rowSpan={notasMateria.length}>{nomeMateria}</td>
                     </>
                   )}
-                  <td className="px-4 py-3 text-right text-gray-400">—</td>
-                  <td className={`px-4 py-3 text-right font-bold text-base ${corNota(n.nota)}`}>{n.nota}</td>
+                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
+                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
                 </tr>
               ));
             }
 
-            const anoAcademico = notasMateria[0]?.ano_academico;
             return (
-              <tr key={materiaId} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudanteNome}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{estudanteCodigo}</td>
-                <td className="px-4 py-3 font-medium text-gray-800 dark:text-white/90">{nome}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{anoAcademico ? labelNivel(anoAcademico) : "-"}</td>
-                <td className={`px-4 py-3 text-right font-bold text-base ${notaProfessor !== null ? corNota(notaProfessor) : "text-gray-400"}`}>
-                  {notaProfessor !== null ? notaProfessor : "—"}
+              <tr key={nomeMateria} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                <td className="px-4 py-3 text-gray-800 dark:text-white/90">{nomeMateria}</td>
+                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>
+                  {notaProf?.nota ?? "—"}
                 </td>
-                <td className={`px-4 py-3 text-right font-bold text-base ${notaFinal !== null ? corNota(notaFinal) : "text-gray-400"}`}>
-                  {notaFinal !== null ? notaFinal : "—"}
+                <td className={`px-4 py-3 text-right font-bold ${notaFinal ? corNota(notaFinal.nota) : "text-gray-400 dark:text-gray-600"}`}>
+                  {notaFinal?.nota ?? "—"}
                 </td>
               </tr>
             );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Tabela superior: Nome, Código, Matéria, Categoria, Nota
+function TabelaSuperior({ notas, nome, codigo }: { notas: Nota[]; nome: string; codigo: string }) {
+  if (!notas.length) return (
+    <div className="text-center py-12 text-gray-400">
+      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
+      <p className="text-sm">Nenhuma nota neste período.</p>
+    </div>
+  );
+
+  const porMateria = new Map<string, Nota[]>();
+  notas.forEach(n => {
+    const id = n.materia_disciplinar_id;
+    if (!porMateria.has(id)) porMateria.set(id, []);
+    porMateria.get(id)!.push(n);
+  });
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800/70">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {Array.from(porMateria.entries()).map(([, notasMateria]) => {
+            const nomeMateria = notasMateria[0]?.materia_nome ?? notasMateria[0]?.materia_disciplinar_id ?? "-";
+            return notasMateria.map((n, i) => (
+              <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                {i === 0 && (
+                  <>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasMateria.length}>{nome}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasMateria.length}>{codigo}</td>
+                    <td className="px-4 py-3 text-gray-800 dark:text-white/90" rowSpan={notasMateria.length}>{nomeMateria}</td>
+                  </>
+                )}
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
+                <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
+              </tr>
+            ));
           })}
         </tbody>
       </table>
@@ -277,13 +260,14 @@ function TabelaNotasEstudante({
 export default function NotasEstudante() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const [layer, setLayer] = useState<Layer>({ type: "academias" });
-  const [loadingPeriodo, setLoadingPeriodo] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+
   const token = tokenStorage.get() ?? undefined;
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
-  const estudanteNome = user?.estudante?.nome ?? "Estudante";
+  const estudanteNome   = user?.estudante?.nome ?? "Estudante";
 
-  const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
-  const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
+  const { data: historico, execute: carregarNotas, loading: loadingNotas } = useApi(consultasService.notasEstudante);
+  const { data: acadList,  execute: carregarAcademias, loading: loadingAcads } = useApi(consultasService.listarAcademias);
 
   useEffect(() => {
     if (codigoEstudante) {
@@ -294,10 +278,6 @@ export default function NotasEstudante() {
 
   const todasNotas: Nota[] = historico?.notas ?? [];
 
-  // Detecta se é academia superior com base nas notas
-  const isSuperior = todasNotas.some(n => n.tipo === "superior");
-
-  // Academias únicas nas notas
   const academias = useMemo((): AcadInfo[] => {
     const map = new Map<string, AcadInfo>();
     todasNotas.forEach(n => {
@@ -307,7 +287,7 @@ export default function NotasEstudante() {
           codigo: n.codigo_academia,
           nome: info?.nome ?? n.codigo_academia,
           type: info?.type ?? "escola",
-          nivel_escolar: info?.nivel_escolar ?? undefined,
+          nivel_escolar: info?.nivel_escolar,
         });
       }
     });
@@ -316,16 +296,14 @@ export default function NotasEstudante() {
 
   const notasDe = (codigo: string) => todasNotas.filter(n => n.codigo_academia === codigo);
 
-  // Ao clicar num período, simula loading para melhor UX
-  const entrarNoPeriodo = async (newLayer: Layer) => {
-    setLoadingPeriodo(true);
-    // Pequeno delay para mostrar feedback visual
-    await new Promise(r => setTimeout(r, 120));
-    setLayer(newLayer);
-    setLoadingPeriodo(false);
+  // Navega para um novo layer exibindo spinner durante a transição
+  const goTo = async (next: Layer) => {
+    setTransitioning(true);
+    await new Promise(r => setTimeout(r, 80));
+    setLayer(next);
+    setTransitioning(false);
   };
 
-  // breadcrumbs
   const crumbs = useMemo(() => {
     const base = { label: "Academias", onClick: () => setLayer({ type: "academias" }) };
     if (layer.type === "academias") return [base];
@@ -344,9 +322,14 @@ export default function NotasEstudante() {
     return [base];
   }, [layer]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+  // Loading inicial: aguardando dados da API
+  if (loadingNotas || loadingAcads) return <Spinner label="Carregando notas..." />;
+
+  // Spinner de transição entre layers (dados locais, mas renderização demorada)
+  if (transitioning) return (
+    <div className="space-y-6">
+      {layer.type !== "academias" && <Breadcrumb crumbs={crumbs} />}
+      <Spinner label="Carregando..." />
     </div>
   );
 
@@ -357,31 +340,28 @@ export default function NotasEstudante() {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Minhas Notas</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma academia</p>
       </div>
-      {academias.length === 0
-        ? (
-          <div className="text-center py-16 text-gray-400">
-            <Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40" />
-            <p>Nenhuma nota registada ainda.</p>
-          </div>
-        )
-        : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {academias.map(a => {
-              const nts = notasDe(a.codigo);
-              const med = calcMedia(nts);
-              return (
-                <CardBtn
-                  key={a.codigo}
-                  icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
-                  title={a.nome}
-                  subtitle={`${nts.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
-                  onClick={() => setLayer({ type: "academia", a })}
-                />
-              );
-            })}
-          </div>
-        )
-      }
+      {academias.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <Icon icon="mdi:notebook-outline" width={48} className="mx-auto mb-3 opacity-40" />
+          <p>Nenhuma nota registada ainda.</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {academias.map(a => {
+            const nts = notasDe(a.codigo);
+            const med = calcMedia(nts);
+            return (
+              <CardBtn
+                key={a.codigo}
+                icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
+                title={a.nome}
+                subtitle={`${nts.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                onClick={() => goTo({ type: "academia", a })}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
@@ -409,7 +389,7 @@ export default function NotasEstudante() {
                   icon="mdi:numeric"
                   title={labelNivel(anoAcademico)}
                   subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
-                  onClick={() => setLayer({ type: "ano", a: layer.a, ano: anoAcademico })}
+                  onClick={() => goTo({ type: "ano", a: layer.a, ano: anoAcademico })}
                 />
               );
             })}
@@ -442,7 +422,7 @@ export default function NotasEstudante() {
                   icon="mdi:clipboard-text-clock-outline"
                   title={PERIODOS_LABEL[p] ?? p}
                   subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
-                  onClick={() => entrarNoPeriodo({ type: "periodo", a: layer.a, ano: layer.ano, periodo: p })}
+                  onClick={() => goTo({ type: "periodo", a: layer.a, ano: layer.ano, periodo: p })}
                 />
               );
             })}
@@ -457,9 +437,7 @@ export default function NotasEstudante() {
     const notas = notasDe(layer.a.codigo).filter(
       n => n.ano_academico === layer.ano && n.periodo === layer.periodo
     );
-    const acadType = layer.a.type;
-    const periodoIsSuperior = acadType === "superior" || notas.some(n => n.tipo === "superior");
-
+    const isSup = layer.a.type === "superior" || notas.some(n => n.tipo === "superior");
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs} />
@@ -471,14 +449,11 @@ export default function NotasEstudante() {
             {layer.a.nome} · {labelNivel(layer.ano)}
           </p>
         </div>
-        {!loadingPeriodo && notas.length > 0 && <StatsRow notas={notas} />}
-        <TabelaNotasEstudante
-          notas={notas}
-          estudanteNome={estudanteNome}
-          estudanteCodigo={codigoEstudante}
-          isSuperior={periodoIsSuperior}
-          loading={loadingPeriodo}
-        />
+        {notas.length > 0 && <StatsRow notas={notas} />}
+        {isSup
+          ? <TabelaSuperior notas={notas} nome={estudanteNome} codigo={codigoEstudante} />
+          : <TabelaEscolar  notas={notas} nome={estudanteNome} codigo={codigoEstudante} />
+        }
       </div>
     );
   }
