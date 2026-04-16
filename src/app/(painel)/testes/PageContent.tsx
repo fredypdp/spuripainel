@@ -497,9 +497,6 @@ export default function PageContent() {
     return url;
   };
 
-  // ─── callApi: chamada HTTP base ────────────────────────────────────────────
-  // Sem timeout — aguarda indefinidamente. O backend não impõe limite de tempo
-  // nem nos GETs de verificação nem nos POSTs async.
   const callApi = async (
     method: string,
     path: string,
@@ -522,10 +519,6 @@ export default function PageContent() {
       return { ok: false, status: 0, data: { error: String(e) } };
     }
   };
-
-  // ─── Nota: sem timeout em nenhuma requisição ─────────────────────────────
-  // callApi não usa AbortController — aguarda indefinidamente.
-  // O backend não impõe timeout nos GETs nem nos POSTs async.
 
   const refreshData = async (ac?: AcademiaInfo) => {
     const acad = ac || academia;
@@ -563,10 +556,6 @@ export default function PageContent() {
     );
   };
 
-  // ─── acompanharJob ────────────────────────────────────────────────────────────
-  // Faz polling até o job ser concluído. Não re-submete nada — apenas lê o estado.
-  // Timeout de polling (5 min) não causa reenvio; apenas encerra o acompanhamento
-  // com aviso. O job continua no servidor e pode ser visto nas notificações.
   const acompanharJob = async (jobId: string, titulo: string) => {
     addLog(`  ⏳ [${titulo}] Aguardando conclusão do job ${jobId}...`, "info");
 
@@ -586,8 +575,6 @@ export default function PageContent() {
         },
       });
     } catch (pollErr: any) {
-      // Timeout de polling: job ainda está rodando no servidor.
-      // NÃO re-submetemos. Apenas avisamos e saímos.
       addLog(
         `  ⚠ [${titulo}] Timeout ao acompanhar o job ${jobId} — o processamento continua no servidor.`,
         "warn"
@@ -1078,10 +1065,17 @@ export default function PageContent() {
 
   // ─── Gerar Notas ──────────────────────────────────────────────────────────────
   //
-  // Sem timeout em nenhuma fase — callApi aguarda indefinidamente.
-  // Se o POST async der qualquer erro de rede, não re-tentamos — logamos e paramos.
-  // Se o pollJob der timeout (5 min), apenas paramos o acompanhamento;
-  // o job continua no servidor e aparece nas notificações.
+  // CORREÇÃO DE IDEMPOTÊNCIA:
+  //
+  // Causa raiz: quando jobs anteriores ainda estão em processamento, a projeção
+  // pode estar desatualizada. O GET /notas-estudante/:codigo retorna dados que
+  // não incluem notas ainda não propagadas, levando o batch a submeter
+  // combinações já registadas no ledger.
+  //
+  // Solução: `batchDedup` — um Set com chave completa por estudante
+  // (codigo_estudante + anoLetivo + materiaID + periodo + tipo + categoria)
+  // que impede QUALQUER duplicata dentro do mesmo batch, independentemente
+  // do estado da projeção.
   //
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
@@ -1098,21 +1092,38 @@ export default function PageContent() {
       return;
     }
 
-    // Mapeia o tipoNota ("escolar"/"superior") para os tipos de matéria equivalentes
-    // MateriaDTO.type usa "fundamental"|"medio"|"superior", enquanto NotaDTO.tipo usa "escolar"|"superior"
+    // MateriaDTO.type usa "fundamental"|"medio"|"superior"
+    // NotaDTO.tipo usa "escolar"|"superior" — sistemas distintos
     const tiposMateriasCompativeis = academia.tipo === "superior"
       ? ["superior"]
-      : ["fundamental", "medio"]; // escolas podem ter matérias fundamentais e/ou médias
+      : ["fundamental", "medio"];
 
     const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
 
-    addLog(`Gerando notas para ${sample.length} estudante(s) — categorias: ${categoriasAtivas.join(", ")}`, "step");
-    addLog(`  Fase 1/2: verificando notas existentes (${sample.length} estudantes)...`, "info");
+    addLog(`Gerando notas para ${sample.length} estudante(s) — tipo: ${tipoNota}, categorias: ${categoriasAtivas.join(", ")}`, "step");
+    addLog(`  Fase 1/2: verificando notas existentes no servidor (${sample.length} estudantes)...`, "info");
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
+
     const batch: any[] = [];
+
+    // ── CHAVE DE DEDUP ────────────────────────────────────────────────────────
+    // Formato: "codigoEstudante|anoLetivo|materiaId|periodo|tipo|categoria"
+    // Impede duplicatas dentro do batch atual, mesmo que a projeção esteja
+    // desatualizada por jobs assíncronos em andamento.
+    const batchDedup = new Set<string>();
+
+    let totalSkippedServer = 0;
+    let totalSkippedBatch = 0;
+
+    const materiasTipo = materias.filter(m => tiposMateriasCompativeis.includes(m.type));
+
+    if (materiasTipo.length === 0) {
+      addLog(`  ✗ Nenhuma matéria ativa compatível (tipos esperados: ${tiposMateriasCompativeis.join(", ")})`, "err");
+      return;
+    }
 
     for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
@@ -1126,6 +1137,7 @@ export default function PageContent() {
         );
       }
 
+      // Lê notas já registadas na projeção para este estudante
       const { ok: rOk, data: notasData } = await callApi(
         "GET",
         `/notas-estudante/${est.codigo_estudante}`,
@@ -1133,33 +1145,47 @@ export default function PageContent() {
         academia.token
       );
 
+      // Chave do servidor: anoLectivo|materiaID|periodo|tipo|categoria (por aggregate do estudante)
       const notasExistentes = new Set<string>();
       if (rOk) {
         const notas: any[] = (notasData as any)?.notas || [];
-        const anoLetivo = academia.ano_letivo;
         for (const n of notas) {
-          if (n.ano_lectivo === anoLetivo) {
-            // Chave de idempotência conforme documentação: anoLectivo|periodo|materiaID|tipo|categoria
-            // O estudante não faz parte da chave porque cada aggregate já é escopo do próprio estudante
-            notasExistentes.add(`${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`);
+          if (n.ano_lectivo === academia.ano_letivo) {
+            notasExistentes.add(
+              `${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`
+            );
           }
         }
       }
 
-      // Filtra matérias pelo tipo correto de MateriaDTO ("fundamental"|"medio"|"superior"),
-      // não pelo tipo da nota ("escolar"|"superior") — esses são sistemas distintos
-      const materiasTipo = materias.filter(m => tiposMateriasCompativeis.includes(m.type));
-      if (materiasTipo.length === 0) continue;
-      const materiasSample = pickN(materiasTipo, Math.min(3, materiasTipo.length));
+      // Seleciona até 3 matérias compatíveis para este estudante
+      // Usa rotação baseada no índice para variar entre estudantes,
+      // garantindo distribuição uniforme sem aleatoriedade pura
+      const numMaterias = Math.min(3, materiasTipo.length);
+      const startIdx = i % materiasTipo.length;
+      const materiasSample: Materia[] = [];
+      for (let m = 0; m < numMaterias; m++) {
+        materiasSample.push(materiasTipo[(startIdx + m) % materiasTipo.length]);
+      }
 
       for (const mat of materiasSample) {
         let periodos: string[];
+
         if (academia.tipo === "superior") {
+          // Matérias superiores ativas SEMPRE têm periodo definido (pré-requisito para ativar).
+          // Usamos mat.periodo diretamente. O fallback é apenas segurança.
           if (mat.periodo) {
             periodos = [mat.periodo];
           } else {
+            // Fallback: pega apenas o primeiro semestre do curso (evita múltiplos períodos
+            // que gerariam combinações inválidas se a matéria não suportar todos)
             const cursoMat = cursos.find(c => c.id === mat.curso_id);
-            periodos = cursoMat?.periodos || ["1_semestre"];
+            const cursoPeriodos = cursoMat?.periodos || [];
+            periodos = cursoPeriodos.length > 0 ? [cursoPeriodos[0]] : ["1_semestre"];
+            addLog(
+              `  ⚠ Matéria "${mat.nome}" sem período definido — usando "${periodos[0]}" como fallback`,
+              "warn"
+            );
           }
         } else {
           periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
@@ -1167,9 +1193,25 @@ export default function PageContent() {
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
-            // Chave de idempotência conforme documentação: anoLectivo|periodo|materiaID|tipo|categoria
-            const chave = `${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
-            if (notasExistentes.has(chave)) continue;
+            // Chave do servidor (por aggregate do estudante)
+            const serverKey = `${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
+
+            // Chave do batch (global, inclui estudante)
+            const batchKey = `${est.codigo_estudante}|${serverKey}`;
+
+            // 1. Já existe no servidor (projeção atualizada)?
+            if (notasExistentes.has(serverKey)) {
+              totalSkippedServer++;
+              continue;
+            }
+
+            // 2. Já foi adicionado a este batch (evita duplicatas por lag de projeção)?
+            if (batchDedup.has(batchKey)) {
+              totalSkippedBatch++;
+              continue;
+            }
+
+            batchDedup.add(batchKey);
             batch.push({
               codigo_estudante: est.codigo_estudante,
               periodo: p,
@@ -1185,10 +1227,22 @@ export default function PageContent() {
       await sleep(30);
     }
 
+    if (totalSkippedServer > 0) {
+      addLog(`  ℹ ${totalSkippedServer} nota(s) já existiam no servidor — ignoradas`, "dim");
+    }
+    if (totalSkippedBatch > 0) {
+      addLog(`  ℹ ${totalSkippedBatch} nota(s) duplicadas no batch — ignoradas (lag de projeção)`, "dim");
+    }
+
     if (batch.length === 0) {
-      addLog("Nenhuma nota nova para registrar (todas já existem ou nenhuma matéria compatível)", "info");
+      addLog(
+        "Nenhuma nota nova para registrar — todas já existem ou nenhuma matéria compatível encontrada",
+        "info"
+      );
       return;
     }
+
+    addLog(`  Total a registrar: ${batch.length} nota(s) novas`, "info");
 
     // Divide em chunks de 2000 (limite da API)
     const CHUNK_SIZE = 2000;
@@ -1229,20 +1283,17 @@ export default function PageContent() {
         totalErr += result.err;
       }
 
-      // Pequena pausa entre jobs para não sobrecarregar o servidor
+      // Pausa entre jobs para não sobrecarregar o servidor
       if (ci < chunks.length - 1 && !cancelRef.current) await sleep(500);
     }
 
     addLog(
-      `Notas concluídas: ${totalOk} ✓  ${totalErr} ✗  (${batch.length} total)`,
+      `Notas concluídas: ${totalOk} ✓  ${totalErr > 0 ? `${totalErr} ✗  ` : ""}(${batch.length} total)`,
       totalOk > 0 ? "ok" : "err"
     );
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
-  //
-  // Sem timeout em nenhuma fase — callApi aguarda indefinidamente.
-  //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn");
@@ -1256,8 +1307,6 @@ export default function PageContent() {
     addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
     addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
 
-    // Mesma lógica de notas: MateriaDTO.type usa "fundamental"|"medio"|"superior",
-    // não "escolar"|"superior" — esses são sistemas de tipos distintos
     const tiposMateriasCompativeisFalta = academia.tipo === "superior"
       ? ["superior"]
       : ["fundamental", "medio"];
@@ -1269,6 +1318,8 @@ export default function PageContent() {
     }
 
     const batch: any[] = [];
+    // Dedup de faltas: "codigoEstudante|materiaId|data"
+    const batchDedup = new Set<string>();
 
     for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
@@ -1282,7 +1333,6 @@ export default function PageContent() {
         );
       }
 
-      // GET sem timeout — aguarda resposta do servidor indefinidamente
       const { ok: rOk, data: faltasData } = await callApi(
         "GET",
         `/faltas-estudante/${est.codigo_estudante}`,
@@ -1293,9 +1343,8 @@ export default function PageContent() {
       const faltasExistentes = new Set<string>();
       if (rOk) {
         const faltas: any[] = (faltasData as any)?.faltas || [];
-        const anoLetivo = academia.ano_letivo;
         for (const f of faltas) {
-          if (f.ano_lectivo === anoLetivo) {
+          if (f.ano_lectivo === academia.ano_letivo) {
             faltasExistentes.add(`${f.materia_disciplinar_id}|${f.data}`);
           }
         }
@@ -1304,8 +1353,13 @@ export default function PageContent() {
       const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);
-        const chave = `${mat.id}|${dataFalta}`;
-        if (faltasExistentes.has(chave)) continue;
+        const serverKey = `${mat.id}|${dataFalta}`;
+        const batchKey = `${est.codigo_estudante}|${serverKey}`;
+
+        if (faltasExistentes.has(serverKey)) continue;
+        if (batchDedup.has(batchKey)) continue;
+
+        batchDedup.add(batchKey);
         batch.push({
           codigo_estudante: est.codigo_estudante,
           data: dataFalta,
@@ -1322,7 +1376,6 @@ export default function PageContent() {
       return;
     }
 
-    // Divide em chunks de 2000 (limite da API)
     const CHUNK_SIZE_FALTA = 2000;
     const chunksFalta: any[][] = [];
     for (let i = 0; i < batch.length; i += CHUNK_SIZE_FALTA) {
@@ -1365,7 +1418,7 @@ export default function PageContent() {
     }
 
     addLog(
-      `Faltas concluídas: ${totalOkFalta} ✓  ${totalErrFalta} ✗  (${batch.length} total)`,
+      `Faltas concluídas: ${totalOkFalta} ✓  ${totalErrFalta > 0 ? `${totalErrFalta} ✗  ` : ""}(${batch.length} total)`,
       totalOkFalta > 0 ? "ok" : "err"
     );
   };
@@ -1442,7 +1495,6 @@ export default function PageContent() {
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
 
-    // Divide em chunks de 1000 (limite da API para avaliações)
     const CHUNK_SIZE_AVAL = 1000;
     const chunksAval: any[][] = [];
     for (let i = 0; i < batch.length; i += CHUNK_SIZE_AVAL) {
@@ -1484,7 +1536,7 @@ export default function PageContent() {
     }
 
     addLog(
-      `Avaliações concluídas: ${totalOkAval} ✓  ${totalErrAval} ✗  (≈${nAprov} aprovações de ${sample.length} total)`,
+      `Avaliações concluídas: ${totalOkAval} ✓  ${totalErrAval > 0 ? `${totalErrAval} ✗  ` : ""}(≈${nAprov} aprovações de ${sample.length} total)`,
       totalOkAval > 0 ? "ok" : "err"
     );
   };
@@ -1547,7 +1599,6 @@ export default function PageContent() {
   })();
 
   const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
-  // Tipos de MateriaDTO compatíveis com esta academia (sistema de tipos diferente do tipoNota da nota)
   const tiposMateriaParaNota = academia?.tipo === "superior" ? ["superior"] : ["fundamental", "medio"];
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
@@ -1640,7 +1691,8 @@ export default function PageContent() {
   const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
   const periodosMult = academia?.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
   const materiasParaNota = materias.filter(m => tiposMateriaParaNota.includes(m.type));
-  const estimativaNota = totalEstudantesNota * Math.min(3, materiasParaNota.length) * categoriasAtivas.length * periodosMult;
+  const numMateriasPorEstudante = Math.min(3, materiasParaNota.length);
+  const estimativaNota = totalEstudantesNota * numMateriasPorEstudante * categoriasAtivas.length * periodosMult;
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
@@ -1702,13 +1754,20 @@ export default function PageContent() {
               </div>
             )}
 
-            {/* Aviso sobre comportamento de timeout */}
             <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
               <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
               <p style={{ margin: 0 }}>
                 Ao submeter um job, o servidor processa em background.
                 Todas as requisições aguardam sem timeout — não há corte automático de conexão.
                 Acompanhe o progresso pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
+              </p>
+            </div>
+
+            <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Dedup de notas</p>
+              <p style={{ margin: 0 }}>
+                Notas são verificadas no servidor <em>e</em> deduplicadas localmente antes de enviar, evitando
+                conflitos de idempotência mesmo quando jobs anteriores ainda estão em processamento.
               </p>
             </div>
           </div>
@@ -2094,8 +2153,9 @@ export default function PageContent() {
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
                 Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code>
+                {" + "}dedup local por chave completa
                 <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code> — job fica no servidor
+                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code>
               </p>
             </Section>
 
@@ -2117,8 +2177,9 @@ export default function PageContent() {
               </Row>
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
                 Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code>
+                {" + "}dedup local por chave completa
                 <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code> — job fica no servidor
+                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code>
               </p>
             </Section>
 
