@@ -200,47 +200,131 @@ function getApiBaseUrl(): string {
 }
 
 /**
+ * Faz parse seguro de JSON de uma Response.
+ *
+ * O erro "Unexpected non-whitespace character after JSON at position 4"
+ * ocorre quando o servidor devolve texto que não é JSON válido (ex: "null",
+ * corpo vazio, HTML de erro, ou texto com BOM/espaços extras).
+ * Esta função lê o corpo como texto primeiro e só então tenta fazer parse,
+ * devolvendo um objeto neutro em caso de falha em vez de lançar excepção.
+ */
+async function safeParseJson(response: Response): Promise<Record<string, any>> {
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    return {};
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed || trimmed === "null" || trimmed === "undefined") {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    // Se o servidor retornou um primitivo (null, number, bool) envolve num objecto
+    if (parsed === null || typeof parsed !== "object") {
+      return {};
+    }
+    return parsed as Record<string, any>;
+  } catch {
+    // Corpo não é JSON válido — devolve o texto bruto para diagnóstico
+    return {
+      _raw: trimmed,
+      error: `Resposta inesperada do servidor: ${trimmed.slice(0, 120)}`,
+    };
+  }
+}
+
+/**
  * POST /jobs/:id/retry-failed
+ *
  * Cria um novo job reenviando apenas os itens que falharam no job original.
  * Requer user_type=academia.
+ *
+ * A API devolve `retry_job_id` (não `job_id`) conforme a documentação.
  */
 async function retryFailedViaApi(
   jobId: string,
   token: string
 ): Promise<{ job_id: string; retry_items: number; sse_url?: string; poll_url?: string }> {
-  const r = await fetch(`${getApiBaseUrl()}/jobs/${jobId}/retry-failed`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let r: Response;
 
-  const data = await r.json();
-  if (!r.ok || !data.retry_job_id) {
-    throw new Error(data.message || data.error || "Erro ao submeter retry");
+  try {
+    r = await fetch(`${getApiBaseUrl()}/jobs/${jobId}/retry-failed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (networkErr: any) {
+    throw new Error(
+      `Erro de rede ao submeter retry: ${networkErr?.message ?? String(networkErr)}`
+    );
   }
+
+  // Lê o corpo de forma segura (evita o erro de JSON malformado)
+  const data = await safeParseJson(r);
+
+  if (!r.ok) {
+    const msg =
+      data?.message ||
+      data?.error ||
+      data?._raw ||
+      `Erro HTTP ${r.status} ao submeter retry`;
+    throw new Error(msg);
+  }
+
+  // A API retorna `retry_job_id` (campo documentado na secção 17)
+  // Fallback para `job_id` por compatibilidade com versões antigas
+  const retryJobId: string | undefined =
+    data?.retry_job_id ??
+    data?.job_id ??
+    undefined;
+
+  if (!retryJobId) {
+    // Job pode ter sido criado mas sem ID na resposta — avisa sem lançar erro fatal
+    throw new Error(
+      data?.message ||
+      data?.error ||
+      data?._raw ||
+      "Retry submetido, mas o servidor não devolveu um job_id. Verifique as notificações."
+    );
+  }
+
   return {
-    job_id:      data.retry_job_id,
-    retry_items: data.retry_items ?? 0,
-    sse_url:     data.sse_url,
-    poll_url:    data.poll_url,
+    job_id:      retryJobId,
+    retry_items: typeof data?.retry_items === "number" ? data.retry_items : 0,
+    sse_url:     data?.sse_url,
+    poll_url:    data?.poll_url,
   };
 }
 
 /**
  * DELETE /jobs/:id/sse
  * Oculta o job do stream SSE da academia autenticada.
- * Requer user_type=academia.
  */
 async function hideJobFromSse(jobId: string, token: string): Promise<void> {
-  const r = await fetch(`${getApiBaseUrl()}/jobs/${jobId}/sse`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let r: Response;
+
+  try {
+    r = await fetch(`${getApiBaseUrl()}/jobs/${jobId}/sse`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (networkErr: any) {
+    throw new Error(
+      `Erro de rede ao ocultar job: ${networkErr?.message ?? String(networkErr)}`
+    );
+  }
+
   if (!r.ok) {
-    const data = await r.json().catch(() => ({}));
-    throw new Error((data as any).message || (data as any).error || "Erro ao ocultar job");
+    const data = await safeParseJson(r);
+    throw new Error(
+      data?.message || data?.error || data?._raw || `Erro HTTP ${r.status}`
+    );
   }
 }
 
@@ -274,7 +358,9 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
         setDetail(jobDetail);
       })
       .catch(err => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar detalhes");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Erro ao carregar detalhes");
+        }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
@@ -285,13 +371,23 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
   const successes = detail?.results?.filter(r => r.sucesso)  ?? [];
 
   const isTerminal = notif.status === "done" || notif.status === "failed";
-  const canRetry   = !retryDone && (notif.status === "failed" || failures.length > 0) && !!(detail as any)?.type;
 
-  // ─── Retry via POST /jobs/:id/retry-failed ───────────────────────────────────
+  // Pode fazer retry se:
+  // - ainda não fez retry com sucesso
+  // - o detail foi carregado (não null)
+  // - há falhas detectadas OU o status é "failed"
+  const hasFailures = failures.length > 0 || notif.status === "failed";
+  const canRetry    = !retryDone && hasFailures && detail !== null;
+
+  // ─── Retry via POST /jobs/:id/retry-failed ────────────────────────────────
   const handleRetry = async () => {
     if (!detail) return;
+
     const token = tokenStorage.get();
-    if (!token) { setRetryError("Token não disponível"); return; }
+    if (!token) {
+      setRetryError("Token não disponível. Faça login novamente.");
+      return;
+    }
 
     setRetrying(true);
     setRetryError(null);
@@ -300,28 +396,38 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
       const result = await retryFailedViaApi(notif.jobId, token);
       const type = (detail as any).type as string | undefined;
 
+      // Usa retry_items da resposta; fallback para a contagem local de falhas
+      const retryCount =
+        result.retry_items > 0
+          ? result.retry_items
+          : failures.length > 0
+          ? failures.length
+          : 1;
+
       const newNotif: UiNotification = {
         id:          `${result.job_id}-enqueued-${Date.now()}`,
         jobId:       result.job_id,
         title:       `${jobTypeLabel(type)} — Retry na fila`,
-        description: `${result.retry_items} item${result.retry_items !== 1 ? "s" : ""} reenviado${result.retry_items !== 1 ? "s" : ""}`,
+        description: `${retryCount} item${retryCount !== 1 ? "s" : ""} reenviado${retryCount !== 1 ? "s" : ""}`,
         createdAt:   new Date().toISOString(),
         tone:        "info",
         progress:    0,
         status:      "pending",
         read:        false,
       };
+
       onRetryStarted?.(newNotif);
       setRetryDone(true);
       onClose();
-    } catch (err) {
-      setRetryError(err instanceof Error ? err.message : "Erro ao tentar novamente");
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setRetryError(msg);
     } finally {
       setRetrying(false);
     }
   };
 
-  // ─── Ocultar do SSE via DELETE /jobs/:id/sse ────────────────────────────────
+  // ─── Ocultar do SSE via DELETE /jobs/:id/sse ─────────────────────────────
   const handleHide = async () => {
     const token = tokenStorage.get();
     if (!token) return;
@@ -347,11 +453,20 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+      }}
       onClick={onClose}
     >
       <div
-        style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, width: "100%", maxWidth: 620, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px rgba(0,0,0,0.6)" }}
+        style={{
+          background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16,
+          width: "100%", maxWidth: 620, maxHeight: "85vh",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+          boxShadow: "0 25px 50px rgba(0,0,0,0.6)",
+        }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -422,8 +537,17 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
                     {failures.map((f, i) => {
                       const payloadAny = f.payload as any;
-                      const label = payloadAny?.codigo_estudante || payloadAny?.codigo_turma || payloadAny?.codigo || payloadAny?.nome || `Item #${(f.index ?? i) + 1}`;
-                      const motivo = f.erro || f.error || f.message || "Sem detalhe";
+                      const label =
+                        payloadAny?.codigo_estudante ||
+                        payloadAny?.codigo_turma ||
+                        payloadAny?.codigo ||
+                        payloadAny?.nome ||
+                        `Item #${(f.index ?? i) + 1}`;
+                      const motivo =
+                        f.erro ||
+                        (f as any).error ||
+                        (f as any).message ||
+                        "Sem detalhe";
                       return (
                         <div key={i} style={{ background: "#1e293b", borderRadius: 8, padding: "10px 14px", borderLeft: "3px solid #ef4444" }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#fca5a5", marginBottom: 3 }}>{label}</div>
@@ -461,8 +585,9 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
         {/* Footer */}
         <div style={{ padding: "12px 20px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+
             {/* Retry via POST /jobs/:id/retry-failed */}
-            {canRetry && detail && (
+            {canRetry && (
               <button
                 onClick={handleRetry}
                 disabled={retrying}
@@ -474,7 +599,11 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
                   borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600,
                   cursor: retrying ? "not-allowed" : "pointer", transition: "all 0.15s",
                 }}
-                title={`Reenviar ${failures.length} item${failures.length !== 1 ? "s" : ""} com falha`}
+                title={
+                  failures.length > 0
+                    ? `Reenviar ${failures.length} item${failures.length !== 1 ? "s" : ""} com falha`
+                    : "Reenviar itens com falha"
+                }
               >
                 {retrying ? (
                   <>
@@ -487,7 +616,7 @@ function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalPr
                       <polyline points="1 4 1 10 7 10" />
                       <path d="M3.51 15a9 9 0 1 0 .49-3.36" />
                     </svg>
-                    Tentar novamente ({failures.length})
+                    Tentar novamente{failures.length > 0 ? ` (${failures.length})` : ""}
                   </>
                 )}
               </button>
@@ -727,7 +856,6 @@ export default function NotificationDropdown() {
     upsertNotif(newNotif);
   }, [upsertNotif]);
 
-  // Remove o job da lista local após ser ocultado no servidor
   const handleHidden = useCallback((jobId: string) => {
     setNotifications(prev => prev.filter(n => n.jobId !== jobId));
   }, []);
