@@ -67,8 +67,8 @@ function jobTypeLabel(type?: string): string {
 function formatRelativeTime(isoString: string): string {
   try {
     const diff = Date.now() - new Date(isoString).getTime();
-    if (diff < 60_000)    return "agora mesmo";
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m atrás`;
+    if (diff < 60_000)   return "agora mesmo";
+    if (diff < 3_600_000)  return `${Math.floor(diff / 60_000)}m atrás`;
     if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h atrás`;
     return new Date(isoString).toLocaleDateString("pt-PT");
   } catch {
@@ -191,168 +191,57 @@ function normalizeEventToNotif(event: JobStreamEvent): UiNotification {
   }
 }
 
-// ─── Safe JSON parse helper ───────────────────────────────────────────────────
+// ─── API helpers ──────────────────────────────────────────────────────────────
 
-/**
- * Tenta parsear o body da Response como JSON de forma segura.
- * Se o Content-Type não for JSON ou o body estiver vazio/inválido,
- * retorna null em vez de lançar uma exceção.
- */
-async function safeParseJson(response: Response): Promise<any | null> {
-  const contentType = response.headers.get("content-type") ?? "";
-  // Verifica se é realmente JSON antes de tentar parsear
-  if (!contentType.includes("application/json")) {
-    // Tenta mesmo assim — alguns servidores não setam o header corretamente
-    try {
-      const text = await response.text();
-      if (!text || text.trim() === "") return null;
-      return JSON.parse(text);
-    } catch {
-      return null;
-    }
-  }
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
+function getApiBaseUrl(): string {
+  const url = process.env.NEXT_PUBLIC_API_URL || "";
+  if (url && !url.startsWith("http://") && !url.startsWith("https://")) return `https://${url}`;
+  return url;
 }
 
-// ─── Retry helpers ────────────────────────────────────────────────────────────
-
 /**
- * Mapeia o tipo de job para o endpoint e método HTTP corretos.
+ * POST /jobs/:id/retry-failed
+ * Cria um novo job reenviando apenas os itens que falharam no job original.
+ * Requer user_type=academia.
  */
-function getRetryEndpointConfig(jobType: string): { endpoint: string; method: string } | null {
-  const config: Record<string, { endpoint: string; method: string }> = {
-    // Estudantes
-    register_estudante_batch:        { endpoint: "/academia/estudante/register/async",         method: "POST"   },
-    // Notas
-    registrar_nota_batch:            { endpoint: "/academia/notas-aluno/async",                method: "POST"   },
-    atualizar_nota_batch:            { endpoint: "/academia/atualizar-nota/async",             method: "PUT"    },
-    deletar_nota_batch:              { endpoint: "/academia/nota/async",                       method: "DELETE" },
-    // Faltas
-    registrar_faltas_batch:          { endpoint: "/academia/faltas-aluno/async",               method: "POST"   },
-    atualizar_falta_batch:           { endpoint: "/academia/atualizar-falta/async",            method: "PUT"    },
-    deletar_falta_batch:             { endpoint: "/academia/falta/async",                      method: "DELETE" },
-    // Avaliações
-    registrar_avaliacao_final_batch: { endpoint: "/academia/avaliacao-final/async",            method: "POST"   },
-    // Status escolar
-    atualizar_status_escolar_batch:  { endpoint: "/academia/estudante/status-escolar/async",   method: "PUT"    },
-    // Cursos
-    criar_curso_batch:               { endpoint: "/academia/curso/async",                      method: "POST"   },
-    ativar_curso_batch:              { endpoint: "/academia/curso/ativar/async",               method: "PUT"    },
-    desativar_curso_batch:           { endpoint: "/academia/curso/desativar/async",            method: "PUT"    },
-    atualizar_curso_batch:           { endpoint: "/academia/curso/dados/async",                method: "PUT"    },
-    deletar_curso_batch:             { endpoint: "/academia/curso/async",                      method: "DELETE" },
-    // Matérias
-    criar_materia_batch:             { endpoint: "/academia/materia/async",                    method: "POST"   },
-    ativar_materia_batch:            { endpoint: "/academia/materia/ativar/async",             method: "PUT"    },
-    desativar_materia_batch:         { endpoint: "/academia/materia/desativar/async",          method: "PUT"    },
-    definir_periodo_materia_batch:   { endpoint: "/academia/materia/periodo/async",            method: "PUT"    },
-    atualizar_materia_batch:         { endpoint: "/academia/materia/dados/async",              method: "PUT"    },
-    deletar_materia_batch:           { endpoint: "/academia/materia/async",                    method: "DELETE" },
-    // Turmas
-    criar_turma_batch:               { endpoint: "/academia/turma/async",                      method: "POST"   },
-    ativar_turma_batch:              { endpoint: "/academia/turma/ativar/async",               method: "PUT"    },
-    desativar_turma_batch:           { endpoint: "/academia/turma/desativar/async",            method: "PUT"    },
-    atualizar_turma_batch:           { endpoint: "/academia/turma/dados/async",                method: "PUT"    },
-    deletar_turma_batch:             { endpoint: "/academia/turma/async",                      method: "DELETE" },
-    adicionar_estudante_batch:       { endpoint: "/academia/turma/estudante/async",            method: "POST"   },
-    remover_estudante_turma_batch:   { endpoint: "/academia/turma/estudante/async",            method: "DELETE" },
-    // Academia / categorias de nota
-    atualizar_academia_batch:        { endpoint: "/academia/dados/async",                      method: "PUT"    },
-    criar_categoria_nota_batch:      { endpoint: "/academia/categorias-nota/async",            method: "POST"   },
-    deletar_categoria_nota_batch:    { endpoint: "/academia/categorias-nota/async",            method: "DELETE" },
-    // Admin — academias
-    register_academia_batch:         { endpoint: "/dominis/academia/register/async",           method: "POST"   },
-    ativar_academia_batch:           { endpoint: "/dominis/academia/ativar/async",             method: "PUT"    },
-    desativar_academia_batch:        { endpoint: "/dominis/academia/desativar/async",          method: "PUT"    },
-    // Admin — admins
-    ativar_admin_batch:              { endpoint: "/dominis/admin/ativar/async",                method: "PUT"    },
-    desativar_admin_batch:           { endpoint: "/dominis/admin/desativar/async",             method: "PUT"    },
-  };
-
-  return config[jobType] ?? null;
-}
-
-async function retryFailedItems(
-  jobType: string,
-  failures: JobItemResult[],
+async function retryFailedViaApi(
+  jobId: string,
   token: string
-): Promise<{ job_id: string; total_items: number }> {
-  // Extrai apenas os payloads válidos (não-nulos) dos itens com falha
-  const payloads = failures
-    .map((f) => f.payload)
-    .filter((p) => p !== undefined && p !== null);
+): Promise<{ job_id: string; retry_items: number; sse_url?: string; poll_url?: string }> {
+  const r = await fetch(`${getApiBaseUrl()}/jobs/${jobId}/retry-failed`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
-  if (payloads.length === 0) {
-    throw new Error("Nenhum payload válido encontrado nos itens com falha para reenvio.");
+  const data = await r.json();
+  if (!r.ok || !data.retry_job_id) {
+    throw new Error(data.message || data.error || "Erro ao submeter retry");
   }
-
-  const endpointConfig = getRetryEndpointConfig(jobType);
-  if (!endpointConfig) {
-    throw new Error(`Tipo de job "${jobType}" não tem endpoint de retry mapeado.`);
-  }
-
-  const apiUrl = (() => {
-    const url = process.env.NEXT_PUBLIC_API_URL ?? "";
-    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-      return `https://${url}`;
-    }
-    return url;
-  })();
-
-  if (!apiUrl) {
-    throw new Error("NEXT_PUBLIC_API_URL não está configurada.");
-  }
-
-  const fullUrl = `${apiUrl}${endpointConfig.endpoint}`;
-
-  // Serializa o payload — sempre um array JSON
-  let bodyString: string;
-  try {
-    bodyString = JSON.stringify(payloads);
-  } catch (serErr) {
-    throw new Error(`Falha ao serializar payload para retry: ${serErr}`);
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(fullUrl, {
-      method: endpointConfig.method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: bodyString,
-    });
-  } catch (networkErr) {
-    throw new Error(`Erro de rede ao tentar retry: ${networkErr}`);
-  }
-
-  // Parseia a resposta de forma segura (evita "Unexpected non-whitespace character after JSON")
-  const data = await safeParseJson(response);
-
-  if (!response.ok) {
-    const errMsg = data?.message ?? data?.error ?? `HTTP ${response.status} ${response.statusText}`;
-    throw new Error(errMsg);
-  }
-
-  // Verifica se o job_id foi retornado — 202 Accepted deve sempre trazer isso
-  if (!data?.job_id) {
-    // Pode acontecer se o servidor retornou 202 sem body JSON (improvável mas defensivo)
-    throw new Error(
-      data
-        ? `Resposta inesperada do servidor: ${JSON.stringify(data)}`
-        : `Servidor retornou ${response.status} sem corpo JSON válido.`
-    );
-  }
-
   return {
-    job_id:      data.job_id as string,
-    total_items: (data.total_items as number) ?? payloads.length,
+    job_id:      data.retry_job_id,
+    retry_items: data.retry_items ?? 0,
+    sse_url:     data.sse_url,
+    poll_url:    data.poll_url,
   };
+}
+
+/**
+ * DELETE /jobs/:id/sse
+ * Oculta o job do stream SSE da academia autenticada.
+ * Requer user_type=academia.
+ */
+async function hideJobFromSse(jobId: string, token: string): Promise<void> {
+  const r = await fetch(`${getApiBaseUrl()}/jobs/${jobId}/sse`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error((data as any).message || (data as any).error || "Erro ao ocultar job");
+  }
 }
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
@@ -361,90 +250,91 @@ interface DetailModalProps {
   notif: UiNotification;
   onClose: () => void;
   onRetryStarted?: (notif: UiNotification) => void;
+  onHidden?: (jobId: string) => void;
 }
 
-function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
+function DetailModal({ notif, onClose, onRetryStarted, onHidden }: DetailModalProps) {
   const [detail, setDetail]         = useState<JobDetail | null>(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [retrying, setRetrying]     = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retryDone, setRetryDone]   = useState(false);
+  const [hiding, setHiding]         = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const token = tokenStorage.get();
-    if (!token) {
-      setError("Token não disponível. Faça login novamente.");
-      setLoading(false);
-      return;
-    }
+    if (!token) { setError("Token não disponível"); setLoading(false); return; }
 
     jobApiService.getDetail(notif.jobId, token)
-      .then((resp) => {
+      .then(resp => {
         if (cancelled) return;
         const jobDetail: JobDetail = { ...resp.job, results: resp.results ?? [] };
         setDetail(jobDetail);
       })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Erro ao carregar detalhes do job.");
-        }
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar detalhes");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
   }, [notif.jobId]);
 
-  const failures  = detail?.results?.filter((r) => !r.sucesso) ?? [];
-  const successes = detail?.results?.filter((r) => r.sucesso)  ?? [];
+  const failures  = detail?.results?.filter(r => !r.sucesso) ?? [];
+  const successes = detail?.results?.filter(r => r.sucesso)  ?? [];
 
-  const jobType = (detail as any)?.type as string | undefined;
+  const isTerminal = notif.status === "done" || notif.status === "failed";
+  const canRetry   = !retryDone && (notif.status === "failed" || failures.length > 0) && !!(detail as any)?.type;
 
-  const canRetry =
-    !retryDone &&
-    !!jobType &&
-    !!getRetryEndpointConfig(jobType) &&
-    (notif.status === "failed" || failures.length > 0) &&
-    failures.some((f) => f.payload != null);
-
+  // ─── Retry via POST /jobs/:id/retry-failed ───────────────────────────────────
   const handleRetry = async () => {
-    if (!detail || !jobType) return;
-
+    if (!detail) return;
     const token = tokenStorage.get();
-    if (!token) {
-      setRetryError("Token não disponível. Faça login novamente.");
-      return;
-    }
+    if (!token) { setRetryError("Token não disponível"); return; }
 
     setRetrying(true);
     setRetryError(null);
 
     try {
-      const result = await retryFailedItems(jobType, failures, token);
+      const result = await retryFailedViaApi(notif.jobId, token);
+      const type = (detail as any).type as string | undefined;
 
       const newNotif: UiNotification = {
         id:          `${result.job_id}-enqueued-${Date.now()}`,
         jobId:       result.job_id,
-        title:       `${jobTypeLabel(jobType)} — Retry na fila`,
-        description: `${result.total_items} item${result.total_items !== 1 ? "s" : ""} reenviado${result.total_items !== 1 ? "s" : ""}`,
+        title:       `${jobTypeLabel(type)} — Retry na fila`,
+        description: `${result.retry_items} item${result.retry_items !== 1 ? "s" : ""} reenviado${result.retry_items !== 1 ? "s" : ""}`,
         createdAt:   new Date().toISOString(),
         tone:        "info",
         progress:    0,
         status:      "pending",
         read:        false,
       };
-
       onRetryStarted?.(newNotif);
       setRetryDone(true);
       onClose();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro desconhecido ao tentar novamente.";
-      setRetryError(msg);
+      setRetryError(err instanceof Error ? err.message : "Erro ao tentar novamente");
     } finally {
       setRetrying(false);
+    }
+  };
+
+  // ─── Ocultar do SSE via DELETE /jobs/:id/sse ────────────────────────────────
+  const handleHide = async () => {
+    const token = tokenStorage.get();
+    if (!token) return;
+
+    setHiding(true);
+    try {
+      await hideJobFromSse(notif.jobId, token);
+    } catch {
+      // falha silenciosa — remove localmente de qualquer forma
+    } finally {
+      setHiding(false);
+      onHidden?.(notif.jobId);
+      onClose();
     }
   };
 
@@ -457,41 +347,19 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
 
   return (
     <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        background: "rgba(0,0,0,0.6)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-      }}
+      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
       onClick={onClose}
     >
       <div
-        style={{
-          background: "#0f172a",
-          border: "1px solid #1e293b",
-          borderRadius: 16,
-          width: "100%", maxWidth: 620, maxHeight: "85vh",
-          display: "flex", flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 25px 50px rgba(0,0,0,0.6)",
-        }}
-        onClick={(e) => e.stopPropagation()}
+        style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, width: "100%", maxWidth: 620, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 50px rgba(0,0,0,0.6)" }}
+        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{
-          padding: "16px 20px",
-          borderBottom: "1px solid #1e293b",
-          display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
-        }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{
-                width: 10, height: 10, borderRadius: "50%",
-                background: toneColor[notif.tone],
-                display: "inline-block", flexShrink: 0,
-              }} />
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#f1f5f9" }}>
-                {notif.title}
-              </h3>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: toneColor[notif.tone], display: "inline-block", flexShrink: 0 }} />
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#f1f5f9" }}>{notif.title}</h3>
             </div>
             <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
               Job: <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>{notif.jobId}</span>
@@ -500,10 +368,7 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
           </div>
           <button
             onClick={onClose}
-            style={{
-              background: "none", border: "none", color: "#64748b",
-              cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4, flexShrink: 0,
-            }}
+            style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4, flexShrink: 0 }}
             aria-label="Fechar"
           >
             ×
@@ -518,12 +383,9 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
             </div>
           )}
 
-          {error && !loading && (
+          {error && (
             <div style={{ padding: 24 }}>
-              <div style={{
-                background: "#1e293b", borderRadius: 8, padding: 16,
-                color: "#f87171", fontSize: 13,
-              }}>
+              <div style={{ background: "#1e293b", borderRadius: 8, padding: 16, color: "#f87171", fontSize: 13 }}>
                 ✗ {error}
               </div>
             </div>
@@ -531,16 +393,14 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
 
           {detail && !loading && (
             <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Summary cards */}
+              {/* Summary */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                 {[
                   { label: "Total",   val: detail.total_items, color: "#94a3b8" },
                   { label: "Sucesso", val: detail.done_items,  color: "#22c55e" },
                   { label: "Falhas",  val: detail.fail_items,  color: detail.fail_items > 0 ? "#ef4444" : "#64748b" },
-                ].map((s) => (
-                  <div key={s.label} style={{
-                    background: "#1e293b", borderRadius: 10, padding: "12px 16px", textAlign: "center",
-                  }}>
+                ].map(s => (
+                  <div key={s.label} style={{ background: "#1e293b", borderRadius: 10, padding: "12px 16px", textAlign: "center" }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}</div>
                     <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{s.label}</div>
                   </div>
@@ -548,12 +408,8 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
               </div>
 
               {detail.error && (
-                <div style={{
-                  background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 14,
-                }}>
-                  <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Erro do job
-                  </p>
+                <div style={{ background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 14 }}>
+                  <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em" }}>Erro do job</p>
                   <p style={{ margin: 0, fontSize: 13, color: "#fca5a5", lineHeight: 1.5 }}>{detail.error}</p>
                 </div>
               )}
@@ -563,44 +419,15 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                   <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#f87171" }}>
                     Falhas ({failures.length})
                   </p>
-                  <div style={{
-                    display: "flex", flexDirection: "column", gap: 6,
-                    maxHeight: 260, overflowY: "auto",
-                  }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
                     {failures.map((f, i) => {
                       const payloadAny = f.payload as any;
-                      const label =
-                        payloadAny?.codigo_estudante ||
-                        payloadAny?.codigo_turma ||
-                        payloadAny?.codigo ||
-                        payloadAny?.nome ||
-                        `Item #${(f.index ?? i) + 1}`;
-                      const motivo = f.erro || f.error || f.message || "Sem detalhe disponível";
+                      const label = payloadAny?.codigo_estudante || payloadAny?.codigo_turma || payloadAny?.codigo || payloadAny?.nome || `Item #${(f.index ?? i) + 1}`;
+                      const motivo = f.erro || f.error || f.message || "Sem detalhe";
                       return (
-                        <div key={i} style={{
-                          background: "#1e293b", borderRadius: 8, padding: "10px 14px",
-                          borderLeft: "3px solid #ef4444",
-                        }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#fca5a5", marginBottom: 3 }}>
-                            {label}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4 }}>
-                            {typeof motivo === "string" ? motivo : JSON.stringify(motivo)}
-                          </div>
-                          {/* Mostra o payload do item para diagnóstico */}
-                          {payloadAny && (
-                            <details style={{ marginTop: 6 }}>
-                              <summary style={{ fontSize: 11, color: "#475569", cursor: "pointer" }}>
-                                ver payload
-                              </summary>
-                              <pre style={{
-                                margin: "4px 0 0", fontSize: 10, color: "#64748b",
-                                whiteSpace: "pre-wrap", wordBreak: "break-all",
-                              }}>
-                                {JSON.stringify(payloadAny, null, 2)}
-                              </pre>
-                            </details>
-                          )}
+                        <div key={i} style={{ background: "#1e293b", borderRadius: 8, padding: "10px 14px", borderLeft: "3px solid #ef4444" }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#fca5a5", marginBottom: 3 }}>{label}</div>
+                          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4 }}>{motivo}</div>
                         </div>
                       );
                     })}
@@ -609,9 +436,7 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
               )}
 
               {successes.length > 0 && failures.length === 0 && (
-                <div style={{
-                  background: "#0a1e0f", border: "1px solid #14532d", borderRadius: 8, padding: 14,
-                }}>
+                <div style={{ background: "#0a1e0f", border: "1px solid #14532d", borderRadius: 8, padding: 14 }}>
                   <p style={{ margin: 0, fontSize: 13, color: "#86efac" }}>
                     ✓ Todos os {successes.length} item{successes.length !== 1 ? "s" : ""} processados com sucesso.
                   </p>
@@ -624,35 +449,9 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
                 </div>
               )}
 
-              {/* Retry error feedback */}
               {retryError && (
-                <div style={{
-                  background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 12,
-                }}>
-                  <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: "#ef4444", textTransform: "uppercase" }}>
-                    Erro ao tentar novamente
-                  </p>
-                  <p style={{ margin: 0, fontSize: 13, color: "#fca5a5" }}>{retryError}</p>
-                </div>
-              )}
-
-              {/* Info quando retry não está disponível */}
-              {!canRetry && !retryDone && failures.length > 0 && (
-                <div style={{
-                  background: "#1e293b", borderRadius: 8, padding: 12,
-                  border: "1px solid #334155",
-                }}>
-                  <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
-                    ℹ Retry não disponível: {
-                      !jobType
-                        ? "tipo de job desconhecido"
-                        : !getRetryEndpointConfig(jobType)
-                        ? `endpoint de retry não mapeado para "${jobType}"`
-                        : !failures.some((f) => f.payload != null)
-                        ? "itens com falha não possuem payload para reenvio"
-                        : "condição não atendida"
-                    }
-                  </p>
+                <div style={{ background: "#1e0a0a", border: "1px solid #450a0a", borderRadius: 8, padding: 12 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: "#fca5a5" }}>✗ {retryError}</p>
                 </div>
               )}
             </div>
@@ -660,57 +459,77 @@ function DetailModal({ notif, onClose, onRetryStarted }: DetailModalProps) {
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: "12px 20px",
-          borderTop: "1px solid #1e293b",
-          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
-        }}>
-          {canRetry && (
-            <button
-              onClick={handleRetry}
-              disabled={retrying}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: retrying ? "#1e293b" : "#7c2d12",
-                color: retrying ? "#475569" : "#fed7aa",
-                border: "1px solid", borderColor: retrying ? "#334155" : "#9a3412",
-                borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600,
-                cursor: retrying ? "not-allowed" : "pointer", transition: "all 0.15s",
-              }}
-              title={`Reenviar ${failures.length} item${failures.length !== 1 ? "s" : ""} com falha`}
-            >
-              {retrying ? (
-                <>
-                  <span style={{
-                    width: 12, height: 12,
-                    border: "2px solid #475569", borderTopColor: "#fed7aa",
-                    borderRadius: "50%", display: "inline-block",
-                    animation: "spin 0.7s linear infinite",
-                  }} />
-                  Reenviando…
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2.5"
-                    strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="1 4 1 10 7 10" />
-                    <path d="M3.51 15a9 9 0 1 0 .49-3.36" />
-                  </svg>
-                  Tentar novamente ({failures.length})
-                </>
-              )}
-            </button>
-          )}
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {/* Retry via POST /jobs/:id/retry-failed */}
+            {canRetry && detail && (
+              <button
+                onClick={handleRetry}
+                disabled={retrying}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: retrying ? "#1e293b" : "#7c2d12",
+                  color: retrying ? "#475569" : "#fed7aa",
+                  border: "1px solid", borderColor: retrying ? "#334155" : "#9a3412",
+                  borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600,
+                  cursor: retrying ? "not-allowed" : "pointer", transition: "all 0.15s",
+                }}
+                title={`Reenviar ${failures.length} item${failures.length !== 1 ? "s" : ""} com falha`}
+              >
+                {retrying ? (
+                  <>
+                    <span style={{ width: 12, height: 12, border: "2px solid #475569", borderTopColor: "#fed7aa", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
+                    Reenviando…
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1 4 1 10 7 10" />
+                      <path d="M3.51 15a9 9 0 1 0 .49-3.36" />
+                    </svg>
+                    Tentar novamente ({failures.length})
+                  </>
+                )}
+              </button>
+            )}
 
-          {!canRetry && <span />}
+            {/* Ocultar do SSE — apenas para jobs terminados */}
+            {isTerminal && (
+              <button
+                onClick={handleHide}
+                disabled={hiding}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "#1e293b",
+                  color: hiding ? "#475569" : "#64748b",
+                  border: "1px solid #334155",
+                  borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 500,
+                  cursor: hiding ? "not-allowed" : "pointer", transition: "all 0.15s",
+                }}
+                title="Ocultar este job do stream SSE e da lista"
+              >
+                {hiding ? (
+                  <>
+                    <span style={{ width: 12, height: 12, border: "2px solid #334155", borderTopColor: "#64748b", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
+                    Ocultando…
+                  </>
+                ) : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                    Ocultar
+                  </>
+                )}
+              </button>
+            )}
+          </div>
 
           <button
             onClick={onClose}
-            style={{
-              background: "#1e293b", color: "#e2e8f0", border: "none",
-              borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-            }}
+            style={{ background: "#1e293b", color: "#e2e8f0", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
           >
             Fechar
           </button>
@@ -753,7 +572,7 @@ function NotifItem({ notif, onClick }: { notif: UiNotification; onClick: () => v
         <span className="flex items-start justify-between gap-2 mb-0.5">
           <span className={`text-sm font-semibold leading-tight block ${
             notif.tone === "success" ? "text-green-700 dark:text-green-400" :
-            notif.tone === "error"   ? "text-red-700 dark:text-red-400"     :
+            notif.tone === "error"   ? "text-red-700 dark:text-red-400" :
             notif.tone === "warning" ? "text-orange-700 dark:text-orange-400" :
             "text-gray-800 dark:text-white/90"
           }`}>
@@ -776,7 +595,7 @@ function NotifItem({ notif, onClick }: { notif: UiNotification; onClick: () => v
           {!notif.read && (
             <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium ${
               notif.tone === "success" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-              notif.tone === "error"   ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"         :
+              notif.tone === "error"   ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
               notif.tone === "warning" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
               "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
             }`}>
@@ -786,8 +605,7 @@ function NotifItem({ notif, onClick }: { notif: UiNotification; onClick: () => v
           {isTerminal && (
             <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Ver detalhes
             </span>
@@ -809,12 +627,10 @@ export default function NotificationDropdown() {
   const controllerRef = useRef<AbortController | null>(null);
 
   const upsertNotif = useCallback((notif: UiNotification) => {
-    setNotifications((prev) => {
+    setNotifications(prev => {
       const isProgress = notif.status === "processing" || notif.status === "pending";
       if (isProgress) {
-        const existingIdx = prev.findIndex(
-          (n) => n.jobId === notif.jobId && (n.status === "processing" || n.status === "pending")
-        );
+        const existingIdx = prev.findIndex(n => n.jobId === notif.jobId && (n.status === "processing" || n.status === "pending"));
         if (existingIdx >= 0) {
           const next = [...prev];
           next[existingIdx] = notif;
@@ -822,7 +638,7 @@ export default function NotificationDropdown() {
         }
       }
       if (notif.status === "done" || notif.status === "failed") {
-        const existing = prev.findIndex((n) => n.jobId === notif.jobId);
+        const existing = prev.findIndex(n => n.jobId === notif.jobId);
         if (existing >= 0) {
           const next = [...prev];
           next[existing] = notif;
@@ -835,9 +651,9 @@ export default function NotificationDropdown() {
 
   const unreadCount = useMemo(() => {
     if (markedReadAt === 0) {
-      return notifications.filter((n) => !n.read).length;
+      return notifications.filter(n => !n.read).length;
     }
-    return notifications.filter((n) => {
+    return notifications.filter(n => {
       if (n.read) return false;
       const createdMs = new Date(n.createdAt).getTime();
       return createdMs > markedReadAt;
@@ -858,7 +674,7 @@ export default function NotificationDropdown() {
         const initial = (recent.jobs || []).slice(0, 10).map(normalizeJobSummaryToNotif);
         setNotifications(initial);
       } catch {
-        // Histórico indisponível — continua com stream
+        // histórico indisponível — continua com stream
       }
 
       controllerRef.current = new AbortController();
@@ -893,10 +709,10 @@ export default function NotificationDropdown() {
   );
 
   function handleOpen() {
-    setIsOpen((prev) => !prev);
+    setIsOpen(prev => !prev);
     if (!isOpen) {
       setMarkedReadAt(Date.now());
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     }
   }
 
@@ -910,6 +726,11 @@ export default function NotificationDropdown() {
   const handleRetryStarted = useCallback((newNotif: UiNotification) => {
     upsertNotif(newNotif);
   }, [upsertNotif]);
+
+  // Remove o job da lista local após ser ocultado no servidor
+  const handleHidden = useCallback((jobId: string) => {
+    setNotifications(prev => prev.filter(n => n.jobId !== jobId));
+  }, []);
 
   const sseIndicatorColor =
     sseStatus === "connected"  ? "bg-green-400" :
@@ -935,9 +756,7 @@ export default function NotificationDropdown() {
             </span>
           )}
           <svg className="fill-current" width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-            <path fillRule="evenodd" clipRule="evenodd"
-              d="M10.75 2.29248C10.75 1.87827 10.4143 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.6234 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z"
-              fill="currentColor" />
+            <path fillRule="evenodd" clipRule="evenodd" d="M10.75 2.29248C10.75 1.87827 10.4142 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.6234 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z" fill="currentColor" />
           </svg>
         </button>
 
@@ -972,10 +791,7 @@ export default function NotificationDropdown() {
                   Limpar
                 </button>
               )}
-              <button
-                onClick={closeDropdown}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors dropdown-toggle"
-              >
+              <button onClick={closeDropdown} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors dropdown-toggle">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -988,14 +804,13 @@ export default function NotificationDropdown() {
             {ordered.length === 0 ? (
               <li className="flex flex-col items-center justify-center py-12 px-6 text-center">
                 <svg className="w-10 h-10 text-gray-200 dark:text-gray-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 <p className="text-sm font-medium text-gray-400 dark:text-gray-500">Sem notificações</p>
                 <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">Operações em lote aparecerão aqui</p>
               </li>
             ) : (
-              ordered.map((n) => (
+              ordered.map(n => (
                 <li key={n.id}>
                   <NotifItem notif={n} onClick={() => handleNotifClick(n)} />
                 </li>
@@ -1022,6 +837,7 @@ export default function NotificationDropdown() {
           notif={selectedNotif}
           onClose={() => setSelectedNotif(null)}
           onRetryStarted={handleRetryStarted}
+          onHidden={handleHidden}
         />
       )}
     </>
