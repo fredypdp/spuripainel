@@ -1,8 +1,11 @@
 // src/components/faltas/FaltasAcademia.tsx
 "use client"
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
-import type { Falta, AtualizarFaltaRequest, RegistrarFaltasRequest } from "@/types/api";
+import type {
+  MeuPerfilResponse, Falta, AtualizarFaltaRequest, RegistrarFaltasRequest,
+  Turma, Curso, EstudanteDetalhado,
+} from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
@@ -12,29 +15,130 @@ import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { Dropdown } from "primereact/dropdown";
 import DatePicker from "@/components/form/date-picker";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { getCookie } from "@/lib/utils/cookies";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
-interface FaltaComNome extends Falta {
-  nome_estudante?: string;
+function getUserFromCookie(): MeuPerfilResponse | null {
+  if (typeof window === "undefined") return null;
+  try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
 }
 
-// ─── Modal: Excluir Falta ───────────────────────────────────────────────────
+function labelNivel(v: string): string {
+  const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return v.replace(/_/g, " ");
+  const [, n, tipo] = match;
+  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
+  return `${n}º Ano`;
+}
+
+function corQuantidade(q: number) {
+  if (q >= 5) return "text-red-600 dark:text-red-400";
+  if (q >= 3) return "text-amber-600 dark:text-amber-400";
+  return "text-gray-700 dark:text-gray-300";
+}
+
+function formatarData(data: string) {
+  try {
+    return new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+    });
+  } catch { return data; }
+}
+
+function turmaAtiva(t: Turma): boolean {
+  return t.status !== "inativo" && t.status !== "deletado";
+}
+
+const ANOS_FUNDAMENTAL = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental",
+  "5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
+];
+const ANOS_MEDIO    = ["1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio"];
+const ANOS_SUPERIOR = ["1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior"];
+const ORDEM_ANOS    = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO, ...ANOS_SUPERIOR];
+
+function sortAnos(anos: string[]): string[] {
+  return [...anos].sort((a, b) => {
+    const ia = ORDEM_ANOS.indexOf(a), ib = ORDEM_ANOS.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1; if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
+// ─── tipos de layer ───────────────────────────────────────────────────────────
+
+type LayerFund =
+  | { mode: "fund"; type: "anos" }
+  | { mode: "fund"; type: "turmas"; nivel: string }
+  | { mode: "fund"; type: "materias"; nivel: string; turma: Turma }
+  | { mode: "fund"; type: "faltas"; nivel: string; turma: Turma; materiaId: string; materiaNome: string };
+
+type LayerSup =
+  | { mode: "sup"; type: "cursos" }
+  | { mode: "sup"; type: "anos"; curso: Curso }
+  | { mode: "sup"; type: "turmas"; curso: Curso; nivel: string }
+  | { mode: "sup"; type: "materias"; curso: Curso; nivel: string; turma: Turma }
+  | { mode: "sup"; type: "faltas"; curso: Curso; nivel: string; turma: Turma; materiaId: string; materiaNome: string };
+
+type LayerMisto =
+  | { mode: "misto"; type: "choose" }
+  | LayerFund
+  | LayerSup;
+
+type Layer = LayerFund | LayerSup | LayerMisto;
+
+// ─── sub-componentes ─────────────────────────────────────────────────────────
+
+function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void }[] }) {
+  return (
+    <nav className="flex items-center gap-1 text-sm flex-wrap mb-5">
+      {crumbs.map((c, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />}
+          {i === crumbs.length - 1
+            ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
+            : <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">{c.label}</button>
+          }
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+function CardBtn({ icon, title, subtitle, badge, onClick }: {
+  icon: string; title: string; subtitle?: string; badge?: string; onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
+      <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+        <Icon icon={icon} width={22} className="text-brand-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
+        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
+      </div>
+      {badge && (
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0">
+          {badge}
+        </span>
+      )}
+      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0" />
+    </button>
+  );
+}
+
+// ─── Modal Excluir Falta ──────────────────────────────────────────────────────
 
 function ModalExcluirFalta({
-  falta,
+  faltaId,
   nomeEstudante,
   onConfirm,
   onClose,
 }: {
-  falta: Falta;
+  faltaId: string;
   nomeEstudante: string;
   onConfirm: (motivo: string) => Promise<void>;
   onClose: () => void;
@@ -46,12 +150,8 @@ function ModalExcluirFalta({
   async function handle() {
     if (!motivo.trim()) { setError("Motivo é obrigatório"); return; }
     setLoading(true);
-    try {
-      await onConfirm(motivo);
-    } catch (err: any) {
-      setError(err?.message ?? "Erro ao excluir falta");
-      setLoading(false);
-    }
+    try { await onConfirm(motivo); }
+    catch (err: any) { setError(err?.message ?? "Erro ao excluir falta"); setLoading(false); }
   }
 
   return (
@@ -59,25 +159,16 @@ function ModalExcluirFalta({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Excluir Falta</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Excluir falta de{" "}
-          <span className="font-medium text-gray-700 dark:text-gray-200">{nomeEstudante}</span>?
+          Excluir falta de <span className="font-medium text-gray-700 dark:text-gray-200">{nomeEstudante}</span>?
           O histórico é preservado no ledger para auditoria.
         </p>
-        {error && (
-          <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>
-        )}
+        {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
         <div className="mb-4">
           <Label>Motivo *</Label>
-          <Input
-            type="text"
-            placeholder="Informe o motivo da exclusão"
-            onChange={e => setMotivo(e.target.value)}
-          />
+          <Input type="text" placeholder="Informe o motivo" onChange={e => setMotivo(e.target.value)} />
         </div>
         <div className="flex gap-3 justify-end">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Cancelar</Button>
           <button
             onClick={handle}
             disabled={loading || !motivo.trim()}
@@ -91,17 +182,19 @@ function ModalExcluirFalta({
   );
 }
 
-// ─── Modal: Editar Falta ────────────────────────────────────────────────────
+// ─── Modal Editar Falta ───────────────────────────────────────────────────────
 
 function ModalEditarFalta({
   isOpen,
   falta,
+  nomeEstudante,
   materias,
   onConfirm,
   onClose,
 }: {
   isOpen: boolean;
-  falta: FaltaComNome;
+  falta: Falta;
+  nomeEstudante: string;
   materias: { id: string; nome: string }[];
   onConfirm: (data: AtualizarFaltaRequest) => Promise<void>;
   onClose: () => void;
@@ -141,42 +234,29 @@ function ModalEditarFalta({
         <div className="mb-2">
           <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">Editar Falta</h4>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Estudante:{" "}
-            <span className="font-medium text-gray-700 dark:text-gray-300">
-              {falta.nome_estudante || falta.codigo_estudante}
-            </span>
+            Estudante: <span className="font-medium text-gray-700 dark:text-gray-300">{nomeEstudante}</span>
           </p>
         </div>
-
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
             {error}
           </div>
         )}
-
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Quantidade de Aulas *</Label>
-            <Input
-              type="number"
-              min="1"
-              defaultValue={quantidade}
-              onChange={e => setQuantidade(e.target.value)}
-            />
+            <Label>Quantidade *</Label>
+            <Input type="number" min="1" defaultValue={quantidade} onChange={e => setQuantidade(e.target.value)} />
           </div>
           <DatePicker
             id={`edit-falta-data-${falta.id}`}
             label="Data da Falta"
-            placeholder="Selecione a data"
+            placeholder="Selecione"
             defaultDate={data}
-            onChange={(selectedDates) => {
-              if (selectedDates && selectedDates.length > 0) {
-                setData(selectedDates[0].toISOString().split("T")[0]);
-              }
+            onChange={(dates) => {
+              if (dates?.length) setData(dates[0].toISOString().split("T")[0]);
             }}
           />
         </div>
-
         <div>
           <Label>Matéria</Label>
           <Dropdown
@@ -184,106 +264,261 @@ function ModalEditarFalta({
             options={materias.map(m => ({ label: m.nome, value: m.id }))}
             onChange={e => setMateriaId(e.value)}
             filter
-            placeholder="Selecione a matéria"
+            placeholder="Selecione"
             className="w-full"
-            emptyMessage="Nenhuma matéria encontrada"
           />
         </div>
-
         <div>
           <Label>Observação</Label>
-          <Input
-            type="text"
-            placeholder="Ex: Falta justificada"
-            defaultValue={observacao}
-            onChange={e => setObservacao(e.target.value)}
-          />
+          <Input type="text" placeholder="Opcional" defaultValue={observacao} onChange={e => setObservacao(e.target.value)} />
         </div>
-
-        <div className="flex gap-3 mt-6 justify-end">
+        <div className="flex gap-3 justify-end mt-6">
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-          <Button disabled={loading}>
-            {loading ? "Salvando..." : "Salvar Alterações"}
-          </Button>
+          <Button disabled={loading}>{loading ? "Salvando..." : "Salvar Alterações"}</Button>
         </div>
       </form>
     </Modal>
   );
 }
 
-// ─── Componente principal ───────────────────────────────────────────────────
+// ─── Modal Registrar Falta ────────────────────────────────────────────────────
 
-const MAX_LIMIT = 1000;
-
-export default function FaltasAcademia() {
-  const { isOpen, openModal, closeModal } = useModal();
-  const [alert, setAlert] = useState<{
-    variant: "success" | "error" | "warning" | "info";
-    message: string;
-  } | null>(null);
-
-  // Register form state
+function ModalRegistrarFalta({
+  isOpen,
+  estudantes,
+  materias,
+  onConfirm,
+  onClose,
+}: {
+  isOpen: boolean;
+  estudantes: EstudanteDetalhado[];
+  materias: { id: string; nome: string }[];
+  onConfirm: (data: RegistrarFaltasRequest) => Promise<void>;
+  onClose: () => void;
+}) {
   const [codigoEstudante, setCodigoEstudante] = useState("");
   const [dataFalta, setDataFalta] = useState(new Date().toISOString().split("T")[0]);
   const [materiaId, setMateriaId] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Faltas list state
-  const [todasFaltas, setTodasFaltas] = useState<FaltaComNome[]>([]);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!codigoEstudante || !dataFalta || !materiaId || !quantidade) {
+      setError("Preencha todos os campos obrigatórios"); return;
+    }
+    const qtd = parseInt(quantidade);
+    if (isNaN(qtd) || qtd < 1) { setError("Quantidade deve ser no mínimo 1"); return; }
+    setLoading(true);
+    try {
+      await onConfirm({
+        codigo_estudante: codigoEstudante,
+        data: dataFalta,
+        materia_disciplinar_id: materiaId,
+        quantidade: qtd,
+        observacao: observacao || undefined,
+      });
+      // Reset
+      setCodigoEstudante(""); setMateriaId(""); setQuantidade(""); setObservacao("");
+      setDataFalta(new Date().toISOString().split("T")[0]);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message ?? "Erro ao registrar falta");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[560px] p-5 lg:p-8">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h4 className="text-lg font-medium text-gray-800 dark:text-white/90 mb-2">Registrar Nova Falta</h4>
+        {error && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+            {error}
+          </div>
+        )}
+        <div>
+          <Label>Estudante *</Label>
+          <Dropdown
+            value={codigoEstudante}
+            options={estudantes.map(e => ({ label: `${e.nome} (${e.codigo_estudante})`, value: e.codigo_estudante }))}
+            onChange={e => setCodigoEstudante(e.value)}
+            filter
+            placeholder="Selecione o estudante"
+            className="w-full"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Quantidade *</Label>
+            <Input type="number" min="1" placeholder="Ex: 2" defaultValue={quantidade} onChange={e => setQuantidade(e.target.value)} />
+          </div>
+          <DatePicker
+            id="registrar-falta-data"
+            label="Data *"
+            placeholder="Selecione"
+            defaultDate={dataFalta}
+            onChange={(dates) => {
+              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0]);
+            }}
+          />
+        </div>
+        <div>
+          <Label>Matéria *</Label>
+          <Dropdown
+            value={materiaId}
+            options={materias.map(m => ({ label: m.nome, value: m.id }))}
+            onChange={e => setMateriaId(e.value)}
+            filter
+            placeholder="Selecione a matéria"
+            className="w-full"
+          />
+        </div>
+        <div>
+          <Label>Observação</Label>
+          <Input type="text" placeholder="Opcional" onChange={e => setObservacao(e.target.value)} />
+        </div>
+        <div className="flex gap-3 justify-end mt-4">
+          <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
+          <Button disabled={loading}>{loading ? "Registrando..." : "Registrar Falta"}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─── Tabela de Faltas (folha) ─────────────────────────────────────────────────
+
+function TabelaFaltas({
+  faltas,
+  estudantesMap,
+  onEditar,
+  onDeletar,
+}: {
+  faltas: Falta[];
+  estudantesMap: Map<string, string>;
+  onEditar: (f: Falta) => void;
+  onDeletar: (f: Falta) => void;
+}) {
+  if (!faltas.length) return (
+    <div className="text-center py-10 text-gray-400">
+      <Icon icon="mdi:check-circle" width={40} className="mx-auto mb-2 text-green-400 opacity-80" />
+      <p className="text-sm">Nenhuma falta registada nesta matéria.</p>
+    </div>
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800/70">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th>
+            <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Qtd</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th>
+            <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Ações</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {faltas.map(f => (
+            <tr key={f.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+              <td className="px-4 py-3">
+                <p className="font-medium text-gray-900 dark:text-white capitalize">
+                  {estudantesMap.get(f.codigo_estudante) || f.codigo_estudante}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">{f.codigo_estudante}</p>
+              </td>
+              <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatarData(f.data)}</td>
+              <td className={`px-4 py-3 text-center text-lg font-bold ${corQuantidade(f.quantidade)}`}>
+                {f.quantidade}
+              </td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td>
+              <td className="px-4 py-3 text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <button
+                    onClick={() => onEditar(f)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
+                    title="Editar"
+                  >
+                    <Icon icon="mdi:pencil" width={16} />
+                  </button>
+                  <button
+                    onClick={() => onDeletar(f)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    title="Excluir"
+                  >
+                    <Icon icon="mdi:delete-outline" width={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── componente principal ─────────────────────────────────────────────────────
+
+const MAX_LIMIT = 1000;
+
+export default function FaltasAcademia() {
+  const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
+  const token = tokenStorage.get() ?? undefined;
+
+  const academiaType  = user?.academia?.type ?? "escola";
+  const nivelEscolar  = user?.academia?.nivel_escolar ?? "fundamental";
+  const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
+  const isSuperior    = academiaType === "superior";
+  const isMisto       = academiaType === "escola" && nivelEscolar === "misto";
+
+  const initLayer = (): Layer => {
+    if (isFundamental) return { mode: "fund", type: "anos" };
+    if (isMisto)       return { mode: "misto", type: "choose" };
+    return { mode: "sup", type: "cursos" };
+  };
+
+  const [layer, setLayer]           = useState<Layer>(initLayer);
+  const [alert, setAlert]           = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [todasFaltas, setTodasFaltas] = useState<Falta[]>([]);
   const [carregandoFaltas, setCarregandoFaltas] = useState(false);
-  const [faltasCarregadas, setFaltasCarregadas] = useState(false);
+  const [editingFalta, setEditingFalta] = useState<Falta | null>(null);
+  const [deletingFalta, setDeletingFalta] = useState<Falta | null>(null);
 
-  // Edit / Delete state
-  const [editingFalta, setEditingFalta] = useState<FaltaComNome | null>(null);
-  const [deletingFalta, setDeletingFalta] = useState<FaltaComNome | null>(null);
-
-  // Filters
-  const [filtroAno, setFiltroAno] = useState("todos");
-  const [filtroEstudante, setFiltroEstudante] = useState("");
-
-  // API hooks
+  const { data: dataTurmas,     loading: loadingTurmas,   execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
+  const { data: dataCursos,                               execute: carregarCursos     } = useApi(academiaService.listarCursos);
+  const { data: dataEstudantes,                           execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataMaterias,                             execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
+  const { data: dataAnoLetivo,                            execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
+  const { execute: carregarFaltasPage }                                                 = useApi(consultasService.listarFaltas);
   const { execute: executarRegistrar, loading: registrando } = useApi(academiaService.registrarFaltas);
-  const { execute: executarAtualizar } = useApi(academiaService.atualizarFalta);
-  const { execute: executarDeletar } = useApi(academiaService.deletarFalta);
-  const { data: dataMaterias, execute: carregarMaterias } = useApi(academiaService.listarMaterias);
-  const { data: dataEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { execute: carregarFaltasPage } = useApi(consultasService.listarFaltas);
+  const { execute: executarAtualizar }                       = useApi(academiaService.atualizarFalta);
+  const { execute: executarDeletar }                         = useApi(academiaService.deletarFalta);
 
-  const token = tokenStorage.get() || undefined;
+  const { isOpen, openModal, closeModal } = useModal();
 
   useEffect(() => {
-    carregarMaterias(token);
+    carregarTurmas(token);
+    carregarCursos(token);
     carregarEstudantes(undefined, token);
+    carregarMaterias(token);
+    buscarAnoLetivo(token);
+    carregarTodasFaltas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const showAlert = (
-    variant: "success" | "error" | "warning" | "info",
-    message: string
-  ) => {
-    setAlert({ variant, message });
-    setTimeout(() => setAlert(null), 5000);
-  };
-
-  // Mapa codigo_estudante -> nome para enriquecer as faltas
-  const estudantesMap = new Map<string, string>();
-  ((dataEstudantes as any)?.estudantes ?? []).forEach((e: any) => {
-    estudantesMap.set(e.codigo_estudante, e.nome);
-  });
-
-  // Carrega todas as faltas da academia via GET /faltas (escopo por academia no backend)
   const carregarTodasFaltas = useCallback(async () => {
     setCarregandoFaltas(true);
     try {
-      // Primeira página para saber o total
       const primeira = await carregarFaltasPage({ limit: MAX_LIMIT, offset: 0, token });
-      if (!primeira) { setCarregandoFaltas(false); return; }
-
+      if (!primeira) return;
       const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
       let acumulado: Falta[] = [...(primeira.faltas ?? [])];
-
-      // Buscar páginas restantes se necessário
       if (totalGeral > MAX_LIMIT) {
         const paginas = Math.ceil(totalGeral / MAX_LIMIT);
         const promises = [];
@@ -293,141 +528,351 @@ export default function FaltasAcademia() {
         const resultados = await Promise.all(promises);
         resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.faltas ?? [])]; });
       }
-
-      // Enriquecer com nome do estudante
-      const faltasComNome: FaltaComNome[] = acumulado.map(f => ({
-        ...f,
-        nome_estudante: estudantesMap.get(f.codigo_estudante),
-      }));
-
-      faltasComNome.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-      setTodasFaltas(faltasComNome);
-      setFaltasCarregadas(true);
-    } catch (err: any) {
-      showAlert("error", err?.message ?? "Erro ao carregar faltas");
+      setTodasFaltas(acumulado);
+    } catch {
+      // erro silencioso
     } finally {
       setCarregandoFaltas(false);
     }
-  }, [token, estudantesMap, carregarFaltasPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, carregarFaltasPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // POST /academia/faltas-aluno
-  const handleRegistrar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!codigoEstudante || !dataFalta || !materiaId || !quantidade) {
-      showAlert("error", "Preencha todos os campos obrigatórios");
-      return;
-    }
-    const qtd = parseInt(quantidade);
-    if (isNaN(qtd) || qtd < 1) {
-      showAlert("error", "Quantidade deve ser um número positivo");
-      return;
-    }
-    try {
-      const payload: RegistrarFaltasRequest = {
-        codigo_estudante: codigoEstudante,
-        data: dataFalta,
-        materia_disciplinar_id: materiaId,
-        quantidade: qtd,
-        observacao: observacao || undefined,
-      };
-      await executarRegistrar(payload, token);
-      showAlert("success", "Falta registrada com sucesso!");
-      setCodigoEstudante("");
-      setDataFalta(new Date().toISOString().split("T")[0]);
-      setMateriaId("");
-      setQuantidade("");
-      setObservacao("");
-      closeModal();
-      if (faltasCarregadas) await carregarTodasFaltas();
-    } catch (err: any) {
-      showAlert("error", err?.message || "Erro ao registrar falta");
-    }
-  };
+  const turmas: Turma[]              = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
+  const cursos: Curso[]              = useMemo(() => ((dataCursos as any)?.cursos ?? []).filter((c: any) => c.status === "ativo"), [dataCursos]);
+  const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const materias                     = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
+  const anoLectivo                   = (dataAnoLetivo as any)?.ano_letivo ?? "";
+  const turmasAtivas: Turma[]        = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
 
-  // PUT /academia/atualizar-falta
-  const handleAtualizar = async (data: AtualizarFaltaRequest) => {
+  const estudantesMap = useMemo(() => {
+    const m = new Map<string, string>();
+    estudantes.forEach(e => m.set(e.codigo_estudante, e.nome));
+    return m;
+  }, [estudantes]);
+
+  const materiasAtivas = useMemo(
+    () => materias.map((m: any) => ({ id: m.id, nome: m.nome })),
+    [materias]
+  );
+
+  function showAlert(variant: "success" | "error", message: string) {
+    setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
+  }
+
+  // Faltas filtradas por turma + materia + (ano letivo opcional)
+  function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
+    return todasFaltas.filter(f =>
+      turma.estudantes.includes(f.codigo_estudante) &&
+      f.materia_disciplinar_id === materiaId &&
+      (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+    ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  }
+
+  // Materias para uma turma (da lista + das faltas)
+  function getMateriasDaTurma(turma: Turma, nivel: string, curso?: Curso) {
+    const tipo = nivel.includes("fundamental") ? "fundamental" : nivel.includes("medio") ? "medio" : "superior";
+    const materiasConfig = (materias as any[]).filter((m: any) => {
+      if (m.type !== tipo) return false;
+      if (tipo === "fundamental") return m.anos_academicos?.includes(nivel);
+      if (tipo === "medio") return turma.curso_id ? m.curso_id === turma.curso_id : m.anos_academicos?.includes(nivel);
+      return curso ? m.curso_id === curso.id : false;
+    });
+
+    const faltasDaTurma = todasFaltas.filter(f =>
+      turma.estudantes.includes(f.codigo_estudante) &&
+      (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+    );
+
+    const merged = new Map<string, string>();
+    materiasConfig.forEach((m: any) => merged.set(m.id, m.nome));
+    faltasDaTurma.forEach(f => {
+      if (!merged.has(f.materia_disciplinar_id)) {
+        merged.set(f.materia_disciplinar_id, f.materia_nome ?? f.materia_disciplinar_id);
+      }
+    });
+
+    return Array.from(merged.entries()).map(([id, nome]) => {
+      const fs = faltasDaTurma.filter(f => f.materia_disciplinar_id === id);
+      const total = fs.reduce((acc, f) => acc + f.quantidade, 0);
+      return { id, nome, totalFaltas: total, registros: fs.length };
+    }).sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
+  // CRUD handlers
+  async function handleRegistrar(data: RegistrarFaltasRequest) {
+    await executarRegistrar(data, token);
+    showAlert("success", "Falta registrada com sucesso!");
+    await carregarTodasFaltas();
+  }
+
+  async function handleAtualizar(data: AtualizarFaltaRequest) {
     await executarAtualizar(data, token);
     showAlert("success", "Falta atualizada com sucesso!");
-    if (faltasCarregadas) await carregarTodasFaltas();
-  };
+    setEditingFalta(null);
+    await carregarTodasFaltas();
+  }
 
-  // DELETE /academia/falta/:id
-  const handleDeletar = async (faltaId: string, motivo: string) => {
+  async function handleDeletar(faltaId: string, motivo: string) {
     await executarDeletar(faltaId, motivo, token);
     showAlert("success", "Falta excluída com sucesso!");
     setDeletingFalta(null);
-    if (faltasCarregadas) await carregarTodasFaltas();
-  };
+    setTodasFaltas(prev => prev.filter(f => f.id !== faltaId));
+  }
 
-  const handleOpenModal = () => {
-    setCodigoEstudante("");
-    setDataFalta(new Date().toISOString().split("T")[0]);
-    setMateriaId("");
-    setQuantidade("");
-    setObservacao("");
-    openModal();
-  };
+  // Navegação
+  const turmasPorNivel  = (nivel: string) => turmasAtivas.filter(t => t.nivel === nivel);
+  const turmasPorCurso  = (cursoId: string, nivel: string) => turmasAtivas.filter(t => t.curso_id === cursoId && t.nivel === nivel);
+  const anosDosCurso    = (c: Curso) => sortAnos(c.anos_academicos ?? []);
+  const niveisFundamentais = useMemo(() => {
+    const anosAcademia = user?.academia?.anos_academicos ?? [];
+    const comTurmas = anosAcademia.filter(a => a.includes("fundamental") && turmasAtivas.some(t => t.nivel === a));
+    return comTurmas.length > 0 ? comTurmas : anosAcademia.filter(a => a.includes("fundamental"));
+  }, [turmasAtivas, user]);
 
-  // Derived
-  const materiasAtivas = (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [];
-  const estudantes = (dataEstudantes as any)?.estudantes ?? [];
-
-  const anosDisponiveis = Array.from(
-    new Set(todasFaltas.map(f => f.ano_lectivo))
-  ).sort().reverse();
-
-  const faltasFiltradas = todasFaltas.filter(f => {
-    const matchAno = filtroAno === "todos" || f.ano_lectivo === filtroAno;
-    const term = filtroEstudante.toLowerCase();
-    const matchEst =
-      !term ||
-      f.nome_estudante?.toLowerCase().includes(term) ||
-      f.codigo_estudante.toLowerCase().includes(term);
-    return matchAno && matchEst;
-  });
-
-  const totalFaltas = faltasFiltradas.reduce((acc, f) => acc + f.quantidade, 0);
-
-  const formatarData = (d: string) => {
-    try {
-      return new Date(d).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-    } catch {
-      return d;
+  // Breadcrumbs
+  function buildCrumbs(): { label: string; onClick?: () => void }[] {
+    const goInicio = () => setLayer({ mode: "misto", type: "choose" });
+    if (layer.mode === "fund") {
+      const goAnos = () => setLayer({ mode: "fund", type: "anos" });
+      const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
+      const base = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
+      if (layer.type === "anos")    return base;
+      if (layer.type === "turmas")  return [...base, { label: labelNivel(layer.nivel) }];
+      if (layer.type === "materias") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma }];
+      if (layer.type === "faltas")   return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: layer.turma }) }, { label: layer.materiaNome }];
     }
-  };
+    if (layer.mode === "sup") {
+      const goCursos = () => setLayer({ mode: "sup", type: "cursos" });
+      const cursosCrumb = { label: isMisto ? "Médio/Superior" : "Cursos", onClick: goCursos };
+      const base = isMisto ? [{ label: "Início", onClick: goInicio }, cursosCrumb] : [cursosCrumb];
+      const l = layer as any;
+      if (layer.type === "cursos")   return base;
+      if (layer.type === "anos")     return [...base, { label: l.curso.nome }];
+      if (layer.type === "turmas")   return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel) }];
+      if (layer.type === "materias") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: l.turma.codigo_turma }];
+      if (layer.type === "faltas")   return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: l.turma.codigo_turma, onClick: () => setLayer({ mode: "sup", type: "materias", curso: l.curso, nivel: l.nivel, turma: l.turma }) }, { label: l.materiaNome }];
+    }
+    if (layer.mode === "misto" && layer.type === "choose") return [{ label: "Início" }];
+    return [];
+  }
 
-  const corQuantidade = (q: number) => {
-    if (q >= 5) return "text-red-600 dark:text-red-400";
-    if (q >= 3) return "text-yellow-600 dark:text-yellow-400";
-    return "text-gray-700 dark:text-gray-300";
-  };
+  // ─── renderLayer ─────────────────────────────────────────────────────────────
+
+  function renderLayer() {
+    const crumbs = buildCrumbs();
+
+    if (loadingTurmas || carregandoFaltas) return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {carregandoFaltas ? "Carregando faltas..." : "Carregando turmas..."}
+        </p>
+      </div>
+    );
+
+    if (layer.mode === "misto" && layer.type === "choose") return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Faltas</h2>
+          <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="1º ao 9º Ano" onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:book-education" title="Médio / Superior" subtitle="Cursos" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
+        </div>
+      </div>
+    );
+
+    if (layer.mode === "fund" && layer.type === "anos") return (
+      <div className="space-y-4">
+        <Breadcrumb crumbs={crumbs} />
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
+        {niveisFundamentais.length === 0 ? (
+          <p className="text-gray-400 text-sm py-8 text-center">Nenhum nível fundamental configurado.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {niveisFundamentais.map(nivel => (
+              <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)} subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`} onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+
+    if (layer.mode === "fund" && layer.type === "turmas") {
+      const ts = turmasPorNivel(layer.nivel);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel)}</h2>
+          {ts.length === 0 ? (
+            <p className="text-gray-400 text-sm py-8 text-center">Nenhuma turma ativa.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {ts.map(t => (
+                <CardBtn key={t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={() => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: t })} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (layer.mode === "fund" && layer.type === "materias") {
+      const { nivel, turma } = layer;
+      const materiasContexto = getMateriasDaTurma(turma, nivel);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
+            <p className="text-sm text-gray-500 mt-1">{labelNivel(nivel)}</p>
+          </div>
+          {materiasContexto.length === 0 ? (
+            <p className="text-gray-400 text-sm py-8 text-center">Nenhuma matéria com faltas nesta turma.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {materiasContexto.map(m => (
+                <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.totalFaltas > 0 ? `${m.totalFaltas} falta(s) · ${m.registros} reg.` : "Sem faltas"} badge={m.totalFaltas === 0 ? "ok" : undefined} onClick={() => setLayer({ mode: "fund", type: "faltas", nivel, turma, materiaId: m.id, materiaNome: m.nome })} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (layer.mode === "fund" && layer.type === "faltas") {
+      const { nivel, turma, materiaId, materiaNome } = layer;
+      const faltas = faltasDaTurmaEMateria(turma, materiaId);
+      const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
+            <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {labelNivel(nivel)}</p>
+          </div>
+          {faltas.length > 0 && (
+            <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+              <div><p className="text-xs text-gray-500 uppercase tracking-wide">Total Faltas</p><p className={`text-2xl font-bold mt-0.5 ${corQuantidade(totalFaltas)}`}>{totalFaltas}</p></div>
+              <div><p className="text-xs text-gray-500 uppercase tracking-wide">Registros</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{faltas.length}</p></div>
+              <div><p className="text-xs text-gray-500 uppercase tracking-wide">Estudantes</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{new Set(faltas.map(f => f.codigo_estudante)).size}</p></div>
+            </div>
+          )}
+          <TabelaFaltas faltas={faltas} estudantesMap={estudantesMap} onEditar={setEditingFalta} onDeletar={setDeletingFalta} />
+        </div>
+      );
+    }
+
+    if (layer.mode === "sup" && layer.type === "cursos") return (
+      <div className="space-y-4">
+        <Breadcrumb crumbs={crumbs} />
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
+        {cursos.length === 0 ? (
+          <p className="text-gray-400 text-sm py-8 text-center">Nenhum curso ativo.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {cursos.map(c => (
+              <CardBtn key={c.id} icon="mdi:book-open-variant" title={c.nome} subtitle={`${c.anos_academicos?.length ?? 0} ano(s)`} onClick={() => setLayer({ mode: "sup", type: "anos", curso: c })} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+
+    if (layer.mode === "sup" && layer.type === "anos") {
+      const { curso } = layer as { mode: "sup"; type: "anos"; curso: Curso };
+      const anos = anosDosCurso(curso);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anos.map(nivel => (
+              <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)} subtitle={`${turmasPorCurso(curso.id, nivel).length} turma(s)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (layer.mode === "sup" && layer.type === "turmas") {
+      const { curso, nivel } = layer as { mode: "sup"; type: "turmas"; curso: Curso; nivel: string };
+      const ts = turmasPorCurso(curso.id, nivel);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
+          {ts.length === 0 ? (
+            <p className="text-gray-400 text-sm py-8 text-center">Nenhuma turma ativa para este nível.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {ts.map(t => (
+                <CardBtn key={t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={() => setLayer({ mode: "sup", type: "materias", curso, nivel, turma: t })} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (layer.mode === "sup" && layer.type === "materias") {
+      const { curso, nivel, turma } = layer as any;
+      const materiasContexto = getMateriasDaTurma(turma, nivel, curso);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
+            <p className="text-sm text-gray-500 mt-1">{labelNivel(nivel)} · {curso.nome}</p>
+          </div>
+          {materiasContexto.length === 0 ? (
+            <p className="text-gray-400 text-sm py-8 text-center">Nenhuma matéria com faltas nesta turma.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {materiasContexto.map(m => (
+                <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.totalFaltas > 0 ? `${m.totalFaltas} falta(s) · ${m.registros} reg.` : "Sem faltas"} badge={m.totalFaltas === 0 ? "ok" : undefined} onClick={() => setLayer({ mode: "sup", type: "faltas", curso, nivel, turma, materiaId: m.id, materiaNome: m.nome })} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (layer.mode === "sup" && layer.type === "faltas") {
+      const { curso, nivel, turma, materiaId, materiaNome } = layer as any;
+      const faltas = faltasDaTurmaEMateria(turma, materiaId);
+      const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
+      return (
+        <div className="space-y-4">
+          <Breadcrumb crumbs={crumbs} />
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
+            <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {curso.nome} · {labelNivel(nivel)}</p>
+          </div>
+          {faltas.length > 0 && (
+            <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+              <div><p className="text-xs text-gray-500 uppercase tracking-wide">Total Faltas</p><p className={`text-2xl font-bold mt-0.5 ${corQuantidade(totalFaltas)}`}>{totalFaltas}</p></div>
+              <div><p className="text-xs text-gray-500 uppercase tracking-wide">Registros</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{faltas.length}</p></div>
+              <div><p className="text-xs text-gray-500 uppercase tracking-wide">Estudantes</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{new Set(faltas.map(f => f.codigo_estudante)).size}</p></div>
+            </div>
+          )}
+          <TabelaFaltas faltas={faltas} estudantesMap={estudantesMap} onEditar={setEditingFalta} onDeletar={setDeletingFalta} />
+        </div>
+      );
+    }
+
+    return null;
+  }
 
   return (
     <div className="space-y-6">
-      {/* Alerts */}
-      {alert && (
-        <Alert
-          variant={alert.variant}
-          title={
-            alert.variant === "success"
-              ? "Sucesso"
-              : alert.variant === "error"
-              ? "Erro"
-              : "Aviso"
-          }
-          message={alert.message}
-        />
-      )}
+      {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />}
 
       {/* Delete modal */}
       {deletingFalta && (
         <ModalExcluirFalta
-          falta={deletingFalta}
-          nomeEstudante={deletingFalta.nome_estudante || deletingFalta.codigo_estudante}
+          faltaId={deletingFalta.id}
+          nomeEstudante={estudantesMap.get(deletingFalta.codigo_estudante) || deletingFalta.codigo_estudante}
           onConfirm={(motivo) => handleDeletar(deletingFalta.id, motivo)}
           onClose={() => setDeletingFalta(null)}
         />
@@ -438,342 +883,38 @@ export default function FaltasAcademia() {
         <ModalEditarFalta
           isOpen
           falta={editingFalta}
-          materias={materiasAtivas.map((m: any) => ({ id: m.id, nome: m.nome }))}
-          onConfirm={async (data) => {
-            await handleAtualizar(data);
-            setEditingFalta(null);
-          }}
+          nomeEstudante={estudantesMap.get(editingFalta.codigo_estudante) || editingFalta.codigo_estudante}
+          materias={materiasAtivas}
+          onConfirm={handleAtualizar}
           onClose={() => setEditingFalta(null)}
         />
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Gerenciar Faltas
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Registre e gerencie as faltas dos estudantes
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Faltas</h2>
+          {turmas.length > 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              {turmasAtivas.length} turma(s) ativa(s) · {estudantes.length} estudante(s) · {todasFaltas.length} registro(s)
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            variant="outline"
-            startIcon={<Icon icon="mdi:refresh" />}
-            onClick={carregarTodasFaltas}
-            disabled={carregandoFaltas}
-          >
-            {carregandoFaltas
-              ? "Carregando..."
-              : faltasCarregadas
-              ? "Atualizar Faltas"
-              : "Carregar Faltas"}
-          </Button>
-          <Button
-            size="sm"
-            startIcon={<Icon icon="mdi:plus" />}
-            onClick={handleOpenModal}
-          >
-            Registrar Falta
-          </Button>
-        </div>
+        <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={openModal}>
+          Nova Falta
+        </Button>
       </div>
 
-      {/* Info banner — shown only before first load */}
-      {!faltasCarregadas && !carregandoFaltas && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <Icon
-              icon="mdi:information"
-              width={20}
-              className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
-            />
-            <div>
-              <p className="font-medium text-blue-900 dark:text-blue-300 text-sm">
-                Clique em "Carregar Faltas" para visualizar os registros existentes
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderLayer()}
 
-      {/* Loading spinner */}
-      {carregandoFaltas && (
-        <div className="flex flex-col items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Carregando faltas...
-          </p>
-        </div>
-      )}
-
-      {/* Stats + Filters + Table */}
-      {faltasCarregadas && !carregandoFaltas && (
-        <>
-          {/* Stats cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0">
-                <Icon icon="mdi:format-list-bulleted" width={20} className="text-gray-600 dark:text-gray-300" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Registros</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {faltasFiltradas.length}
-                </p>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
-              <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg flex-shrink-0">
-                <Icon icon="mdi:calendar-remove" width={20} className="text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Total de Faltas</p>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {totalFaltas}
-                </p>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex-shrink-0">
-                <Icon icon="mdi:account-group" width={20} className="text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Estudantes Afetados</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {new Set(faltasFiltradas.map(f => f.codigo_estudante)).size}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Ano Lectivo
-                </label>
-                <select
-                  value={filtroAno}
-                  onChange={e => setFiltroAno(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
-                >
-                  <option value="todos">Todos os anos</option>
-                  {anosDisponiveis.map(ano => (
-                    <option key={ano} value={ano}>
-                      {ano.replace("_", "/")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Buscar Estudante
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nome ou código"
-                  value={filtroEstudante}
-                  onChange={e => setFiltroEstudante(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-            <div className="w-full overflow-x-auto">
-              <Table className="w-full">
-                <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                  <TableRow>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                      Estudante
-                    </TableCell>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                      Matéria
-                    </TableCell>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">
-                      Qtd
-                    </TableCell>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                      Data
-                    </TableCell>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                      Ano Lectivo
-                    </TableCell>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
-                      Observação
-                    </TableCell>
-                    <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">
-                      Ações
-                    </TableCell>
-                  </TableRow>
-                </TableHeader>
-
-                {faltasFiltradas.length === 0 ? (
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={7}>
-                        <div className="flex flex-col items-center justify-center py-12">
-                          <Icon
-                            icon={todasFaltas.length === 0 ? "mdi:check-circle" : "mdi:filter-outline"}
-                            width={48}
-                            className="text-gray-300 dark:text-gray-600 mb-3"
-                          />
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {todasFaltas.length === 0
-                              ? "Nenhuma falta registrada"
-                              : "Nenhuma falta com os filtros aplicados"}
-                          </p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                ) : (
-                  <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                    {faltasFiltradas.map(falta => (
-                      <TableRow
-                        key={falta.id}
-                        className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
-                      >
-                        <TableCell className="px-5 py-3 text-start">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                            {falta.nome_estudante || falta.codigo_estudante}
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-                            {falta.codigo_estudante}
-                          </p>
-                        </TableCell>
-                        <TableCell className="px-5 py-3 text-gray-700 dark:text-gray-300 text-start text-theme-sm capitalize">
-                          {falta.materia_nome || falta.materia_disciplinar_id}
-                        </TableCell>
-                        <TableCell
-                          className={`px-5 py-3 text-center font-bold text-theme-lg ${corQuantidade(falta.quantidade)}`}
-                        >
-                          {falta.quantidade}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                          {formatarData(falta.data)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                          {falta.ano_lectivo?.replace("_", "/")}
-                        </TableCell>
-                        <TableCell className="px-5 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                          {falta.observacao || "—"}
-                        </TableCell>
-                        <TableCell className="px-5 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => setEditingFalta(falta)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
-                              title="Editar"
-                            >
-                              <Icon icon="mdi:pencil" width={16} />
-                            </button>
-                            <button
-                              onClick={() => setDeletingFalta(falta)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                              title="Excluir"
-                            >
-                              <Icon icon="mdi:delete-outline" width={16} />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                )}
-              </Table>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Register Modal */}
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[640px] p-5 lg:p-10">
-        <form onSubmit={handleRegistrar}>
-          <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
-            Registrar Nova Falta
-          </h4>
-
-          <div className="space-y-4">
-            <div>
-              <Label>Estudante *</Label>
-              <Dropdown
-                value={codigoEstudante}
-                options={estudantes.map((e: any) => ({
-                  label: `${e.nome} (${e.codigo_estudante})`,
-                  value: e.codigo_estudante,
-                }))}
-                onChange={e => setCodigoEstudante(e.value)}
-                filter
-                placeholder="Selecione o estudante"
-                className="w-full"
-                emptyMessage="Nenhum estudante encontrado"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Quantidade de Aulas *</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  placeholder="Ex: 2"
-                  defaultValue={quantidade}
-                  onChange={e => setQuantidade(e.target.value)}
-                />
-              </div>
-              <DatePicker
-                id="registrar-falta-data"
-                label="Data da Falta *"
-                placeholder="Selecione a data"
-                defaultDate={dataFalta}
-                onChange={(selectedDates) => {
-                  if (selectedDates && selectedDates.length > 0) {
-                    setDataFalta(selectedDates[0].toISOString().split("T")[0]);
-                  }
-                }}
-              />
-            </div>
-
-            <div>
-              <Label>Matéria *</Label>
-              <Dropdown
-                value={materiaId}
-                options={materiasAtivas.map((m: any) => ({ label: m.nome, value: m.id }))}
-                onChange={e => setMateriaId(e.value)}
-                filter
-                placeholder="Selecione a matéria"
-                className="w-full"
-                emptyMessage="Nenhuma matéria ativa encontrada"
-              />
-            </div>
-
-            <div>
-              <Label>Observação</Label>
-              <Input
-                type="text"
-                placeholder="Ex: Falta justificada"
-                onChange={e => setObservacao(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-6 justify-end">
-            <Button variant="outline" onClick={closeModal} disabled={registrando}>
-              Cancelar
-            </Button>
-            <Button disabled={registrando}>
-              {registrando ? "Registrando..." : "Registrar Falta"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {/* Register modal */}
+      <ModalRegistrarFalta
+        isOpen={isOpen}
+        estudantes={estudantes}
+        materias={materiasAtivas}
+        onConfirm={handleRegistrar}
+        onClose={closeModal}
+      />
     </div>
   );
 }
