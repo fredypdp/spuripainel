@@ -1063,19 +1063,151 @@ export default function PageContent() {
     await refreshData();
   };
 
+  // ─── Buscar registros existentes de notas via GET /notas (paginado) ───────────
+  //
+  // Em vez de fazer N chamadas GET /notas-estudante/:codigo (uma por estudante),
+  // buscamos todos os registros da academia de uma só vez com GET /notas,
+  // paginando até obter todos (limit=1000 por página, máximo suportado pela API).
+  //
+  // Retorna um Set de chaves "codigoEstudante|anoLetivo|materiaId|periodo|tipo|categoria"
+  // usadas para dedup antes de montar o batch.
+  //
+  const fetchNotasExistentes = async (
+    anoLetivo: string,
+    logPrefix: string
+  ): Promise<Set<string>> => {
+    const notasExistentes = new Set<string>();
+    const LIMIT = 1000;
+    let offset = 0;
+    let totalGeral = 0;
+    let pagina = 1;
+
+    addLog(`  ${logPrefix} Buscando notas existentes via GET /notas (paginado)...`, "info");
+
+    while (true) {
+      if (cancelRef.current) break;
+
+      const { ok, data } = await callApi(
+        "GET",
+        `/notas?limit=${LIMIT}&offset=${offset}`,
+        undefined,
+        academia!.token
+      );
+
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao buscar notas";
+        addLog(`  ✗ ${logPrefix} Falha ao buscar notas (offset ${offset}): ${errMsg}`, "warn");
+        break;
+      }
+
+      const notas: any[] = (data as any)?.notas || [];
+      totalGeral = (data as any)?.total_geral ?? totalGeral;
+
+      // Indexa apenas notas do ano letivo atual desta academia
+      for (const n of notas) {
+        if (n.ano_lectivo === anoLetivo) {
+          // Chave global: inclui codigo_estudante para dedup por estudante
+          const key = `${n.codigo_estudante}|${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`;
+          notasExistentes.add(key);
+        }
+      }
+
+      addLog(
+        `  ${logPrefix} Página ${pagina}: ${notas.length} registros lidos` +
+        (totalGeral > 0 ? ` (${notasExistentes.size} do ano letivo ${anoLetivo} de ${totalGeral} total)` : ""),
+        "dim"
+      );
+
+      // Verifica se há mais páginas
+      if (notas.length < LIMIT) break;
+      offset += LIMIT;
+      pagina++;
+
+      // Pequena pausa entre páginas para não sobrecarregar
+      await sleep(200);
+    }
+
+    addLog(
+      `  ${logPrefix} Notas existentes indexadas: ${notasExistentes.size} registros do ano letivo ${anoLetivo}`,
+      "dim"
+    );
+
+    return notasExistentes;
+  };
+
+  // ─── Buscar registros existentes de faltas via GET /faltas (paginado) ─────────
+  //
+  // Mesma estratégia: uma chamada paginada a GET /faltas em vez de N chamadas
+  // GET /faltas-estudante/:codigo.
+  //
+  // Retorna um Set de chaves "codigoEstudante|materiaId|data"
+  //
+  const fetchFaltasExistentes = async (
+    anoLetivo: string,
+    logPrefix: string
+  ): Promise<Set<string>> => {
+    const faltasExistentes = new Set<string>();
+    const LIMIT = 1000;
+    let offset = 0;
+    let totalGeral = 0;
+    let pagina = 1;
+
+    addLog(`  ${logPrefix} Buscando faltas existentes via GET /faltas (paginado)...`, "info");
+
+    while (true) {
+      if (cancelRef.current) break;
+
+      const { ok, data } = await callApi(
+        "GET",
+        `/faltas?limit=${LIMIT}&offset=${offset}`,
+        undefined,
+        academia!.token
+      );
+
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao buscar faltas";
+        addLog(`  ✗ ${logPrefix} Falha ao buscar faltas (offset ${offset}): ${errMsg}`, "warn");
+        break;
+      }
+
+      const faltas: any[] = (data as any)?.faltas || [];
+      totalGeral = (data as any)?.total_geral ?? totalGeral;
+
+      // Indexa apenas faltas do ano letivo atual desta academia
+      for (const f of faltas) {
+        if (f.ano_lectivo === anoLetivo) {
+          // Chave: inclui codigo_estudante para dedup por estudante
+          const key = `${f.codigo_estudante}|${f.materia_disciplinar_id}|${f.data}`;
+          faltasExistentes.add(key);
+        }
+      }
+
+      addLog(
+        `  ${logPrefix} Página ${pagina}: ${faltas.length} registros lidos` +
+        (totalGeral > 0 ? ` (${faltasExistentes.size} do ano letivo ${anoLetivo} de ${totalGeral} total)` : ""),
+        "dim"
+      );
+
+      if (faltas.length < LIMIT) break;
+      offset += LIMIT;
+      pagina++;
+
+      await sleep(200);
+    }
+
+    addLog(
+      `  ${logPrefix} Faltas existentes indexadas: ${faltasExistentes.size} registros do ano letivo ${anoLetivo}`,
+      "dim"
+    );
+
+    return faltasExistentes;
+  };
+
   // ─── Gerar Notas ──────────────────────────────────────────────────────────────
   //
-  // CORREÇÃO DE IDEMPOTÊNCIA:
-  //
-  // Causa raiz: quando jobs anteriores ainda estão em processamento, a projeção
-  // pode estar desatualizada. O GET /notas-estudante/:codigo retorna dados que
-  // não incluem notas ainda não propagadas, levando o batch a submeter
-  // combinações já registadas no ledger.
-  //
-  // Solução: `batchDedup` — um Set com chave completa por estudante
-  // (codigo_estudante + anoLetivo + materiaID + periodo + tipo + categoria)
-  // que impede QUALQUER duplicata dentro do mesmo batch, independentemente
-  // do estado da projeção.
+  // MELHORIA: em vez de N chamadas GET /notas-estudante/:codigo (uma por estudante),
+  // usa GET /notas paginado para buscar todos os registros da academia de uma vez.
+  // Isso reduz as requisições de N para ceil(totalNotas / 1000).
   //
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
@@ -1092,8 +1224,6 @@ export default function PageContent() {
       return;
     }
 
-    // MateriaDTO.type usa "fundamental"|"medio"|"superior"
-    // NotaDTO.tipo usa "escolar"|"superior" — sistemas distintos
     const tiposMateriasCompativeis = academia.tipo === "superior"
       ? ["superior"]
       : ["fundamental", "medio"];
@@ -1103,16 +1233,21 @@ export default function PageContent() {
     const sample = estudantes.slice(0, total);
 
     addLog(`Gerando notas para ${sample.length} estudante(s) — tipo: ${tipoNota}, categorias: ${categoriasAtivas.join(", ")}`, "step");
-    addLog(`  Fase 1/2: verificando notas existentes no servidor (${sample.length} estudantes)...`, "info");
+
+    // ── Fase 1/2: busca notas existentes com UMA chamada paginada ────────────
+    const notasExistentes = await fetchNotasExistentes(academia.ano_letivo, "Fase 1/2:");
+
+    if (cancelRef.current) return;
+
+    // ── Fase 2/2: monta batch ────────────────────────────────────────────────
+    addLog(`  Fase 2/2: montando batch para ${sample.length} estudante(s)...`, "info");
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
-
     const batch: any[] = [];
 
-    // ── CHAVE DE DEDUP ────────────────────────────────────────────────────────
-    // Formato: "codigoEstudante|anoLetivo|materiaId|periodo|tipo|categoria"
-    // Impede duplicatas dentro do batch atual, mesmo que a projeção esteja
-    // desatualizada por jobs assíncronos em andamento.
+    // Dedup interno ao batch para cobrir possíveis duplicatas dentro do próprio lote
+    // (ex: se a mesma combinação aparecer para dois estudantes diferentes — não deve
+    // acontecer, mas protege contra bugs futuros)
     const batchDedup = new Set<string>();
 
     let totalSkippedServer = 0;
@@ -1130,37 +1265,7 @@ export default function PageContent() {
 
       const est = sample[i];
 
-      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
-        addLog(
-          `  🔍 Verificando notas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
-          "dim"
-        );
-      }
-
-      // Lê notas já registadas na projeção para este estudante
-      const { ok: rOk, data: notasData } = await callApi(
-        "GET",
-        `/notas-estudante/${est.codigo_estudante}`,
-        undefined,
-        academia.token
-      );
-
-      // Chave do servidor: anoLectivo|materiaID|periodo|tipo|categoria (por aggregate do estudante)
-      const notasExistentes = new Set<string>();
-      if (rOk) {
-        const notas: any[] = (notasData as any)?.notas || [];
-        for (const n of notas) {
-          if (n.ano_lectivo === academia.ano_letivo) {
-            notasExistentes.add(
-              `${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`
-            );
-          }
-        }
-      }
-
-      // Seleciona até 3 matérias compatíveis para este estudante
-      // Usa rotação baseada no índice para variar entre estudantes,
-      // garantindo distribuição uniforme sem aleatoriedade pura
+      // Seleciona até 3 matérias por estudante (rotação por índice para distribuição uniforme)
       const numMaterias = Math.min(3, materiasTipo.length);
       const startIdx = i % materiasTipo.length;
       const materiasSample: Materia[] = [];
@@ -1172,13 +1277,9 @@ export default function PageContent() {
         let periodos: string[];
 
         if (academia.tipo === "superior") {
-          // Matérias superiores ativas SEMPRE têm periodo definido (pré-requisito para ativar).
-          // Usamos mat.periodo diretamente. O fallback é apenas segurança.
           if (mat.periodo) {
             periodos = [mat.periodo];
           } else {
-            // Fallback: pega apenas o primeiro semestre do curso (evita múltiplos períodos
-            // que gerariam combinações inválidas se a matéria não suportar todos)
             const cursoMat = cursos.find(c => c.id === mat.curso_id);
             const cursoPeriodos = cursoMat?.periodos || [];
             periodos = cursoPeriodos.length > 0 ? [cursoPeriodos[0]] : ["1_semestre"];
@@ -1193,25 +1294,22 @@ export default function PageContent() {
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
-            // Chave do servidor (por aggregate do estudante)
-            const serverKey = `${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
+            // Chave global (inclui estudante) — usada tanto para checar no servidor quanto no batch
+            const key = `${est.codigo_estudante}|${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
 
-            // Chave do batch (global, inclui estudante)
-            const batchKey = `${est.codigo_estudante}|${serverKey}`;
-
-            // 1. Já existe no servidor (projeção atualizada)?
-            if (notasExistentes.has(serverKey)) {
+            // 1. Já existe no servidor?
+            if (notasExistentes.has(key)) {
               totalSkippedServer++;
               continue;
             }
 
-            // 2. Já foi adicionado a este batch (evita duplicatas por lag de projeção)?
-            if (batchDedup.has(batchKey)) {
+            // 2. Já está no batch?
+            if (batchDedup.has(key)) {
               totalSkippedBatch++;
               continue;
             }
 
-            batchDedup.add(batchKey);
+            batchDedup.add(key);
             batch.push({
               codigo_estudante: est.codigo_estudante,
               periodo: p,
@@ -1223,15 +1321,13 @@ export default function PageContent() {
           }
         }
       }
-
-      await sleep(30);
     }
 
     if (totalSkippedServer > 0) {
       addLog(`  ℹ ${totalSkippedServer} nota(s) já existiam no servidor — ignoradas`, "dim");
     }
     if (totalSkippedBatch > 0) {
-      addLog(`  ℹ ${totalSkippedBatch} nota(s) duplicadas no batch — ignoradas (lag de projeção)`, "dim");
+      addLog(`  ℹ ${totalSkippedBatch} nota(s) duplicadas no batch — ignoradas`, "dim");
     }
 
     if (batch.length === 0) {
@@ -1252,7 +1348,7 @@ export default function PageContent() {
     }
 
     addLog(
-      `  Fase 2/2: submetendo ${batch.length} nota(s) em ${chunks.length} job(s) de até ${CHUNK_SIZE} itens...`,
+      `  Submetendo ${batch.length} nota(s) em ${chunks.length} job(s) de até ${CHUNK_SIZE} itens...`,
       "info"
     );
 
@@ -1283,7 +1379,6 @@ export default function PageContent() {
         totalErr += result.err;
       }
 
-      // Pausa entre jobs para não sobrecarregar o servidor
       if (ci < chunks.length - 1 && !cancelRef.current) await sleep(500);
     }
 
@@ -1294,6 +1389,10 @@ export default function PageContent() {
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
+  //
+  // MELHORIA: em vez de N chamadas GET /faltas-estudante/:codigo (uma por estudante),
+  // usa GET /faltas paginado para buscar todos os registros da academia de uma vez.
+  //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn");
@@ -1305,7 +1404,6 @@ export default function PageContent() {
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
     addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
-    addLog(`  Fase 1/2: verificando faltas existentes (${sample.length} estudantes)...`, "info");
 
     const tiposMateriasCompativeisFalta = academia.tipo === "superior"
       ? ["superior"]
@@ -1317,49 +1415,40 @@ export default function PageContent() {
       return;
     }
 
+    // ── Fase 1/2: busca faltas existentes com UMA chamada paginada ────────────
+    const faltasExistentes = await fetchFaltasExistentes(academia.ano_letivo, "Fase 1/2:");
+
+    if (cancelRef.current) return;
+
+    // ── Fase 2/2: monta batch ────────────────────────────────────────────────
+    addLog(`  Fase 2/2: montando batch para ${sample.length} estudante(s)...`, "info");
+
     const batch: any[] = [];
-    // Dedup de faltas: "codigoEstudante|materiaId|data"
     const batchDedup = new Set<string>();
+    let totalSkippedServer = 0;
+    let totalSkippedBatch = 0;
 
     for (let i = 0; i < sample.length; i++) {
       if (cancelRef.current) break;
 
       const est = sample[i];
-
-      if (i === 0 || (i + 1) % 10 === 0 || i === sample.length - 1) {
-        addLog(
-          `  🔍 Verificando faltas existentes: ${i + 1}/${sample.length} (${Math.round(((i + 1) / sample.length) * 100)}%)`,
-          "dim"
-        );
-      }
-
-      const { ok: rOk, data: faltasData } = await callApi(
-        "GET",
-        `/faltas-estudante/${est.codigo_estudante}`,
-        undefined,
-        academia.token
-      );
-
-      const faltasExistentes = new Set<string>();
-      if (rOk) {
-        const faltas: any[] = (faltasData as any)?.faltas || [];
-        for (const f of faltas) {
-          if (f.ano_lectivo === academia.ano_letivo) {
-            faltasExistentes.add(`${f.materia_disciplinar_id}|${f.data}`);
-          }
-        }
-      }
-
       const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
+
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);
-        const serverKey = `${mat.id}|${dataFalta}`;
-        const batchKey = `${est.codigo_estudante}|${serverKey}`;
+        // Chave: inclui codigo_estudante para dedup por estudante
+        const key = `${est.codigo_estudante}|${mat.id}|${dataFalta}`;
 
-        if (faltasExistentes.has(serverKey)) continue;
-        if (batchDedup.has(batchKey)) continue;
+        if (faltasExistentes.has(key)) {
+          totalSkippedServer++;
+          continue;
+        }
+        if (batchDedup.has(key)) {
+          totalSkippedBatch++;
+          continue;
+        }
 
-        batchDedup.add(batchKey);
+        batchDedup.add(key);
         batch.push({
           codigo_estudante: est.codigo_estudante,
           data: dataFalta,
@@ -1367,8 +1456,13 @@ export default function PageContent() {
           quantidade: rnd(1, 3),
         });
       }
+    }
 
-      await sleep(30);
+    if (totalSkippedServer > 0) {
+      addLog(`  ℹ ${totalSkippedServer} falta(s) já existiam no servidor — ignoradas`, "dim");
+    }
+    if (totalSkippedBatch > 0) {
+      addLog(`  ℹ ${totalSkippedBatch} falta(s) duplicadas no batch — ignoradas`, "dim");
     }
 
     if (batch.length === 0) {
@@ -1383,7 +1477,7 @@ export default function PageContent() {
     }
 
     addLog(
-      `  Fase 2/2: submetendo ${batch.length} falta(s) em ${chunksFalta.length} job(s) de até ${CHUNK_SIZE_FALTA} itens...`,
+      `  Submetendo ${batch.length} falta(s) em ${chunksFalta.length} job(s) de até ${CHUNK_SIZE_FALTA} itens...`,
       "info"
     );
 
@@ -1764,10 +1858,12 @@ export default function PageContent() {
             </div>
 
             <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
-              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Dedup de notas</p>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Dedup de notas e faltas</p>
               <p style={{ margin: 0 }}>
-                Notas são verificadas no servidor <em>e</em> deduplicadas localmente antes de enviar, evitando
-                conflitos de idempotência mesmo quando jobs anteriores ainda estão em processamento.
+                Em vez de consultar estudante por estudante, notas e faltas existentes são buscadas
+                de uma só vez via <code style={{ color: "#60a5fa" }}>GET /notas</code> e{" "}
+                <code style={{ color: "#60a5fa" }}>GET /faltas</code> (paginado). Isso reduz
+                drasticamente o número de requisições e o tempo de verificação.
               </p>
             </div>
           </div>
@@ -2152,8 +2248,7 @@ export default function PageContent() {
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica notas existentes via <code style={{ color: "#64748b" }}>GET /notas-estudante/:codigo</code>
-                {" + "}dedup local por chave completa
+                Fase 1: busca notas existentes via <code style={{ color: "#64748b" }}>GET /notas</code> (paginado, 1 req por 1000 registros)
                 <br />
                 Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code>
               </p>
@@ -2176,8 +2271,7 @@ export default function PageContent() {
                 </Btn>
               </Row>
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: verifica faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas-estudante/:codigo</code>
-                {" + "}dedup local por chave completa
+                Fase 1: busca faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas</code> (paginado, 1 req por 1000 registros)
                 <br />
                 Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code>
               </p>
