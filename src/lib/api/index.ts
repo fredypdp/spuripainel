@@ -90,7 +90,6 @@ export type {
   AtualizarRoleAdminRequest,
   AlterarSenhaRequest,
   SolicitarRecuperacaoRequest,
-  RegistroCompleto,
   Provincia,
   ProvinciaNome,
   ProvinciaCodigo,

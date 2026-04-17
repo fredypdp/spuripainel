@@ -51,13 +51,6 @@ function sortAnos(anos: string[]): string[] {
   });
 }
 
-/**
- * Retorna label explícito do nível académico.
- * - Fundamental: "1º Ano do Ensino Fundamental"
- * - Médio:       "1º Ano do Ensino Médio"
- * - Superior:    "1º Ano" (formato original)
- * comSufixo: ignorado — já embutido no label
- */
 function labelNivel(v: string, _comSufixo = false): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
@@ -185,7 +178,6 @@ function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: 
     </div>
   );
 
-  // Agrupa por estudante
   const porEstudante = new Map<string, Nota[]>();
   notas.forEach(n => {
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
@@ -209,7 +201,6 @@ function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: 
             const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
             const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
 
-            // Fallback: sem categorias padrão
             if (!notaProf && !notaFinal) {
               return notasEst.map((nota, i) => (
                 <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
@@ -299,6 +290,7 @@ type ModalMode = "registrar" | "atualizar" | "deletar" | "categoria";
 function ModalGestao({
   isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLectivo,
   estudantes, materias, categorias, onRegistrar, onAtualizar, onDeletar, onCriarCategoria,
+  todasNotas,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -313,6 +305,7 @@ function ModalGestao({
   onAtualizar: (d: AtualizarNotaRequest) => Promise<void>;
   onDeletar: (notaId: string, motivo: string) => Promise<void>;
   onCriarCategoria: (d: CriarCategoriaNotaRequest) => Promise<void>;
+  todasNotas: Nota[];
 }) {
   const [mode, setMode] = useState<ModalMode>("registrar");
   const [error, setError] = useState<string | null>(null);
@@ -329,19 +322,22 @@ function ModalGestao({
   const [notaNova, setNotaNova]             = useState<number | "">("");
   const [obsAtualizar, setObsAtualizar]     = useState("");
   const [notasEstudante, setNotasEstudante] = useState<Nota[]>([]);
-  const { execute: carregarNotasEst }       = useApi(consultasService.notasEstudante);
 
   const [estDeletar, setEstDeletar]           = useState("");
   const [notaIdDeletar, setNotaIdDeletar]     = useState("");
   const [motivoDeletar, setMotivoDeletar]     = useState("");
   const [notasEstDeletar, setNotasEstDeletar] = useState<Nota[]>([]);
-  const { execute: carregarNotasEstDeletar }  = useApi(consultasService.notasEstudante);
 
   const [nomeCateg, setNomeCateg] = useState("");
   const [descCateg, setDescCateg] = useState("");
 
   const CATS_FIXAS = isSuperior ? CATEGORIAS_FIXAS_SUPERIOR : CATEGORIAS_ESCOLAR;
-  const todasCats  = [...CATS_FIXAS, ...categorias.map(c => ({ label: c.nome, value: c.nome }))];
+  const todasCats  = [...CATS_FIXAS, ...categorias.map((c: any) => ({ label: c.nome, value: c.nome }))];
+
+  // Filtra notas do estudante a partir do cache já carregado
+  function notasDoEstudante(codigo: string): Nota[] {
+    return todasNotas.filter(n => n.codigo_estudante === codigo);
+  }
 
   async function handleRegistrar(e: React.FormEvent) {
     e.preventDefault(); setError(null);
@@ -356,10 +352,9 @@ function ModalGestao({
     } catch (err: any) { setError(err?.message ?? "Erro ao registar nota."); }
   }
 
-  async function handleSelecionarEstAtualizar(codigo: string) {
+  function handleSelecionarEstAtualizar(codigo: string) {
     setEstAtualizar(codigo); setNotaId(""); setNotaNova(""); setObsAtualizar("");
-    const res = await carregarNotasEst(codigo);
-    setNotasEstudante((res as any)?.notas ?? []);
+    setNotasEstudante(notasDoEstudante(codigo));
   }
 
   async function handleAtualizar(e: React.FormEvent) {
@@ -371,10 +366,9 @@ function ModalGestao({
     catch (err: any) { setError(err?.message ?? "Erro ao atualizar nota."); }
   }
 
-  async function handleSelecionarEstDeletar(codigo: string) {
+  function handleSelecionarEstDeletar(codigo: string) {
     setEstDeletar(codigo); setNotaIdDeletar(""); setMotivoDeletar("");
-    const res = await carregarNotasEstDeletar(codigo);
-    setNotasEstDeletar((res as any)?.notas ?? []);
+    setNotasEstDeletar(notasDoEstudante(codigo));
   }
 
   async function handleDeletar(e: React.FormEvent) {
@@ -432,7 +426,7 @@ function ModalGestao({
             </div>
             <div>
               <Label>Matéria *</Label>
-              <Dropdown value={materiaId} options={materias.map(m => ({ label: m.nome, value: m.id }))} onChange={e => { const id = e.value; setMateriaId(id); if (isSuperior) { const mat = (materias as any[]).find((m: any) => m.id === id); setPeriodo(mat?.periodo ?? ""); } }} placeholder="Selecione" className="w-full" filter />
+              <Dropdown value={materiaId} options={materias.map((m: any) => ({ label: m.nome, value: m.id }))} onChange={e => { const id = e.value; setMateriaId(id); if (isSuperior) { const mat = (materias as any[]).find((m: any) => m.id === id); setPeriodo(mat?.periodo ?? ""); } }} placeholder="Selecione" className="w-full" filter />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -533,6 +527,8 @@ function ModalGestao({
 
 // ─── componente principal ─────────────────────────────────────────────────────
 
+const MAX_LIMIT = 1000;
+
 export default function NotasAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const token = tokenStorage.get() ?? undefined;
@@ -551,9 +547,10 @@ export default function NotasAcademia() {
     if (isMisto)       return { mode: "misto", type: "choose" };
     return { mode: "sup", type: "cursos" };
   };
-  const [layer, setLayer]           = useState<Layer>(initLayer);
-  const [loadingNotas, setLoadingNotas] = useState(false);
-  const [alert, setAlert]           = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [layer, setLayer]             = useState<Layer>(initLayer);
+  const [alert, setAlert]             = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [todasNotas, setTodasNotas]   = useState<Nota[]>([]);
+  const [carregandoNotas, setCarregandoNotas] = useState(false);
 
   const { data: dataTurmas,     loading: loadingTurmas,     execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
@@ -561,8 +558,8 @@ export default function NotasAcademia() {
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataCategorias,                              execute: carregarCategorias } = useApi(academiaService.listarCategoriasNota);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
+  const { execute: carregarNotasPage }                                                     = useApi(consultasService.listarNotas);
 
-  const [notasCache, setNotasCache] = useState<Record<string, Nota[]>>({});
   const { isOpen, openModal, closeModal } = useModal();
 
   useEffect(() => {
@@ -572,8 +569,36 @@ export default function NotasAcademia() {
     carregarMaterias(token);
     buscarAnoLetivo(token);
     if (isSuperior) carregarCategorias(token);
+    carregarTodasNotas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function carregarTodasNotas() {
+    setCarregandoNotas(true);
+    try {
+      const primeira = await carregarNotasPage({ limit: MAX_LIMIT, offset: 0, token });
+      if (!primeira) { setCarregandoNotas(false); return; }
+
+      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
+      let acumulado: Nota[] = [...(primeira.notas ?? [])];
+
+      if (totalGeral > MAX_LIMIT) {
+        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
+        const promises = [];
+        for (let p = 1; p < paginas; p++) {
+          promises.push(carregarNotasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
+        }
+        const resultados = await Promise.all(promises);
+        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.notas ?? [])]; });
+      }
+
+      setTodasNotas(acumulado);
+    } catch {
+      // erro silencioso — UI continua funcionando com dados parciais
+    } finally {
+      setCarregandoNotas(false);
+    }
+  }
 
   const turmas: Turma[]                  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
@@ -587,39 +612,26 @@ export default function NotasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  async function carregarNotasTurma(turma: Turma, nextLayer: Layer) {
-    const codigos = turma.estudantes.filter(c => !notasCache[c]);
-    if (codigos.length === 0) {
-      setLayer(nextLayer);
-      return;
-    }
-    setLoadingNotas(true);
-    setLayer(nextLayer);
-    await Promise.all(codigos.map(async codigo => {
-      try {
-        const res = await consultasService.notasEstudante(codigo, token);
-        setNotasCache(prev => ({ ...prev, [codigo]: (res as any)?.notas ?? [] }));
-      } catch {}
-    }));
-    setLoadingNotas(false);
-  }
-
+  // Notas filtradas pelo ano letivo ativo e por turma/período/matéria
   function notasDaTurmaEmPeriodo(turma: Turma, periodo: string): Nota[] {
-    return turma.estudantes.flatMap(codigo => {
-      const notas = notasCache[codigo] ?? [];
-      return notas.filter(n => n.periodo === periodo && (anoLectivo ? n.ano_lectivo === anoLectivo : true));
-    });
+    return turma.estudantes.flatMap(codigo =>
+      todasNotas.filter(n =>
+        n.codigo_estudante === codigo &&
+        n.periodo === periodo &&
+        (anoLectivo ? n.ano_lectivo === anoLectivo : true)
+      )
+    );
   }
 
   function notasDaTurmaEmPeriodoEMateria(turma: Turma, periodo: string, materiaId: string): Nota[] {
-    return turma.estudantes.flatMap(codigo => {
-      const notas = notasCache[codigo] ?? [];
-      return notas.filter(n =>
+    return turma.estudantes.flatMap(codigo =>
+      todasNotas.filter(n =>
+        n.codigo_estudante === codigo &&
         n.periodo === periodo &&
         n.materia_disciplinar_id === materiaId &&
         (anoLectivo ? n.ano_lectivo === anoLectivo : true)
-      );
-    });
+      )
+    );
   }
 
   function getMateriasPorContexto(
@@ -661,18 +673,16 @@ export default function NotasAcademia() {
   async function handleRegistrar(d: RegistrarNotasRequest) {
     await academiaService.registrarNota(d, token);
     showAlert("success", "Nota registada com sucesso.");
+    await carregarTodasNotas();
   }
   async function handleAtualizar(d: AtualizarNotaRequest) {
     await academiaService.atualizarNota(d, token);
     showAlert("success", "Nota atualizada com sucesso.");
+    await carregarTodasNotas();
   }
   async function handleDeletar(notaId: string, motivo: string) {
     await academiaService.deletarNota(notaId, motivo, token);
-    setNotasCache(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(codigo => { next[codigo] = (next[codigo] ?? []).filter(n => n.id !== notaId); });
-      return next;
-    });
+    setTodasNotas(prev => prev.filter(n => n.id !== notaId));
     showAlert("success", "Nota excluída com sucesso.");
   }
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
@@ -716,11 +726,13 @@ export default function NotasAcademia() {
   function renderLayer() {
     const crumbs = buildCrumbs();
 
-    if (loadingTurmas) return (
+    if (loadingTurmas || carregandoNotas) return (
       <div className="flex items-center justify-center py-16">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">Carregando turmas...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {carregandoNotas ? "Carregando notas..." : "Carregando turmas..."}
+          </p>
         </div>
       </div>
     );
@@ -777,7 +789,7 @@ export default function NotasAcademia() {
                 icon="mdi:clipboard-text-clock-outline"
                 title={p.label}
                 subtitle="Ver matérias"
-                onClick={() => carregarNotasTurma(turma, { mode: "fund", type: "materias", nivel, turma, periodo: p.value })}
+                onClick={() => setLayer({ mode: "fund", type: "materias", nivel, turma, periodo: p.value })}
               />
             ))}
           </div>
@@ -795,11 +807,9 @@ export default function NotasAcademia() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
             <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {labelNivel(nivel)}</p>
           </div>
-          {loadingNotas
-            ? <LoadingSpinner message="Carregando matérias e notas..." />
-            : materiasContexto.length === 0
-              ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma matéria encontrada para este período.</p></div>
-              : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{materiasContexto.map(m => (<CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas registadas"} badge={m.notasCount === 0 ? "vazia" : undefined} onClick={() => setLayer({ mode: "fund", type: "notas", nivel, turma, periodo, materiaId: m.id, materiaNome: m.nome })} />))}</div>
+          {materiasContexto.length === 0
+            ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma matéria encontrada para este período.</p></div>
+            : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{materiasContexto.map(m => (<CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas registadas"} badge={m.notasCount === 0 ? "vazia" : undefined} onClick={() => setLayer({ mode: "fund", type: "notas", nivel, turma, periodo, materiaId: m.id, materiaNome: m.nome })} />))}</div>
           }
         </div>
       );
@@ -875,7 +885,7 @@ export default function NotasAcademia() {
                 icon="mdi:clipboard-text-clock-outline"
                 title={p.label}
                 subtitle="Ver matérias"
-                onClick={() => carregarNotasTurma(turma, { mode: "sup", type: "materias", curso, nivel, turma, periodo: p.value })}
+                onClick={() => setLayer({ mode: "sup", type: "materias", curso, nivel, turma, periodo: p.value })}
               />
             ))}
           </div>
@@ -893,11 +903,9 @@ export default function NotasAcademia() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
             <p className="text-sm text-gray-500 mt-1">Turma {turma.codigo_turma} · {labelNivel(nivel)} · {curso.nome}</p>
           </div>
-          {loadingNotas
-            ? <LoadingSpinner message="Carregando matérias e notas..." />
-            : materiasContexto.length === 0
-              ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma matéria encontrada para este período.</p></div>
-              : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{materiasContexto.map(m => (<CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas registadas"} badge={m.notasCount === 0 ? "vazia" : undefined} onClick={() => setLayer({ mode: "sup", type: "notas", curso, nivel, turma, periodo, materiaId: m.id, materiaNome: m.nome })} />))}</div>
+          {materiasContexto.length === 0
+            ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma matéria encontrada para este período.</p></div>
+            : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{materiasContexto.map(m => (<CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas registadas"} badge={m.notasCount === 0 ? "vazia" : undefined} onClick={() => setLayer({ mode: "sup", type: "notas", curso, nivel, turma, periodo, materiaId: m.id, materiaNome: m.nome })} />))}</div>
           }
         </div>
       );
@@ -928,7 +936,7 @@ export default function NotasAcademia() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Notas</h2>
-          {turmas.length > 0 && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{turmasAtivas.length} turma(s) ativa(s) · {estudantes.length} estudante(s)</p>}
+          {turmas.length > 0 && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{turmasAtivas.length} turma(s) ativa(s) · {estudantes.length} estudante(s) · {todasNotas.length} nota(s)</p>}
         </div>
         <div className="flex gap-2">
           {isSuperior && <Button size="sm" variant="outline" startIcon={<Icon icon="mdi:tag-plus-outline" />} onClick={openModal}>Categoria</Button>}
@@ -936,7 +944,22 @@ export default function NotasAcademia() {
         </div>
       </div>
       {renderLayer()}
-      <ModalGestao isOpen={isOpen} onClose={closeModal} isSuperior={isSuperior} tipoNota={tipoNota} PERIODOS={PERIODOS} anoLectivo={anoLectivo} estudantes={estudantes} materias={materias} categorias={categorias} onRegistrar={handleRegistrar} onAtualizar={handleAtualizar} onDeletar={handleDeletar} onCriarCategoria={handleCriarCategoria} />
+      <ModalGestao
+        isOpen={isOpen}
+        onClose={closeModal}
+        isSuperior={isSuperior}
+        tipoNota={tipoNota}
+        PERIODOS={PERIODOS}
+        anoLectivo={anoLectivo}
+        estudantes={estudantes}
+        materias={materias}
+        categorias={categorias}
+        onRegistrar={handleRegistrar}
+        onAtualizar={handleAtualizar}
+        onDeletar={handleDeletar}
+        onCriarCategoria={handleCriarCategoria}
+        todasNotas={todasNotas}
+      />
     </div>
   );
 }

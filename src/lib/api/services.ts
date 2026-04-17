@@ -38,7 +38,6 @@ import type {
   AtualizarDadosAcademiaRequest,
   AtualizarDadosAdminRequest,
   AtualizarRoleAdminRequest,
-  RegistroCompleto,
   ListarAdminsResponse,
   DefinirAnoLetivoAcademiaRequest,
   AnoLetivoAcademiaResponse,
@@ -62,6 +61,8 @@ import type {
   AdminDetalhado,
   Curso,
   Materia,
+  Nota,
+  Falta,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -207,11 +208,41 @@ export const consultasService = {
     ),
 
   /**
+   * GET /notas
+   * Lista registros de notas com escopo por perfil.
+   * - admin: todas as notas do sistema
+   * - academia: apenas notas da própria academia
+   * Proteção: autenticado (admin ou academia)
+   */
+  listarNotas: (params?: { limit?: number; offset?: number; token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit)  qs.append('limit',  params.limit.toString());
+    if (params?.offset) qs.append('offset', params.offset.toString());
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<{ notas: Nota[]; total: number; total_geral: number; limit: number; offset: number }>(`/notas${query}`, {
+      token: params?.token || tokenStorage.get() || undefined,
+    });
+  },
+
+  /**
+   * GET /faltas
+   * Lista registros de faltas com escopo por perfil.
+   * - admin: todas as faltas do sistema
+   * - academia: apenas faltas da própria academia
+   * Proteção: autenticado (admin ou academia)
+   */
+  listarFaltas: (params?: { limit?: number; offset?: number; token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit)  qs.append('limit',  params.limit.toString());
+    if (params?.offset) qs.append('offset', params.offset.toString());
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<{ faltas: Falta[]; total: number; total_geral: number; limit: number; offset: number }>(`/faltas${query}`, {
+      token: params?.token || tokenStorage.get() || undefined,
+    });
+  },
+
+  /**
    * GET /turmas-estudante/:codigo
-   * Regras de autorização:
-   * - estudante: apenas as próprias turmas
-   * - academia: apenas estudantes da própria academia
-   * - admin: qualquer estudante
    */
   turmasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<TurmasEstudanteResponse>(
@@ -373,10 +404,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * DELETE /academia/categorias-nota/:nome
-   * Remove (inativa) uma categoria de nota adicional da academia.
-   */
   deletarCategoriaNota: (nome: string, token?: string) =>
     api.delete<{ message: string; categoria: string }>(
       `/academia/categorias-nota/${encodeURIComponent(nome)}`,
@@ -902,10 +929,6 @@ export const adminService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  /**
-   * Rebuild síncrono — mantido para compatibilidade.
-   * Para projeções com alto volume, prefira rebuildProjectionAsync.
-   */
   rebuildProjection: (name: string, token?: string) =>
     api.post<{ message: string; projection: string }>(
       `/dominis/projections/rebuild/${name}`,
@@ -913,13 +936,6 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * Rebuild assíncrono — retorna 202 com job_id, poll_url e sse_url.
-   * Acompanhe via GET /jobs/:id (polling) ou GET /jobs/stream (SSE).
-   *
-   * Desde a versão 1.0.9 do backend, a resposta inclui `sse_url`
-   * padronizado junto com `poll_url`.
-   */
   rebuildProjectionAsync: (name: string, token?: string) =>
     api.post<AsyncBatchResponse>(
       `/dominis/projections/rebuild/${name}/async`,
@@ -932,27 +948,6 @@ export const adminService = {
       `/dominis/consultar-admin/${encodeURIComponent(email)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
-
-  listarTodosRegistros: (params?: { limit?: number; offset?: number; tipo?: string; token?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.limit)  qs.append('limit',  params.limit.toString());
-    if (params?.offset) qs.append('offset', params.offset.toString());
-    if (params?.tipo)   qs.append('tipo',   params.tipo);
-    const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<RegistroCompleto>(`/dominis/registros${query}`, {
-      token: params?.token || tokenStorage.get() || undefined,
-    });
-  },
-
-  registrosPorEstudante: (codigoEstudante: string, params?: { limit?: number; offset?: number; token?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.limit)  qs.append('limit',  params.limit.toString());
-    if (params?.offset) qs.append('offset', params.offset.toString());
-    const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<RegistroCompleto>(`/dominis/registros/${codigoEstudante}${query}`, {
-      token: params?.token || tokenStorage.get() || undefined,
-    });
-  },
 
   atualizarRoleAdmin: (adminId: string, data: AtualizarRoleAdminRequest, token?: string) =>
     api.put<{ message: string; role_anterior: string; novo_role: string }>(
@@ -999,10 +994,6 @@ export const adminService = {
 
   // ── Async — admins ────────────────────────────────────────────────
 
-  /**
-   * PUT /dominis/admin/ativar/async
-   * Ativa múltiplos admins em lote.
-   */
   ativarAdminBatchAsync: (data: { id: string }[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/dominis/admin/ativar/async',
@@ -1010,10 +1001,6 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  /**
-   * PUT /dominis/admin/desativar/async
-   * Desativa múltiplos admins em lote.
-   */
   desativarAdminBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/dominis/admin/desativar/async',

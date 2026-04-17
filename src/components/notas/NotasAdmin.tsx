@@ -14,12 +14,6 @@ const PERIODOS_LABEL: Record<string, string> = {
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
 
-/**
- * Retorna label explícito do nível académico.
- * - Fundamental: "1º Ano do Ensino Fundamental"
- * - Médio:       "1º Ano do Ensino Médio"
- * - Superior:    "1º Ano" (formato original)
- */
 function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
@@ -132,7 +126,6 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
   );
 }
 
-// Tabela escolar: Nome, Código, Nota Professor, Nota Final
 function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudantesMap: Record<string, string> }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
@@ -197,7 +190,6 @@ function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudante
   );
 }
 
-// Tabela superior: Nome, Código, Categoria, Nota
 function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudantesMap: Record<string, string> }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
@@ -246,21 +238,55 @@ function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudant
 
 // ─── componente principal ─────────────────────────────────────────────────────
 
+// Limite máximo da API para buscar todos os registros de uma vez
+const MAX_LIMIT = 1000;
+
 export default function NotasAdmin() {
   const token = tokenStorage.get() ?? undefined;
   const [layer, setLayer] = useState<Layer>({ type: "provincias" });
-  const [loadingNotasAcad, setLoadingNotasAcad] = useState(false);
   const [loadingPeriodo, setLoadingPeriodo] = useState(false);
+  const [todasNotas, setTodasNotas] = useState<Nota[]>([]);
+  const [carregandoNotas, setCarregandoNotas] = useState(false);
 
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } = useApi(consultasService.listarAcademias);
+  const { execute: carregarNotasPage } = useApi(consultasService.listarNotas);
   const { data: estudantesData, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-
-  const [notasEstCache, setNotasEstCache] = useState<Record<string, Nota[]>>({});
 
   useEffect(() => {
     carregarAcademias(token);
     carregarEstudantes(undefined, token);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    carregarTodasNotas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function carregarTodasNotas() {
+    setCarregandoNotas(true);
+    try {
+      // Primeira página para saber o total
+      const primeira = await carregarNotasPage({ limit: MAX_LIMIT, offset: 0, token });
+      if (!primeira) { setCarregandoNotas(false); return; }
+
+      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
+      let acumulado: Nota[] = [...(primeira.notas ?? [])];
+
+      // Buscar páginas restantes se necessário
+      if (totalGeral > MAX_LIMIT) {
+        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
+        const promises = [];
+        for (let p = 1; p < paginas; p++) {
+          promises.push(carregarNotasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
+        }
+        const resultados = await Promise.all(promises);
+        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.notas ?? [])]; });
+      }
+
+      setTodasNotas(acumulado);
+    } catch {
+      // erro silencioso — dados parciais já exibidos
+    } finally {
+      setCarregandoNotas(false);
+    }
+  }
 
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
@@ -287,29 +313,8 @@ export default function NotasAdmin() {
     return academias.filter(a => a.provincia === prov);
   }
 
-  async function carregarNotasAcademia(academia: AcadInfo) {
-    const estudantesAcad = ((estudantesData as any)?.estudantes ?? []).filter(
-      (e: any) => e.codigo_academia === academia.codigo_academia
-    );
-    if (!estudantesAcad.length) return;
-    setLoadingNotasAcad(true);
-    await Promise.all(estudantesAcad.map(async (e: any) => {
-      if (notasEstCache[e.codigo_estudante]) return;
-      try {
-        const res = await consultasService.notasEstudante(e.codigo_estudante, token);
-        setNotasEstCache(prev => ({ ...prev, [e.codigo_estudante]: (res as any)?.notas ?? [] }));
-      } catch {}
-    }));
-    setLoadingNotasAcad(false);
-  }
-
   function notasDeAcademia(codigoAcademia: string): Nota[] {
-    const estudantesAcad = ((estudantesData as any)?.estudantes ?? []).filter(
-      (e: any) => e.codigo_academia === codigoAcademia
-    );
-    return estudantesAcad.flatMap(
-      (e: any) => (notasEstCache[e.codigo_estudante] ?? []).filter((n: Nota) => n.codigo_academia === codigoAcademia)
-    );
+    return todasNotas.filter(n => n.codigo_academia === codigoAcademia);
   }
 
   function anosDeAcademia(codigoAcademia: string): string[] {
@@ -342,7 +347,6 @@ export default function NotasAdmin() {
       .sort((a, b) => a.nome.localeCompare(b.nome));
   }
 
-  // Navega para matérias de um período com spinner
   const entrarNoPeriodo = (nextLayer: Layer) => {
     setLoadingPeriodo(true);
     setLayer(nextLayer);
@@ -361,9 +365,12 @@ export default function NotasAdmin() {
     return [provs];
   }
 
-  if (loadingAcads) return (
-    <div className="flex items-center justify-center py-20">
+  if (loadingAcads || carregandoNotas) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {carregandoNotas ? "Carregando notas do sistema..." : "Carregando academias..."}
+      </p>
     </div>
   );
 
@@ -371,13 +378,35 @@ export default function NotasAdmin() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas do Sistema</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma província</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {todasNotas.length > 0 ? `${todasNotas.length} notas carregadas · ` : ""}
+          Selecione uma província
+        </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-        {provincias.map(prov => (
-          <CardBtn key={prov} icon="mdi:map-marker-radius" title={nomeProvinciaDeCodigo(prov)} subtitle={`${academiasNaProvincia(prov).length} academia(s)`} onClick={() => setLayer({ type: "academias", provincia: prov })} />
-        ))}
-      </div>
+      {provincias.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Icon icon="mdi:map-marker-outline" width={48} className="mx-auto mb-3 opacity-40" />
+          <p className="text-sm">Nenhuma academia registrada.</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {provincias.map(prov => {
+            const acads = academiasNaProvincia(prov);
+            const notasProv = todasNotas.filter(n =>
+              acads.some(a => a.codigo_academia === n.codigo_academia)
+            );
+            return (
+              <CardBtn
+                key={prov}
+                icon="mdi:map-marker-radius"
+                title={nomeProvinciaDeCodigo(prov)}
+                subtitle={`${acads.length} academia(s) · ${notasProv.length} nota(s)`}
+                onClick={() => setLayer({ type: "academias", provincia: prov })}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
@@ -386,16 +415,23 @@ export default function NotasAdmin() {
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Província {nomeProvinciaDeCodigo(layer.provincia)}</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Província {nomeProvinciaDeCodigo(layer.provincia)}
+        </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {acads.map(a => (
-            <CardBtn key={a.codigo_academia} icon={a.type === "superior" ? "mdi:university" : "mdi:school"} title={a.nome} subtitle={`${a.codigo_academia} · ${a.status === "ativo" ? "Activa" : "Inactiva"}`} badge={a.type}
-              onClick={async () => {
-                await carregarNotasAcademia(a);
-                setLayer({ type: "academia_anos", academia: a });
-              }}
-            />
-          ))}
+          {acads.map(a => {
+            const notasAcad = notasDeAcademia(a.codigo_academia);
+            return (
+              <CardBtn
+                key={a.codigo_academia}
+                icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
+                title={a.nome}
+                subtitle={`${a.codigo_academia} · ${notasAcad.length} nota(s)`}
+                badge={a.type}
+                onClick={() => setLayer({ type: "academia_anos", academia: a })}
+              />
+            );
+          })}
         </div>
       </div>
     );
@@ -413,15 +449,13 @@ export default function NotasAdmin() {
           <p className="text-sm text-gray-500 mt-1">{academia.codigo_academia} · {academia.type === "superior" ? "Superior" : "Escola"}</p>
         </div>
         {notas.length > 0 && <StatsRow notas={notas} />}
-        {loadingNotasAcad
-          ? <div className="flex items-center justify-center py-10"><div className="flex flex-col items-center gap-3"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" /><p className="text-sm text-gray-500 dark:text-gray-400">Carregando notas...</p></div></div>
-          : anos.length === 0
-            ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma nota registada nesta academia.</p>
-            : <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano => {
-                const np = notas.filter(n => n.ano_lectivo === ano);
-                const med = calcMedia(np);
-                return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g, "/")}`} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_turmas", academia, ano })} />;
-              })}</div>
+        {anos.length === 0
+          ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma nota registada nesta academia.</p>
+          : <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano => {
+              const np = notas.filter(n => n.ano_lectivo === ano);
+              const med = calcMedia(np);
+              return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g, "/")}`} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_turmas", academia, ano })} />;
+            })}</div>
         }
       </div>
     );
@@ -431,8 +465,6 @@ export default function NotasAdmin() {
     const { academia, ano } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano);
     const periodos = periodosNoAno(academia.codigo_academia, ano);
-
-    // Notas agrupadas por ano_academico para mostrar labels corretos
     const anosAcademicos = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
 
     return (
@@ -485,8 +517,6 @@ export default function NotasAdmin() {
     const { academia, ano, periodo } = layer;
     const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, periodo);
     const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano && n.periodo === periodo);
-
-    // Labels dos níveis presentes neste período
     const niveisPresentes = Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[];
 
     return (
@@ -497,9 +527,7 @@ export default function NotasAdmin() {
           <p className="text-sm text-gray-500 mt-1">
             {academia.nome} · {ano.replace(/_/g, "/")}
             {niveisPresentes.length > 0 && (
-              <span className="ml-1">
-                · {niveisPresentes.map(labelNivel).join(", ")}
-              </span>
+              <span className="ml-1">· {niveisPresentes.map(labelNivel).join(", ")}</span>
             )}
           </p>
         </div>
@@ -531,8 +559,6 @@ export default function NotasAdmin() {
       n => n.ano_lectivo === ano && n.periodo === periodo && n.materia_disciplinar_id === materiaId
     );
     const isSup = isAcademiaSuperior(academia.codigo_academia);
-
-    // Label do nível predominante nestas notas
     const niveisNotas = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
 
     return (

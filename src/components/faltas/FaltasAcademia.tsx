@@ -213,6 +213,8 @@ function ModalEditarFalta({
 
 // ─── Componente principal ───────────────────────────────────────────────────
 
+const MAX_LIMIT = 1000;
+
 export default function FaltasAcademia() {
   const { isOpen, openModal, closeModal } = useModal();
   const [alert, setAlert] = useState<{
@@ -246,6 +248,7 @@ export default function FaltasAcademia() {
   const { execute: executarDeletar } = useApi(academiaService.deletarFalta);
   const { data: dataMaterias, execute: carregarMaterias } = useApi(academiaService.listarMaterias);
   const { data: dataEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
+  const { execute: carregarFaltasPage } = useApi(consultasService.listarFaltas);
 
   const token = tokenStorage.get() || undefined;
 
@@ -263,33 +266,49 @@ export default function FaltasAcademia() {
     setTimeout(() => setAlert(null), 5000);
   };
 
-  // Load all faltas by iterating over all students
-  // Uses GET /faltas-estudante/:codigo (autenticado + academia = apenas próprios)
+  // Mapa codigo_estudante -> nome para enriquecer as faltas
+  const estudantesMap = new Map<string, string>();
+  ((dataEstudantes as any)?.estudantes ?? []).forEach((e: any) => {
+    estudantesMap.set(e.codigo_estudante, e.nome);
+  });
+
+  // Carrega todas as faltas da academia via GET /faltas (escopo por academia no backend)
   const carregarTodasFaltas = useCallback(async () => {
-    const estudantes = dataEstudantes?.estudantes ?? [];
-    if (estudantes.length === 0) {
-      showAlert("warning", "Nenhum estudante encontrado");
-      return;
-    }
     setCarregandoFaltas(true);
-    const all: FaltaComNome[] = [];
+    try {
+      // Primeira página para saber o total
+      const primeira = await carregarFaltasPage({ limit: MAX_LIMIT, offset: 0, token });
+      if (!primeira) { setCarregandoFaltas(false); return; }
 
-    await Promise.all(
-      estudantes.map(async (est) => {
-        try {
-          const res = await consultasService.faltasEstudante(est.codigo_estudante, token);
-          res.faltas.forEach(f => all.push({ ...f, nome_estudante: est.nome }));
-        } catch {
-          // ignore per-student errors silently
+      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
+      let acumulado: Falta[] = [...(primeira.faltas ?? [])];
+
+      // Buscar páginas restantes se necessário
+      if (totalGeral > MAX_LIMIT) {
+        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
+        const promises = [];
+        for (let p = 1; p < paginas; p++) {
+          promises.push(carregarFaltasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
         }
-      })
-    );
+        const resultados = await Promise.all(promises);
+        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.faltas ?? [])]; });
+      }
 
-    all.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-    setTodasFaltas(all);
-    setFaltasCarregadas(true);
-    setCarregandoFaltas(false);
-  }, [dataEstudantes, token]);
+      // Enriquecer com nome do estudante
+      const faltasComNome: FaltaComNome[] = acumulado.map(f => ({
+        ...f,
+        nome_estudante: estudantesMap.get(f.codigo_estudante),
+      }));
+
+      faltasComNome.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      setTodasFaltas(faltasComNome);
+      setFaltasCarregadas(true);
+    } catch (err: any) {
+      showAlert("error", err?.message ?? "Erro ao carregar faltas");
+    } finally {
+      setCarregandoFaltas(false);
+    }
+  }, [token, estudantesMap, carregarFaltasPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // POST /academia/faltas-aluno
   const handleRegistrar = async (e: React.FormEvent) => {
@@ -332,7 +351,7 @@ export default function FaltasAcademia() {
     if (faltasCarregadas) await carregarTodasFaltas();
   };
 
-  // DELETE /academia/falta/:id  (body: { motivo })
+  // DELETE /academia/falta/:id
   const handleDeletar = async (faltaId: string, motivo: string) => {
     await executarDeletar(faltaId, motivo, token);
     showAlert("success", "Falta excluída com sucesso!");
@@ -350,8 +369,8 @@ export default function FaltasAcademia() {
   };
 
   // Derived
-  const materiasAtivas = dataMaterias?.materias.filter(m => m.status === "ativo") ?? [];
-  const estudantes = dataEstudantes?.estudantes ?? [];
+  const materiasAtivas = (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [];
+  const estudantes = (dataEstudantes as any)?.estudantes ?? [];
 
   const anosDisponiveis = Array.from(
     new Set(todasFaltas.map(f => f.ano_lectivo))
@@ -419,7 +438,7 @@ export default function FaltasAcademia() {
         <ModalEditarFalta
           isOpen
           falta={editingFalta}
-          materias={materiasAtivas.map(m => ({ id: m.id, nome: m.nome }))}
+          materias={materiasAtivas.map((m: any) => ({ id: m.id, nome: m.nome }))}
           onConfirm={async (data) => {
             await handleAtualizar(data);
             setEditingFalta(null);
@@ -444,7 +463,7 @@ export default function FaltasAcademia() {
             variant="outline"
             startIcon={<Icon icon="mdi:refresh" />}
             onClick={carregarTodasFaltas}
-            disabled={carregandoFaltas || estudantes.length === 0}
+            disabled={carregandoFaltas}
           >
             {carregandoFaltas
               ? "Carregando..."
@@ -475,10 +494,6 @@ export default function FaltasAcademia() {
               <p className="font-medium text-blue-900 dark:text-blue-300 text-sm">
                 Clique em "Carregar Faltas" para visualizar os registros existentes
               </p>
-              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
-                As faltas são carregadas por estudante. Com muitos estudantes pode
-                demorar alguns segundos.
-              </p>
             </div>
           </div>
         </div>
@@ -489,7 +504,7 @@ export default function FaltasAcademia() {
         <div className="flex flex-col items-center justify-center py-12">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500 mb-4" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Carregando faltas de {estudantes.length} estudante(s)…
+            Carregando faltas...
           </p>
         </div>
       )}
@@ -690,7 +705,7 @@ export default function FaltasAcademia() {
               <Label>Estudante *</Label>
               <Dropdown
                 value={codigoEstudante}
-                options={estudantes.map(e => ({
+                options={estudantes.map((e: any) => ({
                   label: `${e.nome} (${e.codigo_estudante})`,
                   value: e.codigo_estudante,
                 }))}
@@ -730,7 +745,7 @@ export default function FaltasAcademia() {
               <Label>Matéria *</Label>
               <Dropdown
                 value={materiaId}
-                options={materiasAtivas.map(m => ({ label: m.nome, value: m.id }))}
+                options={materiasAtivas.map((m: any) => ({ label: m.nome, value: m.id }))}
                 onChange={e => setMateriaId(e.value)}
                 filter
                 placeholder="Selecione a matéria"
