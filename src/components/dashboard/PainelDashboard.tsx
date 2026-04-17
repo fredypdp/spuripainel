@@ -14,7 +14,6 @@ import { useUserCookie } from "@/hooks/useUserCookie";
 import Icon from "@/components/ui/Icon";
 import type {
   MeuPerfilResponse,
-  RegistroCompleto,
   NotasEstudanteResponse,
   FaltasEstudanteResponse,
 } from "@/types/api";
@@ -52,7 +51,7 @@ interface StatCardProps {
   label: string;
   value: string | number | undefined | null;
   sub?: string;
-  color: string; // tailwind bg class for icon bg
+  color: string;
   iconColor: string;
   loading?: boolean;
   href?: string;
@@ -236,19 +235,23 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
   const token = tokenStorage.get() ?? undefined;
   const admin = user.admin!;
 
-  const { data: registros, loading: loadingRegistros, execute: fetchRegistros } =
-    useApi(adminService.listarTodosRegistros);
-
   const { data: dataAcademias, loading: loadingAcademias, execute: fetchAcademias } =
     useApi(consultasService.listarAcademias);
 
   const { data: dataEstudantes, loading: loadingEstudantes, execute: fetchEstudantes } =
     useApi(consultasService.listarEstudantes);
 
+  const { data: dataNotas, loading: loadingNotas, execute: fetchNotas } =
+    useApi(consultasService.listarNotas);
+
+  const { data: dataFaltas, loading: loadingFaltas, execute: fetchFaltas } =
+    useApi(consultasService.listarFaltas);
+
   const load = useCallback(() => {
-    fetchRegistros({ token, tipo: "estatisticas" });
-    fetchAcademias(token);
-    fetchEstudantes(undefined, token);
+    fetchAcademias({ token });
+    fetchEstudantes(token);
+    fetchNotas({ token, limit: 1 });
+    fetchFaltas({ token, limit: 1 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -256,12 +259,14 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
     load();
   }, [load]);
 
-  const stats = (registros as RegistroCompleto)?.estatisticas;
-  const totalAcademias = (dataAcademias as any)?.total ?? stats?.total_academias;
+  const totalAcademias = (dataAcademias as any)?.total ?? 0;
   const academias: any[] = (dataAcademias as any)?.academias ?? [];
-  const inativas = academias.filter((a) => a.status === "inativo").length;
+  const inativas = academias.filter((a: any) => a.status === "inativo").length;
+  const totalEstudantes = (dataEstudantes as any)?.total ?? 0;
+  const totalNotas = (dataNotas as any)?.total_geral ?? (dataNotas as any)?.total ?? null;
+  const totalFaltas = (dataFaltas as any)?.total_geral ?? (dataFaltas as any)?.total ?? null;
 
-  const loading = loadingRegistros || loadingAcademias || loadingEstudantes;
+  const loading = loadingAcademias || loadingEstudantes;
 
   return (
     <div className="space-y-6">
@@ -289,33 +294,33 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
             sub={inativas > 0 ? `${inativas} inativas` : "Todas ativas"}
             color="bg-blue-50 dark:bg-blue-500/10"
             iconColor="text-blue-500"
-            loading={loading}
+            loading={loadingAcademias}
             href="/academias"
           />
           <StatCard
             icon="mdi:account-school"
             label="Estudantes"
-            value={(dataEstudantes as any)?.total ?? stats?.total_estudantes}
+            value={totalEstudantes}
             color="bg-violet-50 dark:bg-violet-500/10"
             iconColor="text-violet-500"
-            loading={loading}
+            loading={loadingEstudantes}
             href="/estudantes"
           />
           <StatCard
             icon="mdi:file-document-edit-outline"
             label="Notas registadas"
-            value={stats?.total_notas}
+            value={totalNotas}
             color="bg-emerald-50 dark:bg-emerald-500/10"
             iconColor="text-emerald-500"
-            loading={loadingRegistros}
+            loading={loadingNotas}
           />
           <StatCard
             icon="mdi:calendar-remove-outline"
             label="Faltas registadas"
-            value={stats?.total_faltas}
+            value={totalFaltas}
             color="bg-orange-50 dark:bg-orange-500/10"
             iconColor="text-orange-500"
-            loading={loadingRegistros}
+            loading={loadingFaltas}
           />
         </div>
       </Section>
@@ -404,7 +409,7 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
     useApi(academiaService.getAnoLetivo);
 
   const load = useCallback(() => {
-    fetchEst(undefined, token);
+    fetchEst(token);
     fetchTurmas(token);
     fetchCursos(token);
     fetchAnoLetivo(token);
@@ -415,23 +420,21 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
     load();
   }, [load]);
 
-  const estudantes: any[] = (dataEstudantes as any)?.estudantes ?? [];
   const totalEst = (dataEstudantes as any)?.total ?? 0;
   const turmas: any[] = (dataTurmas as any)?.turmas ?? [];
-  const turmasAtivas = turmas.filter((t) => t.status === "ativo").length;
+  const turmasAtivas = turmas.filter((t: any) => t.status === "ativo").length;
   const cursos: any[] = (dataCursos as any)?.cursos ?? [];
-  const cursosAtivos = cursos.filter((c) => c.status === "ativo").length;
+  const cursosAtivos = cursos.filter((c: any) => c.status === "ativo").length;
   const anoLetivo = (dataAnoLetivo as any)?.ano_letivo ?? null;
 
-  // Totais de notas e faltas derivados da lista de estudantes
   const totalNotasAcad = useMemo(() => {
     const list: any[] = (dataEstudantes as any)?.estudantes ?? [];
-    return list.reduce((acc, e) => acc + (e.total_notas ?? 0), 0);
+    return list.reduce((acc: number, e: any) => acc + (e.total_notas ?? 0), 0);
   }, [dataEstudantes]);
 
   const totalFaltasAcad = useMemo(() => {
     const list: any[] = (dataEstudantes as any)?.estudantes ?? [];
-    return list.reduce((acc, e) => acc + (e.total_faltas ?? 0), 0);
+    return list.reduce((acc: number, e: any) => acc + (e.total_faltas ?? 0), 0);
   }, [dataEstudantes]);
 
   const loading = loadingEst || loadingTurmas || loadingCursos;
@@ -524,7 +527,6 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
             loading={loadingEst}
             href="/estudantes"
           />
-
           <StatCard
             icon="mdi:google-classroom"
             label="Turmas activas"
@@ -630,11 +632,13 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
     useApi(estudanteService.minhasAvaliacoes);
 
   const load = useCallback(() => {
-    fetchNotas(token);
-    fetchFaltas(token);
+    if (estudante.codigo_estudante) {
+      fetchNotas(estudante.codigo_estudante, token);
+      fetchFaltas(estudante.codigo_estudante, token);
+    }
     fetchAval(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [estudante.codigo_estudante]);
 
   useEffect(() => {
     load();
@@ -642,15 +646,14 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
 
   const notasAno = useMemo(() => {
     const notas: any[] = (dataNotas as NotasEstudanteResponse)?.notas ?? [];
-    // Derivar ano letivo activo a partir da nota mais recente
     const anoLetivo = notas.length > 0 ? notas[0].ano_lectivo ?? null : null;
-    return anoLetivo ? notas.filter((n) => n.ano_lectivo === anoLetivo) : notas;
+    return anoLetivo ? notas.filter((n: any) => n.ano_lectivo === anoLetivo) : notas;
   }, [dataNotas]);
 
   const faltasAno = useMemo(() => {
     const faltas: any[] = (dataFaltas as FaltasEstudanteResponse)?.faltas ?? [];
     const anoLetivo = notasAno.length > 0 ? notasAno[0].ano_lectivo ?? null : null;
-    return anoLetivo ? faltas.filter((f) => f.ano_lectivo === anoLetivo) : faltas;
+    return anoLetivo ? faltas.filter((f: any) => f.ano_lectivo === anoLetivo) : faltas;
   }, [dataFaltas, notasAno]);
 
   const anoLetivo = notasAno.length > 0 ? (notasAno[0].ano_lectivo ?? null) : null;
@@ -663,10 +666,9 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
     return soma / notasAno.length;
   }, [notasAno]);
 
-  const aprovacoes = avaliacoes.filter((a) => a.aprovado).length;
-  const reprovacoes = avaliacoes.filter((a) => !a.aprovado).length;
+  const aprovacoes = avaliacoes.filter((a: any) => a.aprovado).length;
+  const reprovacoes = avaliacoes.filter((a: any) => !a.aprovado).length;
 
-  // Status activo
   const emAndamento =
     estudante.status_escolar_fundamental === "em_andamento" ||
     estudante.status_escolar_medio === "em_andamento" ||
@@ -706,7 +708,7 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
                 <>
                   {" · "}Ano académico:{" "}
                   <strong>
-                    {anoActual.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    {anoActual.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
                   </strong>
                 </>
               )}
@@ -728,10 +730,10 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
               </span>
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-gray-400 dark:text-gray-500">
-              {estudante.academia && (
+              {estudante.academia_info && (
                 <span className="flex items-center gap-1">
                   <Icon icon="fluent-emoji-high-contrast:school" width="14px" />
-                  {estudante.academia.nome}
+                  {estudante.academia_info.nome}
                 </span>
               )}
               <span
@@ -805,7 +807,7 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
         <Section title="Últimas notas" icon="mdi:format-list-bulleted">
           <div className="rounded-2xl border border-gray-100 dark:border-white/[0.06] bg-white dark:bg-white/[0.03] overflow-hidden">
             <div className="divide-y divide-gray-50 dark:divide-white/[0.04]">
-              {notasAno.slice(0, 5).map((nota, i) => (
+              {notasAno.slice(0, 5).map((nota: any, i: number) => (
                 <div key={i} className="flex items-center gap-3 px-5 py-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate capitalize">
