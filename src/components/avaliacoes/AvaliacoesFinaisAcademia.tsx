@@ -17,7 +17,6 @@ import Icon from "@/components/ui/Icon";
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = {
-  // New format (backend canonical)
   "1_ano_fundamental": "1º Ano",
   "2_ano_fundamental": "2º Ano",
   "3_ano_fundamental": "3º Ano",
@@ -48,8 +47,6 @@ const NIVEL_ORDER = [
   "4_ano_superior","5_ano_superior","6_ano_superior",
 ];
 
-const FUNDAMENTAL_ANOS = NIVEL_ORDER.filter(n => n.includes("fundamental"));
-
 function labelNivel(v: string, withSuffix = false): string {
   const base = NIVEL_LABEL[v] ?? v.replace(/_/g, " ");
   if (!withSuffix) return base;
@@ -69,15 +66,6 @@ function sortAnos(anos: string[]): string[] {
   return [...anos].sort(
     (a, b) => NIVEL_ORDER.indexOf(a) - NIVEL_ORDER.indexOf(b)
   );
-}
-
-function getProximosNiveis(atual: string, todosDoTipo: string[]): string[] {
-  const sorted = sortAnos(
-    todosDoTipo.filter(a => getTipoEnsino(a) === getTipoEnsino(atual))
-  );
-  const idx = sorted.indexOf(atual);
-  if (idx === -1) return [];
-  return sorted.slice(idx + 1);
 }
 
 function getUserFromCookie(): MeuPerfilResponse | null {
@@ -266,57 +254,37 @@ function BadgeResultado({ aprovado }: { aprovado: boolean }) {
 }
 
 // ─── RegistrarModal ───────────────────────────────────────────────────────────
+// NOTA: proximo_ano_academico é calculado automaticamente pelo backend.
+// O payload NÃO deve incluir esse campo — enviar apenas:
+//   codigo_estudante, tipo_ensino, nivel_ano_academico_atual, aprovado, observacao (opcional)
 
 function RegistrarModal({
   student,
   turma,
-  curso,
   token,
   onClose,
   onSuccess,
 }: {
   student: EstudanteDetalhado;
   turma: Turma;
-  curso?: Curso;
   token?: string;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const tipoEnsino = getTipoEnsino(turma.nivel);
 
-  const anosDoTipo: string[] = useMemo(() => {
-    if (tipoEnsino === "fundamental") return FUNDAMENTAL_ANOS;
-    if (!curso) return [];
-    return sortAnos(
-      (curso.anos_academicos ?? []).filter(
-        a => getTipoEnsino(a) === tipoEnsino
-      )
-    );
-  }, [tipoEnsino, curso]);
-
-  const proximosNiveis = useMemo(
-    () => getProximosNiveis(turma.nivel, anosDoTipo),
-    [turma.nivel, anosDoTipo]
-  );
-
-  const isUltimoAno = proximosNiveis.length === 0;
-
   const [aprovado, setAprovado] = useState(true);
-  const [proximoNivel, setProximoNivel] = useState(proximosNiveis[0] ?? "");
   const [observacao, setObservacao] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [erro, setErro] = useState("");
 
-  const canSubmit =
-    !loading &&
-    !success &&
-    (!aprovado || isUltimoAno || proximoNivel !== "");
-
   async function handleSubmit() {
     setLoading(true);
     setErro("");
     try {
+      // O backend calcula proximo_ano_academico automaticamente.
+      // Não enviar o campo no payload.
       const payload: RegistrarAvaliacaoFinalRequest = {
         codigo_estudante: student.codigo_estudante,
         tipo_ensino: tipoEnsino,
@@ -324,9 +292,6 @@ function RegistrarModal({
         aprovado,
         observacao: observacao.trim() || undefined,
       };
-      if (aprovado && !isUltimoAno && proximoNivel) {
-        payload.proximo_ano_academico = proximoNivel;
-      }
       await academiaService.registrarAvaliacaoFinal(payload, token);
       setSuccess(true);
       setTimeout(() => {
@@ -394,6 +359,19 @@ function RegistrarModal({
             </div>
           </div>
 
+          {/* Info sobre cálculo automático do próximo nível */}
+          <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg">
+            <Icon
+              icon="mdi:information-outline"
+              width={16}
+              className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
+            />
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              O próximo nível é calculado automaticamente pelo sistema com base
+              no ciclo e no resultado.
+            </p>
+          </div>
+
           {/* Resultado toggle */}
           <div>
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -424,42 +402,6 @@ function RegistrarModal({
               </button>
             </div>
           </div>
-
-          {/* Próximo nível — só para aprovados e quando não é o último ano */}
-          {aprovado && !isUltimoAno && (
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-                Próximo Nível
-              </label>
-              <select
-                value={proximoNivel}
-                onChange={e => setProximoNivel(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 dark:focus:border-brand-800 appearance-none"
-              >
-                <option value="">Selecione o próximo nível</option>
-                {proximosNiveis.map(n => (
-                  <option key={n} value={n}>
-                    {labelNivel(n, true)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Info de último ano */}
-          {aprovado && isUltimoAno && (
-            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg">
-              <Icon
-                icon="mdi:information-outline"
-                width={16}
-                className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
-              />
-              <p className="text-xs text-blue-700 dark:text-blue-400">
-                Último ano do ciclo. O status do estudante será marcado como{" "}
-                <strong>finalizado</strong>.
-              </p>
-            </div>
-          )}
 
           {/* Info de reprovação */}
           {!aprovado && (
@@ -528,7 +470,7 @@ function RegistrarModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={loading || success}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             {loading ? (
@@ -552,14 +494,12 @@ function TabelaEstudantes({
   turma,
   avaliacoes,
   estudantes,
-  curso,
   token,
   onRefresh,
 }: {
   turma: Turma;
   avaliacoes: AvaliacaoFinal[];
   estudantes: EstudanteDetalhado[];
-  curso?: Curso;
   token?: string;
   onRefresh: () => void;
 }) {
@@ -575,7 +515,6 @@ function TabelaEstudantes({
     return m;
   }, [estudantes]);
 
-  // All years that appear in evaluations for this turma's students
   const anosLetivos = useMemo(() => {
     const stCodes = new Set(turma.estudantes);
     const years = new Set(
@@ -748,7 +687,6 @@ function TabelaEstudantes({
         <RegistrarModal
           student={modalStudent}
           turma={turma}
-          curso={curso}
           token={token}
           onClose={() => setModalStudent(null)}
           onSuccess={() => {
@@ -1204,7 +1142,6 @@ export default function AvaliacoesFinaisAcademia() {
           turma={turma}
           avaliacoes={todasAvaliacoes}
           estudantes={estudantes}
-          curso={curso}
           token={token}
           onRefresh={reload}
         />
