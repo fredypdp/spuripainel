@@ -1,278 +1,415 @@
 // src/components/avaliacoes/AvaliacoesFinaisAdmin.tsx
-"use client"
+"use client";
 import { useState, useEffect, useMemo } from "react";
 import { useApi, consultasService, tokenStorage } from "@/lib/api";
-import type { AvaliacaoFinal, AcademiaDetalhada, Turma, EstudanteDetalhado } from "@/types/api";
+import type {
+  AvaliacaoFinal,
+  AcademiaDetalhada,
+  EstudanteDetalhado,
+} from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Constants & Helpers ─────────────────────────────────────────────────────
 
-const NIVEL_BASE: Record<string, string> = {
-  primeiro_fundamental:"1º Ano",segundo_fundamental:"2º Ano",terceiro_fundamental:"3º Ano",
-  quarto_fundamental:"4º Ano",quinto_fundamental:"5º Ano",sexto_fundamental:"6º Ano",
-  setimo_fundamental:"7º Ano",oitavo_fundamental:"8º Ano",nono_fundamental:"9º Ano",
-  primeiro_medio:"1º Médio",segundo_medio:"2º Médio",terceiro_medio:"3º Médio",quarto_medio:"4º Médio",
-  primeiro_ano:"1º Ano",segundo_ano:"2º Ano",terceiro_ano:"3º Ano",
-  quarto_ano:"4º Ano",quinto_ano:"5º Ano",sexto_ano:"6º Ano",
+const NIVEL_LABEL: Record<string, string> = {
+  "1_ano_fundamental": "1º Ano",
+  "2_ano_fundamental": "2º Ano",
+  "3_ano_fundamental": "3º Ano",
+  "4_ano_fundamental": "4º Ano",
+  "5_ano_fundamental": "5º Ano",
+  "6_ano_fundamental": "6º Ano",
+  "7_ano_fundamental": "7º Ano",
+  "8_ano_fundamental": "8º Ano",
+  "9_ano_fundamental": "9º Ano",
+  "1_ano_medio": "1º Médio",
+  "2_ano_medio": "2º Médio",
+  "3_ano_medio": "3º Médio",
+  "4_ano_medio": "4º Médio",
+  "1_ano_superior": "1º Ano",
+  "2_ano_superior": "2º Ano",
+  "3_ano_superior": "3º Ano",
+  "4_ano_superior": "4º Ano",
+  "5_ano_superior": "5º Ano",
+  "6_ano_superior": "6º Ano",
 };
-const ANOS_FUNDAMENTAL = [
-  "primeiro_fundamental","segundo_fundamental","terceiro_fundamental","quarto_fundamental",
-  "quinto_fundamental","sexto_fundamental","setimo_fundamental","oitavo_fundamental","nono_fundamental",
-];
-const ANOS_MEDIO = ["primeiro_medio","segundo_medio","terceiro_medio","quarto_medio"];
-const ORDEM_NIVEIS = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO,
-  "primeiro_ano","segundo_ano","terceiro_ano","quarto_ano","quinto_ano","sexto_ano"];
 
-function labelNivel(v: string, comSufixo = false): string {
-  const base = NIVEL_BASE[v] ?? v.replace(/_/g, " ");
-  if (!comSufixo) return base;
-  if (ANOS_FUNDAMENTAL.includes(v)) return `${base} (Fund.)`;
-  if (ANOS_MEDIO.includes(v)) return `${base} (Médio)`;
+const NIVEL_ORDER = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental",
+  "4_ano_fundamental","5_ano_fundamental","6_ano_fundamental",
+  "7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
+  "1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio",
+  "1_ano_superior","2_ano_superior","3_ano_superior",
+  "4_ano_superior","5_ano_superior","6_ano_superior",
+];
+
+function labelNivel(v: string): string {
+  const base = NIVEL_LABEL[v] ?? v.replace(/_/g, " ");
+  if (v.includes("fundamental")) return `${base} (Fund.)`;
+  if (v.includes("medio")) return `${base} (Médio)`;
+  if (v.includes("superior")) return `${base} (Sup.)`;
   return base;
 }
 
-function nomeProvinciaDeCodigo(codigo: string): string {
-  return Provincias.find(p => p.codigo === codigo?.toUpperCase())?.nome ?? codigo;
+function nomeProvincia(codigo: string): string {
+  return (
+    Provincias.find(
+      p => p.codigo === codigo?.toUpperCase()
+    )?.nome ?? codigo
+  );
 }
 
-// ─── tipos ───────────────────────────────────────────────────────────────────
+function sortAvs(avs: AvaliacaoFinal[]): AvaliacaoFinal[] {
+  return [...avs].sort((a, b) => {
+    const ia = NIVEL_ORDER.indexOf(a.ano_academico_atual);
+    const ib = NIVEL_ORDER.indexOf(b.ano_academico_atual);
+    if (ia !== ib) return ia - ib;
+    return (
+      new Date(a.registered_at).getTime() -
+      new Date(b.registered_at).getTime()
+    );
+  });
+}
 
-type AcadInfo = {
-  codigo_academia: string;
-  nome: string;
-  provincia: string;
-  type: string;
-  nivel_escolar?: string;
-  status: string;
-};
+type TipoEnsino = "fundamental" | "medio" | "superior";
+
+function getTipoEnsino(nivel: string): TipoEnsino {
+  if (nivel.includes("fundamental")) return "fundamental";
+  if (nivel.includes("medio")) return "medio";
+  return "superior";
+}
+
+// ─── Layer types ──────────────────────────────────────────────────────────────
+
+type AcadInfo = Pick<
+  AcademiaDetalhada,
+  "codigo_academia" | "nome" | "provincia" | "type" | "nivel_escolar" | "status"
+>;
 
 type Layer =
   | { type: "provincias" }
   | { type: "academias"; provincia: string }
-  | { type: "academia_view"; academia: AcadInfo };
+  | { type: "academia"; acad: AcadInfo }
+  | {
+      type: "resultados";
+      acad: AcadInfo;
+      tipoEnsino: TipoEnsino;
+      anoLetivo: string;
+      anoAcademico: string;
+    };
 
-// ─── sub-componentes ─────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void }[] }) {
+function Breadcrumb({
+  crumbs,
+}: {
+  crumbs: { label: string; onClick?: () => void }[];
+}) {
   return (
     <nav className="flex items-center gap-1 text-sm flex-wrap mb-5">
       {crumbs.map((c, i) => (
         <span key={i} className="flex items-center gap-1">
-          {i > 0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />}
-          {i === crumbs.length - 1
-            ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
-            : <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">{c.label}</button>
-          }
+          {i > 0 && (
+            <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />
+          )}
+          {i === crumbs.length - 1 ? (
+            <span className="text-gray-900 dark:text-white font-medium">
+              {c.label}
+            </span>
+          ) : (
+            <button
+              onClick={c.onClick}
+              className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
+            >
+              {c.label}
+            </button>
+          )}
         </span>
       ))}
     </nav>
   );
 }
 
-function CardBtn({ icon, title, subtitle, badge, onClick }: {
-  icon: string; title: string; subtitle?: string; badge?: string; onClick: () => void;
+function CardBtn({
+  icon,
+  title,
+  subtitle,
+  badge,
+  stats,
+  onClick,
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  stats?: { approved: number; reprovated: number };
+  onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
-      <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
-        <Icon icon={icon} width={22} className="text-brand-500" />
+    <button
+      onClick={onClick}
+      className="w-full flex flex-col gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+          <Icon icon={icon} width={22} className="text-brand-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-900 dark:text-white truncate">
+            {title}
+          </p>
+          {subtitle && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {badge && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">
+            {badge}
+          </span>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
-        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
-      </div>
-      {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{badge}</span>}
+      {stats && (
+        <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+          <div className="flex-1 text-center">
+            <p className="text-xs text-gray-400">Aprovações</p>
+            <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+              {stats.approved}
+            </p>
+          </div>
+          <div className="flex-1 text-center">
+            <p className="text-xs text-gray-400">Reprovações</p>
+            <p className="text-base font-bold text-red-600 dark:text-red-400">
+              {stats.reprovated}
+            </p>
+          </div>
+        </div>
+      )}
     </button>
   );
 }
 
-function BadgeResultado({ aprovado }: { aprovado: boolean }) {
-  return aprovado
-    ? <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><Icon icon="mdi:check-circle" width={13}/>Aprovado</span>
-    : <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"><Icon icon="mdi:close-circle" width={13}/>Reprovado</span>;
-}
-
-function StatsAvaliacoes({ avaliacoes }: { avaliacoes: AvaliacaoFinal[] }) {
-  const aprovacoes = avaliacoes.filter(a => a.aprovado).length;
-  const reprovacoes = avaliacoes.length - aprovacoes;
+function StatsBar({ avaliacoes }: { avaliacoes: AvaliacaoFinal[] }) {
+  const aprov = avaliacoes.filter(a => a.aprovado).length;
+  const reprov = avaliacoes.filter(a => !a.aprovado).length;
+  const pct =
+    avaliacoes.length > 0
+      ? Math.round((aprov / avaliacoes.length) * 100)
+      : 0;
   return (
-    <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Total</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{avaliacoes.length}</p></div>
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Aprovações</p><p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{aprovacoes}</p></div>
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Reprovações</p><p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-0.5">{reprovacoes}</p></div>
-      {avaliacoes.length > 0 && (
-        <div><p className="text-xs text-gray-500 uppercase tracking-wide">Taxa Aprovação</p><p className="text-2xl font-bold text-brand-600 dark:text-brand-400 mt-0.5">{Math.round((aprovacoes / avaliacoes.length) * 100)}%</p></div>
-      )}
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+      {[
+        { label: "Total", value: avaliacoes.length, color: "text-gray-900 dark:text-white" },
+        { label: "Aprovações", value: aprov, color: "text-emerald-600 dark:text-emerald-400" },
+        { label: "Reprovações", value: reprov, color: "text-red-600 dark:text-red-400" },
+        { label: "Taxa Aprovação", value: `${pct}%`, color: "text-brand-600 dark:text-brand-400" },
+      ].map(s => (
+        <div key={s.label} className="text-center">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">
+            {s.label}
+          </p>
+          <p className={`text-2xl font-bold mt-0.5 ${s.color}`}>{s.value}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── Vista de academia interna (reutiliza lógica da academia) ─────────────────
+function BadgeResultado({ aprovado }: { aprovado: boolean }) {
+  return aprovado ? (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <Icon icon="mdi:check-circle" width={12} />
+      Aprovado
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+      <Icon icon="mdi:close-circle" width={12} />
+      Reprovado
+    </span>
+  );
+}
 
-function AcademiaView({
-  academia, todasAvaliacoes, estudantes,
+// Academia detail view — shows tipo_ensino > anos letivos > anos academicos > results
+function AcademiaDetalhe({
+  acad,
+  todasAvaliacoes,
+  estudantes,
+  onSelectResultados,
 }: {
-  academia: AcadInfo;
+  acad: AcadInfo;
   todasAvaliacoes: AvaliacaoFinal[];
   estudantes: EstudanteDetalhado[];
+  onSelectResultados: (
+    tipoEnsino: TipoEnsino,
+    anoLetivo: string,
+    anoAcademico: string
+  ) => void;
 }) {
-  const isFundamental = academia.type === "escola" && academia.nivel_escolar === "fundamental";
-  const isSuperior = academia.type === "superior";
-  const isMisto = academia.type === "escola" && academia.nivel_escolar === "misto";
-
-  // Avaliações desta academia
-  const avsAcad = todasAvaliacoes.filter(a => a.codigo_academia === academia.codigo_academia);
-
-  const anosLetivos = useMemo(() => {
-    const set = new Set(avsAcad.map(a => a.ano_lectivo));
-    return Array.from(set).sort();
-  }, [avsAcad]);
+  const avsAcad = todasAvaliacoes.filter(
+    a => a.codigo_academia === acad.codigo_academia
+  );
 
   const [subLayer, setSubLayer] = useState<
     | { type: "inicio" }
-    | { type: "anos_letivos"; tipoEnsino: "fundamental" | "medio" | "superior" }
-    | { type: "anos_academicos"; tipoEnsino: "fundamental" | "medio" | "superior"; anoLetivo: string }
-    | { type: "resultados"; tipoEnsino: "fundamental" | "medio" | "superior"; anoLetivo: string; anoAcademico: string }
+    | { type: "anos_letivos"; tipoEnsino: TipoEnsino }
+    | { type: "anos_academicos"; tipoEnsino: TipoEnsino; anoLetivo: string }
   >({ type: "inicio" });
 
-  const avsFiltradas = (tipoEnsino: string, anoLetivo?: string, anoAcademico?: string) =>
-    avsAcad.filter(a =>
-      a.tipo_ensino === tipoEnsino &&
-      (!anoLetivo || a.ano_lectivo === anoLetivo) &&
-      (!anoAcademico || a.ano_academico_atual === anoAcademico)
-    );
-
   const tiposEnsino = useMemo(() => {
-    const set = new Set(avsAcad.map(a => a.tipo_ensino));
-    return Array.from(set) as ("fundamental" | "medio" | "superior")[];
+    const set = new Set(avsAcad.map(a => getTipoEnsino(a.ano_academico_atual)));
+    return Array.from(set) as TipoEnsino[];
   }, [avsAcad]);
 
-  const tipoLabel: Record<string, string> = { fundamental: "Ensino Fundamental", medio: "Ensino Médio", superior: "Ensino Superior" };
-  const tipoIcon: Record<string, string> = { fundamental: "mdi:school", medio: "mdi:book-education", superior: "mdi:university" };
+  const tipoLabel: Record<TipoEnsino, string> = {
+    fundamental: "Ensino Fundamental",
+    medio: "Ensino Médio",
+    superior: "Ensino Superior",
+  };
+  const tipoIcon: Record<TipoEnsino, string> = {
+    fundamental: "mdi:school",
+    medio: "mdi:book-education",
+    superior: "mdi:university",
+  };
 
+  if (avsAcad.length === 0) {
+    return (
+      <div className="text-center py-10">
+        <Icon
+          icon="mdi:clipboard-check-outline"
+          width={36}
+          className="mx-auto mb-2 text-gray-300 dark:text-gray-700"
+        />
+        <p className="text-sm text-gray-400">
+          Nenhuma avaliação final registada para esta academia.
+        </p>
+      </div>
+    );
+  }
+
+  // inicio: show tipo_ensino breakdown
   if (subLayer.type === "inicio") {
-    const mostrarTipos = tiposEnsino.length > 1;
-    if (mostrarTipos) {
-      return (
-        <div className="space-y-4">
-          <StatsAvaliacoes avaliacoes={avsAcad} />
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Tipo de Ensino</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {tiposEnsino.map(te => {
-              const avs = avsFiltradas(te);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={te} icon={tipoIcon[te]} title={tipoLabel[te]} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setSubLayer({ type: "anos_letivos", tipoEnsino: te })} />;
-            })}
-          </div>
-        </div>
-      );
-    } else if (tiposEnsino.length === 1) {
-      // Vai direto para anos letivos
-      const te = tiposEnsino[0];
-      return (
-        <div className="space-y-4">
-          <StatsAvaliacoes avaliacoes={avsAcad} />
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Anos Letivos</h3>
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anosLetivos.map(al => {
-              const avs = avsFiltradas(te, al);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={al} icon="mdi:calendar-school" title={al.replace("_", "/")} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setSubLayer({ type: "anos_academicos", tipoEnsino: te, anoLetivo: al })} />;
-            })}
-          </div>
-        </div>
-      );
-    }
-    return <p className="text-gray-400 text-sm py-8 text-center">Nenhuma avaliação final registada para esta academia.</p>;
+    return (
+      <div className="space-y-4">
+        <StatsBar avaliacoes={avsAcad} />
+        {tiposEnsino.length > 1 && (
+          <>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Tipo de Ensino
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {tiposEnsino.map(te => {
+                const avs = avsAcad.filter(
+                  a => getTipoEnsino(a.ano_academico_atual) === te
+                );
+                return (
+                  <CardBtn
+                    key={te}
+                    icon={tipoIcon[te]}
+                    title={tipoLabel[te]}
+                    subtitle={`${avs.length} avaliação(ões)`}
+                    stats={{
+                      approved: avs.filter(a => a.aprovado).length,
+                      reprovated: avs.filter(a => !a.aprovado).length,
+                    }}
+                    onClick={() =>
+                      setSubLayer({ type: "anos_letivos", tipoEnsino: te })
+                    }
+                  />
+                );
+              })}
+            </div>
+          </>
+        )}
+        {tiposEnsino.length === 1 && (
+          <AnosLetivosView
+            tipoEnsino={tiposEnsino[0]}
+            avsAcad={avsAcad}
+            onSelectAno={al =>
+              setSubLayer({
+                type: "anos_academicos",
+                tipoEnsino: tiposEnsino[0],
+                anoLetivo: al,
+              })
+            }
+          />
+        )}
+      </div>
+    );
   }
 
   if (subLayer.type === "anos_letivos") {
     const { tipoEnsino } = subLayer;
-    const als = Array.from(new Set(avsFiltradas(tipoEnsino).map(a => a.ano_lectivo))).sort();
+    const avsTipo = avsAcad.filter(
+      a => getTipoEnsino(a.ano_academico_atual) === tipoEnsino
+    );
     return (
       <div className="space-y-4">
-        <button onClick={() => setSubLayer({ type: "inicio" })} className="flex items-center gap-1 text-sm text-gray-500 hover:text-brand-500 transition-colors">
-          <Icon icon="mdi:chevron-left" width={16} />{tipoLabel[tipoEnsino]}
+        <button
+          onClick={() => setSubLayer({ type: "inicio" })}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-brand-500 transition-colors"
+        >
+          <Icon icon="mdi:chevron-left" width={16} />
+          {tipoLabel[tipoEnsino]}
         </button>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Anos Letivos</h3>
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-          {als.map(al => {
-            const avs = avsFiltradas(tipoEnsino, al);
-            const aprov = avs.filter(a => a.aprovado).length;
-            return <CardBtn key={al} icon="mdi:calendar-school" title={al.replace("_", "/")} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setSubLayer({ type: "anos_academicos", tipoEnsino, anoLetivo: al })} />;
-          })}
-        </div>
+        <StatsBar avaliacoes={avsTipo} />
+        <AnosLetivosView
+          tipoEnsino={tipoEnsino}
+          avsAcad={avsTipo}
+          onSelectAno={al =>
+            setSubLayer({ type: "anos_academicos", tipoEnsino, anoLetivo: al })
+          }
+        />
       </div>
     );
   }
 
   if (subLayer.type === "anos_academicos") {
     const { tipoEnsino, anoLetivo } = subLayer;
-    const avsDoAno = avsFiltradas(tipoEnsino, anoLetivo);
-    const anos = Array.from(new Set(avsDoAno.map(a => a.ano_academico_atual)))
-      .sort((a, b) => ORDEM_NIVEIS.indexOf(a) - ORDEM_NIVEIS.indexOf(b));
+    const avsDoAno = avsAcad.filter(
+      a =>
+        getTipoEnsino(a.ano_academico_atual) === tipoEnsino &&
+        a.ano_lectivo === anoLetivo
+    );
+    const anos = Array.from(
+      new Set(avsDoAno.map(a => a.ano_academico_atual))
+    ).sort((a, b) => NIVEL_ORDER.indexOf(a) - NIVEL_ORDER.indexOf(b));
+
     return (
       <div className="space-y-4">
-        <button onClick={() => setSubLayer({ type: "anos_letivos", tipoEnsino })} className="flex items-center gap-1 text-sm text-gray-500 hover:text-brand-500 transition-colors">
-          <Icon icon="mdi:chevron-left" width={16} />Anos Letivos
+        <button
+          onClick={() =>
+            setSubLayer({ type: "anos_letivos", tipoEnsino })
+          }
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-brand-500 transition-colors"
+        >
+          <Icon icon="mdi:chevron-left" width={16} />
+          Anos Letivos
         </button>
-        <StatsAvaliacoes avaliacoes={avsDoAno} />
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Anos Académicos</h3>
+        <StatsBar avaliacoes={avsDoAno} />
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Anos Académicos — {anoLetivo.replace("_", "/")}
+        </p>
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           {anos.map(ano => {
-            const avs = avsFiltradas(tipoEnsino, anoLetivo, ano);
-            const aprov = avs.filter(a => a.aprovado).length;
-            return <CardBtn key={ano} icon="mdi:numeric" title={labelNivel(ano, tipoEnsino === "fundamental")} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setSubLayer({ type: "resultados", tipoEnsino, anoLetivo, anoAcademico: ano })} />;
+            const avs = avsDoAno.filter(a => a.ano_academico_atual === ano);
+            return (
+              <CardBtn
+                key={ano}
+                icon="mdi:numeric"
+                title={labelNivel(ano)}
+                subtitle={`${avs.length} avaliação(ões)`}
+                stats={{
+                  approved: avs.filter(a => a.aprovado).length,
+                  reprovated: avs.filter(a => !a.aprovado).length,
+                }}
+                onClick={() =>
+                  onSelectResultados(tipoEnsino, anoLetivo, ano)
+                }
+              />
+            );
           })}
         </div>
-      </div>
-    );
-  }
-
-  if (subLayer.type === "resultados") {
-    const { tipoEnsino, anoLetivo, anoAcademico } = subLayer;
-    const avs = avsFiltradas(tipoEnsino, anoLetivo, anoAcademico);
-    const estudantesMap: Record<string, EstudanteDetalhado> = {};
-    estudantes.forEach(e => { estudantesMap[e.codigo_estudante] = e; });
-    return (
-      <div className="space-y-4">
-        <button onClick={() => setSubLayer({ type: "anos_academicos", tipoEnsino, anoLetivo })} className="flex items-center gap-1 text-sm text-gray-500 hover:text-brand-500 transition-colors">
-          <Icon icon="mdi:chevron-left" width={16} />Anos Académicos
-        </button>
-        <div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">{labelNivel(anoAcademico, true)}</h3>
-          <p className="text-sm text-gray-500 mt-0.5">Ano Letivo {anoLetivo.replace("_", "/")}</p>
-        </div>
-        <StatsAvaliacoes avaliacoes={avs} />
-        {avs.length === 0
-          ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma avaliação neste filtro.</p>
-          : (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800/70">
-                  <tr>
-                    {["Estudante", "Código", "Resultado", "Próximo Nível", "Observação", "Data"].map(h => (
-                      <th key={h} className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                  {avs.map(a => (
-                    <tr key={a.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudantesMap[a.codigo_estudante]?.nome ?? a.codigo_estudante}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs font-mono">{a.codigo_estudante}</td>
-                      <td className="px-4 py-3 whitespace-nowrap"><BadgeResultado aprovado={a.aprovado} /></td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{a.proximo_ano_academico ? labelNivel(a.proximo_ano_academico) : (a.aprovado ? "Ciclo finalizado" : "—")}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs max-w-[140px] truncate">{a.observacao ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{new Date(a.registered_at).toLocaleDateString("pt-AO")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        }
       </div>
     );
   }
@@ -280,66 +417,253 @@ function AcademiaView({
   return null;
 }
 
-// ─── componente principal ─────────────────────────────────────────────────────
+function AnosLetivosView({
+  tipoEnsino,
+  avsAcad,
+  onSelectAno,
+}: {
+  tipoEnsino: TipoEnsino;
+  avsAcad: AvaliacaoFinal[];
+  onSelectAno: (anoLetivo: string) => void;
+}) {
+  const anosLetivos = useMemo(() => {
+    const set = new Set(
+      avsAcad
+        .filter(a => getTipoEnsino(a.ano_academico_atual) === tipoEnsino)
+        .map(a => a.ano_lectivo)
+    );
+    return Array.from(set).sort().reverse();
+  }, [avsAcad, tipoEnsino]);
+
+  return (
+    <>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        Anos Letivos
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+        {anosLetivos.map(al => {
+          const avs = avsAcad.filter(
+            a =>
+              getTipoEnsino(a.ano_academico_atual) === tipoEnsino &&
+              a.ano_lectivo === al
+          );
+          return (
+            <CardBtn
+              key={al}
+              icon="mdi:calendar-school"
+              title={al.replace("_", "/")}
+              subtitle={`${avs.length} avaliação(ões)`}
+              stats={{
+                approved: avs.filter(a => a.aprovado).length,
+                reprovated: avs.filter(a => !a.aprovado).length,
+              }}
+              onClick={() => onSelectAno(al)}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// Results table
+function TabelaResultados({
+  avs,
+  estudantes,
+}: {
+  avs: AvaliacaoFinal[];
+  estudantes: EstudanteDetalhado[];
+}) {
+  const estudantesMap = useMemo(() => {
+    const m: Record<string, EstudanteDetalhado> = {};
+    estudantes.forEach(e => {
+      m[e.codigo_estudante] = e;
+    });
+    return m;
+  }, [estudantes]);
+
+  if (avs.length === 0) {
+    return (
+      <p className="text-sm text-gray-400 py-8 text-center">
+        Nenhuma avaliação neste filtro.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-800/70">
+          <tr>
+            {[
+              "Estudante",
+              "Código",
+              "Resultado",
+              "Próximo Nível",
+              "Observação",
+              "Data",
+            ].map(h => (
+              <th
+                key={h}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {sortAvs(avs).map(a => (
+            <tr
+              key={a.id}
+              className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors"
+            >
+              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                {estudantesMap[a.codigo_estudante]?.nome ?? a.codigo_estudante}
+              </td>
+              <td className="px-4 py-3 text-xs text-gray-400 font-mono">
+                {a.codigo_estudante}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap">
+                <BadgeResultado aprovado={a.aprovado} />
+              </td>
+              <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                {a.proximo_ano_academico
+                  ? labelNivel(a.proximo_ano_academico)
+                  : a.aprovado
+                  ? "Ciclo finalizado"
+                  : "—"}
+              </td>
+              <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">
+                {a.observacao ?? "—"}
+              </td>
+              <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
+                {new Date(a.registered_at).toLocaleDateString("pt-AO")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AvaliacoesFinaisAdmin() {
   const token = tokenStorage.get() ?? undefined;
   const [layer, setLayer] = useState<Layer>({ type: "provincias" });
 
-  const { data: dataAcads, execute: carregarAcads, loading: loadingAcads } = useApi(consultasService.listarAcademias);
-  const { data: dataEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading: loadingAvs } = useApi(consultasService.listarAvaliacoes);
+  const {
+    data: dataAcads,
+    execute: carregarAcads,
+    loading: loadAcads,
+  } = useApi(consultasService.listarAcademias);
+  const { data: dataEstudantes, execute: carregarEstudantes } = useApi(
+    consultasService.listarEstudantes
+  );
+  const {
+    data: dataAvaliacoes,
+    execute: carregarAvaliacoes,
+    loading: loadAvs,
+  } = useApi(consultasService.listarAvaliacoes);
 
   useEffect(() => {
-    carregarAcads(token);
-    carregarEstudantes(undefined, token);
+    carregarAcads({ token });
+    carregarEstudantes(token);
     carregarAvaliacoes({ token });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const academias: AcadInfo[] = useMemo(() => {
-    return ((dataAcads as any)?.academias ?? []).map((a: AcademiaDetalhada) => ({
-      codigo_academia: a.codigo_academia,
-      nome: a.nome,
-      provincia: a.provincia,
-      type: a.type,
-      nivel_escolar: a.nivel_escolar,
-      status: a.status,
-    }));
-  }, [dataAcads]);
+  const academias: AcadInfo[] = useMemo(
+    () =>
+      ((dataAcads as any)?.academias ?? []).map(
+        (a: AcademiaDetalhada): AcadInfo => ({
+          codigo_academia: a.codigo_academia,
+          nome: a.nome,
+          provincia: a.provincia,
+          type: a.type,
+          nivel_escolar: a.nivel_escolar,
+          status: a.status,
+        })
+      ),
+    [dataAcads]
+  );
 
-  const estudantes: EstudanteDetalhado[] = (dataEstudantes as any)?.estudantes ?? [];
-  const todasAvaliacoes: AvaliacaoFinal[] = (dataAvaliacoes as any)?.avaliacoes ?? [];
+  const estudantes: EstudanteDetalhado[] = useMemo(
+    () => (dataEstudantes as any)?.estudantes ?? [],
+    [dataEstudantes]
+  );
+  const todasAvaliacoes: AvaliacaoFinal[] = useMemo(
+    () => (dataAvaliacoes as any)?.avaliacoes ?? [],
+    [dataAvaliacoes]
+  );
 
-  // Províncias únicas das académias
   const provincias = useMemo(() => {
-    const set = new Set(academias.map(a => a.provincia?.toUpperCase()));
-    return Array.from(set).filter(Boolean).sort((a, b) =>
-      nomeProvinciaDeCodigo(a).localeCompare(nomeProvinciaDeCodigo(b))
+    const set = new Set(
+      academias.map(a => a.provincia?.toUpperCase()).filter(Boolean)
+    );
+    return Array.from(set).sort((a, b) =>
+      nomeProvincia(a).localeCompare(nomeProvincia(b))
     );
   }, [academias]);
 
-  const academiasNaProvincia = (prov: string) =>
-    academias.filter(a => a.provincia?.toUpperCase() === prov.toUpperCase());
+  const acadsDaProvincia = (prov: string) =>
+    academias.filter(
+      a => a.provincia?.toUpperCase() === prov.toUpperCase()
+    );
 
   function buildCrumbs() {
-    if (layer.type === "provincias") return [{ label: "Províncias" }];
-    if (layer.type === "academias") return [
-      { label: "Províncias", onClick: () => setLayer({ type: "provincias" }) },
-      { label: nomeProvinciaDeCodigo(layer.provincia) },
-    ];
-    if (layer.type === "academia_view") return [
-      { label: "Províncias", onClick: () => setLayer({ type: "provincias" }) },
-      { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) },
-      { label: layer.academia.nome },
-    ];
+    if (layer.type === "provincias")
+      return [{ label: "Províncias" }];
+    if (layer.type === "academias")
+      return [
+        {
+          label: "Províncias",
+          onClick: () => setLayer({ type: "provincias" }),
+        },
+        { label: nomeProvincia(layer.provincia) },
+      ];
+    if (layer.type === "academia")
+      return [
+        {
+          label: "Províncias",
+          onClick: () => setLayer({ type: "provincias" }),
+        },
+        {
+          label: nomeProvincia(layer.acad.provincia),
+          onClick: () =>
+            setLayer({ type: "academias", provincia: layer.acad.provincia }),
+        },
+        { label: layer.acad.nome },
+      ];
+    if (layer.type === "resultados")
+      return [
+        {
+          label: "Províncias",
+          onClick: () => setLayer({ type: "provincias" }),
+        },
+        {
+          label: nomeProvincia(layer.acad.provincia),
+          onClick: () =>
+            setLayer({ type: "academias", provincia: layer.acad.provincia }),
+        },
+        {
+          label: layer.acad.nome,
+          onClick: () => setLayer({ type: "academia", acad: layer.acad }),
+        },
+        {
+          label: `${layer.anoLetivo.replace("_", "/")} · ${labelNivel(layer.anoAcademico)}`,
+        },
+      ];
     return [];
   }
 
-  const loading = loadingAcads || loadingAvs;
+  const loading = loadAcads || loadAvs;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex items-center justify-center py-24">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
       </div>
     );
@@ -350,23 +674,33 @@ export default function AvaliacoesFinaisAdmin() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma província para ver as academias</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Avaliações Finais
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Selecione uma província para explorar as academias
+          </p>
         </div>
-        <StatsAvaliacoes avaliacoes={todasAvaliacoes} />
+        <StatsBar avaliacoes={todasAvaliacoes} />
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           {provincias.map(prov => {
-            const acads = academiasNaProvincia(prov);
-            const avsProvinc = todasAvaliacoes.filter(av =>
+            const acads = acadsDaProvincia(prov);
+            const avsProvd = todasAvaliacoes.filter(av =>
               acads.some(a => a.codigo_academia === av.codigo_academia)
             );
             return (
               <CardBtn
                 key={prov}
                 icon="mdi:map-marker-radius"
-                title={nomeProvinciaDeCodigo(prov)}
-                subtitle={`${acads.length} academia(s) · ${avsProvinc.length} avaliação(ões)`}
-                onClick={() => setLayer({ type: "academias", provincia: prov })}
+                title={nomeProvincia(prov)}
+                subtitle={`${acads.length} academia(s) · ${avsProvd.length} avaliação(ões)`}
+                stats={{
+                  approved: avsProvd.filter(a => a.aprovado).length,
+                  reprovated: avsProvd.filter(a => !a.aprovado).length,
+                }}
+                onClick={() =>
+                  setLayer({ type: "academias", provincia: prov })
+                }
               />
             );
           })}
@@ -377,24 +711,45 @@ export default function AvaliacoesFinaisAdmin() {
 
   // ── Academias de uma Província ──
   if (layer.type === "academias") {
-    const acads = academiasNaProvincia(layer.provincia);
+    const { provincia } = layer;
+    const acads = acadsDaProvincia(provincia);
+    const avsProvd = todasAvaliacoes.filter(av =>
+      acads.some(a => a.codigo_academia === av.codigo_academia)
+    );
+
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Província de {nomeProvinciaDeCodigo(layer.provincia)}</h2>
-        <StatsAvaliacoes avaliacoes={todasAvaliacoes.filter(av => acads.some(a => a.codigo_academia === av.codigo_academia))} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {nomeProvincia(provincia)}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {acads.length} academia(s) nesta província
+          </p>
+        </div>
+        <StatsBar avaliacoes={avsProvd} />
         <div className="grid gap-3 sm:grid-cols-2">
           {acads.map(a => {
-            const avs = todasAvaliacoes.filter(av => av.codigo_academia === a.codigo_academia);
-            const aprov = avs.filter(av => av.aprovado).length;
+            const avs = todasAvaliacoes.filter(
+              av => av.codigo_academia === a.codigo_academia
+            );
             return (
               <CardBtn
                 key={a.codigo_academia}
-                icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
+                icon={
+                  a.type === "superior"
+                    ? "mdi:university"
+                    : "mdi:school"
+                }
                 title={a.nome}
-                subtitle={`${a.codigo_academia} · ${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`}
+                subtitle={`${a.codigo_academia} · ${avs.length} avaliação(ões)`}
                 badge={a.type}
-                onClick={() => setLayer({ type: "academia_view", academia: a })}
+                stats={{
+                  approved: avs.filter(av => av.aprovado).length,
+                  reprovated: avs.filter(av => !av.aprovado).length,
+                }}
+                onClick={() => setLayer({ type: "academia", acad: a })}
               />
             );
           })}
@@ -404,19 +759,62 @@ export default function AvaliacoesFinaisAdmin() {
   }
 
   // ── Vista da academia ──
-  if (layer.type === "academia_view") {
+  if (layer.type === "academia") {
+    const { acad } = layer;
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.academia.nome}</h2>
-          <p className="text-sm text-gray-500 mt-1">{layer.academia.codigo_academia} · {layer.academia.type === "superior" ? "Superior" : "Escola"}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {acad.nome}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {acad.codigo_academia} ·{" "}
+            {acad.type === "superior" ? "Ensino Superior" : "Escola"}
+          </p>
         </div>
-        <AcademiaView
-          academia={layer.academia}
+        <AcademiaDetalhe
+          acad={acad}
           todasAvaliacoes={todasAvaliacoes}
           estudantes={estudantes}
+          onSelectResultados={(tipoEnsino, anoLetivo, anoAcademico) =>
+            setLayer({
+              type: "resultados",
+              acad,
+              tipoEnsino,
+              anoLetivo,
+              anoAcademico,
+            })
+          }
         />
+      </div>
+    );
+  }
+
+  // ── Resultados detalhados ──
+  if (layer.type === "resultados") {
+    const { acad, tipoEnsino, anoLetivo, anoAcademico } = layer;
+    const avs = todasAvaliacoes.filter(
+      a =>
+        a.codigo_academia === acad.codigo_academia &&
+        getTipoEnsino(a.ano_academico_atual) === tipoEnsino &&
+        a.ano_lectivo === anoLetivo &&
+        a.ano_academico_atual === anoAcademico
+    );
+
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={buildCrumbs()} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {labelNivel(anoAcademico)}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {acad.nome} · Ano Letivo {anoLetivo.replace("_", "/")}
+          </p>
+        </div>
+        <StatsBar avaliacoes={avs} />
+        <TabelaResultados avs={avs} estudantes={estudantes} />
       </div>
     );
   }

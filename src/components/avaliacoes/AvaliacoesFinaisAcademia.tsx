@@ -1,208 +1,767 @@
 // src/components/avaliacoes/AvaliacoesFinaisAcademia.tsx
-"use client"
+"use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
-  MeuPerfilResponse, AvaliacaoFinal, Turma, Curso,
-  EstudanteDetalhado, AcademiaDetalhada,
+  MeuPerfilResponse,
+  AvaliacaoFinal,
+  Turma,
+  Curso,
+  EstudanteDetalhado,
   RegistrarAvaliacaoFinalRequest,
+  TipoEnsino,
 } from "@/types/api";
 import { getCookie } from "@/lib/utils/cookies";
 import Icon from "@/components/ui/Icon";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Constants & Helpers ─────────────────────────────────────────────────────
 
-const NIVEL_BASE: Record<string, string> = {
-  primeiro_fundamental:"1º Ano",segundo_fundamental:"2º Ano",terceiro_fundamental:"3º Ano",
-  quarto_fundamental:"4º Ano",quinto_fundamental:"5º Ano",sexto_fundamental:"6º Ano",
-  setimo_fundamental:"7º Ano",oitavo_fundamental:"8º Ano",nono_fundamental:"9º Ano",
-  primeiro_medio:"1º Médio",segundo_medio:"2º Médio",terceiro_medio:"3º Médio",quarto_medio:"4º Médio",
-  primeiro_ano:"1º Ano",segundo_ano:"2º Ano",terceiro_ano:"3º Ano",
-  quarto_ano:"4º Ano",quinto_ano:"5º Ano",sexto_ano:"6º Ano",
-  // formato novo backend: 1_ano_fundamental, etc.
-  "1_ano_fundamental":"1º Ano","2_ano_fundamental":"2º Ano","3_ano_fundamental":"3º Ano",
-  "4_ano_fundamental":"4º Ano","5_ano_fundamental":"5º Ano","6_ano_fundamental":"6º Ano",
-  "7_ano_fundamental":"7º Ano","8_ano_fundamental":"8º Ano","9_ano_fundamental":"9º Ano",
-  "1_ano_medio":"1º Médio","2_ano_medio":"2º Médio","3_ano_medio":"3º Médio","4_ano_medio":"4º Médio",
-  "1_ano_superior":"1º Ano","2_ano_superior":"2º Ano","3_ano_superior":"3º Ano",
-  "4_ano_superior":"4º Ano","5_ano_superior":"5º Ano","6_ano_superior":"6º Ano",
+const NIVEL_LABEL: Record<string, string> = {
+  // New format (backend canonical)
+  "1_ano_fundamental": "1º Ano",
+  "2_ano_fundamental": "2º Ano",
+  "3_ano_fundamental": "3º Ano",
+  "4_ano_fundamental": "4º Ano",
+  "5_ano_fundamental": "5º Ano",
+  "6_ano_fundamental": "6º Ano",
+  "7_ano_fundamental": "7º Ano",
+  "8_ano_fundamental": "8º Ano",
+  "9_ano_fundamental": "9º Ano",
+  "1_ano_medio": "1º Médio",
+  "2_ano_medio": "2º Médio",
+  "3_ano_medio": "3º Médio",
+  "4_ano_medio": "4º Médio",
+  "1_ano_superior": "1º Ano",
+  "2_ano_superior": "2º Ano",
+  "3_ano_superior": "3º Ano",
+  "4_ano_superior": "4º Ano",
+  "5_ano_superior": "5º Ano",
+  "6_ano_superior": "6º Ano",
 };
 
-const ANOS_FUNDAMENTAL_KEYS = [
-  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental",
-  "5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
-  // formato antigo também suportado
-  "primeiro_fundamental","segundo_fundamental","terceiro_fundamental","quarto_fundamental",
-  "quinto_fundamental","sexto_fundamental","setimo_fundamental","oitavo_fundamental","nono_fundamental",
-];
-const ANOS_MEDIO_KEYS = [
+const NIVEL_ORDER = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental",
+  "4_ano_fundamental","5_ano_fundamental","6_ano_fundamental",
+  "7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
   "1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio",
-  "primeiro_medio","segundo_medio","terceiro_medio","quarto_medio",
+  "1_ano_superior","2_ano_superior","3_ano_superior",
+  "4_ano_superior","5_ano_superior","6_ano_superior",
 ];
-const ORDEM_NIVEIS = [...ANOS_FUNDAMENTAL_KEYS, ...ANOS_MEDIO_KEYS,
-  "1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior",
-  "primeiro_ano","segundo_ano","terceiro_ano","quarto_ano","quinto_ano","sexto_ano"];
 
-function labelNivel(v: string, comSufixo = false): string {
-  const base = NIVEL_BASE[v] ?? v.replace(/_/g, " ");
-  if (!comSufixo) return base;
-  if (ANOS_FUNDAMENTAL_KEYS.includes(v)) return `${base} (Ensino Fundamental)`;
-  if (ANOS_MEDIO_KEYS.includes(v)) return `${base} (Ensino Médio)`;
+const FUNDAMENTAL_ANOS = NIVEL_ORDER.filter(n => n.includes("fundamental"));
+
+function labelNivel(v: string, withSuffix = false): string {
+  const base = NIVEL_LABEL[v] ?? v.replace(/_/g, " ");
+  if (!withSuffix) return base;
+  if (v.includes("fundamental")) return `${base} (Fund.)`;
+  if (v.includes("medio")) return `${base} (Médio)`;
+  if (v.includes("superior")) return `${base} (Sup.)`;
   return base;
+}
+
+function getTipoEnsino(nivel: string): TipoEnsino {
+  if (nivel.includes("fundamental")) return "fundamental";
+  if (nivel.includes("medio")) return "medio";
+  return "superior";
+}
+
+function sortAnos(anos: string[]): string[] {
+  return [...anos].sort(
+    (a, b) => NIVEL_ORDER.indexOf(a) - NIVEL_ORDER.indexOf(b)
+  );
+}
+
+function getProximosNiveis(atual: string, todosDoTipo: string[]): string[] {
+  const sorted = sortAnos(
+    todosDoTipo.filter(a => getTipoEnsino(a) === getTipoEnsino(atual))
+  );
+  const idx = sorted.indexOf(atual);
+  if (idx === -1) return [];
+  return sorted.slice(idx + 1);
 }
 
 function getUserFromCookie(): MeuPerfilResponse | null {
   if (typeof window === "undefined") return null;
-  try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
+  try {
+    return JSON.parse(getCookie("user") ?? "");
+  } catch {
+    return null;
+  }
 }
 
-function sortAnos(anos: string[]) {
-  return [...anos].sort((a, b) => ORDEM_NIVEIS.indexOf(a) - ORDEM_NIVEIS.indexOf(b));
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-// ─── tipos layer ─────────────────────────────────────────────────────────────
+type Layer =
+  | { type: "choose" }
+  | { type: "fund_overview" }
+  | { type: "fund_turma"; turma: Turma }
+  | { type: "cursos" }
+  | { type: "curso_overview"; curso: Curso }
+  | { type: "curso_turma"; curso: Curso; turma: Turma };
 
-type LayerFund =
-  | { mode: "fund"; type: "anos_letivos" }
-  | { mode: "fund"; type: "anos_academicos"; anoLetivo: string }
-  | { mode: "fund"; type: "turmas"; anoLetivo: string; anoAcademico: string }
-  | { mode: "fund"; type: "resultados"; anoLetivo: string; anoAcademico: string; turma: Turma };
+// ─── Breadcrumb ───────────────────────────────────────────────────────────────
 
-type LayerCurso =
-  | { mode: "sup"; type: "cursos" }
-  | { mode: "sup"; type: "anos_letivos"; curso: Curso }
-  | { mode: "sup"; type: "anos_academicos"; curso: Curso; anoLetivo: string }
-  | { mode: "sup"; type: "turmas"; curso: Curso; anoLetivo: string; anoAcademico: string }
-  | { mode: "sup"; type: "resultados"; curso: Curso; anoLetivo: string; anoAcademico: string; turma: Turma };
-
-type LayerMisto = { mode: "misto"; type: "choose" } | LayerFund | LayerCurso;
-
-type Layer = LayerFund | LayerCurso | LayerMisto;
-
-// ─── sub-componentes ─────────────────────────────────────────────────────────
-
-function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void }[] }) {
+function Breadcrumb({
+  crumbs,
+}: {
+  crumbs: { label: string; onClick?: () => void }[];
+}) {
   return (
     <nav className="flex items-center gap-1 text-sm flex-wrap mb-5">
       {crumbs.map((c, i) => (
         <span key={i} className="flex items-center gap-1">
-          {i > 0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />}
-          {i === crumbs.length - 1
-            ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
-            : <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">{c.label}</button>
-          }
+          {i > 0 && (
+            <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />
+          )}
+          {i === crumbs.length - 1 ? (
+            <span className="text-gray-900 dark:text-white font-medium">
+              {c.label}
+            </span>
+          ) : (
+            <button
+              onClick={c.onClick}
+              className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
+            >
+              {c.label}
+            </button>
+          )}
         </span>
       ))}
     </nav>
   );
 }
 
-function CardBtn({ icon, title, subtitle, badge, onClick }: {
-  icon: string; title: string; subtitle?: string; badge?: string; onClick: () => void;
+// ─── CardBtn ──────────────────────────────────────────────────────────────────
+
+interface CardBtnStats {
+  approved: number;
+  reprovated: number;
+  pending: number;
+}
+
+function CardBtn({
+  icon,
+  title,
+  subtitle,
+  badge,
+  stats,
+  onClick,
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  stats?: CardBtnStats;
+  onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
-      <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
-        <Icon icon={icon} width={22} className="text-brand-500" />
+    <button
+      onClick={onClick}
+      className="w-full flex flex-col gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+          <Icon icon={icon} width={22} className="text-brand-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-900 dark:text-white truncate">
+            {title}
+          </p>
+          {subtitle && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {badge && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">
+            {badge}
+          </span>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
-        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
-      </div>
-      {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{badge}</span>}
+      {stats && (
+        <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+          <div className="flex-1 text-center">
+            <p className="text-xs text-gray-400">Aprovados</p>
+            <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+              {stats.approved}
+            </p>
+          </div>
+          <div className="flex-1 text-center">
+            <p className="text-xs text-gray-400">Reprovados</p>
+            <p className="text-base font-bold text-red-600 dark:text-red-400">
+              {stats.reprovated}
+            </p>
+          </div>
+          <div className="flex-1 text-center">
+            <p className="text-xs text-gray-400">Pendentes</p>
+            <p className="text-base font-bold text-gray-500 dark:text-gray-400">
+              {stats.pending}
+            </p>
+          </div>
+        </div>
+      )}
     </button>
   );
 }
 
-function BadgeResultado({ aprovado }: { aprovado: boolean }) {
-  return aprovado
-    ? <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><Icon icon="mdi:check-circle" width={13}/>Aprovado</span>
-    : <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"><Icon icon="mdi:close-circle" width={13}/>Reprovado</span>;
-}
+// ─── StatsBar ─────────────────────────────────────────────────────────────────
 
-function StatsAvaliacoes({ avaliacoes }: { avaliacoes: AvaliacaoFinal[] }) {
+function StatsBar({ avaliacoes }: { avaliacoes: AvaliacaoFinal[] }) {
   const aprovacoes = avaliacoes.filter(a => a.aprovado).length;
-  const reprovacoes = avaliacoes.length - aprovacoes;
+  const reprovacoes = avaliacoes.filter(a => !a.aprovado).length;
+  const pct =
+    avaliacoes.length > 0
+      ? Math.round((aprovacoes / avaliacoes.length) * 100)
+      : 0;
   return (
-    <div className="flex flex-wrap gap-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Total</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{avaliacoes.length}</p></div>
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Aprovações</p><p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{aprovacoes}</p></div>
-      <div><p className="text-xs text-gray-500 uppercase tracking-wide">Reprovações</p><p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-0.5">{reprovacoes}</p></div>
-      {avaliacoes.length > 0 && (
-        <div><p className="text-xs text-gray-500 uppercase tracking-wide">Taxa Aprovação</p><p className="text-2xl font-bold text-brand-600 dark:text-brand-400 mt-0.5">{Math.round((aprovacoes / avaliacoes.length) * 100)}%</p></div>
-      )}
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+      {[
+        {
+          label: "Total",
+          value: avaliacoes.length,
+          color: "text-gray-900 dark:text-white",
+        },
+        {
+          label: "Aprovações",
+          value: aprovacoes,
+          color: "text-emerald-600 dark:text-emerald-400",
+        },
+        {
+          label: "Reprovações",
+          value: reprovacoes,
+          color: "text-red-600 dark:text-red-400",
+        },
+        {
+          label: "Taxa Aprovação",
+          value: `${pct}%`,
+          color: "text-brand-600 dark:text-brand-400",
+        },
+      ].map(s => (
+        <div key={s.label} className="text-center">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">
+            {s.label}
+          </p>
+          <p className={`text-2xl font-bold mt-0.5 ${s.color}`}>{s.value}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
-function TabelaResultadosTurma({
-  turma, avaliacoes, estudantes, anoLetivo, anoAcademico,
+// ─── BadgeResultado ───────────────────────────────────────────────────────────
+
+function BadgeResultado({ aprovado }: { aprovado: boolean }) {
+  return aprovado ? (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <Icon icon="mdi:check-circle" width={12} />
+      Aprovado
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+      <Icon icon="mdi:close-circle" width={12} />
+      Reprovado
+    </span>
+  );
+}
+
+// ─── RegistrarModal ───────────────────────────────────────────────────────────
+
+function RegistrarModal({
+  student,
+  turma,
+  curso,
+  token,
+  onClose,
+  onSuccess,
+}: {
+  student: EstudanteDetalhado;
+  turma: Turma;
+  curso?: Curso;
+  token?: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const tipoEnsino = getTipoEnsino(turma.nivel);
+
+  const anosDoTipo: string[] = useMemo(() => {
+    if (tipoEnsino === "fundamental") return FUNDAMENTAL_ANOS;
+    if (!curso) return [];
+    return sortAnos(
+      (curso.anos_academicos ?? []).filter(
+        a => getTipoEnsino(a) === tipoEnsino
+      )
+    );
+  }, [tipoEnsino, curso]);
+
+  const proximosNiveis = useMemo(
+    () => getProximosNiveis(turma.nivel, anosDoTipo),
+    [turma.nivel, anosDoTipo]
+  );
+
+  const isUltimoAno = proximosNiveis.length === 0;
+
+  const [aprovado, setAprovado] = useState(true);
+  const [proximoNivel, setProximoNivel] = useState(proximosNiveis[0] ?? "");
+  const [observacao, setObservacao] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const canSubmit =
+    !loading &&
+    !success &&
+    (!aprovado || isUltimoAno || proximoNivel !== "");
+
+  async function handleSubmit() {
+    setLoading(true);
+    setErro("");
+    try {
+      const payload: RegistrarAvaliacaoFinalRequest = {
+        codigo_estudante: student.codigo_estudante,
+        tipo_ensino: tipoEnsino,
+        nivel_ano_academico_atual: turma.nivel,
+        aprovado,
+        observacao: observacao.trim() || undefined,
+      };
+      if (aprovado && !isUltimoAno && proximoNivel) {
+        payload.proximo_ano_academico = proximoNivel;
+      }
+      await academiaService.registrarAvaliacaoFinal(payload, token);
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      setErro(err?.message ?? "Erro ao registrar avaliação.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            Registrar Avaliação Final
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <Icon icon="mdi:close" width={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Student info */}
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="w-9 h-9 rounded-full bg-brand-500 flex items-center justify-center text-white text-sm font-semibold">
+              {student.nome
+                .split(" ")
+                .map(n => n[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {student.nome}
+              </p>
+              <p className="text-xs text-gray-400 font-mono">
+                {student.codigo_estudante}
+              </p>
+            </div>
+          </div>
+
+          {/* Level and tipo info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-xs text-gray-400 mb-0.5">Turma</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                {turma.codigo_turma}
+              </p>
+            </div>
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-xs text-gray-400 mb-0.5">Nível Atual</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                {labelNivel(turma.nivel, true)}
+              </p>
+            </div>
+          </div>
+
+          {/* Resultado toggle */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Resultado
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setAprovado(true)}
+                className={`py-3 rounded-xl border-2 text-sm font-medium transition-all flex flex-col items-center gap-1 ${
+                  aprovado
+                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400"
+                    : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300"
+                }`}
+              >
+                <Icon icon="mdi:check-circle-outline" width={22} />
+                Aprovado
+              </button>
+              <button
+                onClick={() => setAprovado(false)}
+                className={`py-3 rounded-xl border-2 text-sm font-medium transition-all flex flex-col items-center gap-1 ${
+                  !aprovado
+                    ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+                    : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300"
+                }`}
+              >
+                <Icon icon="mdi:close-circle-outline" width={22} />
+                Reprovado
+              </button>
+            </div>
+          </div>
+
+          {/* Próximo nível — só para aprovados e quando não é o último ano */}
+          {aprovado && !isUltimoAno && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                Próximo Nível
+              </label>
+              <select
+                value={proximoNivel}
+                onChange={e => setProximoNivel(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300 dark:focus:border-brand-800 appearance-none"
+              >
+                <option value="">Selecione o próximo nível</option>
+                {proximosNiveis.map(n => (
+                  <option key={n} value={n}>
+                    {labelNivel(n, true)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Info de último ano */}
+          {aprovado && isUltimoAno && (
+            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg">
+              <Icon
+                icon="mdi:information-outline"
+                width={16}
+                className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
+              />
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                Último ano do ciclo. O status do estudante será marcado como{" "}
+                <strong>finalizado</strong>.
+              </p>
+            </div>
+          )}
+
+          {/* Info de reprovação */}
+          {!aprovado && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg">
+              <Icon
+                icon="mdi:alert-outline"
+                width={16}
+                className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0"
+              />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                A reprovação é registada no historial mas{" "}
+                <strong>não altera o ano nem o status</strong> do estudante.
+              </p>
+            </div>
+          )}
+
+          {/* Observação */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+              Observação{" "}
+              <span className="text-xs text-gray-400 font-normal">
+                (opcional · substitui validação automática de notas)
+              </span>
+            </label>
+            <textarea
+              value={observacao}
+              onChange={e => setObservacao(e.target.value)}
+              rows={2}
+              placeholder="Ex: Avaliação especial aprovada pela direcção..."
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent text-sm text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/10 focus:border-brand-300 dark:focus:border-brand-800 resize-none"
+            />
+          </div>
+
+          {/* Feedback */}
+          {erro && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg">
+              <Icon
+                icon="mdi:alert-circle"
+                width={15}
+                className="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
+              />
+              <p className="text-xs text-red-700 dark:text-red-400">{erro}</p>
+            </div>
+          )}
+          {success && (
+            <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-lg">
+              <Icon
+                icon="mdi:check-circle"
+                width={15}
+                className="text-emerald-600 dark:text-emerald-400"
+              />
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                Avaliação registada com sucesso!
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                A registar...
+              </>
+            ) : (
+              "Registrar"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TabelaEstudantes ─────────────────────────────────────────────────────────
+
+function TabelaEstudantes({
+  turma,
+  avaliacoes,
+  estudantes,
+  curso,
+  token,
+  onRefresh,
 }: {
   turma: Turma;
   avaliacoes: AvaliacaoFinal[];
   estudantes: EstudanteDetalhado[];
-  anoLetivo: string;
-  anoAcademico: string;
+  curso?: Curso;
+  token?: string;
+  onRefresh: () => void;
 }) {
+  const [modalStudent, setModalStudent] =
+    useState<EstudanteDetalhado | null>(null);
+  const [selectedAnoLetivo, setSelectedAnoLetivo] = useState("");
+
   const estudantesMap = useMemo(() => {
     const m: Record<string, EstudanteDetalhado> = {};
-    estudantes.forEach(e => { m[e.codigo_estudante] = e; });
+    estudantes.forEach(e => {
+      m[e.codigo_estudante] = e;
+    });
     return m;
   }, [estudantes]);
 
-  const rows = turma.estudantes.map(cod => {
-    const est = estudantesMap[cod];
-    const av = avaliacoes.find(a =>
-      a.codigo_estudante === cod &&
-      a.ano_lectivo === anoLetivo &&
-      a.ano_academico_atual === anoAcademico
+  // All years that appear in evaluations for this turma's students
+  const anosLetivos = useMemo(() => {
+    const stCodes = new Set(turma.estudantes);
+    const years = new Set(
+      avaliacoes
+        .filter(
+          a =>
+            stCodes.has(a.codigo_estudante) &&
+            a.ano_academico_atual === turma.nivel
+        )
+        .map(a => a.ano_lectivo)
     );
-    return { cod, est, av };
-  });
+    return Array.from(years).sort().reverse();
+  }, [turma, avaliacoes]);
 
-  if (rows.length === 0) {
+  const anoLetivoEfetivo = selectedAnoLetivo || anosLetivos[0] || "";
+
+  const rows = useMemo(() => {
+    return turma.estudantes.map(cod => {
+      const est = estudantesMap[cod];
+      const av = anoLetivoEfetivo
+        ? avaliacoes.find(
+            a =>
+              a.codigo_estudante === cod &&
+              a.ano_lectivo === anoLetivoEfetivo &&
+              a.ano_academico_atual === turma.nivel
+          )
+        : undefined;
+      return { cod, est, av };
+    });
+  }, [turma, estudantesMap, avaliacoes, anoLetivoEfetivo]);
+
+  const aprovados = rows.filter(r => r.av?.aprovado).length;
+  const reprovados = rows.filter(r => r.av && !r.av.aprovado).length;
+  const pendentes = rows.filter(r => !r.av).length;
+
+  if (turma.estudantes.length === 0) {
     return (
-      <div className="text-center py-10 text-gray-400">
-        <Icon icon="mdi:account-group" width={36} className="mx-auto mb-2 opacity-40" />
-        <p className="text-sm">Turma sem estudantes.</p>
+      <div className="text-center py-12">
+        <Icon
+          icon="mdi:account-group"
+          width={40}
+          className="mx-auto mb-2 text-gray-300 dark:text-gray-700"
+        />
+        <p className="text-sm text-gray-400">Turma sem estudantes vinculados.</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800/70">
-          <tr>
-            {["Estudante", "Código", "Resultado", "Próximo Nível", "Observação", "Data"].map(h => (
-              <th key={h} className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {rows.map(({ cod, est, av }) => (
-            <tr key={cod} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? cod}</td>
-              <td className="px-4 py-3 text-gray-400 text-xs font-mono">{cod}</td>
-              <td className="px-4 py-3 whitespace-nowrap">
-                {av ? <BadgeResultado aprovado={av.aprovado} /> : <span className="text-xs text-gray-400 italic">Sem registo</span>}
-              </td>
-              <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {av ? (av.proximo_ano_academico ? labelNivel(av.proximo_ano_academico) : (av.aprovado ? "Ciclo finalizado" : "—")) : "—"}
-              </td>
-              <td className="px-4 py-3 text-gray-400 text-xs max-w-[140px] truncate">{av?.observacao ?? "—"}</td>
-              <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                {av ? new Date(av.registered_at).toLocaleDateString("pt-AO") : "—"}
-              </td>
+    <div className="space-y-4">
+      {/* Controls bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        {anosLetivos.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Icon
+              icon="mdi:calendar-school"
+              width={16}
+              className="text-gray-400"
+            />
+            <select
+              value={anoLetivoEfetivo}
+              onChange={e => setSelectedAnoLetivo(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              {anosLetivos.map(al => (
+                <option key={al} value={al}>
+                  {al.replace("_", "/")}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex items-center gap-4 ml-auto text-xs">
+          <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+            <Icon icon="mdi:check-circle" width={14} />
+            {aprovados} aprovados
+          </span>
+          <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+            <Icon icon="mdi:close-circle" width={14} />
+            {reprovados} reprovados
+          </span>
+          <span className="flex items-center gap-1.5 text-gray-400">
+            <Icon icon="mdi:clock-outline" width={14} />
+            {pendentes} pendentes
+          </span>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-800/70">
+            <tr>
+              {[
+                "Estudante",
+                "Código",
+                "Resultado",
+                "Próximo Nível",
+                "Observação",
+                "Data",
+                "",
+              ].map(h => (
+                <th
+                  key={h}
+                  className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap"
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+            {rows.map(({ cod, est, av }) => (
+              <tr
+                key={cod}
+                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors"
+              >
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                  {est?.nome ?? cod}
+                </td>
+                <td className="px-4 py-3 text-gray-400 text-xs font-mono">
+                  {cod}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {av ? (
+                    <BadgeResultado aprovado={av.aprovado} />
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                      <Icon icon="mdi:clock-outline" width={11} />
+                      Pendente
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  {av
+                    ? av.proximo_ano_academico
+                      ? labelNivel(av.proximo_ano_academico)
+                      : av.aprovado
+                      ? "Ciclo finalizado"
+                      : "—"
+                    : "—"}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">
+                  {av?.observacao ?? "—"}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
+                  {av
+                    ? new Date(av.registered_at).toLocaleDateString("pt-AO")
+                    : "—"}
+                </td>
+                <td className="px-4 py-3">
+                  {!av && est && (
+                    <button
+                      onClick={() => setModalStudent(est)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800/70 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors whitespace-nowrap"
+                    >
+                      <Icon icon="mdi:plus" width={13} />
+                      Registrar
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal */}
+      {modalStudent && (
+        <RegistrarModal
+          student={modalStudent}
+          turma={turma}
+          curso={curso}
+          token={token}
+          onClose={() => setModalStudent(null)}
+          onSuccess={() => {
+            setModalStudent(null);
+            onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-// ─── componente principal ─────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AvaliacoesFinaisAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
@@ -210,28 +769,46 @@ export default function AvaliacoesFinaisAcademia() {
 
   const academiaType = user?.academia?.type ?? "escola";
   const nivelEscolar = user?.academia?.nivel_escolar ?? "fundamental";
-  const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
+  const isFundamental =
+    academiaType === "escola" && nivelEscolar === "fundamental";
   const isSuperior = academiaType === "superior";
   const isMisto = academiaType === "escola" && nivelEscolar === "misto";
 
+  const needsCursos = !isFundamental;
+
   const initLayer = (): Layer => {
-    if (isFundamental) return { mode: "fund", type: "anos_letivos" };
-    if (isMisto) return { mode: "misto", type: "choose" };
-    return { mode: "sup", type: "cursos" };
+    if (isMisto) return { type: "choose" };
+    if (isFundamental) return { type: "fund_overview" };
+    return { type: "cursos" };
   };
+
   const [layer, setLayer] = useState<Layer>(initLayer);
 
-  const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
-  const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading } = useApi(consultasService.listarAvaliacoes);
+  const {
+    data: dataTurmas,
+    execute: carregarTurmas,
+    loading: loadTurmas,
+  } = useApi(academiaService.listarTurmas);
+  const { data: dataCursos, execute: carregarCursos } = useApi(
+    academiaService.listarCursos
+  );
+  const { data: dataEstudantes, execute: carregarEstudantes } = useApi(
+    consultasService.listarEstudantes
+  );
+  const {
+    data: dataAvaliacoes,
+    execute: carregarAvaliacoes,
+    loading: loadAvs,
+  } = useApi(consultasService.listarAvaliacoes);
 
-  const [avalCache, setAvalCache] = useState<Record<string, AvaliacaoFinal[]>>({});
+  const reload = useCallback(() => {
+    carregarAvaliacoes({ token });
+  }, [carregarAvaliacoes, token]);
 
   useEffect(() => {
     carregarTurmas(token);
-    carregarCursos(token);
-    carregarEstudantes(undefined, token);
+    if (needsCursos) carregarCursos(token);
+    carregarEstudantes(token);
     carregarAvaliacoes({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -241,307 +818,396 @@ export default function AvaliacoesFinaisAcademia() {
     [dataTurmas]
   );
   const cursos: Curso[] = useMemo(
-    () => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [],
+    () =>
+      ((dataCursos as any)?.cursos ?? []).filter(
+        (c: any) => c.status === "ativo"
+      ),
     [dataCursos]
   );
   const estudantes: EstudanteDetalhado[] = useMemo(
     () => (dataEstudantes as any)?.estudantes ?? [],
     [dataEstudantes]
   );
-
   const todasAvaliacoes: AvaliacaoFinal[] = useMemo(
     () => (dataAvaliacoes as any)?.avaliacoes ?? [],
     [dataAvaliacoes]
   );
 
-  async function carregarAvalTurma(turma: Turma) {
-    const faltando = turma.estudantes.filter(cod => !avalCache[cod]);
-    if (!faltando.length) return;
-    await Promise.all(faltando.map(async cod => {
-      try {
-        const res = await consultasService.avaliacoesEstudante(cod, token);
-        setAvalCache(prev => ({ ...prev, [cod]: (res as any)?.avaliacoes ?? [] }));
-      } catch {}
-    }));
-  }
-
-  const avsDaAcademia = useCallback((anoLetivo?: string, anoAcademico?: string) =>
-    todasAvaliacoes.filter(a =>
-      (!anoLetivo || a.ano_lectivo === anoLetivo) &&
-      (!anoAcademico || a.ano_academico_atual === anoAcademico)
-    ),
-  [todasAvaliacoes]);
-
-  const anosLetivos = useMemo(() => {
-    const set = new Set(todasAvaliacoes.map(a => a.ano_lectivo));
-    return Array.from(set).sort();
-  }, [todasAvaliacoes]);
-
-  const anosLetivosParaCurso = (cursoId: string) => {
-    const turmasDoCurso = turmas.filter(t => t.curso_id === cursoId);
-    const estudantesDoCurso = new Set(turmasDoCurso.flatMap(t => t.estudantes));
-    const set = new Set(todasAvaliacoes.filter(a => estudantesDoCurso.has(a.codigo_estudante)).map(a => a.ano_lectivo));
-    return Array.from(set).sort();
-  };
-
-  const turmasPorNivel = (nivel: string) => turmas.filter(t => t.nivel === nivel);
-  const turmasPorCursoNivel = (cursoId: string, nivel: string) =>
-    turmas.filter(t => t.curso_id === cursoId && t.nivel === nivel);
-
-  function buildCrumbs(): { label: string; onClick?: () => void }[] {
-    const goInicio = () => setLayer({ mode: "misto", type: "choose" });
-
-    if (layer.mode === "fund") {
-      const goAnos = () => setLayer({ mode: "fund", type: "anos_letivos" });
-      const base = isMisto
-        ? [{ label: "Início", onClick: goInicio }, { label: "Fundamental", onClick: goAnos }]
-        : [{ label: "Anos Letivos", onClick: goAnos }];
-      const l = layer as LayerFund;
-      if (l.type === "anos_letivos") return isMisto ? [{ label: "Início", onClick: goInicio }, { label: "Fundamental" }] : [{ label: "Anos Letivos" }];
-      if (l.type === "anos_academicos") return [...base, { label: l.anoLetivo.replace("_", "/") }];
-      if (l.type === "turmas") return [...base, { label: l.anoLetivo.replace("_", "/"), onClick: () => setLayer({ mode: "fund", type: "anos_academicos", anoLetivo: l.anoLetivo }) }, { label: labelNivel(l.anoAcademico, true) }];
-      if (l.type === "resultados") return [...base, { label: l.anoLetivo.replace("_", "/"), onClick: () => setLayer({ mode: "fund", type: "anos_academicos", anoLetivo: l.anoLetivo }) }, { label: labelNivel(l.anoAcademico, true), onClick: () => setLayer({ mode: "fund", type: "turmas", anoLetivo: l.anoLetivo, anoAcademico: l.anoAcademico }) }, { label: l.turma.codigo_turma }];
-    }
-
-    if (layer.mode === "sup") {
-      const goCursos = () => setLayer({ mode: "sup", type: "cursos" });
-      const base = isMisto
-        ? [{ label: "Início", onClick: goInicio }, { label: "Cursos", onClick: goCursos }]
-        : [{ label: "Cursos", onClick: goCursos }];
-      const l = layer as LayerCurso;
-      if (l.type === "cursos") return isMisto ? [{ label: "Início", onClick: goInicio }, { label: "Cursos" }] : [{ label: "Cursos" }];
-      if (l.type === "anos_letivos") return [...base, { label: l.curso.nome }];
-      if (l.type === "anos_academicos") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos_letivos", curso: l.curso }) }, { label: l.anoLetivo.replace("_", "/") }];
-      if (l.type === "turmas") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos_letivos", curso: l.curso }) }, { label: l.anoLetivo.replace("_", "/"), onClick: () => setLayer({ mode: "sup", type: "anos_academicos", curso: l.curso, anoLetivo: l.anoLetivo }) }, { label: labelNivel(l.anoAcademico, !isSuperior) }];
-      if (l.type === "resultados") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos_letivos", curso: l.curso }) }, { label: l.anoLetivo.replace("_", "/"), onClick: () => setLayer({ mode: "sup", type: "anos_academicos", curso: l.curso, anoLetivo: l.anoLetivo }) }, { label: labelNivel(l.anoAcademico, !isSuperior), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, anoLetivo: l.anoLetivo, anoAcademico: l.anoAcademico }) }, { label: l.turma.codigo_turma }];
-    }
-
-    return [];
-  }
-
-  const anoLetivoPараFund = layer.mode === "fund" && layer.type === "anos_academicos" ? layer.anoLetivo : undefined;
-  const anosComTurmas = useMemo(() => {
-    if (!anoLetivoPараFund) return [];
-    const avsDoAno = avsDaAcademia(anoLetivoPараFund);
-    const niveis = new Set(avsDoAno.map(a => a.ano_academico_atual));
-    return ANOS_FUNDAMENTAL_KEYS.filter(a => turmas.some(t => t.nivel === a) && niveis.has(a));
-  }, [anoLetivoPараFund, avsDaAcademia, turmas]);
+  const loading = loadTurmas || loadAvs;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex items-center justify-center py-24">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
       </div>
     );
   }
 
-  // ── Misto: escolha ──
-  if (layer.mode === "misto" && layer.type === "choose") {
+  // ── Misto: choose nivel ──
+  if (layer.type === "choose") {
+    const fundAvs = todasAvaliacoes.filter(a => a.tipo_ensino === "fundamental");
+    const medioAvs = todasAvaliacoes.filter(a => a.tipo_ensino === "medio");
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
-          <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Avaliações Finais
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Selecione o nível de ensino
+          </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="1º ao 9º Ano" onClick={() => setLayer({ mode: "fund", type: "anos_letivos" })} />
-          <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Cursos médios" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
+        <StatsBar avaliacoes={todasAvaliacoes} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CardBtn
+            icon="mdi:school"
+            title="Ensino Fundamental"
+            subtitle="1º ao 9º Ano"
+            stats={{
+              approved: fundAvs.filter(a => a.aprovado).length,
+              reprovated: fundAvs.filter(a => !a.aprovado).length,
+              pending: 0,
+            }}
+            onClick={() => setLayer({ type: "fund_overview" })}
+          />
+          <CardBtn
+            icon="mdi:book-education"
+            title="Ensino Médio"
+            subtitle="Cursos Médios"
+            stats={{
+              approved: medioAvs.filter(a => a.aprovado).length,
+              reprovated: medioAvs.filter(a => !a.aprovado).length,
+              pending: 0,
+            }}
+            onClick={() => setLayer({ type: "cursos" })}
+          />
         </div>
       </div>
     );
   }
 
-  // ── Fundamental: Anos Letivos ──
-  if (layer.mode === "fund" && layer.type === "anos_letivos") {
-    const crumbs = buildCrumbs();
-    return (
-      <div className="space-y-6">
-        {isMisto && <Breadcrumb crumbs={crumbs} />}
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Letivos</h2>
-        {anosLetivos.length === 0
-          ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma avaliação final registada ainda.</p>
-          : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anosLetivos.map(al => {
-              const avs = avsDaAcademia(al);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={al} icon="mdi:calendar-school" title={al.replace("_", "/")} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setLayer({ mode: "fund", type: "anos_academicos", anoLetivo: al })} />;
-            })}
-          </div>
-        }
-      </div>
-    );
-  }
+  // ── Fundamental: Turmas overview ──
+  if (layer.type === "fund_overview") {
+    const fundTurmas = turmas
+      .filter(t => t.nivel.includes("fundamental"))
+      .sort(
+        (a, b) => NIVEL_ORDER.indexOf(a.nivel) - NIVEL_ORDER.indexOf(b.nivel)
+      );
+    const fundAvs = todasAvaliacoes.filter(a => a.tipo_ensino === "fundamental");
 
-  // ── Fundamental: Anos Académicos ──
-  if (layer.mode === "fund" && layer.type === "anos_academicos") {
-    const { anoLetivo } = layer;
     return (
       <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano Letivo {anoLetivo.replace("_", "/")}</h2>
-        <StatsAvaliacoes avaliacoes={avsDaAcademia(anoLetivo)} />
-        {anosComTurmas.length === 0
-          ? <p className="text-gray-400 text-sm py-6 text-center">Nenhum ano com avaliações neste período.</p>
-          : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anosComTurmas.map(ano => {
-              const avs = avsDaAcademia(anoLetivo, ano);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={ano} icon="mdi:numeric" title={labelNivel(ano, true)} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setLayer({ mode: "fund", type: "turmas", anoLetivo, anoAcademico: ano })} />;
-            })}
-          </div>
-        }
-      </div>
-    );
-  }
-
-  // ── Fundamental: Turmas ──
-  if (layer.mode === "fund" && layer.type === "turmas") {
-    const { anoLetivo, anoAcademico } = layer;
-    const ts = turmasPorNivel(anoAcademico);
-    return (
-      <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(anoAcademico, true)}</h2>
-        {ts.length === 0
-          ? <p className="text-gray-400 text-sm">Nenhuma turma neste ano.</p>
-          : <div className="grid gap-3 sm:grid-cols-2">
-            {ts.map(t => {
-              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${aprov}/${avs.length} aprovações`} badge={t.turno} onClick={async () => { await carregarAvalTurma(t); setLayer({ mode: "fund", type: "resultados", anoLetivo, anoAcademico, turma: t }); }} />;
-            })}
-          </div>
-        }
-      </div>
-    );
-  }
-
-  // ── Fundamental: Resultados ──
-  if (layer.mode === "fund" && layer.type === "resultados") {
-    const { anoLetivo, anoAcademico, turma } = layer;
-    const avs = todasAvaliacoes.filter(a => turma.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
-    return (
-      <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
+        {isMisto && (
+          <Breadcrumb
+            crumbs={[
+              { label: "Início", onClick: () => setLayer({ type: "choose" }) },
+              { label: "Ensino Fundamental" },
+            ]}
+          />
+        )}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
-          <p className="text-sm text-gray-500 mt-1">{labelNivel(anoAcademico, true)} · Ano Letivo {anoLetivo.replace("_", "/")}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Avaliações Finais — Fundamental
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Selecione uma turma para ver e registar resultados
+          </p>
         </div>
-        <StatsAvaliacoes avaliacoes={avs} />
-        <TabelaResultadosTurma turma={turma} avaliacoes={todasAvaliacoes} estudantes={estudantes} anoLetivo={anoLetivo} anoAcademico={anoAcademico} />
+        <StatsBar avaliacoes={fundAvs} />
+        {fundTurmas.length === 0 ? (
+          <div className="text-center py-14">
+            <Icon
+              icon="mdi:account-group"
+              width={44}
+              className="mx-auto mb-3 text-gray-300 dark:text-gray-700"
+            />
+            <p className="text-sm text-gray-400">
+              Nenhuma turma do ensino fundamental.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {fundTurmas.map(t => {
+              const avs = todasAvaliacoes.filter(a =>
+                t.estudantes.includes(a.codigo_estudante)
+              );
+              return (
+                <CardBtn
+                  key={t.id}
+                  icon="mdi:account-group"
+                  title={t.codigo_turma}
+                  subtitle={`${labelNivel(t.nivel)} · ${
+                    t.estudantes.length
+                  } estudante(s)`}
+                  badge={t.turno}
+                  stats={{
+                    approved: avs.filter(a => a.aprovado).length,
+                    reprovated: avs.filter(a => !a.aprovado).length,
+                    pending: Math.max(0, t.estudantes.length - avs.length),
+                  }}
+                  onClick={() => setLayer({ type: "fund_turma", turma: t })}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
-  // ── Sup/Médio: Cursos ──
-  if (layer.mode === "sup" && layer.type === "cursos") {
+  // ── Fundamental: Turma detail ──
+  if (layer.type === "fund_turma") {
+    const { turma } = layer;
     return (
       <div className="space-y-6">
-        {isMisto && <Breadcrumb crumbs={buildCrumbs()} />}
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
-        {cursos.length === 0
-          ? <p className="text-gray-400 text-sm">Nenhum curso activo.</p>
-          : <div className="grid gap-3 sm:grid-cols-2">
+        <Breadcrumb
+          crumbs={[
+            ...(isMisto
+              ? [
+                  {
+                    label: "Início",
+                    onClick: () => setLayer({ type: "choose" }),
+                  },
+                ]
+              : []),
+            {
+              label: "Fundamental",
+              onClick: () => setLayer({ type: "fund_overview" }),
+            },
+            { label: turma.codigo_turma },
+          ]}
+        />
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Turma {turma.codigo_turma}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {labelNivel(turma.nivel, true)} · Turno {turma.turno}
+            </p>
+          </div>
+          <span className="mt-1 text-xs px-2.5 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-full whitespace-nowrap">
+            {turma.estudantes.length} estudante(s)
+          </span>
+        </div>
+        <TabelaEstudantes
+          turma={turma}
+          avaliacoes={todasAvaliacoes}
+          estudantes={estudantes}
+          token={token}
+          onRefresh={reload}
+        />
+      </div>
+    );
+  }
+
+  // ── Cursos: overview ──
+  if (layer.type === "cursos") {
+    const tipoLabel = isSuperior
+      ? "Avaliações Finais — Superior"
+      : "Avaliações Finais — Médio";
+    const tipoEnsino: TipoEnsino = isSuperior ? "superior" : "medio";
+    const filteredAvs = todasAvaliacoes.filter(
+      a => a.tipo_ensino === tipoEnsino
+    );
+
+    return (
+      <div className="space-y-6">
+        {isMisto && (
+          <Breadcrumb
+            crumbs={[
+              { label: "Início", onClick: () => setLayer({ type: "choose" }) },
+              { label: "Ensino Médio" },
+            ]}
+          />
+        )}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {tipoLabel}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Selecione um curso
+          </p>
+        </div>
+        <StatsBar avaliacoes={filteredAvs} />
+        {cursos.length === 0 ? (
+          <div className="text-center py-14">
+            <Icon
+              icon="mdi:book-open-variant"
+              width={44}
+              className="mx-auto mb-3 text-gray-300 dark:text-gray-700"
+            />
+            <p className="text-sm text-gray-400">Nenhum curso activo.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
             {cursos.map(c => {
               const turmasDoCurso = turmas.filter(t => t.curso_id === c.id);
-              const estudsDoCurso = new Set(turmasDoCurso.flatMap(t => t.estudantes));
-              const avs = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante));
-              return <CardBtn key={c.id} icon="mdi:book-open-variant" title={c.nome} subtitle={`${avs.length} avaliação(ões)`} onClick={() => setLayer({ mode: "sup", type: "anos_letivos", curso: c })} />;
+              const estudsDoCurso = new Set(
+                turmasDoCurso.flatMap(t => t.estudantes)
+              );
+              const avs = todasAvaliacoes.filter(a =>
+                estudsDoCurso.has(a.codigo_estudante)
+              );
+              return (
+                <CardBtn
+                  key={c.id}
+                  icon="mdi:book-open-variant"
+                  title={c.nome}
+                  subtitle={`${turmasDoCurso.length} turma(s) · ${estudsDoCurso.size} estudante(s)`}
+                  stats={{
+                    approved: avs.filter(a => a.aprovado).length,
+                    reprovated: avs.filter(a => !a.aprovado).length,
+                    pending: Math.max(
+                      0,
+                      estudsDoCurso.size - avs.length
+                    ),
+                  }}
+                  onClick={() =>
+                    setLayer({ type: "curso_overview", curso: c })
+                  }
+                />
+              );
             })}
           </div>
-        }
+        )}
       </div>
     );
   }
 
-  // ── Sup/Médio: Anos Letivos ──
-  if (layer.mode === "sup" && layer.type === "anos_letivos") {
+  // ── Curso: turmas overview ──
+  if (layer.type === "curso_overview") {
     const { curso } = layer;
-    const als = anosLetivosParaCurso(curso.id);
-    return (
-      <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
-        {als.length === 0
-          ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma avaliação final registada para este curso ainda.</p>
-          : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {als.map(al => {
-              const turmasDoCurso = turmas.filter(t => t.curso_id === curso.id);
-              const estudsDoCurso = new Set(turmasDoCurso.flatMap(t => t.estudantes));
-              const avs = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === al);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={al} icon="mdi:calendar-school" title={al.replace("_", "/")} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setLayer({ mode: "sup", type: "anos_academicos", curso, anoLetivo: al })} />;
-            })}
-          </div>
-        }
-      </div>
-    );
-  }
-
-  // ── Sup/Médio: Anos Académicos ──
-  if (layer.mode === "sup" && layer.type === "anos_academicos") {
-    const { curso, anoLetivo } = layer;
-    const anosOrdenados = sortAnos(curso.anos_academicos ?? []);
-    const turmasDoCurso = turmas.filter(t => t.curso_id === curso.id);
+    const turmasDoCurso = turmas
+      .filter(t => t.curso_id === curso.id)
+      .sort(
+        (a, b) => NIVEL_ORDER.indexOf(a.nivel) - NIVEL_ORDER.indexOf(b.nivel)
+      );
     const estudsDoCurso = new Set(turmasDoCurso.flatMap(t => t.estudantes));
-    const anosComAvs = anosOrdenados.filter(ano =>
-      todasAvaliacoes.some(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === ano)
+    const avsDosCurso = todasAvaliacoes.filter(a =>
+      estudsDoCurso.has(a.codigo_estudante)
     );
-    const avsDoAno = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo);
-    return (
-      <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano Letivo {anoLetivo.replace("_", "/")}</h2>
-        <StatsAvaliacoes avaliacoes={avsDoAno} />
-        {anosComAvs.length === 0
-          ? <p className="text-gray-400 text-sm py-6 text-center">Nenhum ano académico com avaliações registadas.</p>
-          : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anosComAvs.map(ano => {
-              const avs = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === ano);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={ano} icon="mdi:calendar-school" title={labelNivel(ano, !isSuperior)} subtitle={`${avs.length} avaliação(ões) · ${aprov} aprovação(ões)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, anoLetivo, anoAcademico: ano })} />;
-            })}
-          </div>
-        }
-      </div>
-    );
-  }
 
-  // ── Sup/Médio: Turmas ──
-  if (layer.mode === "sup" && layer.type === "turmas") {
-    const { curso, anoLetivo, anoAcademico } = layer;
-    const ts = turmasPorCursoNivel(curso.id, anoAcademico);
     return (
       <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(anoAcademico, !isSuperior)}</h2>
-        {ts.length === 0
-          ? <p className="text-gray-400 text-sm">Nenhuma turma neste ano.</p>
-          : <div className="grid gap-3 sm:grid-cols-2">
-            {ts.map(t => {
-              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
-              const aprov = avs.filter(a => a.aprovado).length;
-              return <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${aprov}/${avs.length} aprovações`} badge={t.turno} onClick={async () => { await carregarAvalTurma(t); setLayer({ mode: "sup", type: "resultados", curso, anoLetivo, anoAcademico, turma: t }); }} />;
-            })}
-          </div>
-        }
-      </div>
-    );
-  }
-
-  // ── Sup/Médio: Resultados ──
-  if (layer.mode === "sup" && layer.type === "resultados") {
-    const { curso, anoLetivo, anoAcademico, turma } = layer;
-    const avs = todasAvaliacoes.filter(a => turma.estudantes.includes(a.codigo_estudante) && a.ano_lectivo === anoLetivo && a.ano_academico_atual === anoAcademico);
-    return (
-      <div className="space-y-6">
-        <Breadcrumb crumbs={buildCrumbs()} />
+        <Breadcrumb
+          crumbs={[
+            ...(isMisto
+              ? [
+                  {
+                    label: "Início",
+                    onClick: () => setLayer({ type: "choose" }),
+                  },
+                ]
+              : []),
+            {
+              label: isSuperior ? "Cursos" : "Médio",
+              onClick: () => setLayer({ type: "cursos" }),
+            },
+            { label: curso.nome },
+          ]}
+        />
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
-          <p className="text-sm text-gray-500 mt-1">{labelNivel(anoAcademico, !isSuperior)} · {curso.nome} · Ano Letivo {anoLetivo.replace("_", "/")}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {curso.nome}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Selecione uma turma
+          </p>
         </div>
-        <StatsAvaliacoes avaliacoes={avs} />
-        <TabelaResultadosTurma turma={turma} avaliacoes={todasAvaliacoes} estudantes={estudantes} anoLetivo={anoLetivo} anoAcademico={anoAcademico} />
+        <StatsBar avaliacoes={avsDosCurso} />
+        {turmasDoCurso.length === 0 ? (
+          <div className="text-center py-14">
+            <Icon
+              icon="mdi:account-group"
+              width={44}
+              className="mx-auto mb-3 text-gray-300 dark:text-gray-700"
+            />
+            <p className="text-sm text-gray-400">
+              Nenhuma turma para este curso.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {turmasDoCurso.map(t => {
+              const avs = todasAvaliacoes.filter(a =>
+                t.estudantes.includes(a.codigo_estudante)
+              );
+              return (
+                <CardBtn
+                  key={t.id}
+                  icon="mdi:account-group"
+                  title={t.codigo_turma}
+                  subtitle={`${labelNivel(t.nivel)} · ${
+                    t.estudantes.length
+                  } estudante(s)`}
+                  badge={t.turno}
+                  stats={{
+                    approved: avs.filter(a => a.aprovado).length,
+                    reprovated: avs.filter(a => !a.aprovado).length,
+                    pending: Math.max(0, t.estudantes.length - avs.length),
+                  }}
+                  onClick={() =>
+                    setLayer({ type: "curso_turma", curso, turma: t })
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Curso: turma detail ──
+  if (layer.type === "curso_turma") {
+    const { curso, turma } = layer;
+    return (
+      <div className="space-y-6">
+        <Breadcrumb
+          crumbs={[
+            ...(isMisto
+              ? [
+                  {
+                    label: "Início",
+                    onClick: () => setLayer({ type: "choose" }),
+                  },
+                ]
+              : []),
+            {
+              label: isSuperior ? "Cursos" : "Médio",
+              onClick: () => setLayer({ type: "cursos" }),
+            },
+            {
+              label: curso.nome,
+              onClick: () =>
+                setLayer({ type: "curso_overview", curso }),
+            },
+            { label: turma.codigo_turma },
+          ]}
+        />
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Turma {turma.codigo_turma}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {curso.nome} · {labelNivel(turma.nivel, true)} · Turno{" "}
+              {turma.turno}
+            </p>
+          </div>
+          <span className="mt-1 text-xs px-2.5 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-full whitespace-nowrap">
+            {turma.estudantes.length} estudante(s)
+          </span>
+        </div>
+        <TabelaEstudantes
+          turma={turma}
+          avaliacoes={todasAvaliacoes}
+          estudantes={estudantes}
+          curso={curso}
+          token={token}
+          onRefresh={reload}
+        />
       </div>
     );
   }
