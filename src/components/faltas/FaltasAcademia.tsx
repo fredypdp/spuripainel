@@ -56,8 +56,11 @@ const ANOS_FUNDAMENTAL = [
   "5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
 ];
 const ANOS_MEDIO    = ["1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio"];
-const ANOS_SUPERIOR = ["1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior"];
-const ORDEM_ANOS    = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO, ...ANOS_SUPERIOR];
+const ANOS_SUPERIOR = [
+  "1_ano_superior","2_ano_superior","3_ano_superior",
+  "4_ano_superior","5_ano_superior","6_ano_superior",
+];
+const ORDEM_ANOS = [...ANOS_FUNDAMENTAL, ...ANOS_MEDIO, ...ANOS_SUPERIOR];
 
 function sortAnos(anos: string[]): string[] {
   return [...anos].sort((a, b) => {
@@ -100,7 +103,14 @@ function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void 
           {i > 0 && <Icon icon="mdi:chevron-right" width={15} className="text-gray-400" />}
           {i === crumbs.length - 1
             ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
-            : <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">{c.label}</button>
+            : (
+              <button
+                onClick={c.onClick}
+                className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
+              >
+                {c.label}
+              </button>
+            )
           }
         </span>
       ))}
@@ -112,7 +122,10 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
   icon: string; title: string; subtitle?: string; badge?: string; onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group"
+    >
       <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
         <Icon icon={icon} width={22} className="text-brand-500" />
       </div>
@@ -143,9 +156,9 @@ function ModalExcluirFalta({
   onConfirm: (motivo: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const [motivo, setMotivo] = useState("");
+  const [motivo, setMotivo]   = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   async function handle() {
     if (!motivo.trim()) { setError("Motivo é obrigatório"); return; }
@@ -159,8 +172,9 @@ function ModalExcluirFalta({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Excluir Falta</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Excluir falta de <span className="font-medium text-gray-700 dark:text-gray-200">{nomeEstudante}</span>?
-          O histórico é preservado no ledger para auditoria.
+          Excluir falta de{" "}
+          <span className="font-medium text-gray-700 dark:text-gray-200">{nomeEstudante}</span>?
+          O registo permanece no ledger para auditoria.
         </p>
         {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
         <div className="mb-4">
@@ -199,12 +213,12 @@ function ModalEditarFalta({
   onConfirm: (data: AtualizarFaltaRequest) => Promise<void>;
   onClose: () => void;
 }) {
-  const [data, setData] = useState(falta.data);
-  const [materiaId, setMateriaId] = useState(falta.materia_disciplinar_id);
-  const [quantidade, setQuantidade] = useState(falta.quantidade.toString());
-  const [observacao, setObservacao] = useState(falta.observacao || "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [dataFalta, setDataFalta]     = useState(falta.data);
+  const [materiaId, setMateriaId]     = useState(falta.materia_disciplinar_id);
+  const [quantidade, setQuantidade]   = useState(falta.quantidade.toString());
+  const [observacao, setObservacao]   = useState(falta.observacao || "");
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +229,7 @@ function ModalEditarFalta({
     try {
       await onConfirm({
         id: falta.id,
-        data: data || undefined,
+        data: dataFalta || undefined,
         materia_disciplinar_id: materiaId || undefined,
         quantidade: qtd,
         observacao: observacao || undefined,
@@ -234,7 +248,8 @@ function ModalEditarFalta({
         <div className="mb-2">
           <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">Editar Falta</h4>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Estudante: <span className="font-medium text-gray-700 dark:text-gray-300">{nomeEstudante}</span>
+            Estudante:{" "}
+            <span className="font-medium text-gray-700 dark:text-gray-300">{nomeEstudante}</span>
           </p>
         </div>
         {error && (
@@ -245,15 +260,20 @@ function ModalEditarFalta({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label>Quantidade *</Label>
-            <Input type="number" min="1" defaultValue={quantidade} onChange={e => setQuantidade(e.target.value)} />
+            <Input
+              type="number"
+              min="1"
+              defaultValue={quantidade}
+              onChange={e => setQuantidade(e.target.value)}
+            />
           </div>
           <DatePicker
             id={`edit-falta-data-${falta.id}`}
             label="Data da Falta"
             placeholder="Selecione"
-            defaultDate={data}
-            onChange={(dates) => {
-              if (dates?.length) setData(dates[0].toISOString().split("T")[0]);
+            defaultDate={dataFalta}
+            onChange={dates => {
+              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0]);
             }}
           />
         </div>
@@ -270,7 +290,12 @@ function ModalEditarFalta({
         </div>
         <div>
           <Label>Observação</Label>
-          <Input type="text" placeholder="Opcional" defaultValue={observacao} onChange={e => setObservacao(e.target.value)} />
+          <Input
+            type="text"
+            placeholder="Opcional"
+            defaultValue={observacao}
+            onChange={e => setObservacao(e.target.value)}
+          />
         </div>
         <div className="flex gap-3 justify-end mt-6">
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
@@ -297,12 +322,12 @@ function ModalRegistrarFalta({
   onClose: () => void;
 }) {
   const [codigoEstudante, setCodigoEstudante] = useState("");
-  const [dataFalta, setDataFalta] = useState(new Date().toISOString().split("T")[0]);
-  const [materiaId, setMateriaId] = useState("");
-  const [quantidade, setQuantidade] = useState("");
-  const [observacao, setObservacao] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [dataFalta, setDataFalta]             = useState(new Date().toISOString().split("T")[0]);
+  const [materiaId, setMateriaId]             = useState("");
+  const [quantidade, setQuantidade]           = useState("");
+  const [observacao, setObservacao]           = useState("");
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,7 +346,6 @@ function ModalRegistrarFalta({
         quantidade: qtd,
         observacao: observacao || undefined,
       });
-      // Reset
       setCodigoEstudante(""); setMateriaId(""); setQuantidade(""); setObservacao("");
       setDataFalta(new Date().toISOString().split("T")[0]);
       onClose();
@@ -335,7 +359,9 @@ function ModalRegistrarFalta({
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[560px] p-5 lg:p-8">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <h4 className="text-lg font-medium text-gray-800 dark:text-white/90 mb-2">Registrar Nova Falta</h4>
+        <h4 className="text-lg font-medium text-gray-800 dark:text-white/90 mb-2">
+          Registrar Nova Falta
+        </h4>
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
             {error}
@@ -345,7 +371,10 @@ function ModalRegistrarFalta({
           <Label>Estudante *</Label>
           <Dropdown
             value={codigoEstudante}
-            options={estudantes.map(e => ({ label: `${e.nome} (${e.codigo_estudante})`, value: e.codigo_estudante }))}
+            options={estudantes.map(e => ({
+              label: `${e.nome} (${e.codigo_estudante})`,
+              value: e.codigo_estudante,
+            }))}
             onChange={e => setCodigoEstudante(e.value)}
             filter
             placeholder="Selecione o estudante"
@@ -355,14 +384,20 @@ function ModalRegistrarFalta({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label>Quantidade *</Label>
-            <Input type="number" min="1" placeholder="Ex: 2" defaultValue={quantidade} onChange={e => setQuantidade(e.target.value)} />
+            <Input
+              type="number"
+              min="1"
+              placeholder="Ex: 2"
+              defaultValue={quantidade}
+              onChange={e => setQuantidade(e.target.value)}
+            />
           </div>
           <DatePicker
             id="registrar-falta-data"
             label="Data *"
             placeholder="Selecione"
             defaultDate={dataFalta}
-            onChange={(dates) => {
+            onChange={dates => {
               if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0]);
             }}
           />
@@ -432,11 +467,15 @@ function TabelaFaltas({
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">{f.codigo_estudante}</p>
               </td>
-              <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatarData(f.data)}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                {formatarData(f.data)}
+              </td>
               <td className={`px-4 py-3 text-center text-lg font-bold ${corQuantidade(f.quantidade)}`}>
                 {f.quantidade}
               </td>
-              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                {f.observacao || "—"}
+              </td>
               <td className="px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
                   <button
@@ -469,7 +508,7 @@ const MAX_LIMIT = 1000;
 
 export default function FaltasAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
-  const token = tokenStorage.get() ?? undefined;
+  const token  = tokenStorage.get() ?? undefined;
 
   const academiaType  = user?.academia?.type ?? "escola";
   const nivelEscolar  = user?.academia?.nivel_escolar ?? "fundamental";
@@ -483,12 +522,12 @@ export default function FaltasAcademia() {
     return { mode: "sup", type: "cursos" };
   };
 
-  const [layer, setLayer]           = useState<Layer>(initLayer);
-  const [alert, setAlert]           = useState<{ variant: "success" | "error"; message: string } | null>(null);
-  const [todasFaltas, setTodasFaltas] = useState<Falta[]>([]);
+  const [layer, setLayer]                     = useState<Layer>(initLayer);
+  const [alert, setAlert]                     = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [todasFaltas, setTodasFaltas]         = useState<Falta[]>([]);
   const [carregandoFaltas, setCarregandoFaltas] = useState(false);
-  const [editingFalta, setEditingFalta] = useState<Falta | null>(null);
-  const [deletingFalta, setDeletingFalta] = useState<Falta | null>(null);
+  const [editingFalta, setEditingFalta]       = useState<Falta | null>(null);
+  const [deletingFalta, setDeletingFalta]     = useState<Falta | null>(null);
 
   const { data: dataTurmas,     loading: loadingTurmas,   execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                               execute: carregarCursos     } = useApi(academiaService.listarCursos);
@@ -521,7 +560,7 @@ export default function FaltasAcademia() {
       let acumulado: Falta[] = [...(primeira.faltas ?? [])];
       if (totalGeral > MAX_LIMIT) {
         const paginas = Math.ceil(totalGeral / MAX_LIMIT);
-        const promises = [];
+        const promises: Promise<any>[] = [];
         for (let p = 1; p < paginas; p++) {
           promises.push(carregarFaltasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
         }
@@ -530,18 +569,19 @@ export default function FaltasAcademia() {
       }
       setTodasFaltas(acumulado);
     } catch {
-      // erro silencioso
+      // silencioso
     } finally {
       setCarregandoFaltas(false);
     }
   }, [token, carregarFaltasPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const turmas: Turma[]              = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
-  const cursos: Curso[]              = useMemo(() => ((dataCursos as any)?.cursos ?? []).filter((c: any) => c.status === "ativo"), [dataCursos]);
+  // Dados derivados
+  const turmas: Turma[]                 = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
+  const cursos: Curso[]                 = useMemo(() => ((dataCursos as any)?.cursos ?? []).filter((c: any) => c.status === "ativo"), [dataCursos]);
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
-  const materias                     = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
-  const anoLectivo                   = (dataAnoLetivo as any)?.ano_letivo ?? "";
-  const turmasAtivas: Turma[]        = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
+  const materias                        = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
+  const anoLectivo                      = (dataAnoLetivo as any)?.ano_letivo ?? "";
+  const turmasAtivas: Turma[]           = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
 
   const estudantesMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -550,7 +590,7 @@ export default function FaltasAcademia() {
   }, [estudantes]);
 
   const materiasAtivas = useMemo(
-    () => materias.map((m: any) => ({ id: m.id, nome: m.nome })),
+    () => (materias as any[]).map((m: any) => ({ id: m.id, nome: m.nome })),
     [materias]
   );
 
@@ -558,7 +598,10 @@ export default function FaltasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  // Faltas filtradas por turma + materia + (ano letivo opcional)
+  /**
+   * Faltas dos estudantes de uma turma numa matéria específica,
+   * filtradas pelo ano letivo ativo (quando disponível).
+   */
   function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
     return todasFaltas.filter(f =>
       turma.estudantes.includes(f.codigo_estudante) &&
@@ -567,13 +610,20 @@ export default function FaltasAcademia() {
     ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }
 
-  // Materias para uma turma (da lista + das faltas)
+  /**
+   * Materias de uma turma: faz merge de matérias configuradas (pela academia)
+   * com matérias que já têm registros de falta na turma.
+   * Resultado: uma lista dedupada e ordenada por nome.
+   */
   function getMateriasDaTurma(turma: Turma, nivel: string, curso?: Curso) {
-    const tipo = nivel.includes("fundamental") ? "fundamental" : nivel.includes("medio") ? "medio" : "superior";
+    const tipo = nivel.includes("fundamental") ? "fundamental"
+               : nivel.includes("medio")       ? "medio"
+               : "superior";
+
     const materiasConfig = (materias as any[]).filter((m: any) => {
       if (m.type !== tipo) return false;
       if (tipo === "fundamental") return m.anos_academicos?.includes(nivel);
-      if (tipo === "medio") return turma.curso_id ? m.curso_id === turma.curso_id : m.anos_academicos?.includes(nivel);
+      if (tipo === "medio")       return turma.curso_id ? m.curso_id === turma.curso_id : m.anos_academicos?.includes(nivel);
       return curso ? m.curso_id === curso.id : false;
     });
 
@@ -582,6 +632,7 @@ export default function FaltasAcademia() {
       (anoLectivo ? f.ano_lectivo === anoLectivo : true)
     );
 
+    // Merge: matérias configuradas + matérias com registros
     const merged = new Map<string, string>();
     materiasConfig.forEach((m: any) => merged.set(m.id, m.nome));
     faltasDaTurma.forEach(f => {
@@ -591,7 +642,7 @@ export default function FaltasAcademia() {
     });
 
     return Array.from(merged.entries()).map(([id, nome]) => {
-      const fs = faltasDaTurma.filter(f => f.materia_disciplinar_id === id);
+      const fs    = faltasDaTurma.filter(f => f.materia_disciplinar_id === id);
       const total = fs.reduce((acc, f) => acc + f.quantidade, 0);
       return { id, nome, totalFaltas: total, registros: fs.length };
     }).sort((a, b) => a.nome.localeCompare(b.nome));
@@ -618,39 +669,75 @@ export default function FaltasAcademia() {
     setTodasFaltas(prev => prev.filter(f => f.id !== faltaId));
   }
 
-  // Navegação
-  const turmasPorNivel  = (nivel: string) => turmasAtivas.filter(t => t.nivel === nivel);
-  const turmasPorCurso  = (cursoId: string, nivel: string) => turmasAtivas.filter(t => t.curso_id === cursoId && t.nivel === nivel);
-  const anosDosCurso    = (c: Curso) => sortAnos(c.anos_academicos ?? []);
+  // Navegação helpers
+  const turmasPorNivel   = (nivel: string) => turmasAtivas.filter(t => t.nivel === nivel);
+  const turmasPorCurso   = (cursoId: string, nivel: string) =>
+    turmasAtivas.filter(t => t.curso_id === cursoId && t.nivel === nivel);
+  const anosDosCurso     = (c: Curso) => sortAnos(c.anos_academicos ?? []);
   const niveisFundamentais = useMemo(() => {
     const anosAcademia = user?.academia?.anos_academicos ?? [];
-    const comTurmas = anosAcademia.filter(a => a.includes("fundamental") && turmasAtivas.some(t => t.nivel === a));
+    const comTurmas    = anosAcademia.filter(
+      a => a.includes("fundamental") && turmasAtivas.some(t => t.nivel === a)
+    );
     return comTurmas.length > 0 ? comTurmas : anosAcademia.filter(a => a.includes("fundamental"));
   }, [turmasAtivas, user]);
 
   // Breadcrumbs
   function buildCrumbs(): { label: string; onClick?: () => void }[] {
     const goInicio = () => setLayer({ mode: "misto", type: "choose" });
+
     if (layer.mode === "fund") {
-      const goAnos = () => setLayer({ mode: "fund", type: "anos" });
+      const goAnos    = () => setLayer({ mode: "fund", type: "anos" });
       const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
-      const base = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
+      const base      = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
       if (layer.type === "anos")    return base;
       if (layer.type === "turmas")  return [...base, { label: labelNivel(layer.nivel) }];
-      if (layer.type === "materias") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma }];
-      if (layer.type === "faltas")   return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: layer.turma.codigo_turma, onClick: () => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: layer.turma }) }, { label: layer.materiaNome }];
+      if (layer.type === "materias") return [
+        ...base,
+        { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
+        { label: `Turma ${layer.turma.codigo_turma}` },
+      ];
+      if (layer.type === "faltas") return [
+        ...base,
+        { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
+        {
+          label: `Turma ${layer.turma.codigo_turma}`,
+          onClick: () => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: layer.turma }),
+        },
+        { label: layer.materiaNome },
+      ];
     }
+
     if (layer.mode === "sup") {
-      const goCursos = () => setLayer({ mode: "sup", type: "cursos" });
+      const goCursos    = () => setLayer({ mode: "sup", type: "cursos" });
       const cursosCrumb = { label: isMisto ? "Médio/Superior" : "Cursos", onClick: goCursos };
-      const base = isMisto ? [{ label: "Início", onClick: goInicio }, cursosCrumb] : [cursosCrumb];
+      const base        = isMisto ? [{ label: "Início", onClick: goInicio }, cursosCrumb] : [cursosCrumb];
       const l = layer as any;
-      if (layer.type === "cursos")   return base;
-      if (layer.type === "anos")     return [...base, { label: l.curso.nome }];
-      if (layer.type === "turmas")   return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel) }];
-      if (layer.type === "materias") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: l.turma.codigo_turma }];
-      if (layer.type === "faltas")   return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: l.turma.codigo_turma, onClick: () => setLayer({ mode: "sup", type: "materias", curso: l.curso, nivel: l.nivel, turma: l.turma }) }, { label: l.materiaNome }];
+      if (layer.type === "cursos")  return base;
+      if (layer.type === "anos")    return [...base, { label: l.curso.nome }];
+      if (layer.type === "turmas")  return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel) },
+      ];
+      if (layer.type === "materias") return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) },
+        { label: `Turma ${l.turma.codigo_turma}` },
+      ];
+      if (layer.type === "faltas") return [
+        ...base,
+        { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) },
+        {
+          label: `Turma ${l.turma.codigo_turma}`,
+          onClick: () => setLayer({ mode: "sup", type: "materias", curso: l.curso, nivel: l.nivel, turma: l.turma }),
+        },
+        { label: l.materiaNome },
+      ];
     }
+
     if (layer.mode === "misto" && layer.type === "choose") return [{ label: "Início" }];
     return [];
   }
@@ -669,6 +756,7 @@ export default function FaltasAcademia() {
       </div>
     );
 
+    // ── Misto choose ──
     if (layer.mode === "misto" && layer.type === "choose") return (
       <div className="space-y-6">
         <div>
@@ -676,28 +764,36 @@ export default function FaltasAcademia() {
           <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="1º ao 9º Ano" onClick={() => setLayer({ mode: "fund", type: "anos" })} />
-          <CardBtn icon="mdi:book-education" title="Médio / Superior" subtitle="Cursos" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
+          <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="1º ao 9º Ano"
+            onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:book-education" title="Médio / Superior" subtitle="Cursos"
+            onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
         </div>
       </div>
     );
 
+    // ── Fund: Anos ──
     if (layer.mode === "fund" && layer.type === "anos") return (
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Anos Académicos — Ensino Fundamental
+        </h2>
         {niveisFundamentais.length === 0 ? (
           <p className="text-gray-400 text-sm py-8 text-center">Nenhum nível fundamental configurado.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {niveisFundamentais.map(nivel => (
-              <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)} subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`} onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />
+              <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)}
+                subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`}
+                onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />
             ))}
           </div>
         )}
       </div>
     );
 
+    // ── Fund: Turmas ──
     if (layer.mode === "fund" && layer.type === "turmas") {
       const ts = turmasPorNivel(layer.nivel);
       return (
@@ -708,15 +804,26 @@ export default function FaltasAcademia() {
             <p className="text-gray-400 text-sm py-8 text-center">Nenhuma turma ativa.</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {ts.map(t => (
-                <CardBtn key={t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={() => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: t })} />
-              ))}
+              {ts.map(t => {
+                const faltasTurma = todasFaltas.filter(f =>
+                  t.estudantes.includes(f.codigo_estudante) &&
+                  (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+                );
+                const totalFaltas = faltasTurma.reduce((acc, f) => acc + f.quantidade, 0);
+                return (
+                  <CardBtn key={t.codigo_turma} icon="mdi:account-group"
+                    title={`Turma ${t.codigo_turma}`}
+                    subtitle={`${t.estudantes.length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
+                    onClick={() => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: t })} />
+                );
+              })}
             </div>
           )}
         </div>
       );
     }
 
+    // ── Fund: Materias ──
     if (layer.mode === "fund" && layer.type === "materias") {
       const { nivel, turma } = layer;
       const materiasContexto = getMateriasDaTurma(turma, nivel);
@@ -732,7 +839,10 @@ export default function FaltasAcademia() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
               {materiasContexto.map(m => (
-                <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.totalFaltas > 0 ? `${m.totalFaltas} falta(s) · ${m.registros} reg.` : "Sem faltas"} badge={m.totalFaltas === 0 ? "ok" : undefined} onClick={() => setLayer({ mode: "fund", type: "faltas", nivel, turma, materiaId: m.id, materiaNome: m.nome })} />
+                <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome}
+                  subtitle={m.totalFaltas > 0 ? `${m.totalFaltas} falta(s) · ${m.registros} reg.` : "Sem faltas"}
+                  badge={m.totalFaltas === 0 ? "ok" : undefined}
+                  onClick={() => setLayer({ mode: "fund", type: "faltas", nivel, turma, materiaId: m.id, materiaNome: m.nome })} />
               ))}
             </div>
           )}
@@ -740,9 +850,10 @@ export default function FaltasAcademia() {
       );
     }
 
+    // ── Fund: Faltas (folha) ──
     if (layer.mode === "fund" && layer.type === "faltas") {
       const { nivel, turma, materiaId, materiaNome } = layer;
-      const faltas = faltasDaTurmaEMateria(turma, materiaId);
+      const faltas      = faltasDaTurmaEMateria(turma, materiaId);
       const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
       return (
         <div className="space-y-4">
@@ -763,6 +874,7 @@ export default function FaltasAcademia() {
       );
     }
 
+    // ── Sup: Cursos ──
     if (layer.mode === "sup" && layer.type === "cursos") return (
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs} />
@@ -772,13 +884,16 @@ export default function FaltasAcademia() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {cursos.map(c => (
-              <CardBtn key={c.id} icon="mdi:book-open-variant" title={c.nome} subtitle={`${c.anos_academicos?.length ?? 0} ano(s)`} onClick={() => setLayer({ mode: "sup", type: "anos", curso: c })} />
+              <CardBtn key={c.id} icon="mdi:book-open-variant" title={c.nome}
+                subtitle={`${c.anos_academicos?.length ?? 0} ano(s)`}
+                onClick={() => setLayer({ mode: "sup", type: "anos", curso: c })} />
             ))}
           </div>
         )}
       </div>
     );
 
+    // ── Sup: Anos ──
     if (layer.mode === "sup" && layer.type === "anos") {
       const { curso } = layer as { mode: "sup"; type: "anos"; curso: Curso };
       const anos = anosDosCurso(curso);
@@ -788,13 +903,16 @@ export default function FaltasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anos.map(nivel => (
-              <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)} subtitle={`${turmasPorCurso(curso.id, nivel).length} turma(s)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />
+              <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)}
+                subtitle={`${turmasPorCurso(curso.id, nivel).length} turma(s)`}
+                onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />
             ))}
           </div>
         </div>
       );
     }
 
+    // ── Sup: Turmas ──
     if (layer.mode === "sup" && layer.type === "turmas") {
       const { curso, nivel } = layer as { mode: "sup"; type: "turmas"; curso: Curso; nivel: string };
       const ts = turmasPorCurso(curso.id, nivel);
@@ -803,18 +921,29 @@ export default function FaltasAcademia() {
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
           {ts.length === 0 ? (
-            <p className="text-gray-400 text-sm py-8 text-center">Nenhuma turma ativa para este nível.</p>
+            <p className="text-gray-400 text-sm py-8 text-center">Nenhuma turma ativa.</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {ts.map(t => (
-                <CardBtn key={t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={() => setLayer({ mode: "sup", type: "materias", curso, nivel, turma: t })} />
-              ))}
+              {ts.map(t => {
+                const faltasTurma = todasFaltas.filter(f =>
+                  t.estudantes.includes(f.codigo_estudante) &&
+                  (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+                );
+                const totalFaltas = faltasTurma.reduce((acc, f) => acc + f.quantidade, 0);
+                return (
+                  <CardBtn key={t.codigo_turma} icon="mdi:account-group"
+                    title={`Turma ${t.codigo_turma}`}
+                    subtitle={`${t.estudantes.length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
+                    onClick={() => setLayer({ mode: "sup", type: "materias", curso, nivel, turma: t })} />
+                );
+              })}
             </div>
           )}
         </div>
       );
     }
 
+    // ── Sup: Materias ──
     if (layer.mode === "sup" && layer.type === "materias") {
       const { curso, nivel, turma } = layer as any;
       const materiasContexto = getMateriasDaTurma(turma, nivel, curso);
@@ -830,7 +959,10 @@ export default function FaltasAcademia() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
               {materiasContexto.map(m => (
-                <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome} subtitle={m.totalFaltas > 0 ? `${m.totalFaltas} falta(s) · ${m.registros} reg.` : "Sem faltas"} badge={m.totalFaltas === 0 ? "ok" : undefined} onClick={() => setLayer({ mode: "sup", type: "faltas", curso, nivel, turma, materiaId: m.id, materiaNome: m.nome })} />
+                <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome}
+                  subtitle={m.totalFaltas > 0 ? `${m.totalFaltas} falta(s) · ${m.registros} reg.` : "Sem faltas"}
+                  badge={m.totalFaltas === 0 ? "ok" : undefined}
+                  onClick={() => setLayer({ mode: "sup", type: "faltas", curso, nivel, turma, materiaId: m.id, materiaNome: m.nome })} />
               ))}
             </div>
           )}
@@ -838,9 +970,10 @@ export default function FaltasAcademia() {
       );
     }
 
+    // ── Sup: Faltas (folha) ──
     if (layer.mode === "sup" && layer.type === "faltas") {
       const { curso, nivel, turma, materiaId, materiaNome } = layer as any;
-      const faltas = faltasDaTurmaEMateria(turma, materiaId);
+      const faltas      = faltasDaTurmaEMateria(turma, materiaId);
       const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
       return (
         <div className="space-y-4">
@@ -866,19 +999,25 @@ export default function FaltasAcademia() {
 
   return (
     <div className="space-y-6">
-      {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />}
+      {alert && (
+        <Alert
+          variant={alert.variant}
+          title={alert.variant === "success" ? "Sucesso" : "Erro"}
+          message={alert.message}
+        />
+      )}
 
-      {/* Delete modal */}
+      {/* Modal excluir */}
       {deletingFalta && (
         <ModalExcluirFalta
           faltaId={deletingFalta.id}
           nomeEstudante={estudantesMap.get(deletingFalta.codigo_estudante) || deletingFalta.codigo_estudante}
-          onConfirm={(motivo) => handleDeletar(deletingFalta.id, motivo)}
+          onConfirm={motivo => handleDeletar(deletingFalta.id, motivo)}
           onClose={() => setDeletingFalta(null)}
         />
       )}
 
-      {/* Edit modal */}
+      {/* Modal editar */}
       {editingFalta && (
         <ModalEditarFalta
           isOpen
@@ -907,7 +1046,7 @@ export default function FaltasAcademia() {
 
       {renderLayer()}
 
-      {/* Register modal */}
+      {/* Modal registrar */}
       <ModalRegistrarFalta
         isOpen={isOpen}
         estudantes={estudantes}
