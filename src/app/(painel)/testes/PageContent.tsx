@@ -456,7 +456,7 @@ export default function PageContent() {
       const acInfo: AcademiaInfo = {
         codigo: ac.codigo_academia,
         token,
-        tipo: ac.type,
+        tipo: ac.nivel,
         nivel: ac.nivel_escolar,
         anos_academicos: ac.anos_academicos || [],
         ano_letivo: ac.ano_letivo,

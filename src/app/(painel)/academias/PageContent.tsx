@@ -46,12 +46,23 @@ interface BatchResultItem {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatarNomeProvincia(nome: string): string {
-  return nome.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return nome
+    .toLowerCase()
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 function formatarData(data: string) {
-  try { return new Date(data).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit', year: 'numeric' }); }
-  catch { return '-'; }
+  try {
+    return new Date(data).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch {
+    return '-';
+  }
 }
 
 function getStatusBadgeClass(status: string) {
@@ -62,7 +73,24 @@ function getStatusBadgeClass(status: string) {
   }
 }
 
-function ordenarAcademias(lista: AcademiaDetalhada[], ordem: OrdemAcademias): AcademiaDetalhada[] {
+/** Traduz AcademiaNivel (escola/superior) para exibição */
+function labelNivel(nivel?: string): string {
+  if (nivel === 'escola')   return 'Escola';
+  if (nivel === 'superior') return 'Superior';
+  return nivel ?? '-';
+}
+
+/** Traduz AcademiaType (public/private) para exibição */
+function labelNatureza(type?: string): string {
+  if (type === 'public')  return 'Pública';
+  if (type === 'private') return 'Privada';
+  return type ?? '-';
+}
+
+function ordenarAcademias(
+  lista: AcademiaDetalhada[],
+  ordem: OrdemAcademias,
+): AcademiaDetalhada[] {
   return [...lista].sort((a, b) => {
     switch (ordem) {
       case 'nome_asc':         return a.nome.localeCompare(b.nome, 'pt');
@@ -88,7 +116,9 @@ const OPCOES_ORDEM_ACADEMIAS: { key: OrdemAcademias; label: string; icon: string
 // ─── BotaoOrdenar ─────────────────────────────────────────────────────────────
 
 function BotaoOrdenar<T extends string>({
-  opcoes, ordemAtual, onSelecionar,
+  opcoes,
+  ordemAtual,
+  onSelecionar,
 }: {
   opcoes: { key: T; label: string; icon: string }[];
   ordemAtual: T;
@@ -97,14 +127,14 @@ function BotaoOrdenar<T extends string>({
   const [aberto, setAberto] = useState(false);
   const [pos, setPos]       = useState({ top: 0, left: 0 });
   const btnRef              = useRef<HTMLButtonElement>(null);
-  const labelAtual          = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
+  const labelAtual          = opcoes.find((o) => o.key === ordemAtual)?.label ?? 'Ordenar';
 
   const handleToggle = () => {
     if (!aberto && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
       setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX });
     }
-    setAberto(p => !p);
+    setAberto((p) => !p);
   };
 
   useEffect(() => {
@@ -112,33 +142,50 @@ function BotaoOrdenar<T extends string>({
     const close = () => setAberto(false);
     document.addEventListener('mousedown', close);
     window.addEventListener('scroll', close, true);
-    return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', close, true); };
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', close, true);
+    };
   }, [aberto]);
 
-  const menu = aberto && typeof document !== 'undefined' && createPortal(
-    <div
-      onMouseDown={e => e.stopPropagation()}
-      style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 210 }}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1"
-    >
-      {opcoes.map(op => (
-        <button
-          key={op.key}
-          onClick={() => { onSelecionar(op.key); setAberto(false); }}
-          className={`flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors ${
-            ordemAtual === op.key
-              ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05]'
-          }`}
-        >
-          <Icon icon={op.icon} width={16} className="flex-shrink-0" />
-          {op.label}
-          {ordemAtual === op.key && <Icon icon="mdi:check" width={14} className="ml-auto text-brand-500" />}
-        </button>
-      ))}
-    </div>,
-    document.body
-  );
+  const menu =
+    aberto &&
+    typeof document !== 'undefined' &&
+    createPortal(
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: pos.top,
+          left: pos.left,
+          zIndex: 9999,
+          minWidth: 210,
+        }}
+        className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1"
+      >
+        {opcoes.map((op) => (
+          <button
+            key={op.key}
+            onClick={() => {
+              onSelecionar(op.key);
+              setAberto(false);
+            }}
+            className={`flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors ${
+              ordemAtual === op.key
+                ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium'
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05]'
+            }`}
+          >
+            <Icon icon={op.icon} width={16} className="flex-shrink-0" />
+            {op.label}
+            {ordemAtual === op.key && (
+              <Icon icon="mdi:check" width={14} className="ml-auto text-brand-500" />
+            )}
+          </button>
+        ))}
+      </div>,
+      document.body,
+    );
 
   return (
     <>
@@ -149,7 +196,11 @@ function BotaoOrdenar<T extends string>({
       >
         <Icon icon="mdi:sort" width={16} />
         {labelAtual}
-        <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={14} className="text-gray-400" />
+        <Icon
+          icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'}
+          width={14}
+          className="text-gray-400"
+        />
       </button>
       {menu}
     </>
@@ -159,9 +210,17 @@ function BotaoOrdenar<T extends string>({
 // ─── Paginação ────────────────────────────────────────────────────────────────
 
 function PaginacaoSetas({
-  paginaAtual, totalPaginas, total, porPagina, onChange,
+  paginaAtual,
+  totalPaginas,
+  total,
+  porPagina,
+  onChange,
 }: {
-  paginaAtual: number; totalPaginas: number; total: number; porPagina: number; onChange: (p: number) => void;
+  paginaAtual: number;
+  totalPaginas: number;
+  total: number;
+  porPagina: number;
+  onChange: (p: number) => void;
 }) {
   if (totalPaginas <= 1) return null;
   const inicio = (paginaAtual - 1) * porPagina + 1;
@@ -169,30 +228,73 @@ function PaginacaoSetas({
 
   const getPages = (): (number | '...')[] => {
     const pages: (number | '...')[] = [];
-    if (totalPaginas <= 7) { for (let i = 1; i <= totalPaginas; i++) pages.push(i); }
-    else if (paginaAtual <= 4) { for (let i = 1; i <= 5; i++) pages.push(i); pages.push('...'); pages.push(totalPaginas); }
-    else if (paginaAtual >= totalPaginas - 3) { pages.push(1); pages.push('...'); for (let i = totalPaginas - 4; i <= totalPaginas; i++) pages.push(i); }
-    else { pages.push(1); pages.push('...'); for (let i = paginaAtual - 1; i <= paginaAtual + 1; i++) pages.push(i); pages.push('...'); pages.push(totalPaginas); }
+    if (totalPaginas <= 7) {
+      for (let i = 1; i <= totalPaginas; i++) pages.push(i);
+    } else if (paginaAtual <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPaginas);
+    } else if (paginaAtual >= totalPaginas - 3) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = totalPaginas - 4; i <= totalPaginas; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push('...');
+      for (let i = paginaAtual - 1; i <= paginaAtual + 1; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPaginas);
+    }
     return pages;
   };
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-white/[0.03] rounded-lg border border-gray-200 dark:border-white/[0.05]">
-      <p className="text-sm text-gray-500 dark:text-gray-400">{inicio}–{fim} de {total}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {inicio}–{fim} de {total}
+      </p>
       <div className="flex items-center gap-1">
-        <button onClick={() => onChange(paginaAtual - 1)} disabled={paginaAtual === 1} className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        <button
+          onClick={() => onChange(paginaAtual - 1)}
+          disabled={paginaAtual === 1}
+          className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        {getPages().map((p, i) => p === '...' ? (
-          <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">…</span>
-        ) : (
-          <button key={p} onClick={() => onChange(p as number)} className={`min-w-[32px] h-8 rounded-md text-sm font-medium transition-colors ${paginaAtual === p ? 'bg-brand-500 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.05]'}`}>{p}</button>
-        ))}
-        <button onClick={() => onChange(paginaAtual + 1)} disabled={paginaAtual === totalPaginas} className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        {getPages().map((p, i) =>
+          p === '...' ? (
+            <span key={`e${i}`} className="px-1.5 text-gray-400 text-sm select-none">
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p as number)}
+              className={`min-w-[32px] h-8 rounded-md text-sm font-medium transition-colors ${
+                paginaAtual === p
+                  ? 'bg-brand-500 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.05]'
+              }`}
+            >
+              {p}
+            </button>
+          ),
+        )}
+        <button
+          onClick={() => onChange(paginaAtual + 1)}
+          disabled={paginaAtual === totalPaginas}
+          className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400">Pág. {paginaAtual}/{totalPaginas}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Pág. {paginaAtual}/{totalPaginas}
+      </p>
     </div>
   );
 }
@@ -200,11 +302,21 @@ function PaginacaoSetas({
 // ─── AcoesDropdown ────────────────────────────────────────────────────────────
 
 function AcoesDropdown({
-  academia, isAdmin, carregandoAtivar, carregandoDesativar,
-  onVerDetalhes, onAtivar, onAbrirDesativar,
+  academia,
+  isAdmin,
+  carregandoAtivar,
+  carregandoDesativar,
+  onVerDetalhes,
+  onAtivar,
+  onAbrirDesativar,
 }: {
-  academia: AcademiaDetalhada; isAdmin: boolean; carregandoAtivar: boolean; carregandoDesativar: boolean;
-  onVerDetalhes: (a: AcademiaDetalhada) => void; onAtivar: (a: AcademiaDetalhada) => void; onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  academia: AcademiaDetalhada;
+  isAdmin: boolean;
+  carregandoAtivar: boolean;
+  carregandoDesativar: boolean;
+  onVerDetalhes: (a: AcademiaDetalhada) => void;
+  onAtivar: (a: AcademiaDetalhada) => void;
+  onAbrirDesativar: (a: AcademiaDetalhada) => void;
 }) {
   const [open, setOpen]       = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -214,9 +326,12 @@ function AcoesDropdown({
   const handleToggle = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + window.scrollY + 4, left: rect.right + window.scrollX - MENU_WIDTH });
+      setMenuPos({
+        top:  rect.bottom + window.scrollY + 4,
+        left: rect.right + window.scrollX - MENU_WIDTH,
+      });
     }
-    setOpen(p => !p);
+    setOpen((p) => !p);
   };
 
   useEffect(() => {
@@ -225,41 +340,92 @@ function AcoesDropdown({
     document.addEventListener('mousedown', close);
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
-    return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
   }, [open]);
 
-  const handleItem = (fn: () => void) => { setOpen(false); fn(); };
+  const handleItem = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
 
-  const menuPortal = open && typeof document !== 'undefined' && createPortal(
-    <div onMouseDown={e => e.stopPropagation()} style={{ position: 'absolute', top: menuPos.top, left: menuPos.left, width: MENU_WIDTH, zIndex: 9999 }} className="rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5">
-      <div className="py-1">
-        <button type="button" onClick={() => handleItem(() => onVerDetalhes(academia))} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors">
-          <Icon icon="mdi:eye-outline" width={16} className="text-gray-400" /> Ver detalhes
-        </button>
-        {isAdmin && academia.status === 'inativo' && (
-          <button type="button" onClick={() => handleItem(() => onAtivar(academia))} disabled={carregandoAtivar} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            <Icon icon="mdi:check-circle-outline" width={16} /> {carregandoAtivar ? 'Ativando...' : 'Ativar'}
+  const menuPortal =
+    open &&
+    typeof document !== 'undefined' &&
+    createPortal(
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: menuPos.top,
+          left: menuPos.left,
+          width: MENU_WIDTH,
+          zIndex: 9999,
+        }}
+        className="rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5"
+      >
+        <div className="py-1">
+          <button
+            type="button"
+            onClick={() => handleItem(() => onVerDetalhes(academia))}
+            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
+          >
+            <Icon icon="mdi:eye-outline" width={16} className="text-gray-400" />
+            Ver detalhes
           </button>
-        )}
-        {isAdmin && academia.status === 'ativo' && (
-          <>
-            <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
-            <button type="button" onClick={() => handleItem(() => onAbrirDesativar(academia))} disabled={carregandoDesativar} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <Icon icon="mdi:close-circle-outline" width={16} /> Desativar
+          {isAdmin && academia.status === 'inativo' && (
+            <button
+              type="button"
+              onClick={() => handleItem(() => onAtivar(academia))}
+              disabled={carregandoAtivar}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Icon icon="mdi:check-circle-outline" width={16} />
+              {carregandoAtivar ? 'Ativando...' : 'Ativar'}
             </button>
-          </>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
+          )}
+          {isAdmin && academia.status === 'ativo' && (
+            <>
+              <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+              <button
+                type="button"
+                onClick={() => handleItem(() => onAbrirDesativar(academia))}
+                disabled={carregandoDesativar}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Icon icon="mdi:close-circle-outline" width={16} />
+                Desativar
+              </button>
+            </>
+          )}
+        </div>
+      </div>,
+      document.body,
+    );
 
   return (
     <>
-      <button ref={btnRef} type="button" onClick={handleToggle} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.07] transition-colors">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleToggle}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.07] transition-colors"
+      >
         Ver mais
-        <svg className={`h-3.5 w-3.5 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        <svg
+          className={`h-3.5 w-3.5 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
         </svg>
       </button>
       {menuPortal}
@@ -270,12 +436,18 @@ function AcoesDropdown({
 // ─── Modal de Resultado em Lote ───────────────────────────────────────────────
 
 function ModalResultadoLote({
-  isOpen, onClose, resultados, titulo,
+  isOpen,
+  onClose,
+  resultados,
+  titulo,
 }: {
-  isOpen: boolean; onClose: () => void; resultados: BatchResultItem[]; titulo: string;
+  isOpen: boolean;
+  onClose: () => void;
+  resultados: BatchResultItem[];
+  titulo: string;
 }) {
-  const sucessos = resultados.filter(r => r.sucesso);
-  const falhas   = resultados.filter(r => !r.sucesso);
+  const sucessos = resultados.filter((r) => r.sucesso);
+  const falhas   = resultados.filter((r) => !r.sucesso);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[600px] p-5 lg:p-8">
@@ -297,12 +469,21 @@ function ModalResultadoLote({
         </div>
         <div className="max-h-64 overflow-y-auto space-y-2">
           {resultados.map((r, i) => (
-            <div key={i} className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${r.sucesso ? 'bg-green-50 dark:bg-green-900/10' : 'bg-red-50 dark:bg-red-900/10'}`}>
+            <div
+              key={i}
+              className={`flex items-start gap-3 p-2.5 rounded-lg text-sm ${
+                r.sucesso ? 'bg-green-50 dark:bg-green-900/10' : 'bg-red-50 dark:bg-red-900/10'
+              }`}
+            >
               <span className={`mt-0.5 flex-shrink-0 ${r.sucesso ? 'text-green-500' : 'text-red-500'}`}>
                 {r.sucesso ? (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 )}
               </span>
               <div className="min-w-0 flex-1">
@@ -316,7 +497,9 @@ function ModalResultadoLote({
           ))}
         </div>
         <div className="flex justify-end mt-5">
-          <Button size="sm" variant="outline" onClick={onClose}>Fechar</Button>
+          <Button size="sm" variant="outline" onClick={onClose}>
+            Fechar
+          </Button>
         </div>
       </div>
     </Modal>
@@ -326,13 +509,27 @@ function ModalResultadoLote({
 // ─── Tabela de Academias ──────────────────────────────────────────────────────
 
 function TabelaAcademias({
-  academias, isAdmin, carregandoAtivar, carregandoDesativar,
-  onVerDetalhes, onAtivar, onAbrirDesativar,
-  selecionadas, onToggleSelecao, onToggleTodas,
+  academias,
+  isAdmin,
+  carregandoAtivar,
+  carregandoDesativar,
+  onVerDetalhes,
+  onAtivar,
+  onAbrirDesativar,
+  selecionadas,
+  onToggleSelecao,
+  onToggleTodas,
 }: {
-  academias: AcademiaDetalhada[]; isAdmin: boolean; carregandoAtivar: boolean; carregandoDesativar: boolean;
-  onVerDetalhes: (a: AcademiaDetalhada) => void; onAtivar: (a: AcademiaDetalhada) => void; onAbrirDesativar: (a: AcademiaDetalhada) => void;
-  selecionadas: Set<string>; onToggleSelecao: (id: string) => void; onToggleTodas: (todas: AcademiaDetalhada[]) => void;
+  academias: AcademiaDetalhada[];
+  isAdmin: boolean;
+  carregandoAtivar: boolean;
+  carregandoDesativar: boolean;
+  onVerDetalhes: (a: AcademiaDetalhada) => void;
+  onAtivar: (a: AcademiaDetalhada) => void;
+  onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  selecionadas: Set<string>;
+  onToggleSelecao: (id: string) => void;
+  onToggleTodas: (todas: AcademiaDetalhada[]) => void;
 }) {
   if (academias.length === 0) {
     return (
@@ -343,8 +540,8 @@ function TabelaAcademias({
     );
   }
 
-  const todasSelecionadas  = academias.length > 0 && academias.every(a => selecionadas.has(a.id));
-  const algumasSelecionadas = academias.some(a => selecionadas.has(a.id));
+  const todasSelecionadas   = academias.length > 0 && academias.every((a) => selecionadas.has(a.id));
+  const algumasSelecionadas = academias.some((a) => selecionadas.has(a.id));
 
   return (
     <Table className="w-full">
@@ -352,8 +549,7 @@ function TabelaAcademias({
         <TableRow>
           {isAdmin && (
             <TableCell isHeader className="px-4 py-3 w-10">
-              {/* stopPropagation wrapper prevents label-click from bubbling through the table */}
-              <div onClick={e => e.stopPropagation()}>
+              <div onClick={(e) => e.stopPropagation()}>
                 <Checkbox
                   checked={todasSelecionadas}
                   indeterminate={algumasSelecionadas && !todasSelecionadas}
@@ -364,8 +560,11 @@ function TabelaAcademias({
           )}
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
-          <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Tipo</TableCell>
+          {/* nivel = escola | superior */}
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível</TableCell>
+          {/* type = public | private */}
+          <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Natureza</TableCell>
+          <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível Escolar</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
@@ -373,11 +572,16 @@ function TabelaAcademias({
         </TableRow>
       </TableHeader>
       <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-        {academias.map(academia => (
-          <TableRow key={academia.id} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas.has(academia.id) ? 'bg-brand-50/30 dark:bg-brand-900/10' : ''}`}>
+        {academias.map((academia) => (
+          <TableRow
+            key={academia.id}
+            className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${
+              selecionadas.has(academia.id) ? 'bg-brand-50/30 dark:bg-brand-900/10' : ''
+            }`}
+          >
             {isAdmin && (
               <TableCell className="px-4 py-3 w-10">
-                <div onClick={e => e.stopPropagation()}>
+                <div onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={selecionadas.has(academia.id)}
                     onChange={() => onToggleSelecao(academia.id)}
@@ -387,18 +591,27 @@ function TabelaAcademias({
             )}
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm font-medium text-gray-800 dark:text-white/90 capitalize">{academia.nome}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">{academia.codigo_academia}</TableCell>
-            <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{academia.type}</TableCell>
+            {/* nivel: escola | superior */}
+            <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">{labelNivel(academia.nivel)}</TableCell>
+            {/* type: public | private */}
+            <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">{labelNatureza(academia.type)}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{academia.nivel_escolar || '-'}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{academia.provincia}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">{academia.total_estudantes}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
-              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>{academia.status || '-'}</span>
+              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
+                {academia.status || '-'}
+              </span>
             </TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
               <AcoesDropdown
-                academia={academia} isAdmin={isAdmin}
-                carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
-                onVerDetalhes={onVerDetalhes} onAtivar={onAtivar} onAbrirDesativar={onAbrirDesativar}
+                academia={academia}
+                isAdmin={isAdmin}
+                carregandoAtivar={carregandoAtivar}
+                carregandoDesativar={carregandoDesativar}
+                onVerDetalhes={onVerDetalhes}
+                onAtivar={onAtivar}
+                onAbrirDesativar={onAbrirDesativar}
               />
             </TableCell>
           </TableRow>
@@ -411,16 +624,25 @@ function TabelaAcademias({
 // ─── Barra de ações em lote ───────────────────────────────────────────────────
 
 function BarraLote({
-  selecionadas, academiasList, onLimparSelecao, onAtivarLote, onDesativarLote, carregandoLote,
+  selecionadas,
+  academiasList,
+  onLimparSelecao,
+  onAtivarLote,
+  onDesativarLote,
+  carregandoLote,
 }: {
-  selecionadas: Set<string>; academiasList: AcademiaDetalhada[];
-  onLimparSelecao: () => void; onAtivarLote: () => void; onDesativarLote: () => void; carregandoLote: boolean;
+  selecionadas: Set<string>;
+  academiasList: AcademiaDetalhada[];
+  onLimparSelecao: () => void;
+  onAtivarLote: () => void;
+  onDesativarLote: () => void;
+  carregandoLote: boolean;
 }) {
   if (selecionadas.size === 0) return null;
 
-  const selecionadasList = academiasList.filter(a => selecionadas.has(a.id));
-  const quantasAtivas   = selecionadasList.filter(a => a.status === 'ativo').length;
-  const quantasInativas = selecionadasList.filter(a => a.status === 'inativo').length;
+  const selecionadasList = academiasList.filter((a) => selecionadas.has(a.id));
+  const quantasAtivas    = selecionadasList.filter((a) => a.status === 'ativo').length;
+  const quantasInativas  = selecionadasList.filter((a) => a.status === 'inativo').length;
 
   return (
     <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
@@ -444,16 +666,32 @@ function BarraLote({
       </div>
       <div className="flex items-center gap-2 ml-auto">
         {quantasInativas > 0 && (
-          <Button size="sm" variant="success" disabled={carregandoLote} onClick={onAtivarLote} startIcon={<Icon icon="mdi:check-circle-outline" width={16} />}>
+          <Button
+            size="sm"
+            variant="success"
+            disabled={carregandoLote}
+            onClick={onAtivarLote}
+            startIcon={<Icon icon="mdi:check-circle-outline" width={16} />}
+          >
             {carregandoLote ? 'Processando...' : `Ativar ${quantasInativas}`}
           </Button>
         )}
         {quantasAtivas > 0 && (
-          <Button size="sm" variant="danger" disabled={carregandoLote} onClick={onDesativarLote} startIcon={<Icon icon="mdi:close-circle-outline" width={16} />}>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={carregandoLote}
+            onClick={onDesativarLote}
+            startIcon={<Icon icon="mdi:close-circle-outline" width={16} />}
+          >
             {carregandoLote ? 'Processando...' : `Desativar ${quantasAtivas}`}
           </Button>
         )}
-        <button onClick={onLimparSelecao} className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors" title="Limpar seleção">
+        <button
+          onClick={onLimparSelecao}
+          className="p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors"
+          title="Limpar seleção"
+        >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -466,20 +704,35 @@ function BarraLote({
 // ─── Vista em Escala ──────────────────────────────────────────────────────────
 
 function VistaEscalaAcademias({
-  academias, ordem, isAdmin, carregandoAtivar, carregandoDesativar,
-  onVerDetalhes, onAtivar, onAbrirDesativar,
-  selecionadas, onToggleSelecao, onToggleTodas,
+  academias,
+  ordem,
+  isAdmin,
+  carregandoAtivar,
+  carregandoDesativar,
+  onVerDetalhes,
+  onAtivar,
+  onAbrirDesativar,
+  selecionadas,
+  onToggleSelecao,
+  onToggleTodas,
 }: {
-  academias: AcademiaDetalhada[]; ordem: OrdemAcademias; isAdmin: boolean;
-  carregandoAtivar: boolean; carregandoDesativar: boolean;
-  onVerDetalhes: (a: AcademiaDetalhada) => void; onAtivar: (a: AcademiaDetalhada) => void; onAbrirDesativar: (a: AcademiaDetalhada) => void;
-  selecionadas: Set<string>; onToggleSelecao: (id: string) => void; onToggleTodas: (todas: AcademiaDetalhada[]) => void;
+  academias: AcademiaDetalhada[];
+  ordem: OrdemAcademias;
+  isAdmin: boolean;
+  carregandoAtivar: boolean;
+  carregandoDesativar: boolean;
+  onVerDetalhes: (a: AcademiaDetalhada) => void;
+  onAtivar: (a: AcademiaDetalhada) => void;
+  onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  selecionadas: Set<string>;
+  onToggleSelecao: (id: string) => void;
+  onToggleTodas: (todas: AcademiaDetalhada[]) => void;
 }) {
   const [layer, setLayer] = useState<LayerEscala>({ tipo: 'provincias' });
 
   const porCodigo = useMemo(() => {
     const map: Record<string, AcademiaDetalhada[]> = {};
-    academias.forEach(a => {
+    academias.forEach((a) => {
       const key = (a.provincia ?? '').toUpperCase().trim();
       if (!key) return;
       if (!map[key]) map[key] = [];
@@ -488,14 +741,14 @@ function VistaEscalaAcademias({
     return map;
   }, [academias]);
 
-  const provinciasComAcademias = useMemo(() =>
-    Provincias.filter(p => (porCodigo[p.codigo.toUpperCase()] ?? []).length > 0),
-    [porCodigo]
+  const provinciasComAcademias = useMemo(
+    () => Provincias.filter((p) => (porCodigo[p.codigo.toUpperCase()] ?? []).length > 0),
+    [porCodigo],
   );
 
   const codigosExtras = useMemo(() => {
-    const conhecidos = new Set(Provincias.map(p => p.codigo.toUpperCase()));
-    return Object.keys(porCodigo).filter(k => !conhecidos.has(k));
+    const conhecidos = new Set(Provincias.map((p) => p.codigo.toUpperCase()));
+    return Object.keys(porCodigo).filter((k) => !conhecidos.has(k));
   }, [porCodigo]);
 
   const academiasDoLayer = useMemo(() => {
@@ -505,14 +758,17 @@ function VistaEscalaAcademias({
   }, [layer, porCodigo, academias, ordem]);
 
   const nomeDoLayer = useMemo(() => {
-    if (layer.tipo !== 'academias' || layer.provincia === null) return 'Todas as Províncias';
-    const prov = Provincias.find(p => p.codigo.toUpperCase() === layer.provincia!.toUpperCase());
+    if (layer.tipo !== 'academias' || layer.provincia === null)
+      return 'Todas as Províncias';
+    const prov = Provincias.find(
+      (p) => p.codigo.toUpperCase() === layer.provincia!.toUpperCase(),
+    );
     return prov ? formatarNomeProvincia(prov.nome) : layer.provincia;
   }, [layer]);
 
   if (layer.tipo === 'provincias') {
     const totalGeral      = academias.length;
-    const ativasGeral     = academias.filter(a => a.status === 'ativo').length;
+    const ativasGeral     = academias.filter((a) => a.status === 'ativo').length;
     const estudantesGeral = academias.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
 
     return (
@@ -521,27 +777,40 @@ function VistaEscalaAcademias({
           Selecione uma Província para explorar
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {/* Card: Todas as Províncias */}
           <button
             onClick={() => setLayer({ tipo: 'academias', provincia: null })}
             className="flex flex-col gap-2 p-4 rounded-xl border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 hover:border-brand-500 hover:shadow-md transition-all text-left group"
           >
             <div className="flex items-center justify-between w-full">
               <Icon icon="mdi:earth" width={16} className="text-brand-400" />
-              <Icon icon="mdi:chevron-right" width={15} className="text-brand-300 group-hover:text-brand-500 transition-colors" />
+              <Icon
+                icon="mdi:chevron-right"
+                width={15}
+                className="text-brand-300 group-hover:text-brand-500 transition-colors"
+              />
             </div>
-            <p className="text-sm font-bold text-brand-700 dark:text-brand-300 leading-snug">Todas as Províncias</p>
+            <p className="text-sm font-bold text-brand-700 dark:text-brand-300 leading-snug">
+              Todas as Províncias
+            </p>
             <div className="space-y-0.5 w-full">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-brand-600 dark:text-brand-400">{totalGeral} academia{totalGeral !== 1 ? 's' : ''}</span>
-                <span className="text-xs text-green-600 dark:text-green-400">{ativasGeral} ativa{ativasGeral !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-brand-600 dark:text-brand-400">
+                  {totalGeral} academia{totalGeral !== 1 ? 's' : ''}
+                </span>
+                <span className="text-xs text-green-600 dark:text-green-400">
+                  {ativasGeral} ativa{ativasGeral !== 1 ? 's' : ''}
+                </span>
               </div>
-              <p className="text-xs text-brand-500 dark:text-brand-500">{estudantesGeral.toLocaleString()} estudante{estudantesGeral !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-brand-500 dark:text-brand-500">
+                {estudantesGeral.toLocaleString()} estudante{estudantesGeral !== 1 ? 's' : ''}
+              </p>
             </div>
           </button>
 
-          {provinciasComAcademias.map(prov => {
+          {provinciasComAcademias.map((prov) => {
             const lista    = porCodigo[prov.codigo.toUpperCase()] ?? [];
-            const ativas   = lista.filter(a => a.status === 'ativo').length;
+            const ativas   = lista.filter((a) => a.status === 'ativo').length;
             const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
             return (
               <button
@@ -550,24 +819,38 @@ function VistaEscalaAcademias({
                 className="flex flex-col gap-2 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md transition-all text-left group"
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">{prov.codigo}</span>
-                  <Icon icon="mdi:chevron-right" width={15} className="text-gray-300 group-hover:text-brand-500 transition-colors" />
+                  <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">
+                    {prov.codigo}
+                  </span>
+                  <Icon
+                    icon="mdi:chevron-right"
+                    width={15}
+                    className="text-gray-300 group-hover:text-brand-500 transition-colors"
+                  />
                 </div>
-                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">{formatarNomeProvincia(prov.nome)}</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">
+                  {formatarNomeProvincia(prov.nome)}
+                </p>
                 <div className="space-y-0.5 w-full">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{lista.length} academia{lista.length !== 1 ? 's' : ''}</span>
-                    <span className="text-xs text-green-600 dark:text-green-400">{ativas} ativa{ativas !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {lista.length} academia{lista.length !== 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      {ativas} ativa{ativas !== 1 ? 's' : ''}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{totalEst.toLocaleString()} estudante{totalEst !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {totalEst.toLocaleString()} estudante{totalEst !== 1 ? 's' : ''}
+                  </p>
                 </div>
               </button>
             );
           })}
 
-          {codigosExtras.map(codigo => {
+          {codigosExtras.map((codigo) => {
             const lista    = porCodigo[codigo] ?? [];
-            const ativas   = lista.filter(a => a.status === 'ativo').length;
+            const ativas   = lista.filter((a) => a.status === 'ativo').length;
             const totalEst = lista.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
             return (
               <button
@@ -576,16 +859,30 @@ function VistaEscalaAcademias({
                 className="flex flex-col gap-2 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md transition-all text-left group"
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">—</span>
-                  <Icon icon="mdi:chevron-right" width={15} className="text-gray-300 group-hover:text-brand-500 transition-colors" />
+                  <span className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-wider">
+                    —
+                  </span>
+                  <Icon
+                    icon="mdi:chevron-right"
+                    width={15}
+                    className="text-gray-300 group-hover:text-brand-500 transition-colors"
+                  />
                 </div>
-                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">{codigo}</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white leading-snug">
+                  {codigo}
+                </p>
                 <div className="space-y-0.5 w-full">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{lista.length} academia{lista.length !== 1 ? 's' : ''}</span>
-                    <span className="text-xs text-green-600 dark:text-green-400">{ativas} ativa{ativas !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {lista.length} academia{lista.length !== 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      {ativas} ativa{ativas !== 1 ? 's' : ''}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{totalEst.toLocaleString()} estudante{totalEst !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {totalEst.toLocaleString()} estudante{totalEst !== 1 ? 's' : ''}
+                  </p>
                 </div>
               </button>
             );
@@ -602,12 +899,15 @@ function VistaEscalaAcademias({
     );
   }
 
-  const ativas   = academiasDoLayer.filter(a => a.status === 'ativo').length;
-  const inativas = academiasDoLayer.filter(a => a.status !== 'ativo').length;
+  const ativas   = academiasDoLayer.filter((a) => a.status === 'ativo').length;
+  const inativas = academiasDoLayer.filter((a) => a.status !== 'ativo').length;
   const totalEst = academiasDoLayer.reduce((s, a) => s + (a.total_estudantes ?? 0), 0);
-  const tituloLayer = layer.tipo === 'academias'
-    ? (layer.provincia === null ? 'Todas as Províncias' : nomeDoLayer)
-    : '';
+  const tituloLayer =
+    layer.tipo === 'academias'
+      ? layer.provincia === null
+        ? 'Todas as Províncias'
+        : nomeDoLayer
+      : '';
 
   return (
     <div className="space-y-4">
@@ -625,24 +925,48 @@ function VistaEscalaAcademias({
 
       <div className="flex flex-wrap items-center gap-6 px-5 py-4 bg-brand-50 dark:bg-brand-900/20 rounded-xl border border-brand-200 dark:border-brand-800">
         <div className="flex items-center gap-2">
-          <Icon icon={layer.provincia === null ? 'mdi:earth' : 'mdi:map-marker'} width={18} className="text-brand-600 dark:text-brand-400" />
+          <Icon
+            icon={layer.provincia === null ? 'mdi:earth' : 'mdi:map-marker'}
+            width={18}
+            className="text-brand-600 dark:text-brand-400"
+          />
           <span className="text-sm font-bold text-brand-700 dark:text-brand-300">{tituloLayer}</span>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="text-gray-600 dark:text-gray-400"><span className="font-semibold text-gray-900 dark:text-white">{academiasDoLayer.length}</span> academia(s)</span>
-          <span className="text-green-600 dark:text-green-400"><span className="font-semibold">{ativas}</span> ativa(s)</span>
-          {inativas > 0 && <span className="text-red-600 dark:text-red-400"><span className="font-semibold">{inativas}</span> inativa(s)</span>}
-          <span className="text-gray-600 dark:text-gray-400"><span className="font-semibold text-gray-900 dark:text-white">{totalEst.toLocaleString()}</span> estudante(s)</span>
+          <span className="text-gray-600 dark:text-gray-400">
+            <span className="font-semibold text-gray-900 dark:text-white">{academiasDoLayer.length}</span>{' '}
+            academia(s)
+          </span>
+          <span className="text-green-600 dark:text-green-400">
+            <span className="font-semibold">{ativas}</span> ativa(s)
+          </span>
+          {inativas > 0 && (
+            <span className="text-red-600 dark:text-red-400">
+              <span className="font-semibold">{inativas}</span> inativa(s)
+            </span>
+          )}
+          <span className="text-gray-600 dark:text-gray-400">
+            <span className="font-semibold text-gray-900 dark:text-white">
+              {totalEst.toLocaleString()}
+            </span>{' '}
+            estudante(s)
+          </span>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="w-full overflow-x-auto">
           <TabelaAcademias
-            academias={academiasDoLayer} isAdmin={isAdmin}
-            carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
-            onVerDetalhes={onVerDetalhes} onAtivar={onAtivar} onAbrirDesativar={onAbrirDesativar}
-            selecionadas={selecionadas} onToggleSelecao={onToggleSelecao} onToggleTodas={onToggleTodas}
+            academias={academiasDoLayer}
+            isAdmin={isAdmin}
+            carregandoAtivar={carregandoAtivar}
+            carregandoDesativar={carregandoDesativar}
+            onVerDetalhes={onVerDetalhes}
+            onAtivar={onAtivar}
+            onAbrirDesativar={onAbrirDesativar}
+            selecionadas={selecionadas}
+            onToggleSelecao={onToggleSelecao}
+            onToggleTodas={onToggleTodas}
           />
         </div>
       </div>
@@ -654,10 +978,10 @@ function VistaEscalaAcademias({
 
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
-  const { isOpen: isDetailsOpen,        openModal: openDetailsModal,        closeModal: closeDetailsModal        } = useModal();
-  const { isOpen: isDesativarOpen,      openModal: openDesativarModal,      closeModal: closeDesativarModal      } = useModal();
-  const { isOpen: isDesativarLoteOpen,  openModal: openDesativarLoteModal,  closeModal: closeDesativarLoteModal  } = useModal();
-  const { isOpen: isResultadoLoteOpen,  openModal: openResultadoLoteModal,  closeModal: closeResultadoLoteModal  } = useModal();
+  const { isOpen: isDetailsOpen,       openModal: openDetailsModal,       closeModal: closeDetailsModal       } = useModal();
+  const { isOpen: isDesativarOpen,     openModal: openDesativarModal,     closeModal: closeDesativarModal     } = useModal();
+  const { isOpen: isDesativarLoteOpen, openModal: openDesativarLoteModal, closeModal: closeDesativarLoteModal } = useModal();
+  const { isOpen: isResultadoLoteOpen, openModal: openResultadoLoteModal, closeModal: closeResultadoLoteModal } = useModal();
 
   const [carregado,   setCarregado]   = useState(false);
   const [vistaEscala, setVistaEscala] = useState(true);
@@ -704,13 +1028,12 @@ export default function Academias() {
 
   useEffect(() => { setPaginaAtual(1); }, [dataAcademias, ordem]);
 
-  const academiasList = dataAcademias?.academias ?? [];
-
+  const academiasList       = dataAcademias?.academias ?? [];
   const academiasOrdenadas  = useMemo(() => ordenarAcademias(academiasList, ordem), [academiasList, ordem]);
   const totalPaginas        = Math.ceil(academiasOrdenadas.length / ITEMS_POR_PAGINA);
   const academiasPaginadas  = useMemo(
     () => academiasOrdenadas.slice((paginaAtual - 1) * ITEMS_POR_PAGINA, paginaAtual * ITEMS_POR_PAGINA),
-    [academiasOrdenadas, paginaAtual]
+    [academiasOrdenadas, paginaAtual],
   );
 
   // ─── Handlers individuais ──────────────────────────────────────────────────
@@ -733,7 +1056,11 @@ export default function Academias() {
     e.preventDefault();
     if (!motivoDesativacao.trim() || !academiaParaDesativar) return;
     try {
-      await executarDesativar(academiaParaDesativar.codigo_academia, { motivo: motivoDesativacao.trim() }, tokenStorage.get() || undefined);
+      await executarDesativar(
+        academiaParaDesativar.codigo_academia,
+        { motivo: motivoDesativacao.trim() },
+        tokenStorage.get() || undefined,
+      );
       alert('Academia desativada!');
       closeDesativarModal();
       setAcademiaParaDesativar(null);
@@ -747,24 +1074,25 @@ export default function Academias() {
   // ─── Handlers de seleção ──────────────────────────────────────────────────
 
   const handleToggleSelecao = useCallback((id: string) => {
-    setSelecionadas(prev => {
+    setSelecionadas((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
   const handleToggleTodas = useCallback((todas: AcademiaDetalhada[]) => {
-    setSelecionadas(prev => {
-      const todasIds        = todas.map(a => a.id);
-      const todasSelecionadas = todasIds.every(id => prev.has(id));
+    setSelecionadas((prev) => {
+      const todasIds        = todas.map((a) => a.id);
+      const todasSelecionadas = todasIds.every((id) => prev.has(id));
       if (todasSelecionadas) {
         const next = new Set(prev);
-        todasIds.forEach(id => next.delete(id));
+        todasIds.forEach((id) => next.delete(id));
         return next;
       }
       const next = new Set(prev);
-      todasIds.forEach(id => next.add(id));
+      todasIds.forEach((id) => next.add(id));
       return next;
     });
   }, []);
@@ -774,7 +1102,9 @@ export default function Academias() {
   // ─── Handlers em lote ─────────────────────────────────────────────────────
 
   const handleAtivarLote = async () => {
-    const selecionadasList = academiasList.filter(a => selecionadas.has(a.id) && a.status === 'inativo');
+    const selecionadasList = academiasList.filter(
+      (a) => selecionadas.has(a.id) && a.status === 'inativo',
+    );
     if (selecionadasList.length === 0) return;
     if (!confirm(`Ativar ${selecionadasList.length} academia(s) selecionada(s)?`)) return;
 
@@ -801,7 +1131,9 @@ export default function Academias() {
   };
 
   const handleAbrirDesativarLote = () => {
-    const selecionadasAtivas = academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo');
+    const selecionadasAtivas = academiasList.filter(
+      (a) => selecionadas.has(a.id) && a.status === 'ativo',
+    );
     if (selecionadasAtivas.length === 0) return;
     setMotivoDesativacaoLote('');
     openDesativarLoteModal();
@@ -811,7 +1143,9 @@ export default function Academias() {
     e.preventDefault();
     if (!motivoDesativacaoLote.trim()) return;
 
-    const selecionadasAtivas = academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo');
+    const selecionadasAtivas = academiasList.filter(
+      (a) => selecionadas.has(a.id) && a.status === 'ativo',
+    );
     if (selecionadasAtivas.length === 0) return;
 
     setCarregandoLote(true);
@@ -821,7 +1155,11 @@ export default function Academias() {
 
     for (const academia of selecionadasAtivas) {
       try {
-        await adminService.desativarAcademia(academia.codigo_academia, { motivo: motivoDesativacaoLote.trim() }, token);
+        await adminService.desativarAcademia(
+          academia.codigo_academia,
+          { motivo: motivoDesativacaoLote.trim() },
+          token,
+        );
         resultados.push({ codigo: academia.codigo_academia, nome: academia.nome, sucesso: true, mensagem: 'Desativada com sucesso' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Erro desconhecido';
@@ -845,7 +1183,10 @@ export default function Academias() {
         {/* Header */}
         <div className="flex flex-wrap items-center gap-2">
           {isFpp && (
-            <Link href="/academias/cadastrar" className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-5 py-3.5 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600">
+            <Link
+              href="/academias/cadastrar"
+              className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-5 py-3.5 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
+            >
               <Icon icon="mdi:plus" width={16} /> Cadastrar Academia
             </Link>
           )}
@@ -854,7 +1195,7 @@ export default function Academias() {
           </Button>
           {carregado && (
             <button
-              onClick={() => setVistaEscala(p => !p)}
+              onClick={() => setVistaEscala((p) => !p)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 !vistaEscala
                   ? 'bg-brand-500 text-white border-brand-500'
@@ -866,7 +1207,11 @@ export default function Academias() {
             </button>
           )}
           {carregado && (
-            <BotaoOrdenar opcoes={OPCOES_ORDEM_ACADEMIAS} ordemAtual={ordem} onSelecionar={setOrdem} />
+            <BotaoOrdenar
+              opcoes={OPCOES_ORDEM_ACADEMIAS}
+              ordemAtual={ordem}
+              onSelecionar={setOrdem}
+            />
           )}
           {dataAcademias && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
@@ -905,10 +1250,17 @@ export default function Academias() {
             )}
             {!carregandoAcademias && carregado && (
               <VistaEscalaAcademias
-                academias={academiasList} ordem={ordem} isAdmin={isAdmin}
-                carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
-                onVerDetalhes={handleVerDetalhes} onAtivar={handleAtivar} onAbrirDesativar={handleAbrirDesativar}
-                selecionadas={selecionadas} onToggleSelecao={handleToggleSelecao} onToggleTodas={handleToggleTodas}
+                academias={academiasList}
+                ordem={ordem}
+                isAdmin={isAdmin}
+                carregandoAtivar={carregandoAtivar}
+                carregandoDesativar={carregandoDesativar}
+                onVerDetalhes={handleVerDetalhes}
+                onAtivar={handleAtivar}
+                onAbrirDesativar={handleAbrirDesativar}
+                selecionadas={selecionadas}
+                onToggleSelecao={handleToggleSelecao}
+                onToggleTodas={handleToggleTodas}
               />
             )}
           </>
@@ -927,21 +1279,35 @@ export default function Academias() {
                 )}
                 {!carregandoAcademias && !carregado && (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <p className="text-gray-400 text-sm">Clique em &quot;Atualizar lista&quot; para carregar as academias</p>
+                    <p className="text-gray-400 text-sm">
+                      Clique em &quot;Atualizar lista&quot; para carregar as academias
+                    </p>
                   </div>
                 )}
                 {!carregandoAcademias && carregado && (
                   <TabelaAcademias
-                    academias={academiasPaginadas} isAdmin={isAdmin}
-                    carregandoAtivar={carregandoAtivar} carregandoDesativar={carregandoDesativar}
-                    onVerDetalhes={handleVerDetalhes} onAtivar={handleAtivar} onAbrirDesativar={handleAbrirDesativar}
-                    selecionadas={selecionadas} onToggleSelecao={handleToggleSelecao} onToggleTodas={handleToggleTodas}
+                    academias={academiasPaginadas}
+                    isAdmin={isAdmin}
+                    carregandoAtivar={carregandoAtivar}
+                    carregandoDesativar={carregandoDesativar}
+                    onVerDetalhes={handleVerDetalhes}
+                    onAtivar={handleAtivar}
+                    onAbrirDesativar={handleAbrirDesativar}
+                    selecionadas={selecionadas}
+                    onToggleSelecao={handleToggleSelecao}
+                    onToggleTodas={handleToggleTodas}
                   />
                 )}
               </div>
             </div>
             {!carregandoAcademias && carregado && (
-              <PaginacaoSetas paginaAtual={paginaAtual} totalPaginas={totalPaginas} total={academiasOrdenadas.length} porPagina={ITEMS_POR_PAGINA} onChange={setPaginaAtual} />
+              <PaginacaoSetas
+                paginaAtual={paginaAtual}
+                totalPaginas={totalPaginas}
+                total={academiasOrdenadas.length}
+                porPagina={ITEMS_POR_PAGINA}
+                onChange={setPaginaAtual}
+              />
             )}
           </div>
         )}
@@ -950,29 +1316,73 @@ export default function Academias() {
         <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
           {academiaSelecionada && (
             <div>
-              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Detalhes da Academia</h4>
+              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
+                Detalhes da Academia
+              </h4>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p><p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nome}</p></div>
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p><p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.codigo_academia}</p></div>
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo</p><p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.type}</p></div>
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível Escolar</p><p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p>
+                  <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nome}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.codigo_academia}</p>
+                </div>
+                {/* nivel: escola | superior */}
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{labelNivel(academiaSelecionada.nivel)}</p>
+                </div>
+                {/* type: public | private */}
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Natureza</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{labelNatureza(academiaSelecionada.type)}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível Escolar</p>
+                  <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p>
+                </div>
                 {academiaSelecionada.anos_academicos && academiaSelecionada.anos_academicos.length > 0 && (
                   <div className="col-span-2">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Anos Académicos</p>
                     <div className="flex flex-wrap gap-1">
-                      {academiaSelecionada.anos_academicos.map(ano => (
-                        <span key={ano} className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">{formatAnoAcademico(ano)}</span>
+                      {academiaSelecionada.anos_academicos.map((ano) => (
+                        <span
+                          key={ano}
+                          className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
+                        >
+                          {formatAnoAcademico(ano)}
+                        </span>
                       ))}
                     </div>
                   </div>
                 )}
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Província</p><p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p></div>
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(academiaSelecionada.status)}`}>{academiaSelecionada.status}</span></div>
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Estudantes</p><p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_estudantes}</p></div>
-                <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p><p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.email || '-'}</p></div>
-                <div className="col-span-2"><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p><p className="text-sm text-gray-900 dark:text-white">{formatarData(academiaSelecionada.created_at)}</p></div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Província</p>
+                  <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(academiaSelecionada.status)}`}>
+                    {academiaSelecionada.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Estudantes</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_estudantes}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.email || '-'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{formatarData(academiaSelecionada.created_at)}</p>
+                </div>
               </div>
-              <div className="flex justify-end mt-6"><Button size="sm" variant="outline" onClick={closeDetailsModal}>Fechar</Button></div>
+              <div className="flex justify-end mt-6">
+                <Button size="sm" variant="outline" onClick={closeDetailsModal}>Fechar</Button>
+              </div>
             </div>
           )}
         </Modal>
@@ -983,17 +1393,24 @@ export default function Academias() {
             <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
             {academiaParaDesativar && (
               <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-300"><span className="font-semibold">Academia:</span> {academiaParaDesativar.nome}</p>
-                <p className="text-sm text-yellow-800 dark:text-yellow-300"><span className="font-semibold">Código:</span> {academiaParaDesativar.codigo_academia}</p>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  <span className="font-semibold">Academia:</span> {academiaParaDesativar.nome}
+                </p>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  <span className="font-semibold">Código:</span> {academiaParaDesativar.codigo_academia}
+                </p>
               </div>
             )}
             <div>
               <Label>Motivo da desativação *</Label>
               <textarea
                 className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
-                placeholder="Descreva o motivo..." rows={4}
-                value={motivoDesativacao} onChange={e => setMotivoDesativacao(e.target.value)}
-                disabled={carregandoDesativar} required
+                placeholder="Descreva o motivo..."
+                rows={4}
+                value={motivoDesativacao}
+                onChange={(e) => setMotivoDesativacao(e.target.value)}
+                disabled={carregandoDesativar}
+                required
               />
             </div>
             {erroDesativarAcademia && (
@@ -1002,8 +1419,12 @@ export default function Academias() {
               </div>
             )}
             <div className="flex items-center justify-end gap-3 mt-6">
-              <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>Cancelar</Button>
-              <Button size="sm" variant="danger" disabled={carregandoDesativar}>{carregandoDesativar ? 'Desativando...' : 'Desativar Academia'}</Button>
+              <Button size="sm" variant="outline" onClick={closeDesativarModal} disabled={carregandoDesativar}>
+                Cancelar
+              </Button>
+              <Button size="sm" variant="danger" disabled={carregandoDesativar}>
+                {carregandoDesativar ? 'Desativando...' : 'Desativar Academia'}
+              </Button>
             </div>
           </form>
         </Modal>
@@ -1011,30 +1432,48 @@ export default function Academias() {
         {/* Modal Desativar em Lote */}
         <Modal isOpen={isDesativarLoteOpen} onClose={closeDesativarLoteModal} className="max-w-[520px] p-5 lg:p-10">
           <form onSubmit={handleDesativarLote}>
-            <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academias em Lote</h4>
+            <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">
+              Desativar Academias em Lote
+            </h4>
             <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                <span className="font-semibold">{academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo').length} academia(s) ativa(s)</span> serão desativadas.
+                <span className="font-semibold">
+                  {academiasList.filter((a) => selecionadas.has(a.id) && a.status === 'ativo').length} academia(s) ativa(s)
+                </span>{' '}
+                serão desativadas.
               </p>
               <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                {academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo').map(a => (
-                  <p key={a.id} className="text-xs text-yellow-700 dark:text-yellow-400">• {a.nome} ({a.codigo_academia})</p>
-                ))}
+                {academiasList
+                  .filter((a) => selecionadas.has(a.id) && a.status === 'ativo')
+                  .map((a) => (
+                    <p key={a.id} className="text-xs text-yellow-700 dark:text-yellow-400">
+                      • {a.nome} ({a.codigo_academia})
+                    </p>
+                  ))}
               </div>
             </div>
             <div>
               <Label>Motivo da desativação *</Label>
               <textarea
                 className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
-                placeholder="Descreva o motivo..." rows={4}
-                value={motivoDesativacaoLote} onChange={e => setMotivoDesativacaoLote(e.target.value)}
-                disabled={carregandoLote} required
+                placeholder="Descreva o motivo..."
+                rows={4}
+                value={motivoDesativacaoLote}
+                onChange={(e) => setMotivoDesativacaoLote(e.target.value)}
+                disabled={carregandoLote}
+                required
               />
             </div>
             <div className="flex items-center justify-end gap-3 mt-6">
-              <Button size="sm" variant="outline" onClick={closeDesativarLoteModal} disabled={carregandoLote}>Cancelar</Button>
+              <Button size="sm" variant="outline" onClick={closeDesativarLoteModal} disabled={carregandoLote}>
+                Cancelar
+              </Button>
               <Button size="sm" variant="danger" disabled={carregandoLote}>
-                {carregandoLote ? 'Desativando...' : `Desativar ${academiasList.filter(a => selecionadas.has(a.id) && a.status === 'ativo').length} Academia(s)`}
+                {carregandoLote
+                  ? 'Desativando...'
+                  : `Desativar ${
+                      academiasList.filter((a) => selecionadas.has(a.id) && a.status === 'ativo').length
+                    } Academia(s)`}
               </Button>
             </div>
           </form>

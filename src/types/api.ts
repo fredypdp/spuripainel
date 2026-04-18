@@ -7,7 +7,18 @@
 export type UserType = 'academia' | 'estudante' | 'admin';
 export type AdminType = 'gerente' | 'adm' | 'fpp';
 
-export type AcademiaType = 'escola' | 'superior';
+/**
+ * Natureza da academia: pública ou privada.
+ * Antes era 'escola' | 'superior' — agora é 'public' | 'private'.
+ */
+export type AcademiaType = 'public' | 'private';
+
+/**
+ * Nível da academia: escola ou ensino superior.
+ * Anteriormente este papel era desempenhado por AcademiaType.
+ */
+export type AcademiaNivel = 'escola' | 'superior';
+
 export type NivelEscolar = 'fundamental' | 'medio' | 'misto';
 
 export type AnoAcademico = AnoFundamental | AnoMedio | AnoSuperior;
@@ -61,8 +72,14 @@ export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
 // REQUEST TYPES
 // =====================
 
+/**
+ * Cadastrar uma escola (nível 'escola').
+ * - nivel: discriminante — sempre 'escola'
+ * - type: natureza da escola — 'public' | 'private'
+ */
 export interface CriarEscolaRequest {
-  type: 'escola';
+  nivel: 'escola';
+  type: AcademiaType;
   nome: string;
   provincia: string;
   endereco: string;
@@ -74,8 +91,14 @@ export interface CriarEscolaRequest {
   anos_academicos?: string[];
 }
 
+/**
+ * Cadastrar uma universidade/superior (nível 'superior').
+ * - nivel: discriminante — sempre 'superior'
+ * - type: natureza da instituição — 'public' | 'private'
+ */
 export interface CriarUniversidadeRequest {
-  type: 'superior';
+  nivel: 'superior';
+  type: AcademiaType;
   nome: string;
   provincia: string;
   endereco: string;
@@ -534,6 +557,14 @@ export interface EstudanteDetalhado {
 
 export interface AcademiaDetalhada {
   id: string;
+  /**
+   * Nível da academia: 'escola' | 'superior'.
+   * Antes este papel era do campo type.
+   */
+  nivel: AcademiaNivel;
+  /**
+   * Natureza da academia: 'public' | 'private'.
+   */
   type: AcademiaType;
   nome: string;
   codigo_academia: string;
@@ -724,23 +755,27 @@ export interface TurmasEstudanteResponse {
 /**
  * GET /meu-perfil
  * Retorna { tipo, academia } | { tipo, admin } | { tipo, estudante }
- *
- * NOTA: O backend retorna academia_info dentro do estudante (não academia).
  */
 export interface MeuPerfilResponse {
   tipo: UserType;
   estudante?: EstudanteDetalhado & {
-    /** Informações da academia vinculada ao estudante */
+    /**
+     * Informações da academia vinculada ao estudante.
+     * - nivel: 'escola' | 'superior'
+     * - type: 'public' | 'private'
+     */
     academia_info?: {
       codigo: string;
       nome: string;
-      tipo: AcademiaType;
+      nivel: AcademiaNivel;
+      type: AcademiaType;
     };
     /** @deprecated Use academia_info */
     academia?: {
       codigo: string;
       nome: string;
-      tipo: AcademiaType;
+      nivel: AcademiaNivel;
+      type: AcademiaType;
     };
     curso_medio?: {
       id: string;
@@ -764,7 +799,8 @@ export interface ConsultarEstudanteResponse {
     academia?: {
       codigo: string;
       nome: string;
-      tipo: AcademiaType;
+      nivel: AcademiaNivel;
+      type: AcademiaType;
     };
     curso_medio?: {
       id: string;

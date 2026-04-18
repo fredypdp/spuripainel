@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
     name: "Registros",
     icon: <Icon width="24px" icon="vaadin:records" />,
     subItems: [
-      { name: "Notas", path: "/notas" },
+      { name: "Notas",  path: "/notas"  },
       { name: "Faltas", path: "/faltas" },
     ],
   },
@@ -51,16 +51,16 @@ const navItems: NavItem[] = [
     name: "Gerenciamento",
     icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
     subItems: [
-      { name: "Cursos", path: "/gerenciamento/cursos" },
+      { name: "Cursos",               path: "/gerenciamento/cursos"               },
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
-      { name: "Turmas", path: "/gerenciamento/turmas" },
+      { name: "Turmas",               path: "/gerenciamento/turmas"               },
     ],
   },
   {
     icon: <Icon width="24px" icon="fluent-emoji-high-contrast:school" />,
     name: "Academias",
     subItems: [
-      { name: "Listar", path: "/academias" },
+      { name: "Listar",    path: "/academias"           },
       { name: "Cadastrar", path: "/academias/cadastrar" },
     ],
   },
@@ -68,7 +68,7 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="mdi:account-school" />,
     name: "Estudantes",
     subItems: [
-      { name: "Listar", path: "/estudantes" },
+      { name: "Listar",    path: "/estudantes"           },
       { name: "Cadastrar", path: "/estudantes/cadastrar" },
     ],
   },
@@ -87,7 +87,7 @@ const navItems: NavItem[] = [
 export default function AppSidebar() {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
-  const [user, setUser] = useState<MeuPerfilResponse | null>(null);
+  const [user,    setUser]    = useState<MeuPerfilResponse | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -104,14 +104,21 @@ export default function AppSidebar() {
   const filteredNavItems = useMemo(() => {
     if (!mounted) return navItems;
 
+    /*
+     * Antes: user?.academia?.type === "escola"
+     * Agora:  user?.academia?.nivel === "escola"
+     *
+     * O campo `nivel` ('escola' | 'superior') distingue o tipo de instituição.
+     * O campo `type`  ('public' | 'private') indica a natureza (pública/privada).
+     */
     const isFundamental =
-      user?.academia?.type === "escola" &&
+      user?.academia?.nivel === "escola" &&
       user?.academia?.nivel_escolar === "fundamental";
 
     const isFpp = user?.tipo === "admin" && user?.admin?.role === "fpp";
 
     return navItems
-      .filter(item => {
+      .filter((item) => {
         if (user?.tipo) {
           // Academias: apenas admin
           if (item.name === "Academias") {
@@ -136,12 +143,14 @@ export default function AppSidebar() {
         }
         return true;
       })
-      .map(item => {
+      .map((item) => {
         // Para academias do ensino fundamental, remover "Cursos" do submenu
         if (item.name === "Gerenciamento" && item.subItems && isFundamental) {
           return {
             ...item,
-            subItems: item.subItems.filter(sub => sub.path !== "/gerenciamento/cursos"),
+            subItems: item.subItems.filter(
+              (sub) => sub.path !== "/gerenciamento/cursos",
+            ),
           };
         }
 
@@ -149,8 +158,8 @@ export default function AppSidebar() {
         if (item.name === "Academias" && item.subItems) {
           return {
             ...item,
-            subItems: item.subItems.filter(sub =>
-              sub.path !== "/academias/cadastrar" || isFpp
+            subItems: item.subItems.filter(
+              (sub) => sub.path !== "/academias/cadastrar" || isFpp,
             ),
           };
         }
@@ -159,8 +168,9 @@ export default function AppSidebar() {
         if (item.name === "Estudantes" && item.subItems) {
           return {
             ...item,
-            subItems: item.subItems.filter(sub =>
-              sub.path !== "/estudantes/cadastrar" || user?.tipo === "academia"
+            subItems: item.subItems.filter(
+              (sub) =>
+                sub.path !== "/estudantes/cadastrar" || user?.tipo === "academia",
             ),
           };
         }
@@ -197,7 +207,8 @@ export default function AppSidebar() {
     pathname: string;
   } | null>(null);
 
-  const openSubmenu = (manualToggle?.pathname === pathname ? manualToggle : null) ?? derivedOpenSubmenu;
+  const openSubmenu =
+    (manualToggle?.pathname === pathname ? manualToggle : null) ?? derivedOpenSubmenu;
 
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -232,7 +243,7 @@ export default function AppSidebar() {
 
   const renderMenuItems = (
     navItems: NavItem[],
-    menuType: "main" | "others"
+    menuType: "main" | "others",
   ) => (
     <ul className="flex flex-col gap-4">
       {navItems.map((nav, index) => (
@@ -245,13 +256,11 @@ export default function AppSidebar() {
                   ? "menu-item-active"
                   : "menu-item-inactive"
               } cursor-pointer ${
-                !isExpanded && !isHovered
-                  ? "lg:justify-center"
-                  : "lg:justify-start"
+                !isExpanded && !isHovered ? "lg:justify-center" : "lg:justify-start"
               }`}
             >
               <span
-                className={` ${
+                className={`${
                   openSubmenu?.type === menuType && openSubmenu?.index === index
                     ? "menu-item-icon-active"
                     : "menu-item-icon-inactive"
@@ -260,13 +269,12 @@ export default function AppSidebar() {
                 {nav.icon}
               </span>
               {(isExpanded || isHovered || isMobileOpen) && (
-                <span className={`menu-item-text`}>{nav.name}</span>
+                <span className="menu-item-text">{nav.name}</span>
               )}
               {(isExpanded || isHovered || isMobileOpen) && (
                 <ChevronDownIcon
-                  className={`ml-auto w-5 h-5 transition-transform duration-200  ${
-                    openSubmenu?.type === menuType &&
-                    openSubmenu?.index === index
+                  className={`ml-auto w-5 h-5 transition-transform duration-200 ${
+                    openSubmenu?.type === menuType && openSubmenu?.index === index
                       ? "rotate-180 text-brand-500"
                       : ""
                   }`}
@@ -283,15 +291,13 @@ export default function AppSidebar() {
               >
                 <span
                   className={`${
-                    isActive(nav.path)
-                      ? "menu-item-icon-active"
-                      : "menu-item-icon-inactive"
+                    isActive(nav.path) ? "menu-item-icon-active" : "menu-item-icon-inactive"
                   }`}
                 >
                   {nav.icon}
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className={`menu-item-text`}>{nav.name}</span>
+                  <span className="menu-item-text">{nav.name}</span>
                 )}
               </Link>
             )
@@ -328,7 +334,7 @@ export default function AppSidebar() {
                               isActive(subItem.path)
                                 ? "menu-dropdown-badge-active"
                                 : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge `}
+                            } menu-dropdown-badge`}
                           >
                             new
                           </span>
@@ -339,7 +345,7 @@ export default function AppSidebar() {
                               isActive(subItem.path)
                                 ? "menu-dropdown-badge-active"
                                 : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge `}
+                            } menu-dropdown-badge`}
                           >
                             pro
                           </span>
@@ -372,7 +378,7 @@ export default function AppSidebar() {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-8 flex  ${
+        className={`py-8 flex ${
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
@@ -410,9 +416,7 @@ export default function AppSidebar() {
             <div>
               <h2
                 className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
+                  !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
                 }`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (

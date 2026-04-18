@@ -38,21 +38,21 @@ function formatarTurno(turno: string): string {
 function labelNivelAtivo(user: MeuPerfilResponse): { label: string; cor: string } | null {
   const e = user.estudante;
   if (!e) return null;
-  if (e.status_superior === 'em_andamento') return { label: 'Ensino Superior', cor: 'indigo' };
-  if (e.status_escolar_medio === 'em_andamento') return { label: 'Ensino Médio', cor: 'purple' };
-  if (e.status_escolar_fundamental === 'em_andamento') return { label: 'Ensino Fundamental', cor: 'blue' };
-  if (e.status_superior === 'finalizado') return { label: 'Superior (Finalizado)', cor: 'green' };
-  if (e.status_escolar_medio === 'finalizado') return { label: 'Médio (Finalizado)', cor: 'green' };
-  if (e.status_escolar_fundamental === 'finalizado') return { label: 'Fundamental (Finalizado)', cor: 'green' };
+  if (e.status_superior === 'em_andamento')              return { label: 'Ensino Superior',              cor: 'indigo'  };
+  if (e.status_escolar_medio === 'em_andamento')         return { label: 'Ensino Médio',                 cor: 'purple'  };
+  if (e.status_escolar_fundamental === 'em_andamento')   return { label: 'Ensino Fundamental',           cor: 'blue'    };
+  if (e.status_superior === 'finalizado')                return { label: 'Superior (Finalizado)',        cor: 'green'   };
+  if (e.status_escolar_medio === 'finalizado')           return { label: 'Médio (Finalizado)',           cor: 'green'   };
+  if (e.status_escolar_fundamental === 'finalizado')     return { label: 'Fundamental (Finalizado)',     cor: 'green'   };
   return null;
 }
 
 function corBadge(cor: string): string {
   const map: Record<string, string> = {
-    blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    blue:   'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
     purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
     indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
-    green: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    green:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   };
   return map[cor] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
 }
@@ -91,17 +91,16 @@ function InfoItem({ label, children }: { label: string; children: React.ReactNod
 // ── Seção de Turmas ───────────────────────────────────────────────────────────
 
 function TurmasEstudante({ codigoEstudante }: { codigoEstudante: string }) {
-  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [turmas,  setTurmas]  = useState<Turma[]>([]);
   const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState(false);
+  const [erro,    setErro]    = useState(false);
 
   useEffect(() => {
     if (!codigoEstudante) return;
     const token = tokenStorage.get() ?? undefined;
-    consultasService.turmasEstudante(codigoEstudante, token)
-      .then((res) => {
-        setTurmas(res.turmas ?? []);
-      })
+    consultasService
+      .turmasEstudante(codigoEstudante, token)
+      .then((res) => { setTurmas(res.turmas ?? []); })
       .catch(() => setErro(true))
       .finally(() => setLoading(false));
   }, [codigoEstudante]);
@@ -118,11 +117,17 @@ function TurmasEstudante({ codigoEstudante }: { codigoEstudante: string }) {
   }
 
   if (erro) {
-    return <span className="text-sm text-gray-400 dark:text-gray-500 italic">Não foi possível carregar</span>;
+    return (
+      <span className="text-sm text-gray-400 dark:text-gray-500 italic">
+        Não foi possível carregar
+      </span>
+    );
   }
 
   if (turmasAtivas.length === 0) {
-    return <span className="text-sm text-gray-400 dark:text-gray-500 italic">Sem turma ativa</span>;
+    return (
+      <span className="text-sm text-gray-400 dark:text-gray-500 italic">Sem turma ativa</span>
+    );
   }
 
   return (
@@ -133,8 +138,12 @@ function TurmasEstudante({ codigoEstudante }: { codigoEstudante: string }) {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800"
         >
           <svg className="w-3.5 h-3.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            />
           </svg>
           <span className="text-xs font-semibold text-brand-700 dark:text-brand-300 font-mono">
             {turma.codigo_turma}
@@ -177,14 +186,14 @@ export default function Details() {
   // ── Dados derivados — Academia ──────────────────────────────────────────────
 
   const provincia = useMemo(() => user?.academia?.provincia ?? '', [user]);
-  const endereco = useMemo(() => user?.academia?.endereco ?? '', [user]);
+  const endereco  = useMemo(() => user?.academia?.endereco ?? '', [user]);
   const codigoAcademia = useMemo(
     () => user?.estudante?.codigo_academia || user?.academia?.codigo_academia || '',
-    [user]
+    [user],
   );
   const nomeAcademia = useMemo(
     () => user?.estudante?.academia_info?.nome || user?.academia?.nome || '',
-    [user]
+    [user],
   );
 
   // ── Dados derivados — Estudante ─────────────────────────────────────────────
@@ -194,13 +203,19 @@ export default function Details() {
   const anoAtual = useMemo(() => {
     const e = user?.estudante;
     if (!e) return '';
-    if (e.status_superior === 'em_andamento' && e.ano_superior) return formatarAnoAcademico(e.ano_superior);
-    if (e.status_escolar_medio === 'em_andamento' && e.ano_escolar_medio) return formatarAnoAcademico(e.ano_escolar_medio);
-    if (e.status_escolar_fundamental === 'em_andamento' && e.ano_escolar) return formatarAnoAcademico(e.ano_escolar);
+    if (e.status_superior === 'em_andamento' && e.ano_superior)
+      return formatarAnoAcademico(e.ano_superior);
+    if (e.status_escolar_medio === 'em_andamento' && e.ano_escolar_medio)
+      return formatarAnoAcademico(e.ano_escolar_medio);
+    if (e.status_escolar_fundamental === 'em_andamento' && e.ano_escolar)
+      return formatarAnoAcademico(e.ano_escolar);
     // Fallback: último finalizado
-    if (e.status_superior === 'finalizado' && e.ano_superior) return formatarAnoAcademico(e.ano_superior);
-    if (e.status_escolar_medio === 'finalizado' && e.ano_escolar_medio) return formatarAnoAcademico(e.ano_escolar_medio);
-    if (e.status_escolar_fundamental === 'finalizado' && e.ano_escolar) return formatarAnoAcademico(e.ano_escolar);
+    if (e.status_superior === 'finalizado' && e.ano_superior)
+      return formatarAnoAcademico(e.ano_superior);
+    if (e.status_escolar_medio === 'finalizado' && e.ano_escolar_medio)
+      return formatarAnoAcademico(e.ano_escolar_medio);
+    if (e.status_escolar_fundamental === 'finalizado' && e.ano_escolar)
+      return formatarAnoAcademico(e.ano_escolar);
     return '';
   }, [user]);
 
@@ -215,7 +230,7 @@ export default function Details() {
   const generoLabel = useMemo(() => {
     const g = user?.estudante?.genero;
     if (g === 'masculino') return 'Masculino';
-    if (g === 'feminino') return 'Feminino';
+    if (g === 'feminino')  return 'Feminino';
     return '';
   }, [user]);
 
@@ -256,15 +271,23 @@ export default function Details() {
                 )}
               </InfoItem>
 
-              {/* Tipo de academia */}
-              {user.estudante.academia_info?.tipo && (
+              {/*
+                Tipo de Instituição — usa academia_info.nivel (escola | superior).
+                O campo era anteriormente academia_info.tipo, agora é academia_info.nivel
+                conforme a API v1.3.1.
+              */}
+              {user.estudante.academia_info?.nivel && (
                 <InfoItem label="Tipo de Instituição">
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                    user.estudante.academia_info.tipo === 'superior'
-                      ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400'
-                      : 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400'
-                  }`}>
-                    {user.estudante.academia_info.tipo === 'superior' ? 'Universidade / Superior' : 'Escola'}
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                      user.estudante.academia_info.nivel === 'superior'
+                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400'
+                        : 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400'
+                    }`}
+                  >
+                    {user.estudante.academia_info.nivel === 'superior'
+                      ? 'Universidade / Superior'
+                      : 'Escola'}
                   </span>
                 </InfoItem>
               )}
@@ -272,7 +295,9 @@ export default function Details() {
               {/* Nível activo */}
               {nivelAtivo && (
                 <InfoItem label="Nível de Ensino Activo">
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${corBadge(nivelAtivo.cor)}`}>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${corBadge(nivelAtivo.cor)}`}
+                  >
                     {nivelAtivo.label}
                   </span>
                 </InfoItem>
@@ -317,7 +342,7 @@ export default function Details() {
                 </InfoItem>
               )}
 
-              {/* Status do percurso (resumo) */}
+              {/* Percurso escolar */}
               <div className="lg:col-span-2">
                 <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
                   Percurso Escolar
@@ -331,13 +356,21 @@ export default function Details() {
                     ] as const
                   ).map(({ label, status }) => {
                     if (status === 'inativo') return null;
-                    const cor = status === 'em_andamento'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+                    const cor =
+                      status === 'em_andamento'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
                     const statusLabel = status === 'em_andamento' ? 'Em andamento' : 'Finalizado';
                     return (
-                      <span key={label} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cor}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${status === 'em_andamento' ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`} />
+                      <span
+                        key={label}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cor}`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            status === 'em_andamento' ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
+                          }`}
+                        />
                         {label} — {statusLabel}
                       </span>
                     );
@@ -380,20 +413,28 @@ export default function Details() {
               <InfoItem label="Endereço">
                 <span>{endereco || 'Não informado'}</span>
               </InfoItem>
-
-              {ac.type === 'escola' && ac.nivel_escolar && (
+              
+              {ac.nivel === 'escola' && ac.nivel_escolar && (
                 <InfoItem label="Nível Escolar">
                   <span className="capitalize">
-                    {ac.nivel_escolar === 'fundamental' ? 'Fundamental'
-                      : ac.nivel_escolar === 'medio' ? 'Médio'
+                    {ac.nivel_escolar === 'fundamental'
+                      ? 'Fundamental'
+                      : ac.nivel_escolar === 'medio'
+                      ? 'Médio'
                       : 'Fundamental e Médio'}
                   </span>
                 </InfoItem>
               )}
 
-              {ac.type && (
+              {ac.nivel && (
                 <InfoItem label="Tipo de Instituição">
-                  <span>{ac.type === 'escola' ? 'Escola' : 'Superior'}</span>
+                  <span>{ac.nivel === 'escola' ? 'Escola' : 'Superior'}</span>
+                </InfoItem>
+              )}
+
+              {ac.type && (
+                <InfoItem label="Natureza">
+                  <span>{ac.type === 'public' ? 'Pública' : 'Privada'}</span>
                 </InfoItem>
               )}
 
