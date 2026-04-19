@@ -49,7 +49,8 @@ interface AcadInfo {
   codigo_academia: string;
   nome: string;
   provincia: string;
-  type: string;
+  /** 'escola' | 'superior' — vem de AcademiaDetalhada.nivel */
+  nivel: string;
   status: string;
 }
 
@@ -180,12 +181,13 @@ export default function FaltasAdmin() {
     }
   }
 
+  // Use academia.nivel ('escola' | 'superior') — NOT academia.type ('public' | 'private')
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
       codigo_academia: a.codigo_academia,
       nome: a.nome,
       provincia: a.provincia,
-      type: a.type,
+      nivel: a.nivel,
       status: a.status,
     })),
     [academiasData]
@@ -204,10 +206,6 @@ export default function FaltasAdmin() {
     return todasFaltas.filter(f => f.codigo_academia === codigoAcademia);
   }
 
-  /**
-   * Retorna os níveis académicos únicos (ano_academico) que têm faltas
-   * registadas para uma academia, agrupados por contagem.
-   */
   function niveisDeAcademia(codigoAcademia: string) {
     const faltas = faltasDeAcademia(codigoAcademia);
     const map = new Map<string, { totalFaltas: number; registros: number }>();
@@ -223,9 +221,6 @@ export default function FaltasAdmin() {
       .sort((a, b) => a.nivel.localeCompare(b.nivel));
   }
 
-  /**
-   * Retorna as matérias agrupadas para uma academia + nível.
-   */
   function materiasDoNivel(codigoAcademia: string, nivel: string) {
     const faltas = faltasDeAcademia(codigoAcademia).filter(f => f.ano_academico === nivel);
     const map = new Map<string, { nome: string; total: number; count: number }>();
@@ -333,10 +328,10 @@ export default function FaltasAdmin() {
             return (
               <CardBtn
                 key={a.codigo_academia}
-                icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
+                icon={a.nivel === "superior" ? "mdi:university" : "mdi:school"}
                 title={a.nome}
                 subtitle={`${a.codigo_academia} · ${total} falta(s) · ${niveis} nível(eis)`}
-                badge={a.type}
+                badge={a.nivel}
                 onClick={() => setLayer({ type: "niveis", academia: a })}
               />
             );
@@ -357,7 +352,7 @@ export default function FaltasAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{academia.nome}</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {academia.codigo_academia} · {academia.type === "superior" ? "Superior" : "Escola"}
+            {academia.codigo_academia} · {academia.nivel === "superior" ? "Superior" : "Escola"}
           </p>
         </div>
         {faltas.length > 0 && <StatsRow faltas={faltas} />}
@@ -464,7 +459,7 @@ export default function FaltasAdmin() {
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-white capitalize">
-                        {f.estudante_nome || f.codigo_estudante}
+                        {(f as FaltaExt).estudante_nome || f.codigo_estudante}
                       </p>
                       <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">
                         {f.codigo_estudante}

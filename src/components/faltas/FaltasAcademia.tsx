@@ -510,11 +510,12 @@ export default function FaltasAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const token  = tokenStorage.get() ?? undefined;
 
-  const academiaType  = user?.academia?.type ?? "escola";
+  // Use academia.nivel ('escola' | 'superior') — NOT academia.type ('public' | 'private')
+  const academiaNivel = user?.academia?.nivel ?? "escola";
   const nivelEscolar  = user?.academia?.nivel_escolar ?? "fundamental";
-  const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
-  const isSuperior    = academiaType === "superior";
-  const isMisto       = academiaType === "escola" && nivelEscolar === "misto";
+  const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
+  const isSuperior    = academiaNivel === "superior";
+  const isMisto       = academiaNivel === "escola" && nivelEscolar === "misto";
 
   const initLayer = (): Layer => {
     if (isFundamental) return { mode: "fund", type: "anos" };
@@ -598,10 +599,6 @@ export default function FaltasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  /**
-   * Faltas dos estudantes de uma turma numa matéria específica,
-   * filtradas pelo ano letivo ativo (quando disponível).
-   */
   function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
     return todasFaltas.filter(f =>
       turma.estudantes.includes(f.codigo_estudante) &&
@@ -610,11 +607,6 @@ export default function FaltasAcademia() {
     ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }
 
-  /**
-   * Materias de uma turma: faz merge de matérias configuradas (pela academia)
-   * com matérias que já têm registros de falta na turma.
-   * Resultado: uma lista dedupada e ordenada por nome.
-   */
   function getMateriasDaTurma(turma: Turma, nivel: string, curso?: Curso) {
     const tipo = nivel.includes("fundamental") ? "fundamental"
                : nivel.includes("medio")       ? "medio"
@@ -632,7 +624,6 @@ export default function FaltasAcademia() {
       (anoLectivo ? f.ano_lectivo === anoLectivo : true)
     );
 
-    // Merge: matérias configuradas + matérias com registros
     const merged = new Map<string, string>();
     materiasConfig.forEach((m: any) => merged.set(m.id, m.nome));
     faltasDaTurma.forEach(f => {

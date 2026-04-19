@@ -11,7 +11,8 @@ import Icon from "@/components/ui/Icon";
 export default function AcademiaSection() {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
   const { user } = useUserType();
-  const tipoAcademia = (user?.academia?.type ?? "escola") as "escola" | "superior";
+  // academia.nivel is 'escola' | 'superior' — NOT academia.type ('public' | 'private')
+  const tipoAcademia = (user?.academia?.nivel ?? "escola") as "escola" | "superior";
 
   // ── Buscar ano letivo actual da academia ──────────────────────────────────
   const {
@@ -63,7 +64,6 @@ export default function AcademiaSection() {
     setSucesso(false);
     if (!valorFormatado) return;
     try {
-      // Envia { ano_letivo, tipo } — tipo derivado do tipo da academia
       await definirAnoLetivo({
         ano_letivo: valorFormatado,
         tipo: tipoAcademia,
@@ -241,7 +241,7 @@ export default function AcademiaSection() {
                 </div>
               </div>
 
-              {/* Tipo — read-only, derivado do tipo da academia */}
+              {/* Tipo — read-only, derivado do nivel da academia */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Tipo

@@ -439,7 +439,8 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
 
   const loading = loadingEst || loadingTurmas || loadingCursos;
 
-  const isSuperior = academia.type === "superior";
+  // Use academia.nivel ('escola' | 'superior') — NOT academia.type ('public' | 'private')
+  const isSuperior = academia.nivel === "superior";
   const nivelLabel = isSuperior
     ? "Superior"
     : academia.nivel_escolar === "fundamental"
