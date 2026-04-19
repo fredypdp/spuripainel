@@ -62,12 +62,6 @@ function getTipoEnsino(nivel: string): TipoEnsino {
   return "superior";
 }
 
-function sortAnos(anos: string[]): string[] {
-  return [...anos].sort(
-    (a, b) => NIVEL_ORDER.indexOf(a) - NIVEL_ORDER.indexOf(b)
-  );
-}
-
 function getUserFromCookie(): MeuPerfilResponse | null {
   if (typeof window === "undefined") return null;
   try {
@@ -254,9 +248,6 @@ function BadgeResultado({ aprovado }: { aprovado: boolean }) {
 }
 
 // ─── RegistrarModal ───────────────────────────────────────────────────────────
-// NOTA: proximo_ano_academico é calculado automaticamente pelo backend.
-// O payload NÃO deve incluir esse campo — enviar apenas:
-//   codigo_estudante, tipo_ensino, nivel_ano_academico_atual, aprovado, observacao (opcional)
 
 function RegistrarModal({
   student,
@@ -283,8 +274,6 @@ function RegistrarModal({
     setLoading(true);
     setErro("");
     try {
-      // O backend calcula proximo_ano_academico automaticamente.
-      // Não enviar o campo no payload.
       const payload: RegistrarAvaliacaoFinalRequest = {
         codigo_estudante: student.codigo_estudante,
         tipo_ensino: tipoEnsino,
@@ -705,12 +694,12 @@ export default function AvaliacoesFinaisAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const token = tokenStorage.get() ?? undefined;
 
-  const academiaType = user?.academia?.type ?? "escola";
-  const nivelEscolar = user?.academia?.nivel_escolar ?? "fundamental";
-  const isFundamental =
-    academiaType === "escola" && nivelEscolar === "fundamental";
-  const isSuperior = academiaType === "superior";
-  const isMisto = academiaType === "escola" && nivelEscolar === "misto";
+  // nivel === 'escola' → escola; nivel === 'superior' → universidade
+  const academiaNivel = user?.academia?.nivel;
+  const nivelEscolar  = user?.academia?.nivel_escolar ?? "fundamental";
+  const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
+  const isSuperior    = academiaNivel === "superior";
+  const isMisto       = academiaNivel === "escola" && nivelEscolar === "misto";
 
   const needsCursos = !isFundamental;
 

@@ -387,15 +387,16 @@ export default function MateriaPainel() {
   const listaMaterias: Materia[] = materiasRaw?.materias ?? [];
   const listaCursos = cursosRaw?.cursos ?? [];
 
-  const isAcademiaMista = () => user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "misto";
+  // nivel === 'escola' && nivel_escolar === 'misto' → academia mista
+  const isAcademiaMista = () => user?.academia?.nivel === "escola" && user?.academia?.nivel_escolar === "misto";
   const isTipoDisabled = () => !isAcademiaMista();
 
   const getDefaultType = (): MateriaType => {
-    const t = user?.academia?.type;
-    const n = user?.academia?.nivel_escolar;
-    if (t === "superior") return "superior";
-    if (n === "fundamental") return "fundamental";
-    if (n === "medio") return "medio";
+    const nivel = user?.academia?.nivel;
+    const nivelEscolar = user?.academia?.nivel_escolar;
+    if (nivel === "superior") return "superior";
+    if (nivelEscolar === "fundamental") return "fundamental";
+    if (nivelEscolar === "medio") return "medio";
     return "fundamental";
   };
 
@@ -419,25 +420,6 @@ export default function MateriaPainel() {
   };
 
   // ── Batch helpers ──────────────────────────────────────────────────────────
-
-  async function pollJobUntilDone(jobId: string, onProgress: (pct: number) => void): Promise<{ ok: number; err: number }> {
-    const token = tokenStorage.get();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const deadline = Date.now() + 5 * 60 * 1000;
-    let interval = 1500;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, interval));
-      interval = Math.min(interval * 1.3, 6000);
-      try {
-        const r = await fetch(`${apiUrl}/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
-        if (!r.ok) continue;
-        const data = await r.json();
-        onProgress(data.progress ?? 0);
-        if (data.status === 'done' || data.status === 'failed') return { ok: data.done_items ?? 0, err: data.fail_items ?? 0 };
-      } catch { /* retry */ }
-    }
-    return { ok: 0, err: 0 };
-  }
 
   const executarBatchSync = async (operacao: (id: string) => Promise<any>, ids: string[], titulo: string) => {
     const materiasSel = listaMaterias.filter(m => ids.includes(m.id));
@@ -571,11 +553,13 @@ export default function MateriaPainel() {
 
   const tiposMateriaDisponiveis = (() => {
     const tipos: { value: string; label: string }[] = [];
-    if (user?.academia?.type === "escola") {
-      if (user?.academia?.nivel_escolar === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental" });
-      if (user?.academia?.nivel_escolar === "medio") tipos.push({ value: "medio", label: "Médio" });
-      if (user?.academia?.nivel_escolar === "misto") { tipos.push({ value: "fundamental", label: "Fundamental" }); tipos.push({ value: "medio", label: "Médio" }); }
-    } else if (user?.academia?.type === "superior") { tipos.push({ value: "superior", label: "Superior" }); }
+    const nivel = user?.academia?.nivel;
+    const nivelEscolar = user?.academia?.nivel_escolar;
+    if (nivel === "escola") {
+      if (nivelEscolar === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental" });
+      if (nivelEscolar === "medio") tipos.push({ value: "medio", label: "Médio" });
+      if (nivelEscolar === "misto") { tipos.push({ value: "fundamental", label: "Fundamental" }); tipos.push({ value: "medio", label: "Médio" }); }
+    } else if (nivel === "superior") { tipos.push({ value: "superior", label: "Superior" }); }
     return tipos;
   })();
 
@@ -590,7 +574,7 @@ export default function MateriaPainel() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Matérias Disciplinares</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{`Gerencie as matérias da sua ${user?.academia?.type === "escola" ? "Escola" : "Universidade"}`}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{`Gerencie as matérias da sua ${user?.academia?.nivel === "superior" ? "Universidade" : "Escola"}`}</p>
         </div>
         {!showForm && (
           <div className="flex items-center gap-2">

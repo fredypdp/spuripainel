@@ -540,9 +540,7 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
   );
 }
 
-// ─── SecaoFundamental — declarada FORA de VistaEscala ─────────────────────────
-// ✅ FIX: componentes movidos para fora do render de VistaEscala para evitar
-// o erro ESLint react-hooks/static-components.
+// ─── SecaoFundamental ─────────────────────────────────────────────────────────
 
 function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhes, anosDisponiveis }: {
   turmas: Turma[];
@@ -575,7 +573,7 @@ function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhe
   );
 }
 
-// ─── SecaoCursos — declarada FORA de VistaEscala ──────────────────────────────
+// ─── SecaoCursos ──────────────────────────────────────────────────────────────
 
 function SecaoCursos({ tipo, cursosAtivos, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
   tipo?: 'medio' | 'superior';
@@ -618,8 +616,6 @@ function SecaoCursos({ tipo, cursosAtivos, turmas, estudantesMapa, filtros, orde
 }
 
 // ─── VistaEscala ──────────────────────────────────────────────────────────────
-// ✅ FIX: SecaoFundamental e SecaoCursos agora são componentes externos
-// passados como JSX com props, em vez de definidos dentro do render.
 
 function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem, onVerDetalhes, anosAcademicos }: {
   estudantes: EstudanteDetalhado[]; turmas: Turma[]; cursos: Curso[]; nivelAcademia: string;
@@ -640,7 +636,6 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
     [anosAcademicos]
   );
 
-  // Props comuns reutilizadas nos sub-componentes
   const commonProps = { turmas, estudantesMapa, filtros, ordem, onVerDetalhes };
 
   if (nivelAcademia === 'fundamental') {
@@ -757,9 +752,14 @@ export default function Estudantes() {
   const { data: dataCursos,  execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { data: dataTurmas,  execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
-  const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
-  const tipoAcademia  = user?.academia?.type ?? 'escola';
+  // nivel === 'escola' → escola; nivel === 'superior' → universidade
+  const academiaNivel      = user?.academia?.nivel ?? 'escola';
+  const nivelEscolar       = user?.academia?.nivel_escolar ?? 'fundamental';
+  const isSuperior         = academiaNivel === 'superior';
   const anosAcademicosAcademia = user?.academia?.anos_academicos ?? [];
+
+  // Para VistaEscala: passar o nível correto
+  const nivelParaVista = isSuperior ? 'superior' : nivelEscolar;
 
   const carregarEstudantesRef = useRef(carregarEstudantes);
   useEffect(() => { carregarEstudantesRef.current = carregarEstudantes; }, [carregarEstudantes]);
@@ -856,7 +856,6 @@ export default function Estudantes() {
     }));
 
     try {
-      // ✅ Envelope { items: [...] }
       const r    = await fetch(`${apiUrl}/academia/estudante/status-escolar/async`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -955,7 +954,7 @@ export default function Estudantes() {
             estudantes={dataEstudantes?.estudantes ?? []}
             turmas={turmas}
             cursos={cursos}
-            nivelAcademia={tipoAcademia === 'superior' ? 'superior' : nivelAcademia}
+            nivelAcademia={nivelParaVista}
             filtros={filtros}
             ordem={ordem}
             onVerDetalhes={handleVerDetalhes}

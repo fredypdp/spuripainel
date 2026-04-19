@@ -105,11 +105,8 @@ export default function AppSidebar() {
     if (!mounted) return navItems;
 
     /*
-     * Antes: user?.academia?.type === "escola"
-     * Agora:  user?.academia?.nivel === "escola"
-     *
-     * O campo `nivel` ('escola' | 'superior') distingue o tipo de instituição.
-     * O campo `type`  ('public' | 'private') indica a natureza (pública/privada).
+     * user?.academia?.nivel distingue o tipo de instituição: 'escola' | 'superior'
+     * user?.academia?.type indica a natureza: 'public' | 'private'
      */
     const isFundamental =
       user?.academia?.nivel === "escola" &&

@@ -136,20 +136,22 @@ export default function CadastrarEstudantePageContent() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [resultado, setResultado] = useState<ResultadoCadastro | null>(null);
 
-  const nivelAcademia = user?.academia?.nivel_escolar ?? 'fundamental';
-  const tipoAcademia  = user?.academia?.type ?? 'escola';
+  // nivel === 'escola' → escola; nivel === 'superior' → universidade
+  const academiaNivel    = user?.academia?.nivel ?? 'escola';
+  const nivelEscolar     = user?.academia?.nivel_escolar ?? 'fundamental';
+  const isSuperior       = academiaNivel === 'superior';
 
   const isAnoMedio    = (v: string | null | undefined): boolean => !!v && /^\d+_ano_medio$/.test(v);
   const isAnoSuperior = (v: string | null | undefined): boolean => !!v && /^\d+_ano_superior$/.test(v);
 
   // Carrega cursos quando necessário
   useEffect(() => {
-    if (nivelAcademia === 'medio' || nivelAcademia === 'misto' || tipoAcademia === 'superior') {
+    if (nivelEscolar === 'medio' || nivelEscolar === 'misto' || isSuperior) {
       const token = tokenStorage.get();
       carregarCursos(token || undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nivelAcademia, tipoAcademia]);
+  }, [nivelEscolar, isSuperior]);
 
   // Guard: apenas academia
   if (loadingUser) {
@@ -178,23 +180,23 @@ export default function CadastrarEstudantePageContent() {
   };
 
   const getAnosDisponiveis = (): AnoEscolar[] => {
-    if (tipoAcademia === 'superior') {
+    if (isSuperior) {
       if (!cursoSelecionado?.anos_academicos) return [];
       return cursoSelecionado.anos_academicos.map((v: string) => {
         const m = v.match(/^(\d+)_ano_superior$/);
         return { value: v, label: m ? `${m[1]}º Ano` : v.replace(/_/g, ' ') };
       });
     }
-    if (nivelAcademia === 'fundamental') return ANOS_FUNDAMENTAL_LIST;
-    if (nivelAcademia === 'medio') return getAnosMedioFromCurso();
-    if (nivelAcademia === 'misto') return [...ANOS_FUNDAMENTAL_LIST, ...getAnosMedioFromCurso()];
+    if (nivelEscolar === 'fundamental') return ANOS_FUNDAMENTAL_LIST;
+    if (nivelEscolar === 'medio') return getAnosMedioFromCurso();
+    if (nivelEscolar === 'misto') return [...ANOS_FUNDAMENTAL_LIST, ...getAnosMedioFromCurso()];
     return ANOS_FUNDAMENTAL_LIST;
   };
 
   const deveMostrarCurso = (): boolean => {
-    if (tipoAcademia === 'superior') return true;
-    if (nivelAcademia === 'medio') return true;
-    if (nivelAcademia === 'misto' && anoEscolarSelecionado) return isAnoMedio(anoEscolarSelecionado);
+    if (isSuperior) return true;
+    if (nivelEscolar === 'medio') return true;
+    if (nivelEscolar === 'misto' && anoEscolarSelecionado) return isAnoMedio(anoEscolarSelecionado);
     return false;
   };
 
@@ -260,11 +262,11 @@ export default function CadastrarEstudantePageContent() {
         ? (anoEscolarSelecionado || undefined)
         : undefined,
       curso_medio_id:
-        (isAnoMedio(anoEscolarSelecionado) || nivelAcademia === 'medio') && cursoSelecionado
+        (isAnoMedio(anoEscolarSelecionado) || nivelEscolar === 'medio') && cursoSelecionado
           ? cursoSelecionado.id
           : undefined,
       curso_superior_id:
-        tipoAcademia === 'superior' && cursoSelecionado ? cursoSelecionado.id : undefined,
+        isSuperior && cursoSelecionado ? cursoSelecionado.id : undefined,
       status_escolar_fundamental: 'em_andamento' as const,
     };
 
@@ -364,10 +366,10 @@ export default function CadastrarEstudantePageContent() {
               </div>
 
               {/* Curso — médio / misto / superior */}
-              {(tipoAcademia === 'superior' || nivelAcademia === 'medio' || nivelAcademia === 'misto') && (
+              {(isSuperior || nivelEscolar === 'medio' || nivelEscolar === 'misto') && (
                 <div className="col-span-2 sm:col-span-1">
                   <Label>
-                    Curso {(tipoAcademia === 'superior' || nivelAcademia === 'medio') ? '* (Obrigatório)' : '(Opcional)'}
+                    Curso {(isSuperior || nivelEscolar === 'medio') ? '* (Obrigatório)' : '(Opcional)'}
                   </Label>
                   <Dropdown
                     value={cursoSelecionado}

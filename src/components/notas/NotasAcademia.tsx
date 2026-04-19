@@ -160,15 +160,6 @@ function StatsRow({ notas, label }: { notas: Nota[]; label: string }) {
   );
 }
 
-function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
-      <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
-    </div>
-  );
-}
-
 // Tabela escolar: Nome, Código, Nota Professor, Nota Final
 function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: EstudanteDetalhado[] }) {
   if (!notas.length) return (
@@ -334,7 +325,6 @@ function ModalGestao({
   const CATS_FIXAS = isSuperior ? CATEGORIAS_FIXAS_SUPERIOR : CATEGORIAS_ESCOLAR;
   const todasCats  = [...CATS_FIXAS, ...categorias.map((c: any) => ({ label: c.nome, value: c.nome }))];
 
-  // Filtra notas do estudante a partir do cache já carregado
   function notasDoEstudante(codigo: string): Nota[] {
     return todasNotas.filter(n => n.codigo_estudante === codigo);
   }
@@ -533,11 +523,12 @@ export default function NotasAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const token = tokenStorage.get() ?? undefined;
 
-  const academiaType  = user?.academia?.type ?? "escola";
+  // nivel === 'escola' → escola; nivel === 'superior' → universidade
+  const academiaNivel = user?.academia?.nivel;
   const nivelEscolar  = user?.academia?.nivel_escolar ?? "fundamental";
-  const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
-  const isSuperior    = academiaType === "superior";
-  const isMisto       = academiaType === "escola" && nivelEscolar === "misto";
+  const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
+  const isSuperior    = academiaNivel === "superior";
+  const isMisto       = academiaNivel === "escola" && nivelEscolar === "misto";
   const tipoNota: TipoNota = isSuperior ? "superior" : "escolar";
 
   const PERIODOS = isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA;
@@ -612,7 +603,6 @@ export default function NotasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  // Notas filtradas pelo ano letivo ativo e por turma/período/matéria
   function notasDaTurmaEmPeriodo(turma: Turma, periodo: string): Nota[] {
     return turma.estudantes.flatMap(codigo =>
       todasNotas.filter(n =>

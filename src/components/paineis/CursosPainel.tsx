@@ -144,7 +144,8 @@ export default function CursosPainel() {
 
   const getDefaultType = (): CursoType => {
     if (!user?.academia) return "medio";
-    return user.academia.type === "superior" ? "superior" : "medio";
+    // nivel === 'superior' indica universidade
+    return user.academia.nivel === "superior" ? "superior" : "medio";
   };
 
   const [formData, setFormData] = useState<CursoFormData>({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6 });
@@ -156,7 +157,8 @@ export default function CursosPainel() {
   const { execute: executarDesativarCurso, error: erroDesativarCurso } = useApi(academiaService.desativarCurso);
   const { execute: executarDeletarCurso } = useApi(academiaService.deletarCurso);
 
-  const isAcademiaMista = () => user?.academia?.type === "escola" && user?.academia?.nivel_escolar === "misto";
+  // nivel === 'escola' && nivel_escolar === 'misto' → academia mista
+  const isAcademiaMista = () => user?.academia?.nivel === "escola" && user?.academia?.nivel_escolar === "misto";
   const toggleSecao = (key: string) => setSecaoAberta(p => ({ ...p, [key]: p[key] === false ? true : false }));
   const isSecaoAberta = (key: string) => secaoAberta[key] !== false;
 
@@ -270,7 +272,8 @@ export default function CursosPainel() {
   };
 
   const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6 }); setEditingCurso(null); setShowForm(false); };
-  const isTipoDisabled = () => !!editingCurso || !!user?.academia?.type;
+  // tipo é imutável após criação; se academia.nivel === 'superior', forçar 'superior'
+  const isTipoDisabled = () => !!editingCurso || user?.academia?.nivel === "superior";
   const listaCursos = cursos?.cursos ?? [];
 
   return (
@@ -285,7 +288,7 @@ export default function CursosPainel() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{`Gerencie os cursos da sua ${user?.academia?.type === "escola" ? "Escola" : "Superior"}`}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{`Gerencie os cursos da sua ${user?.academia?.nivel === "superior" ? "Universidade" : "Escola"}`}</p>
         </div>
         {!showForm && (
           <div className="flex items-center gap-2">

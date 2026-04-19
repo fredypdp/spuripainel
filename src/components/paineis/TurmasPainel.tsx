@@ -202,10 +202,11 @@ export default function TurmasPainel() {
 
   const reload = () => listarTurmas(tokenStorage.get() ?? undefined);
 
-  const academiaType = user?.academia?.type;
+  // nivel === 'escola' indica escola; nivel === 'superior' indica superior
+  const academiaNivel = user?.academia?.nivel;
   const nivelEscolar = user?.academia?.nivel_escolar;
-  const isFundamental = academiaType === "escola" && nivelEscolar === "fundamental";
-  const isMisto = academiaType === "escola" && nivelEscolar === "misto";
+  const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
+  const isMisto = academiaNivel === "escola" && nivelEscolar === "misto";
 
   const turmas: Turma[] = dataTurmas?.turmas ?? [];
   const cursos: Curso[] = dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [];
@@ -573,7 +574,7 @@ export default function TurmasPainel() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turmas</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {`Gerencie as turmas da sua ${user?.academia?.type === "escola" ? "escola" : "universidade"}.`}
+            {`Gerencie as turmas da sua ${user?.academia?.nivel === "superior" ? "universidade" : "escola"}.`}
           </p>
         </div>
         <div className="flex gap-3">
