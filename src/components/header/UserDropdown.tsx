@@ -1,19 +1,20 @@
 "use client"
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { tokenStorage } from '@/lib/api';
+import { tokenStorage } from '@/lib/api/client';
+import { authService } from '@/lib/api/services';
 import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
   if (typeof window === 'undefined') return null;
-  
+
   const userCookie = getCookie("user");
   if (userCookie) {
     try {
       return JSON.parse(userCookie);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -23,14 +24,14 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 export default function UserDropdown() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
 
-  // Listener para mudanças no storage
+  // Sincroniza o estado local com o cookie a cada segundo
   useEffect(() => {
     const interval = setInterval(() => {
       const updatedUser = getUserFromCookie();
       setUser(prev => {
-        // Só atualiza se houver mudança real
         if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
           return updatedUser;
         }
@@ -41,25 +42,44 @@ export default function UserDropdown() {
     return () => clearInterval(interval);
   }, []);
 
-  const userName = useMemo(() => 
+  const userName = useMemo(() =>
     user?.estudante?.nome || user?.academia?.nome || user?.admin?.nome || "Usuário",
     [user]
   );
 
-  const userExtra = useMemo(() => 
+  const userExtra = useMemo(() =>
     user?.estudante?.codigo_estudante || user?.academia?.codigo_academia || user?.admin?.email || "",
     [user]
   );
 
-  const userInitials = useMemo(() => 
-    userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "U",
+  const userInitials = useMemo(() =>
+    userName
+      ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+      : "U",
     [userName]
   );
 
-  const handleLogout = () => {
-    tokenStorage.remove();
-    router.push("/login");
-  };
+  /**
+   * Encerra a sessão:
+   * 1. Chama POST /logout no backend (best-effort — falha silenciosa)
+   * 2. Remove cookies locais sempre, independente do resultado da API
+   * 3. Redireciona para /login
+   */
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    setIsOpen(false);
+
+    try {
+      await authService.logout();
+    } catch {
+      // Falha silenciosa: token expirado ou rede indisponível.
+      // O logout local ocorre de qualquer forma abaixo.
+    } finally {
+      tokenStorage.remove();
+      router.push("/login");
+    }
+  }, [isLoggingOut, router]);
 
   return (
     <div className="relative">
@@ -99,6 +119,7 @@ export default function UserDropdown() {
 
       {isOpen && (
         <>
+          {/* Overlay para fechar ao clicar fora */}
           <div
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
@@ -114,7 +135,7 @@ export default function UserDropdown() {
                 </p>
               )}
             </div>
-            
+
             <div className="p-2">
               <Link
                 href="/perfil"
@@ -126,18 +147,23 @@ export default function UserDropdown() {
                 </svg>
                 Meu Perfil
               </Link>
-              
+
               <button
-                onClick={() => {
-                  setIsOpen(false);
-                  handleLogout();
-                }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Sair
+                {isLoggingOut ? (
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                )}
+                {isLoggingOut ? "Saindo…" : "Sair"}
               </button>
             </div>
           </div>

@@ -78,6 +78,19 @@ export interface ErrorResponse {
 export const authService = {
   login: (data: LoginRequest) =>
     api.post<AuthResponse>('/login', data),
+
+  /**
+   * POST /logout
+   * Encerra a sessão do usuário autenticado.
+   * Como o JWT é stateless, a invalidação real depende do cliente
+   * remover o token localmente após esta chamada.
+   */
+  logout: (token?: string) =>
+    api.post<{ message: string }>(
+      '/logout',
+      {},
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
