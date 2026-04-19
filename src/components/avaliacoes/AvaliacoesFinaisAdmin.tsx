@@ -81,9 +81,10 @@ function getTipoEnsino(nivel: string): TipoEnsino {
 
 // ─── Layer types ──────────────────────────────────────────────────────────────
 
+// Added 'nivel' to distinguish escola vs superior (AcademiaType is 'public'|'private')
 type AcadInfo = Pick<
   AcademiaDetalhada,
-  "codigo_academia" | "nome" | "provincia" | "type" | "nivel_escolar" | "status"
+  "codigo_academia" | "nome" | "provincia" | "nivel" | "tipo_ano_letivo" | "nivel_escolar" | "status"
 >;
 
 type Layer =
@@ -582,7 +583,8 @@ export default function AvaliacoesFinaisAdmin() {
           codigo_academia: a.codigo_academia,
           nome: a.nome,
           provincia: a.provincia,
-          type: a.type,
+          nivel: a.nivel,
+          tipo_ano_letivo: a.tipo_ano_letivo,
           nivel_escolar: a.nivel_escolar,
           status: a.status,
         })
@@ -738,13 +740,13 @@ export default function AvaliacoesFinaisAdmin() {
               <CardBtn
                 key={a.codigo_academia}
                 icon={
-                  a.type === "superior"
+                  a.nivel === "superior"
                     ? "mdi:university"
                     : "mdi:school"
                 }
                 title={a.nome}
                 subtitle={`${a.codigo_academia} · ${avs.length} avaliação(ões)`}
-                badge={a.type}
+                badge={a.nivel}
                 stats={{
                   approved: avs.filter(av => av.aprovado).length,
                   reprovated: avs.filter(av => !av.aprovado).length,
@@ -770,7 +772,7 @@ export default function AvaliacoesFinaisAdmin() {
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {acad.codigo_academia} ·{" "}
-            {acad.type === "superior" ? "Ensino Superior" : "Escola"}
+            {acad.nivel === "superior" ? "Ensino Superior" : "Escola"}
           </p>
         </div>
         <AcademiaDetalhe
