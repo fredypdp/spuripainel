@@ -14,8 +14,14 @@ import type { AcademiaType, NivelEscolar } from '@/types/api';
 import { Provincias } from '@/types/api';
 
 // ---------------------------------------------------------------------------
-// Opções dos dropdowns
+// Opções dos dropdowns — valores primitivos para evitar problemas de
+// comparação por referência no PrimeReact Dropdown
 // ---------------------------------------------------------------------------
+
+const NIVEL_ACADEMIA_OPCOES = [
+  { nome: "Escola (Fundamental / Médio)", value: "escola"    },
+  { nome: "Ensino Superior",              value: "superior"  },
+];
 
 const NATUREZA_OPCOES = [
   { nome: "Pública",  value: "public"  as AcademiaType },
@@ -23,7 +29,7 @@ const NATUREZA_OPCOES = [
 ];
 
 const NIVEL_ESCOLAR_OPCOES = [
-  { nome: "Ensino Fundamental (1ª-9ª)", value: "fundamental" as NivelEscolar },
+  { nome: "Ensino Fundamental (1ª–9ª)", value: "fundamental" as NivelEscolar },
   { nome: "Ensino Médio",               value: "medio"       as NivelEscolar },
   { nome: "Fundamental e Médio",        value: "misto"       as NivelEscolar },
 ];
@@ -133,16 +139,22 @@ export default function CadastrarAcademiaPageContent() {
     execute: executarCadastro,
   } = useApi(adminService.registrarAcademia);
 
-  // Estados como primitivos — sem objetos nos dropdowns, evita problema de
-  // comparação por referência que faz o PrimeReact retornar undefined em e.value
-  const [nome,                       setNome]                       = useState('');
+  // Todos os estados são primitivos (string) para evitar problemas de
+  // comparação por referência no PrimeReact Dropdown
+  const [nomeAcademia,               setNomeAcademia]               = useState('');
   const [email,                      setEmail]                      = useState('');
   const [numeroTelefone,             setNumeroTelefone]             = useState('');
   const [endereco,                   setEndereco]                   = useState('');
   const [website,                    setWebsite]                    = useState('');
-  const [provinciaNome,              setProvinciaNome]              = useState<string>('');
-  const [nivelEscolar,               setNivelEscolar]               = useState<NivelEscolar | ''>('');
+  // provinciaCodigo armazena o CÓDIGO da província (ex: 'LUA', 'BGO')
+  // conforme exigido pela API — não o nome
+  const [provinciaCodigo,            setProvinciaCodigo]            = useState<string>('');
+  // nivelAcademia: 'escola' | 'superior'  (AcademiaNivel)
+  const [nivelAcademia,              setNivelAcademia]              = useState<'escola' | 'superior' | ''>('');
+  // academiaType: 'public' | 'private'  (AcademiaType)
   const [academiaType,               setAcademiaType]               = useState<AcademiaType | ''>('');
+  // nivelEscolar: apenas para nivel='escola'
+  const [nivelEscolar,               setNivelEscolar]               = useState<NivelEscolar | ''>('');
   const [anosAcademicosSelecionados, setAnosAcademicosSelecionados] = useState<string[]>([]);
   const [validationErrors,           setValidationErrors]           = useState<string[]>([]);
   const [resultado,                  setResultado]                  = useState<ResultadoCadastro | null>(null);
@@ -168,11 +180,11 @@ export default function CadastrarAcademiaPageContent() {
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
-    if (!nome.trim())     erros.push('Nome da escola é obrigatório');
-    if (!academiaType)    erros.push('Selecione a natureza da escola (pública ou privada)');
-    if (!nivelEscolar)    erros.push('Selecione o nível académico');
-    if (!provinciaNome)   erros.push('Selecione a província');
-    if (!endereco.trim()) erros.push('Endereço é obrigatório');
+    if (!nomeAcademia.trim()) erros.push('Nome da academia é obrigatório');
+    if (!nivelAcademia)       erros.push('Selecione o nível da academia (escola ou superior)');
+    if (!academiaType)        erros.push('Selecione a natureza (pública ou privada)');
+    if (!provinciaCodigo)     erros.push('Selecione a província');
+    if (!endereco.trim())     erros.push('Endereço é obrigatório');
 
     if (!numeroTelefone.trim()) {
       erros.push('Número de telefone é obrigatório');
@@ -196,11 +208,21 @@ export default function CadastrarAcademiaPageContent() {
       }
     }
 
-    if (
-      (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') &&
-      anosAcademicosSelecionados.length === 0
-    ) {
-      erros.push('Selecione pelo menos um ano académico para escolas fundamental/misto');
+    // Validações específicas para escola
+    if (nivelAcademia === 'escola') {
+      if (!nivelEscolar) erros.push('Selecione o nível escolar (fundamental, médio ou misto)');
+
+      // anos_academicos obrigatório para fundamental e misto
+      if (
+        (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') &&
+        anosAcademicosSelecionados.length === 0
+      ) {
+        erros.push('Selecione pelo menos um ano académico para escolas fundamental/misto');
+      }
+
+      // anos_academicos NÃO deve ser informado para médio
+      // (conforme documentação: "Para nivel=escola com nivel_escolar medio: anos_academicos não deve ser informado")
+      // — não há erro aqui, apenas ignoramos os anos se medio estiver selecionado
     }
 
     setValidationErrors(erros);
@@ -208,14 +230,15 @@ export default function CadastrarAcademiaPageContent() {
   };
 
   const limparFormulario = () => {
-    setNome('');
+    setNomeAcademia('');
     setEmail('');
     setNumeroTelefone('');
     setEndereco('');
     setWebsite('');
-    setProvinciaNome('');
-    setNivelEscolar('');
+    setProvinciaCodigo('');
+    setNivelAcademia('');
     setAcademiaType('');
+    setNivelEscolar('');
     setAnosAcademicosSelecionados([]);
     setValidationErrors([]);
     setResultado(null);
@@ -227,29 +250,55 @@ export default function CadastrarAcademiaPageContent() {
 
     if (!validarFormulario()) return;
 
-    // Após validarFormulario() retornar true estes valores nunca são string vazia
-    const type        = academiaType as AcademiaType;   // 'public' | 'private'
-    const nivel_es    = nivelEscolar as NivelEscolar;   // 'fundamental' | 'medio' | 'misto'
+    // Após validarFormulario() retornar true, estes valores nunca são string vazia
+    const type   = academiaType  as AcademiaType;
+    const nivel  = nivelAcademia as 'escola' | 'superior';
 
     try {
-      const result = await executarCadastro({
-        nivel:           "escola",
-        type:            type,          // obrigatório — AcademiaType: 'public' | 'private'
-        nome:            nome.trim(),
-        provincia:       provinciaNome.toLowerCase(),
-        endereco:        endereco.trim(),
-        numero_telefone: numeroTelefone.trim(),
-        email:           email.trim(),
-        website:         website.trim() || undefined,
-        nivel_escolar:   nivel_es,
-        anos_academicos: anosAcademicosSelecionados,
-        cursos:          [],
-      });
+      let result;
+
+      if (nivel === 'escola') {
+        const nivel_es = nivelEscolar as NivelEscolar;
+
+        // anos_academicos: enviado apenas para fundamental e misto
+        // para medio NÃO deve ser informado (regra da API)
+        const anos_academicos =
+          nivel_es === 'fundamental' || nivel_es === 'misto'
+            ? anosAcademicosSelecionados
+            : undefined;
+
+        result = await executarCadastro({
+          nivel:           "escola",          // AcademiaNivel — literal fixo
+          type:            type,              // AcademiaType: 'public' | 'private'
+          nome:            nomeAcademia.trim(),
+          provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
+          endereco:        endereco.trim(),
+          numero_telefone: numeroTelefone.trim(),
+          email:           email.trim(),
+          website:         website.trim() || undefined,
+          nivel_escolar:   nivel_es,          // NivelEscolar: 'fundamental' | 'medio' | 'misto'
+          anos_academicos: anos_academicos,
+          cursos:          [],
+        });
+      } else {
+        // nivel === 'superior' → CriarUniversidadeRequest
+        result = await executarCadastro({
+          nivel:           "superior",        // AcademiaNivel — literal fixo
+          type:            type,              // AcademiaType: 'public' | 'private'
+          nome:            nomeAcademia.trim(),
+          provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
+          endereco:        endereco.trim(),
+          numero_telefone: numeroTelefone.trim(),
+          email:           email.trim(),
+          website:         website.trim() || undefined,
+          cursos:          [],
+        });
+      }
 
       if (result?.data) {
         setResultado({
           codigo_academia: result.data.codigo_academia,
-          nome: nome.trim(),
+          nome: nomeAcademia.trim(),
         });
       }
     } catch {
@@ -287,7 +336,7 @@ export default function CadastrarAcademiaPageContent() {
 
         <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/[0.05] p-6 lg:p-8">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-6">
-            Cadastrar Nova Escola
+            Cadastrar Nova Academia
           </h2>
 
           <form onSubmit={handleCadastro}>
@@ -295,13 +344,98 @@ export default function CadastrarAcademiaPageContent() {
 
               {/* Nome */}
               <div className="col-span-2">
-                <Label>Nome da escola *</Label>
+                <Label>Nome da academia *</Label>
                 <Input
                   type="text"
-                  placeholder="Digite o nome da escola"
-                  defaultValue={nome}
-                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Ex: Escola Primária Ngola Kiluanje"
+                  defaultValue={nomeAcademia}
+                  onChange={(e) => setNomeAcademia(e.target.value)}
                   disabled={carregandoCadastro}
+                />
+              </div>
+
+              {/* Nível da academia: 'escola' | 'superior'
+                  optionValue="value" → armazena a string primitiva, não o objeto */}
+              <div className="col-span-2 sm:col-span-1">
+                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Tipo de instituição *
+                </span>
+                <Dropdown
+                  value={nivelAcademia || null}
+                  onChange={(e) => {
+                    setNivelAcademia(e.value as 'escola' | 'superior');
+                    // Resetar campos dependentes ao mudar o nível
+                    setNivelEscolar('');
+                    setAnosAcademicosSelecionados([]);
+                  }}
+                  options={NIVEL_ACADEMIA_OPCOES}
+                  optionLabel="nome"
+                  optionValue="value"
+                  placeholder="Escola ou Superior"
+                  className="w-full"
+                  disabled={carregandoCadastro}
+                />
+              </div>
+
+              {/* Natureza: 'public' | 'private'
+                  optionValue="value" → armazena a string primitiva, não o objeto */}
+              <div className="col-span-2 sm:col-span-1">
+                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Natureza *
+                </span>
+                <Dropdown
+                  value={academiaType || null}
+                  onChange={(e) => setAcademiaType(e.value as AcademiaType)}
+                  options={NATUREZA_OPCOES}
+                  optionLabel="nome"
+                  optionValue="value"
+                  placeholder="Pública ou Privada"
+                  className="w-full"
+                  disabled={carregandoCadastro}
+                />
+              </div>
+
+              {/* Nível escolar — apenas visível quando nivel='escola'
+                  'fundamental' | 'medio' | 'misto'
+                  optionValue="value" → armazena a string primitiva */}
+              {nivelAcademia === 'escola' && (
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                    Nível escolar *
+                  </span>
+                  <Dropdown
+                    value={nivelEscolar || null}
+                    onChange={(e) => {
+                      setNivelEscolar(e.value as NivelEscolar);
+                      setAnosAcademicosSelecionados([]);
+                    }}
+                    options={NIVEL_ESCOLAR_OPCOES}
+                    optionLabel="nome"
+                    optionValue="value"
+                    placeholder="Fundamental, Médio ou Misto"
+                    className="w-full"
+                    disabled={carregandoCadastro}
+                  />
+                </div>
+              )}
+
+              {/* Província — optionValue="codigo" envia o CÓDIGO (ex: 'LUA', 'BGO')
+                  que é o que a API espera, não o nome por extenso */}
+              <div className="col-span-2 sm:col-span-1">
+                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Província *
+                </span>
+                <Dropdown
+                  value={provinciaCodigo || null}
+                  onChange={(e) => setProvinciaCodigo(e.value as string)}
+                  options={Provincias}
+                  optionLabel="nome"
+                  optionValue="codigo"
+                  filter
+                  placeholder="Selecione a província"
+                  className="w-full"
+                  disabled={carregandoCadastro}
+                  emptyFilterMessage="Nenhuma província encontrada"
                 />
               </div>
 
@@ -322,7 +456,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Label>E-mail *</Label>
                 <Input
                   type="email"
-                  placeholder="email@escola.ao"
+                  placeholder="email@academia.ao"
                   defaultValue={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={carregandoCadastro}
@@ -346,101 +480,47 @@ export default function CadastrarAcademiaPageContent() {
                 <Label>Website (opcional)</Label>
                 <Input
                   type="text"
-                  placeholder="https://escola.ao"
+                  placeholder="https://academia.ao"
                   defaultValue={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   disabled={carregandoCadastro}
                 />
               </div>
 
-              {/* Natureza — optionValue="value" armazena 'public'|'private' diretamente */}
-              <div className="col-span-2 sm:col-span-1">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Natureza *
-                </span>
-                <Dropdown
-                  value={academiaType || null}
-                  onChange={(e) => setAcademiaType(e.value as AcademiaType)}
-                  options={NATUREZA_OPCOES}
-                  optionLabel="nome"
-                  optionValue="value"
-                  placeholder="Selecione a natureza"
-                  className="w-full"
-                  disabled={carregandoCadastro}
-                />
-              </div>
-
-              {/* Nível escolar — optionValue="value" armazena 'fundamental'|'medio'|'misto' */}
-              <div className="col-span-2 sm:col-span-1">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Nível académico *
-                </span>
-                <Dropdown
-                  value={nivelEscolar || null}
-                  onChange={(e) => {
-                    setNivelEscolar(e.value as NivelEscolar);
-                    setAnosAcademicosSelecionados([]);
-                  }}
-                  options={NIVEL_ESCOLAR_OPCOES}
-                  optionLabel="nome"
-                  optionValue="value"
-                  placeholder="Selecione o nível escolar"
-                  className="w-full"
-                  disabled={carregandoCadastro}
-                />
-              </div>
-
-              {/* Província — optionValue="nome" armazena o nome como string */}
-              <div className="col-span-2 sm:col-span-1">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Província *
-                </span>
-                <Dropdown
-                  value={provinciaNome || null}
-                  onChange={(e) => setProvinciaNome(e.value as string)}
-                  options={Provincias}
-                  optionLabel="nome"
-                  optionValue="nome"
-                  filter
-                  placeholder="Selecione a província"
-                  className="w-full"
-                  disabled={carregandoCadastro}
-                  emptyFilterMessage="Nenhuma província encontrada"
-                />
-              </div>
-
-              {/* Anos académicos — visível apenas para fundamental / misto */}
-              {(nivelEscolar === 'fundamental' || nivelEscolar === 'misto') && (
-                <div className="col-span-2">
-                  <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Selecione os anos do ensino fundamental que esta escola oferece
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
-                      <label
-                        key={value}
-                        className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={anosAcademicosSelecionados.includes(value)}
-                          onChange={() =>
-                            setAnosAcademicosSelecionados((prev) =>
-                              prev.includes(value)
-                                ? prev.filter((a) => a !== value)
-                                : [...prev, value]
-                            )
-                          }
-                          disabled={carregandoCadastro}
-                          className="w-4 h-4 text-brand-500 focus:ring-brand-500"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                      </label>
-                    ))}
+              {/* Anos académicos — apenas para escola fundamental / misto
+                  Para 'medio' a API proíbe enviar este campo */}
+              {nivelAcademia === 'escola' &&
+                (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') && (
+                  <div className="col-span-2">
+                    <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Selecione os anos do ensino fundamental que esta escola oferece
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
+                        <label
+                          key={value}
+                          className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={anosAcademicosSelecionados.includes(value)}
+                            onChange={() =>
+                              setAnosAcademicosSelecionados((prev) =>
+                                prev.includes(value)
+                                  ? prev.filter((a) => a !== value)
+                                  : [...prev, value]
+                              )
+                            }
+                            disabled={carregandoCadastro}
+                            className="w-4 h-4 text-brand-500 focus:ring-brand-500"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Erros de validação */}
@@ -471,8 +551,9 @@ export default function CadastrarAcademiaPageContent() {
             {/* Nota informativa */}
             <div className="mt-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Informação:</strong> A senha padrão da academia será o{' '}
-                <strong>código gerado automaticamente</strong> no cadastro.
+                <strong>Informação:</strong> A academia será criada com status{' '}
+                <strong>inativo</strong>. Um admin ADM ou FPP deve ativá-la manualmente.
+                A senha padrão será o <strong>código gerado automaticamente</strong>.
               </p>
             </div>
 
