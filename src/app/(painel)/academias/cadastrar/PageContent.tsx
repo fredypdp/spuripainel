@@ -237,14 +237,10 @@ export default function CadastrarAcademiaPageContent() {
 
     if (!validarFormulario()) return;
 
-    // Neste ponto naturezaSelecionada e nivelEscolarSelecionado são garantidamente
-    // não-nulos pois validarFormulario() já verificou isso acima.
-    const type: AcademiaType = naturezaSelecionada!.value;
-
     try {
       const result = await executarCadastro({
         nivel: "escola",
-        type,
+        type: naturezaSelecionada!.value,
         nome: nome.trim(),
         provincia: provinciaSelecionada!.nome.toLowerCase(),
         endereco: endereco.trim(),
@@ -252,7 +248,6 @@ export default function CadastrarAcademiaPageContent() {
         email: email.trim(),
         website: website.trim() || undefined,
         nivel_escolar: nivelEscolarSelecionado!.nivel,
-        cursos: [],
         ...(anosAcademicosSelecionados.length > 0 && {
           anos_academicos: anosAcademicosSelecionados,
         }),
