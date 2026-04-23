@@ -1,59 +1,59 @@
-"use client";
-import { useState, useCallback, useRef, useEffect } from "react";
-import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
-import { resolveJobItemError } from "@/lib/api/job-service";
-import { getCookie } from "@/lib/utils/cookies";
-import type { MeuPerfilResponse } from "@/types/api";
+"usar cliente"¡;
+importação { usar Estado‚, usarCallback‚, usarRef‚, usoEfeito O} de de "reagir"¡;
+importação { jobApiService‚, enqueteJob‚, tokenStorage O} de de "@/lib/api"¡;
+importação { resolverJobItemErro O} de de "@/lib/api/serviço-emprego"¡;
+importação { obterCookie O} de de "@/lib/utils/cookies"¡;
+importação tipo tipo { MeuPerfilResposta O} de de "@/tipos/api"¡;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type LogLevel = "ok" | "err" | "warn" | "info" | "step" | "dim";
-interface LogEntry { ts: string; level: LogLevel; msg: string; }
+tipo tipo Nível de registro = "ok" | "erre" | "avisar" | "info" | "passo" | O "dim"¡;
+interface Entrada de registro { ts¡:: cordel¡; nível¡:: Nível de registro¡; msg¡:: cordel¡; O}
 
 interface AcademiaInfo {
-  codigo: string;
-  token: string;
-  tipo: "escola" | "superior";
-  nivel?: "fundamental" | "medio" | "misto";
-  anos_academicos?: string[];
-  ano_letivo?: string;
-}
+  codigo¡:: cordel¡;
+  ficha¡:: cordel¡;
+  tipo¡:: "escola" | "superior"¡;
+  nível¡NÉ?¡:: "fundamental" | "médium" | "misto"¡;
+  anos_acadêmicos¡NÉ?¡:: cordel[[]]¡;
+  ano_ seletivo¡NÉ?¡:: cordel¡;
+O}
 
-interface Materia {
-  id: string;
-  nome: string;
-  type: string;
-  anos_academicos: string[];
-  periodo?: string;
-  curso_id?: string;
-}
+interface Matéria {
+  id.¡:: cordel¡;
+  nomo¡:: cordel¡;
+  tipo tipo¡:: cordel¡;
+  anos_acadêmicos¡:: cordel[[]]¡;
+  períodous¡NÉ?¡:: cordel¡;
+  curso_ id¡NÉ?¡:: cordel¡;
+O}
 
 interface Estudante {
-  codigo_estudante: string;
-  nome: string;
-  ano_escolar?: string;
-  ano_escolar_medio?: string;
-  ano_superior?: string;
-  curso_medio_id?: string;
-  curso_superior_id?: string;
-  total_notas?: number;
-  total_faltas?: number;
-}
+  codigo_estudante¡:: cordel¡;
+  nomo¡:: cordel¡;
+  ano_escola¡NÉ?¡:: cordel¡;
+  ano_escola_médio¡NÉ?¡:: cordel¡;
+  sim_superior¡NÉ?¡:: cordel¡;
+  curso_medio_id¡NÉ?¡:: cordel¡;
+  curso_superior_id¡NÉ?¡:: cordel¡;
+  total_ notas¡NÉ?¡:: number¡;
+  total_faltas¡NÉ?¡:: number¡;
+O}
 
 interface Turma {
-  id?: string;
-  codigo_turma: string;
-  nivel: string;
-  estudantes: string[];
-  curso_id?: string;
-  status?: string;
-}
+  id.¡NÉ?¡:: cordel¡;
+  codigo_acidente¡:: cordel¡;
+  nível¡:: cordel¡;
+  estudantes¡:: cordel[[]]¡;
+  curso_ id¡NÉ?¡:: cordel¡;
+  status¡NÉ?¡:: cordel¡;
+O}
 
 interface Curso {
-  id: string;
-  nome: string;
-  type: string;
-  anos_academicos: string[];
+  id.¡:: cordel¡;
+  nomo¡:: cordel¡;
+  tipo tipo¡:: cordel¡;
+  anos_acadêmicos¡:: cordel[[]]¡;
   periodos?: string[];
   status?: string;
 }
@@ -70,6 +70,9 @@ const CATEGORIAS_SUPERIOR: { value: string; label: string }[] = [
   { value: "nota_pp2", label: "PP2" },
   { value: "nota_exame", label: "Exame" },
 ];
+
+// Períodos fixos do ensino escolar
+const PERIODOS_ESCOLARES = ["1_trimestre", "2_trimestre", "3_trimestre"] as const;
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -207,6 +210,72 @@ function estudanteCompatívelComTurma(
   }
 
   return true;
+}
+
+// ─── Matéria matching ─────────────────────────────────────────────────────────
+/**
+ * Retorna todas as matérias ativas compatíveis com um estudante:
+ * - Fundamental: matéria.type === "fundamental" e matéria.anos_academicos inclui o ano do estudante
+ * - Médio: matéria.type === "medio", curso_id === estudante.curso_medio_id, e anos_academicos inclui o ano
+ * - Superior: matéria.type === "superior", curso_id === estudante.curso_superior_id, e anos_academicos inclui o ano
+ */
+function materiasDoEstudante(estudante: Estudante, materias: Materia[]): Materia[] {
+  const result: Materia[] = [];
+
+  // Fundamental
+  if (estudante.ano_escolar) {
+    const mat = materias.filter(m =>
+      m.type === "fundamental" &&
+      Array.isArray(m.anos_academicos) &&
+      m.anos_academicos.includes(estudante.ano_escolar!)
+    );
+    result.push(...mat);
+  }
+
+  // Médio
+  if (estudante.ano_escolar_medio && estudante.curso_medio_id) {
+    const mat = materias.filter(m =>
+      m.type === "medio" &&
+      m.curso_id === estudante.curso_medio_id &&
+      Array.isArray(m.anos_academicos) &&
+      m.anos_academicos.includes(estudante.ano_escolar_medio!)
+    );
+    result.push(...mat);
+  }
+
+  // Superior
+  if (estudante.ano_superior && estudante.curso_superior_id) {
+    const mat = materias.filter(m =>
+      m.type === "superior" &&
+      m.curso_id === estudante.curso_superior_id &&
+      Array.isArray(m.anos_academicos) &&
+      m.anos_academicos.includes(estudante.ano_superior!)
+    );
+    result.push(...mat);
+  }
+
+  // Dedup por id (edge case: estudante em múltiplos níveis)
+  const seen = new Set<string>();
+  return result.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+}
+
+/**
+ * Retorna os períodos válidos para uma matéria:
+ * - Escolar: todos os 3 trimestres
+ * - Superior: apenas o período definido na matéria (campo materia.periodo)
+ */
+function periodosParaMateria(materia: Materia): string[] {
+  if (materia.type === "superior") {
+    return materia.periodo ? [materia.periodo] : [];
+  }
+  return [...PERIODOS_ESCOLARES];
+}
+
+/**
+ * Retorna o tipoNota para uma matéria.
+ */
+function tipoNotaParaMateria(materia: Materia): "escolar" | "superior" {
+  return materia.type === "superior" ? "superior" : "escolar";
 }
 
 // ─── NumberStepper Component ───────────────────────────────────────────────────
@@ -403,7 +472,7 @@ export default function PageContent() {
   const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_escola", "nota_professor"]);
   const [categoriaSuperiorSel, setCategoriaSuperiorSel] = useState<string[]>(["nota_pp1", "nota_pp2", "nota_exame"]);
 
-  const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
+  const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0 });
   const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
   const [avalConfig, setAvalConfig] = useState({ tipoEnsino: "fundamental" as string, aprovPct: 70 });
 
@@ -1063,151 +1132,17 @@ export default function PageContent() {
     await refreshData();
   };
 
-  // ─── Buscar registros existentes de notas via GET /notas (paginado) ───────────
-  //
-  // Em vez de fazer N chamadas GET /notas-estudante/:codigo (uma por estudante),
-  // buscamos todos os registros da academia de uma só vez com GET /notas,
-  // paginando até obter todos (limit=1000 por página, máximo suportado pela API).
-  //
-  // Retorna um Set de chaves "codigoEstudante|anoLetivo|materiaId|periodo|tipo|categoria"
-  // usadas para dedup antes de montar o batch.
-  //
-  const fetchNotasExistentes = async (
-    anoLetivo: string,
-    logPrefix: string
-  ): Promise<Set<string>> => {
-    const notasExistentes = new Set<string>();
-    const LIMIT = 1000;
-    let offset = 0;
-    let totalGeral = 0;
-    let pagina = 1;
-
-    addLog(`  ${logPrefix} Buscando notas existentes via GET /notas (paginado)...`, "info");
-
-    while (true) {
-      if (cancelRef.current) break;
-
-      const { ok, data } = await callApi(
-        "GET",
-        `/notas?limit=${LIMIT}&offset=${offset}`,
-        undefined,
-        academia!.token
-      );
-
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao buscar notas";
-        addLog(`  ✗ ${logPrefix} Falha ao buscar notas (offset ${offset}): ${errMsg}`, "warn");
-        break;
-      }
-
-      const notas: any[] = (data as any)?.notas || [];
-      totalGeral = (data as any)?.total_geral ?? totalGeral;
-
-      // Indexa apenas notas do ano letivo atual desta academia
-      for (const n of notas) {
-        if (n.ano_lectivo === anoLetivo) {
-          // Chave global: inclui codigo_estudante para dedup por estudante
-          const key = `${n.codigo_estudante}|${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`;
-          notasExistentes.add(key);
-        }
-      }
-
-      addLog(
-        `  ${logPrefix} Página ${pagina}: ${notas.length} registros lidos` +
-        (totalGeral > 0 ? ` (${notasExistentes.size} do ano letivo ${anoLetivo} de ${totalGeral} total)` : ""),
-        "dim"
-      );
-
-      // Verifica se há mais páginas
-      if (notas.length < LIMIT) break;
-      offset += LIMIT;
-      pagina++;
-
-      // Pequena pausa entre páginas para não sobrecarregar
-      await sleep(200);
-    }
-
-    addLog(
-      `  ${logPrefix} Notas existentes indexadas: ${notasExistentes.size} registros do ano letivo ${anoLetivo}`,
-      "dim"
-    );
-
-    return notasExistentes;
-  };
-
-  // ─── Buscar registros existentes de faltas via GET /faltas (paginado) ─────────
-  //
-  // Mesma estratégia: uma chamada paginada a GET /faltas em vez de N chamadas
-  // GET /faltas-estudante/:codigo.
-  //
-  // Retorna um Set de chaves "codigoEstudante|materiaId|data"
-  //
-  const fetchFaltasExistentes = async (
-    anoLetivo: string,
-    logPrefix: string
-  ): Promise<Set<string>> => {
-    const faltasExistentes = new Set<string>();
-    const LIMIT = 1000;
-    let offset = 0;
-    let totalGeral = 0;
-    let pagina = 1;
-
-    addLog(`  ${logPrefix} Buscando faltas existentes via GET /faltas (paginado)...`, "info");
-
-    while (true) {
-      if (cancelRef.current) break;
-
-      const { ok, data } = await callApi(
-        "GET",
-        `/faltas?limit=${LIMIT}&offset=${offset}`,
-        undefined,
-        academia!.token
-      );
-
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao buscar faltas";
-        addLog(`  ✗ ${logPrefix} Falha ao buscar faltas (offset ${offset}): ${errMsg}`, "warn");
-        break;
-      }
-
-      const faltas: any[] = (data as any)?.faltas || [];
-      totalGeral = (data as any)?.total_geral ?? totalGeral;
-
-      // Indexa apenas faltas do ano letivo atual desta academia
-      for (const f of faltas) {
-        if (f.ano_lectivo === anoLetivo) {
-          // Chave: inclui codigo_estudante para dedup por estudante
-          const key = `${f.codigo_estudante}|${f.materia_disciplinar_id}|${f.data}`;
-          faltasExistentes.add(key);
-        }
-      }
-
-      addLog(
-        `  ${logPrefix} Página ${pagina}: ${faltas.length} registros lidos` +
-        (totalGeral > 0 ? ` (${faltasExistentes.size} do ano letivo ${anoLetivo} de ${totalGeral} total)` : ""),
-        "dim"
-      );
-
-      if (faltas.length < LIMIT) break;
-      offset += LIMIT;
-      pagina++;
-
-      await sleep(200);
-    }
-
-    addLog(
-      `  ${logPrefix} Faltas existentes indexadas: ${faltasExistentes.size} registros do ano letivo ${anoLetivo}`,
-      "dim"
-    );
-
-    return faltasExistentes;
-  };
-
   // ─── Gerar Notas ──────────────────────────────────────────────────────────────
   //
-  // MELHORIA: em vez de N chamadas GET /notas-estudante/:codigo (uma por estudante),
-  // usa GET /notas paginado para buscar todos os registros da academia de uma vez.
-  // Isso reduz as requisições de N para ceil(totalNotas / 1000).
+  // Lógica melhorada:
+  //  1. Para cada estudante, encontra TODAS as matérias ativas compatíveis com o seu
+  //     ano académico e curso (via materiasDoEstudante).
+  //  2. Para cada matéria, gera notas para TODOS os períodos válidos
+  //     (3 trimestres para escolar; o período definido na matéria para superior).
+  //  3. Para cada período, gera uma nota por cada categoria selecionada.
+  //  4. Idempotência: o backend bloqueia duplicatas (409 por item), por isso não
+  //     precisamos de pré-verificar via GET /notas. Enviamos tudo e deixamos o
+  //     backend rejeitar o que já existe — simples e correto.
   //
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
@@ -1224,97 +1159,58 @@ export default function PageContent() {
       return;
     }
 
-    const tiposMateriasCompativeis = academia.tipo === "superior"
-      ? ["superior"]
-      : ["fundamental", "medio"];
-
-    const { qtdEstudantes, periodo: periodoConfig } = notaConfig;
+    const { qtdEstudantes } = notaConfig;
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
 
     addLog(`Gerando notas para ${sample.length} estudante(s) — tipo: ${tipoNota}, categorias: ${categoriasAtivas.join(", ")}`, "step");
+    addLog(`  Lógica: todas as matérias do ano do estudante × todos os períodos × todas as categorias`, "dim");
 
-    // ── Fase 1/2: busca notas existentes com UMA chamada paginada ────────────
-    const notasExistentes = await fetchNotasExistentes(academia.ano_letivo, "Fase 1/2:");
+    // Estatísticas de cobertura
+    let semMateria = 0;
+    let totalCombinacoes = 0;
 
-    if (cancelRef.current) return;
-
-    // ── Fase 2/2: monta batch ────────────────────────────────────────────────
-    addLog(`  Fase 2/2: montando batch para ${sample.length} estudante(s)...`, "info");
-
-    const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
+    // Monta batch: estudante × matéria compatível × período × categoria
     const batch: any[] = [];
-
-    // Dedup interno ao batch para cobrir possíveis duplicatas dentro do próprio lote
-    // (ex: se a mesma combinação aparecer para dois estudantes diferentes — não deve
-    // acontecer, mas protege contra bugs futuros)
     const batchDedup = new Set<string>();
 
-    let totalSkippedServer = 0;
-    let totalSkippedBatch = 0;
-
-    const materiasTipo = materias.filter(m => tiposMateriasCompativeis.includes(m.type));
-
-    if (materiasTipo.length === 0) {
-      addLog(`  ✗ Nenhuma matéria ativa compatível (tipos esperados: ${tiposMateriasCompativeis.join(", ")})`, "err");
-      return;
-    }
-
-    for (let i = 0; i < sample.length; i++) {
+    for (const est of sample) {
       if (cancelRef.current) break;
 
-      const est = sample[i];
+      const materiasEst = materiasDoEstudante(est, materias);
 
-      // Seleciona até 3 matérias por estudante (rotação por índice para distribuição uniforme)
-      const numMaterias = Math.min(3, materiasTipo.length);
-      const startIdx = i % materiasTipo.length;
-      const materiasSample: Materia[] = [];
-      for (let m = 0; m < numMaterias; m++) {
-        materiasSample.push(materiasTipo[(startIdx + m) % materiasTipo.length]);
+      if (materiasEst.length === 0) {
+        semMateria++;
+        addLog(
+          `  ! ${est.codigo_estudante}: nenhuma matéria ativa compatível` +
+          ` (ano=${est.ano_escolar || est.ano_escolar_medio || est.ano_superior || "?"})`,
+          "warn"
+        );
+        continue;
       }
 
-      for (const mat of materiasSample) {
-        let periodos: string[];
+      for (const mat of materiasEst) {
+        const periodos = periodosParaMateria(mat);
+        const tipoNotaMat = tipoNotaParaMateria(mat);
 
-        if (academia.tipo === "superior") {
-          if (mat.periodo) {
-            periodos = [mat.periodo];
-          } else {
-            const cursoMat = cursos.find(c => c.id === mat.curso_id);
-            const cursoPeriodos = cursoMat?.periodos || [];
-            periodos = cursoPeriodos.length > 0 ? [cursoPeriodos[0]] : ["1_semestre"];
-            addLog(
-              `  ⚠ Matéria "${mat.nome}" sem período definido — usando "${periodos[0]}" como fallback`,
-              "warn"
-            );
-          }
-        } else {
-          periodos = periodoConfig !== "random" ? [periodoConfig] : periodosEscolares;
+        if (periodos.length === 0) {
+          addLog(`  ! Matéria "${mat.nome}" (superior) sem período definido — ignorada para ${est.codigo_estudante}`, "warn");
+          continue;
         }
 
-        for (const p of periodos) {
+        for (const periodo of periodos) {
           for (const categoria of categoriasAtivas) {
-            // Chave global (inclui estudante) — usada tanto para checar no servidor quanto no batch
-            const key = `${est.codigo_estudante}|${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
-
-            // 1. Já existe no servidor?
-            if (notasExistentes.has(key)) {
-              totalSkippedServer++;
-              continue;
-            }
-
-            // 2. Já está no batch?
-            if (batchDedup.has(key)) {
-              totalSkippedBatch++;
-              continue;
-            }
-
+            // Chave de dedup interna ao batch
+            const key = `${est.codigo_estudante}|${mat.id}|${periodo}|${tipoNotaMat}|${categoria}`;
+            if (batchDedup.has(key)) continue;
             batchDedup.add(key);
+            totalCombinacoes++;
+
             batch.push({
               codigo_estudante: est.codigo_estudante,
-              periodo: p,
+              periodo,
               materia_disciplinar_id: mat.id,
-              tipo: tipoNota,
+              tipo: tipoNotaMat,
               categoria,
               nota: parseFloat((rnd(8, 20) + Math.random()).toFixed(1)),
             });
@@ -1323,22 +1219,18 @@ export default function PageContent() {
       }
     }
 
-    if (totalSkippedServer > 0) {
-      addLog(`  ℹ ${totalSkippedServer} nota(s) já existiam no servidor — ignoradas`, "dim");
-    }
-    if (totalSkippedBatch > 0) {
-      addLog(`  ℹ ${totalSkippedBatch} nota(s) duplicadas no batch — ignoradas`, "dim");
+    if (semMateria > 0) {
+      addLog(`  ⚠ ${semMateria} estudante(s) sem matéria compatível — verifique se as matérias cobrem os anos dos estudantes`, "warn");
     }
 
     if (batch.length === 0) {
-      addLog(
-        "Nenhuma nota nova para registrar — todas já existem ou nenhuma matéria compatível encontrada",
-        "info"
-      );
+      addLog("Nenhuma nota para registrar. Verifique se existem matérias com anos compatíveis com os estudantes.", "warn");
       return;
     }
 
-    addLog(`  Total a registrar: ${batch.length} nota(s) novas`, "info");
+    addLog(`  Total de combinações: ${batch.length} nota(s)`, "info");
+    addLog(`  (${sample.length} estudantes × matérias compatíveis × períodos × ${categoriasAtivas.length} categorias)`, "dim");
+    addLog(`  O backend rejeitará notas duplicadas automaticamente — não há pré-verificação necessária`, "dim");
 
     // Divide em chunks de 2000 (limite da API)
     const CHUNK_SIZE = 2000;
@@ -1383,15 +1275,19 @@ export default function PageContent() {
     }
 
     addLog(
-      `Notas concluídas: ${totalOk} ✓  ${totalErr > 0 ? `${totalErr} ✗  ` : ""}(${batch.length} total)`,
+      `Notas concluídas: ${totalOk} ✓  ${totalErr > 0 ? `${totalErr} ✗  ` : ""}(${batch.length} enviadas — duplicatas rejeitadas pelo backend)`,
       totalOk > 0 ? "ok" : "err"
     );
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
   //
-  // MELHORIA: em vez de N chamadas GET /faltas-estudante/:codigo (uma por estudante),
-  // usa GET /faltas paginado para buscar todos os registros da academia de uma vez.
+  // Lógica melhorada:
+  //  1. Para cada estudante, encontra TODAS as matérias ativas compatíveis
+  //     com o seu ano académico e curso (via materiasDoEstudante).
+  //  2. Para cada matéria × data, gera uma falta.
+  //  3. Idempotência: o backend bloqueia duplicatas por (estudante, matéria, data).
+  //     Enviamos tudo e o backend rejeita o que já existe.
   //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
@@ -1404,71 +1300,56 @@ export default function PageContent() {
     const total = qtdEstudantes > 0 ? Math.min(qtdEstudantes, estudantes.length) : estudantes.length;
     const sample = estudantes.slice(0, total);
     addLog(`Gerando faltas para ${sample.length} estudante(s) via async...`, "step");
+    addLog(`  Lógica: todas as matérias do ano do estudante × todas as datas (${DATAS_FALTA.length} datas)`, "dim");
 
-    const tiposMateriasCompativeisFalta = academia.tipo === "superior"
-      ? ["superior"]
-      : ["fundamental", "medio"];
-    const materiasTipo = materias.filter(m => tiposMateriasCompativeisFalta.includes(m.type));
-
-    if (materiasTipo.length === 0) {
-      addLog(`  ✗ Nenhuma matéria ativa compatível com esta academia (${academia.tipo}/${academia.nivel || "—"})`, "err");
-      return;
-    }
-
-    // ── Fase 1/2: busca faltas existentes com UMA chamada paginada ────────────
-    const faltasExistentes = await fetchFaltasExistentes(academia.ano_letivo, "Fase 1/2:");
-
-    if (cancelRef.current) return;
-
-    // ── Fase 2/2: monta batch ────────────────────────────────────────────────
-    addLog(`  Fase 2/2: montando batch para ${sample.length} estudante(s)...`, "info");
+    let semMateria = 0;
 
     const batch: any[] = [];
     const batchDedup = new Set<string>();
-    let totalSkippedServer = 0;
-    let totalSkippedBatch = 0;
 
-    for (let i = 0; i < sample.length; i++) {
+    for (const est of sample) {
       if (cancelRef.current) break;
 
-      const est = sample[i];
-      const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
+      const materiasEst = materiasDoEstudante(est, materias);
 
-      for (const mat of materiasSample) {
-        const dataFalta = pick(DATAS_FALTA);
-        // Chave: inclui codigo_estudante para dedup por estudante
-        const key = `${est.codigo_estudante}|${mat.id}|${dataFalta}`;
+      if (materiasEst.length === 0) {
+        semMateria++;
+        addLog(
+          `  ! ${est.codigo_estudante}: nenhuma matéria ativa compatível` +
+          ` (ano=${est.ano_escolar || est.ano_escolar_medio || est.ano_superior || "?"})`,
+          "warn"
+        );
+        continue;
+      }
 
-        if (faltasExistentes.has(key)) {
-          totalSkippedServer++;
-          continue;
+      for (const mat of materiasEst) {
+        for (const dataFalta of DATAS_FALTA) {
+          const key = `${est.codigo_estudante}|${mat.id}|${dataFalta}`;
+          if (batchDedup.has(key)) continue;
+          batchDedup.add(key);
+
+          batch.push({
+            codigo_estudante: est.codigo_estudante,
+            data: dataFalta,
+            materia_disciplinar_id: mat.id,
+            quantidade: rnd(1, 3),
+          });
         }
-        if (batchDedup.has(key)) {
-          totalSkippedBatch++;
-          continue;
-        }
-
-        batchDedup.add(key);
-        batch.push({
-          codigo_estudante: est.codigo_estudante,
-          data: dataFalta,
-          materia_disciplinar_id: mat.id,
-          quantidade: rnd(1, 3),
-        });
       }
     }
 
-    if (totalSkippedServer > 0) {
-      addLog(`  ℹ ${totalSkippedServer} falta(s) já existiam no servidor — ignoradas`, "dim");
-    }
-    if (totalSkippedBatch > 0) {
-      addLog(`  ℹ ${totalSkippedBatch} falta(s) duplicadas no batch — ignoradas`, "dim");
+    if (semMateria > 0) {
+      addLog(`  ⚠ ${semMateria} estudante(s) sem matéria compatível — verifique se as matérias cobrem os anos dos estudantes`, "warn");
     }
 
     if (batch.length === 0) {
-      addLog("Nenhuma falta nova para registrar (todas já existem para estas datas/matérias)", "info");
+      addLog("Nenhuma falta para registrar. Verifique se existem matérias com anos compatíveis com os estudantes.", "warn");
       return;
     }
+
+    addLog(`  Total de combinações: ${batch.length} falta(s)`, "info");
+    addLog(`  (${sample.length} estudantes × matérias compatíveis × ${DATAS_FALTA.length} datas)`, "dim");
+    addLog(`  O backend rejeitará faltas duplicadas automaticamente — não há pré-verificação necessária`, "dim");
 
     const CHUNK_SIZE_FALTA = 2000;
     const chunksFalta: any[][] = [];
@@ -1512,7 +1393,7 @@ export default function PageContent() {
     }
 
     addLog(
-      `Faltas concluídas: ${totalOkFalta} ✓  ${totalErrFalta > 0 ? `${totalErrFalta} ✗  ` : ""}(${batch.length} total)`,
+      `Faltas concluídas: ${totalOkFalta} ✓  ${totalErrFalta > 0 ? `${totalErrFalta} ✗  ` : ""}(${batch.length} enviadas — duplicatas rejeitadas pelo backend)`,
       totalOkFalta > 0 ? "ok" : "err"
     );
   };
@@ -1693,10 +1574,38 @@ export default function PageContent() {
   })();
 
   const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
-  const tiposMateriaParaNota = academia?.tipo === "superior" ? ["superior"] : ["fundamental", "medio"];
   const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
   const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
+
+  // Estimativa de notas: por cada estudante, encontra matérias compatíveis e calcula combinações
+  const estimativaNota = (() => {
+    if (!academia || materias.length === 0 || estudantes.length === 0) return 0;
+    const totalSample = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
+    const sample = estudantes.slice(0, totalSample);
+    let count = 0;
+    for (const est of sample) {
+      const mats = materiasDoEstudante(est, materias);
+      for (const mat of mats) {
+        const periodos = periodosParaMateria(mat);
+        count += periodos.length * categoriasAtivas.length;
+      }
+    }
+    return count;
+  })();
+
+  // Estimativa de faltas
+  const estimativaFalta = (() => {
+    if (!academia || materias.length === 0 || estudantes.length === 0) return 0;
+    const totalSample = faltaConfig.qtdEstudantes > 0 ? Math.min(faltaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
+    const sample = estudantes.slice(0, totalSample);
+    let count = 0;
+    for (const est of sample) {
+      const mats = materiasDoEstudante(est, materias);
+      count += mats.length * DATAS_FALTA.length;
+    }
+    return count;
+  })();
 
   // ─── Render helpers ────────────────────────────────────────────────────────────
 
@@ -1763,13 +1672,6 @@ export default function PageContent() {
     </button>
   );
 
-  const periodosNotaDisponiveis = academia.tipo !== "superior" ? [
-    { value: "random", label: "Todos os trimestres" },
-    { value: "1_trimestre", label: "1º Trimestre" },
-    { value: "2_trimestre", label: "2º Trimestre" },
-    { value: "3_trimestre", label: "3º Trimestre" },
-  ] : [];
-
   const anosMedioParaConfig = cursosMedioAtivos.length > 0
     ? (estudanteConfig.cursoMedioId === "random"
         ? cursosMedioAtivos[0]?.anos_academicos || []
@@ -1783,10 +1685,7 @@ export default function PageContent() {
     : [];
 
   const totalEstudantesNota = notaConfig.qtdEstudantes > 0 ? Math.min(notaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
-  const periodosMult = academia?.tipo === "superior" ? 1 : (notaConfig.periodo === "random" ? 3 : 1);
-  const materiasParaNota = materias.filter(m => tiposMateriaParaNota.includes(m.type));
-  const numMateriasPorEstudante = Math.min(3, materiasParaNota.length);
-  const estimativaNota = totalEstudantesNota * numMateriasPorEstudante * categoriasAtivas.length * periodosMult;
+  const totalEstudantesFalta = faltaConfig.qtdEstudantes > 0 ? Math.min(faltaConfig.qtdEstudantes, estudantes.length) : estudantes.length;
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
@@ -1852,18 +1751,15 @@ export default function PageContent() {
               <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
               <p style={{ margin: 0 }}>
                 Ao submeter um job, o servidor processa em background.
-                Todas as requisições aguardam sem timeout — não há corte automático de conexão.
                 Acompanhe o progresso pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
               </p>
             </div>
 
             <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
-              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Dedup de notas e faltas</p>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Idempotência de notas e faltas</p>
               <p style={{ margin: 0 }}>
-                Em vez de consultar estudante por estudante, notas e faltas existentes são buscadas
-                de uma só vez via <code style={{ color: "#60a5fa" }}>GET /notas</code> e{" "}
-                <code style={{ color: "#60a5fa" }}>GET /faltas</code> (paginado). Isso reduz
-                drasticamente o número de requisições e o tempo de verificação.
+                Notas e faltas são enviadas sem pré-verificação. O backend bloqueia duplicatas automaticamente
+                (409 por item no batch). Reenviar é seguro — apenas novos registos são criados.
               </p>
             </div>
           </div>
@@ -1940,6 +1836,9 @@ export default function PageContent() {
                       ⚠ Matérias superiores nascem inativas — período definido automaticamente antes de ativar
                     </p>
                   )}
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
+                    ✦ Para notas/faltas cobrindo todos os estudantes, crie matérias para <strong style={{ color: "#64748b" }}>cada ano académico</strong> que os estudantes frequentam
+                  </p>
                 </>
               )}
             </Section>
@@ -2195,7 +2094,16 @@ export default function PageContent() {
             )}
 
             {/* Notas */}
-            <Section title="Notas" badge={materiasParaNota.length === 0 ? "crie matérias primeiro" : `≈${estimativaNota} notas estimadas`}>
+            <Section
+              title="Notas"
+              badge={
+                materias.length === 0
+                  ? "crie matérias primeiro"
+                  : estudantes.length === 0
+                  ? "crie estudantes primeiro"
+                  : `≈${estimativaNota} notas estimadas`
+              }
+            >
               <SubSection title={`Categorias — ${tipoNota === "escolar" ? "Escolar" : "Superior"}`}>
                 <CategoryCheckboxes
                   label="Registrar notas para"
@@ -2211,51 +2119,50 @@ export default function PageContent() {
                 </p>
               </SubSection>
 
-              {academia.tipo !== "superior" ? (
-                <Row>
-                  <NumberStepper
-                    label="Nº estudantes (0 = todos)"
-                    value={notaConfig.qtdEstudantes}
-                    min={0}
-                    max={estudantes.length || 1000}
-                    step={5}
-                    onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
-                    hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
-                  />
-                  <Field label="Período">
-                    <Sel value={notaConfig.periodo} onChange={e => setNotaConfig(p => ({ ...p, periodo: e.target.value }))}>
-                      {periodosNotaDisponiveis.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
-                    </Sel>
-                  </Field>
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
-                    Gerar Notas (async)
-                  </Btn>
-                </Row>
-              ) : (
-                <Row>
-                  <NumberStepper
-                    label="Nº estudantes (0 = todos)"
-                    value={notaConfig.qtdEstudantes}
-                    min={0}
-                    max={estudantes.length || 1000}
-                    step={5}
-                    onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
-                    hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
-                  />
-                  <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
-                    Gerar Notas (async)
-                  </Btn>
-                </Row>
-              )}
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: busca notas existentes via <code style={{ color: "#64748b" }}>GET /notas</code> (paginado, 1 req por 1000 registros)
-                <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code>
-              </p>
+              <Row>
+                <NumberStepper
+                  label="Nº estudantes (0 = todos)"
+                  value={notaConfig.qtdEstudantes}
+                  min={0}
+                  max={estudantes.length || 1000}
+                  step={5}
+                  onChange={v => setNotaConfig(p => ({ ...p, qtdEstudantes: v }))}
+                  hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
+                />
+                <Btn
+                  onClick={() => withLoading(gerarNotas)}
+                  color="#b45309"
+                  disabled={materias.length === 0 || estudantes.length === 0}
+                >
+                  Gerar Notas (async)
+                </Btn>
+              </Row>
+
+              {/* Painel informativo sobre a lógica */}
+              <div style={{ background: "#0a1929", border: "1px solid #1e3a5f", borderRadius: 8, padding: "10px 14px", marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.7 }}>
+                <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#60a5fa" }}>Cobertura completa por estudante</p>
+                <p style={{ margin: 0 }}>
+                  Cada estudante recebe notas em <strong style={{ color: "#94a3b8" }}>todas as matérias</strong> cujos{" "}
+                  <code style={{ color: "#60a5fa" }}>anos_academicos</code> incluem o seu ano atual
+                  (e, para médio/superior, cujo <code style={{ color: "#60a5fa" }}>curso_id</code> coincide).
+                  Para escolar: 3 trimestres × {categoriasAtivas.length} categorias.
+                  Para superior: 1 período (definido na matéria) × {categoriasAtivas.length} categorias.
+                  <br />Duplicatas são bloqueadas automaticamente pelo backend — reenviar é seguro.
+                </p>
+              </div>
             </Section>
 
             {/* Faltas */}
-            <Section title="Faltas" badge={materiasParaNota.length === 0 ? "crie matérias primeiro" : undefined}>
+            <Section
+              title="Faltas"
+              badge={
+                materias.length === 0
+                  ? "crie matérias primeiro"
+                  : estudantes.length === 0
+                  ? "crie estudantes primeiro"
+                  : `≈${estimativaFalta} faltas estimadas`
+              }
+            >
               <Row>
                 <NumberStepper
                   label="Nº estudantes (0 = todos)"
@@ -2266,15 +2173,24 @@ export default function PageContent() {
                   onChange={v => setFaltaConfig(p => ({ ...p, qtdEstudantes: v }))}
                   hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                 />
-                <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
+                <Btn
+                  onClick={() => withLoading(gerarFaltas)}
+                  color="#b45309"
+                  disabled={materias.length === 0 || estudantes.length === 0}
+                >
                   Gerar Faltas (async)
                 </Btn>
               </Row>
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: busca faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas</code> (paginado, 1 req por 1000 registros)
-                <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code>
-              </p>
+
+              {/* Painel informativo sobre a lógica */}
+              <div style={{ background: "#0a1929", border: "1px solid #1e3a5f", borderRadius: 8, padding: "10px 14px", marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.7 }}>
+                <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#60a5fa" }}>Cobertura completa por estudante</p>
+                <p style={{ margin: 0 }}>
+                  Cada estudante recebe faltas em <strong style={{ color: "#94a3b8" }}>todas as matérias</strong> compatíveis
+                  com o seu ano e curso, em todas as {DATAS_FALTA.length} datas ({DATAS_FALTA.join(", ")}).
+                  <br />Duplicatas (mesma data + matéria + estudante) são bloqueadas pelo backend — reenviar é seguro.
+                </p>
+              </div>
             </Section>
 
             {/* Avaliações Finais */}
@@ -2329,18 +2245,18 @@ export default function PageContent() {
               </div>
             </div>
             <div style={{ background: "#020817", height: 320, overflowY: "auto", padding: 16, fontSize: 12, lineHeight: "1.8" }}>
-              {logs.map((l, i) => (
-                <div key={i} style={{ display: "flex", gap: 12, color: logColors[l.level] }}>
-                  <span style={{ color: "#334155", minWidth: 64 }}>{l.ts}</span>
-                  <span style={{ minWidth: 12 }}>{logIcons[l.level]}</span>
-                  <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{l.msg}</span>
-                </div>
-              ))}
-              <div ref={logsEndRef} />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+              {toras.O.mapinha((S)((S)l‚, i. i(S) => ((S)
+                <chave div={i. iO} estilo={{ display (exibição)¡:: "flex"‚, lacuna¡:: 12‚, cor cor¡:: logCores[[]l.O.nível] O}O}› ›
+                  <estilo span={{ cor cor¡:: "#334155"‚, largura mínima¡:: 64 O}O}› ›{l.O.tsO}</palmo› ›
+                  <estilo span={{ largura mínima¡:: 12 O}O}› ›{logIcons[[]l.O.nível]O}</palmo› ›
+                  <estilo span={{ espaço branco¡:: "pré-embrulho"‚, palavraQuebra¡:: "quebra-tudo" O}O}› ›{l.O.msgO}</palmo› ›
+                </div.› ›
+              (S)(S)O}
+              <div ref={logsEndRefO} /› ›
+            </div.› ›
+          </div.› ›
+        (S)O}
+      </div.› ›
+    </div.› ›
+  (S)¡;
+O}
