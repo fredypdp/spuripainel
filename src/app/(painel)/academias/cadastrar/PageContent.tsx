@@ -10,32 +10,22 @@ import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { Dropdown } from 'primereact/dropdown';
-import { NivelEscolar, Provincias, Provincia, AcademiaType } from '@/types/api';
+import type { AcademiaType, NivelEscolar } from '@/types/api';
+import { Provincias } from '@/types/api';
 
 // ---------------------------------------------------------------------------
-// Tipos internos
+// Opções dos dropdowns
 // ---------------------------------------------------------------------------
 
-interface NivelAcademico {
-  nome: string;
-  nivel: NivelEscolar;
-  id: number;
-}
-
-interface NaturezaOpcao {
-  nome: string;
-  value: AcademiaType;
-}
-
-const NiveisAcademicos: NivelAcademico[] = [
-  { nome: "Ensino Fundamental (1ª-9ª)", nivel: "fundamental", id: 1 },
-  { nome: "Ensino Médio",               nivel: "medio",       id: 2 },
-  { nome: "Fundamental e Médio",        nivel: "misto",       id: 3 },
+const NATUREZA_OPCOES = [
+  { nome: "Pública",  value: "public"  as AcademiaType },
+  { nome: "Privada",  value: "private" as AcademiaType },
 ];
 
-const NaturezaOpcoes: NaturezaOpcao[] = [
-  { nome: "Pública",  value: "public"  },
-  { nome: "Privada",  value: "private" },
+const NIVEL_ESCOLAR_OPCOES = [
+  { nome: "Ensino Fundamental (1ª-9ª)", value: "fundamental" as NivelEscolar },
+  { nome: "Ensino Médio",               value: "medio"       as NivelEscolar },
+  { nome: "Fundamental e Médio",        value: "misto"       as NivelEscolar },
 ];
 
 const ANOS_FUNDAMENTAL_OPCOES = [
@@ -143,18 +133,19 @@ export default function CadastrarAcademiaPageContent() {
     execute: executarCadastro,
   } = useApi(adminService.registrarAcademia);
 
-  const [nome,                          setNome]                          = useState('');
-  const [email,                         setEmail]                         = useState('');
-  const [numeroTelefone,                setNumeroTelefone]                = useState('');
-  const [endereco,                      setEndereco]                      = useState('');
-  const [website,                       setWebsite]                       = useState('');
-  const [provinciaSelecionada,          setProvinciaSelecionada]          = useState<Provincia | null>(null);
-  const [nivelEscolarSelecionado,       setNivelEscolarSelecionado]       = useState<NivelAcademico | null>(null);
-  // naturezaSelecionada armazena o objeto { nome, value: AcademiaType }
-  const [naturezaSelecionada,           setNaturezaSelecionada]           = useState<NaturezaOpcao | null>(null);
-  const [anosAcademicosSelecionados,    setAnosAcademicosSelecionados]    = useState<string[]>([]);
-  const [validationErrors,              setValidationErrors]              = useState<string[]>([]);
-  const [resultado,                     setResultado]                     = useState<ResultadoCadastro | null>(null);
+  // Estados como primitivos — sem objetos nos dropdowns, evita problema de
+  // comparação por referência que faz o PrimeReact retornar undefined em e.value
+  const [nome,                       setNome]                       = useState('');
+  const [email,                      setEmail]                      = useState('');
+  const [numeroTelefone,             setNumeroTelefone]             = useState('');
+  const [endereco,                   setEndereco]                   = useState('');
+  const [website,                    setWebsite]                    = useState('');
+  const [provinciaNome,              setProvinciaNome]              = useState<string>('');
+  const [nivelEscolar,               setNivelEscolar]               = useState<NivelEscolar | ''>('');
+  const [academiaType,               setAcademiaType]               = useState<AcademiaType | ''>('');
+  const [anosAcademicosSelecionados, setAnosAcademicosSelecionados] = useState<string[]>([]);
+  const [validationErrors,           setValidationErrors]           = useState<string[]>([]);
+  const [resultado,                  setResultado]                  = useState<ResultadoCadastro | null>(null);
 
   // Guard: apenas admin FPP
   if (loadingUser) {
@@ -177,16 +168,17 @@ export default function CadastrarAcademiaPageContent() {
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
-    if (!nome.trim())                 erros.push('Nome da escola é obrigatório');
-    if (!nivelEscolarSelecionado)     erros.push('Selecione o nível académico');
-    if (!naturezaSelecionada)         erros.push('Selecione a natureza da escola (pública ou privada)');
-    if (!provinciaSelecionada)        erros.push('Selecione a província');
+    if (!nome.trim())     erros.push('Nome da escola é obrigatório');
+    if (!academiaType)    erros.push('Selecione a natureza da escola (pública ou privada)');
+    if (!nivelEscolar)    erros.push('Selecione o nível académico');
+    if (!provinciaNome)   erros.push('Selecione a província');
+    if (!endereco.trim()) erros.push('Endereço é obrigatório');
 
     if (!numeroTelefone.trim()) {
       erros.push('Número de telefone é obrigatório');
     } else {
-      const telefoneNumerico = numeroTelefone.replace(/\D/g, '');
-      if (telefoneNumerico.length < 9) erros.push('Número de telefone inválido (mínimo 9 dígitos)');
+      const apenasDigitos = numeroTelefone.replace(/\D/g, '');
+      if (apenasDigitos.length < 9) erros.push('Número de telefone inválido (mínimo 9 dígitos)');
     }
 
     if (!email.trim()) {
@@ -196,19 +188,16 @@ export default function CadastrarAcademiaPageContent() {
       if (!emailRegex.test(email)) erros.push('E-mail inválido');
     }
 
-    if (!endereco.trim()) erros.push('Endereço é obrigatório');
-
-    if (website && website.trim()) {
+    if (website.trim()) {
       try {
-        new URL(website);
+        new URL(website.trim());
       } catch {
         erros.push('Website inválido (deve incluir http:// ou https://)');
       }
     }
 
     if (
-      nivelEscolarSelecionado &&
-      (nivelEscolarSelecionado.nivel === 'fundamental' || nivelEscolarSelecionado.nivel === 'misto') &&
+      (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') &&
       anosAcademicosSelecionados.length === 0
     ) {
       erros.push('Selecione pelo menos um ano académico para escolas fundamental/misto');
@@ -224,9 +213,9 @@ export default function CadastrarAcademiaPageContent() {
     setNumeroTelefone('');
     setEndereco('');
     setWebsite('');
-    setProvinciaSelecionada(null);
-    setNivelEscolarSelecionado(null);
-    setNaturezaSelecionada(null);
+    setProvinciaNome('');
+    setNivelEscolar('');
+    setAcademiaType('');
     setAnosAcademicosSelecionados([]);
     setValidationErrors([]);
     setResultado(null);
@@ -238,28 +227,23 @@ export default function CadastrarAcademiaPageContent() {
 
     if (!validarFormulario()) return;
 
-    // Garantias de segurança — validarFormulario() já cobre, mas TypeScript precisa saber
-    if (!naturezaSelecionada || !nivelEscolarSelecionado || !provinciaSelecionada) return;
-
-    // O campo `type` (AcademiaType: 'public' | 'private') é obrigatório pela API
-    // conforme documentação: POST /dominis/academia/register
-    const tipoNatureza: AcademiaType = naturezaSelecionada.value;
+    // Após validarFormulario() retornar true estes valores nunca são string vazia
+    const type        = academiaType as AcademiaType;   // 'public' | 'private'
+    const nivel_es    = nivelEscolar as NivelEscolar;   // 'fundamental' | 'medio' | 'misto'
 
     try {
       const result = await executarCadastro({
-        nivel: "escola",
-        type: tipoNatureza,
-        nome: nome.trim(),
-        provincia: provinciaSelecionada.nome.toLowerCase(),
-        endereco: endereco.trim(),
+        nivel:           "escola",
+        type:            type,          // obrigatório — AcademiaType: 'public' | 'private'
+        nome:            nome.trim(),
+        provincia:       provinciaNome.toLowerCase(),
+        endereco:        endereco.trim(),
         numero_telefone: numeroTelefone.trim(),
-        email: email.trim(),
-        website: website.trim() || undefined,
-        nivel_escolar: nivelEscolarSelecionado.nivel,
-        anos_academicos: anosAcademicosSelecionados.length > 0
-          ? anosAcademicosSelecionados
-          : [],
-        cursos: [],
+        email:           email.trim(),
+        website:         website.trim() || undefined,
+        nivel_escolar:   nivel_es,
+        anos_academicos: anosAcademicosSelecionados,
+        cursos:          [],
       });
 
       if (result?.data) {
@@ -268,7 +252,7 @@ export default function CadastrarAcademiaPageContent() {
           nome: nome.trim(),
         });
       }
-    } catch (err) {
+    } catch {
       // Erro tratado pelo hook useApi via erroCadastro
     }
   };
@@ -288,7 +272,7 @@ export default function CadastrarAcademiaPageContent() {
       <PageBreadcrumb pageTitle="Cadastrar Academia" />
 
       <div className="max-w-2xl">
-        {/* Cabeçalho com voltar */}
+        {/* Voltar */}
         <div className="flex items-center gap-3 mb-6">
           <Link
             href="/academias"
@@ -308,6 +292,7 @@ export default function CadastrarAcademiaPageContent() {
 
           <form onSubmit={handleCadastro}>
             <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+
               {/* Nome */}
               <div className="col-span-2">
                 <Label>Nome da escola *</Label>
@@ -368,51 +353,54 @@ export default function CadastrarAcademiaPageContent() {
                 />
               </div>
 
-              {/* Natureza: 'public' | 'private' — obrigatório pela API */}
+              {/* Natureza — optionValue="value" armazena 'public'|'private' diretamente */}
               <div className="col-span-2 sm:col-span-1">
                 <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Natureza *
                 </span>
                 <Dropdown
-                  value={naturezaSelecionada}
-                  onChange={(e) => setNaturezaSelecionada(e.value as NaturezaOpcao)}
-                  options={NaturezaOpcoes}
+                  value={academiaType || null}
+                  onChange={(e) => setAcademiaType(e.value as AcademiaType)}
+                  options={NATUREZA_OPCOES}
                   optionLabel="nome"
+                  optionValue="value"
                   placeholder="Selecione a natureza"
                   className="w-full"
                   disabled={carregandoCadastro}
                 />
               </div>
 
-              {/* Nível escolar: 'fundamental' | 'medio' | 'misto' */}
+              {/* Nível escolar — optionValue="value" armazena 'fundamental'|'medio'|'misto' */}
               <div className="col-span-2 sm:col-span-1">
                 <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Nível académico *
                 </span>
                 <Dropdown
-                  value={nivelEscolarSelecionado}
+                  value={nivelEscolar || null}
                   onChange={(e) => {
-                    setNivelEscolarSelecionado(e.value as NivelAcademico);
+                    setNivelEscolar(e.value as NivelEscolar);
                     setAnosAcademicosSelecionados([]);
                   }}
-                  options={NiveisAcademicos}
+                  options={NIVEL_ESCOLAR_OPCOES}
                   optionLabel="nome"
+                  optionValue="value"
                   placeholder="Selecione o nível escolar"
                   className="w-full"
                   disabled={carregandoCadastro}
                 />
               </div>
 
-              {/* Província */}
+              {/* Província — optionValue="nome" armazena o nome como string */}
               <div className="col-span-2 sm:col-span-1">
                 <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Província *
                 </span>
                 <Dropdown
-                  value={provinciaSelecionada}
-                  onChange={(e) => setProvinciaSelecionada(e.value as Provincia)}
+                  value={provinciaNome || null}
+                  onChange={(e) => setProvinciaNome(e.value as string)}
                   options={Provincias}
                   optionLabel="nome"
+                  optionValue="nome"
                   filter
                   placeholder="Selecione a província"
                   className="w-full"
@@ -421,40 +409,38 @@ export default function CadastrarAcademiaPageContent() {
                 />
               </div>
 
-              {/* Anos académicos — apenas para fundamental / misto */}
-              {nivelEscolarSelecionado &&
-                (nivelEscolarSelecionado.nivel === 'fundamental' ||
-                  nivelEscolarSelecionado.nivel === 'misto') && (
-                  <div className="col-span-2">
-                    <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      Selecione os anos do ensino fundamental que esta escola oferece
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
-                        <label
-                          key={value}
-                          className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={anosAcademicosSelecionados.includes(value)}
-                            onChange={() =>
-                              setAnosAcademicosSelecionados((prev) =>
-                                prev.includes(value)
-                                  ? prev.filter((a) => a !== value)
-                                  : [...prev, value]
-                              )
-                            }
-                            disabled={carregandoCadastro}
-                            className="w-4 h-4 text-brand-500 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                        </label>
-                      ))}
-                    </div>
+              {/* Anos académicos — visível apenas para fundamental / misto */}
+              {(nivelEscolar === 'fundamental' || nivelEscolar === 'misto') && (
+                <div className="col-span-2">
+                  <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Selecione os anos do ensino fundamental que esta escola oferece
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (
+                      <label
+                        key={value}
+                        className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={anosAcademicosSelecionados.includes(value)}
+                          onChange={() =>
+                            setAnosAcademicosSelecionados((prev) =>
+                              prev.includes(value)
+                                ? prev.filter((a) => a !== value)
+                                : [...prev, value]
+                            )
+                          }
+                          disabled={carregandoCadastro}
+                          className="w-4 h-4 text-brand-500 focus:ring-brand-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                      </label>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
             </div>
 
             {/* Erros de validação */}
