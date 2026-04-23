@@ -150,6 +150,7 @@ export default function CadastrarAcademiaPageContent() {
   const [website,                       setWebsite]                       = useState('');
   const [provinciaSelecionada,          setProvinciaSelecionada]          = useState<Provincia | null>(null);
   const [nivelEscolarSelecionado,       setNivelEscolarSelecionado]       = useState<NivelAcademico | null>(null);
+  // naturezaSelecionada armazena o objeto { nome, value: AcademiaType }
   const [naturezaSelecionada,           setNaturezaSelecionada]           = useState<NaturezaOpcao | null>(null);
   const [anosAcademicosSelecionados,    setAnosAcademicosSelecionados]    = useState<string[]>([]);
   const [validationErrors,              setValidationErrors]              = useState<string[]>([]);
@@ -237,20 +238,28 @@ export default function CadastrarAcademiaPageContent() {
 
     if (!validarFormulario()) return;
 
+    // Garantias de segurança — validarFormulario() já cobre, mas TypeScript precisa saber
+    if (!naturezaSelecionada || !nivelEscolarSelecionado || !provinciaSelecionada) return;
+
+    // O campo `type` (AcademiaType: 'public' | 'private') é obrigatório pela API
+    // conforme documentação: POST /dominis/academia/register
+    const tipoNatureza: AcademiaType = naturezaSelecionada.value;
+
     try {
       const result = await executarCadastro({
         nivel: "escola",
-        type: naturezaSelecionada!.value,
+        type: tipoNatureza,
         nome: nome.trim(),
-        provincia: provinciaSelecionada!.nome.toLowerCase(),
+        provincia: provinciaSelecionada.nome.toLowerCase(),
         endereco: endereco.trim(),
         numero_telefone: numeroTelefone.trim(),
         email: email.trim(),
         website: website.trim() || undefined,
-        nivel_escolar: nivelEscolarSelecionado!.nivel,
-        ...(anosAcademicosSelecionados.length > 0 && {
-          anos_academicos: anosAcademicosSelecionados,
-        }),
+        nivel_escolar: nivelEscolarSelecionado.nivel,
+        anos_academicos: anosAcademicosSelecionados.length > 0
+          ? anosAcademicosSelecionados
+          : [],
+        cursos: [],
       });
 
       if (result?.data) {
@@ -359,14 +368,14 @@ export default function CadastrarAcademiaPageContent() {
                 />
               </div>
 
-              {/* Natureza (public / private) */}
+              {/* Natureza: 'public' | 'private' — obrigatório pela API */}
               <div className="col-span-2 sm:col-span-1">
                 <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Natureza *
                 </span>
                 <Dropdown
                   value={naturezaSelecionada}
-                  onChange={(e) => setNaturezaSelecionada(e.value)}
+                  onChange={(e) => setNaturezaSelecionada(e.value as NaturezaOpcao)}
                   options={NaturezaOpcoes}
                   optionLabel="nome"
                   placeholder="Selecione a natureza"
@@ -375,7 +384,7 @@ export default function CadastrarAcademiaPageContent() {
                 />
               </div>
 
-              {/* Nível académico (nivel_escolar: fundamental / medio / misto) */}
+              {/* Nível escolar: 'fundamental' | 'medio' | 'misto' */}
               <div className="col-span-2 sm:col-span-1">
                 <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Nível académico *
@@ -383,7 +392,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Dropdown
                   value={nivelEscolarSelecionado}
                   onChange={(e) => {
-                    setNivelEscolarSelecionado(e.value);
+                    setNivelEscolarSelecionado(e.value as NivelAcademico);
                     setAnosAcademicosSelecionados([]);
                   }}
                   options={NiveisAcademicos}
@@ -401,7 +410,7 @@ export default function CadastrarAcademiaPageContent() {
                 </span>
                 <Dropdown
                   value={provinciaSelecionada}
-                  onChange={(e) => setProvinciaSelecionada(e.value)}
+                  onChange={(e) => setProvinciaSelecionada(e.value as Provincia)}
                   options={Provincias}
                   optionLabel="nome"
                   filter
@@ -412,7 +421,7 @@ export default function CadastrarAcademiaPageContent() {
                 />
               </div>
 
-              {/* Anos académicos (apenas fundamental / misto) */}
+              {/* Anos académicos — apenas para fundamental / misto */}
               {nivelEscolarSelecionado &&
                 (nivelEscolarSelecionado.nivel === 'fundamental' ||
                   nivelEscolarSelecionado.nivel === 'misto') && (
