@@ -63,6 +63,10 @@ function formatCategoria(c: string) {
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
+function normalizarValor(v?: string | null): string {
+  return (v ?? "").trim().toLowerCase();
+}
+
 // ─── tipos ───────────────────────────────────────────────────────────────────
 
 type AcadInfo = {
@@ -335,6 +339,18 @@ export default function NotasAdmin() {
     return todasNotas.filter(n => n.codigo_academia === codigoAcademia);
   }
 
+  function filtrarNotasContexto(codigoAcademia: string, ano: string, nivel: string, periodo?: string) {
+    const anoNorm = normalizarValor(ano);
+    const nivelNorm = normalizarValor(nivel);
+    const periodoNorm = normalizarValor(periodo);
+    return notasDeAcademia(codigoAcademia).filter(n => {
+      const matchAno = normalizarValor(n.ano_lectivo) === anoNorm;
+      const matchNivel = normalizarValor(n.ano_academico) === nivelNorm;
+      const matchPeriodo = !periodo ? true : normalizarValor(n.periodo) === periodoNorm;
+      return matchAno && matchNivel && matchPeriodo;
+    });
+  }
+
   function anosDeAcademia(codigoAcademia: string): string[] {
     return Array.from(new Set(notasDeAcademia(codigoAcademia).map(n => n.ano_lectivo))).sort().reverse();
   }
@@ -353,9 +369,7 @@ export default function NotasAdmin() {
   function materiasNoAnoEPeriodo(
     codigoAcademia: string, ano: string, nivel: string, periodo: string
   ): { id: string; nome: string; notasCount: number; media: number | null }[] {
-    const notas = notasDeAcademia(codigoAcademia).filter(
-      n => n.ano_lectivo === ano && n.ano_academico === nivel && n.periodo === periodo
-    );
+    const notas = filtrarNotasContexto(codigoAcademia, ano, nivel, periodo);
     const map = new Map<string, { nome: string; count: number; sum: number }>();
     notas.forEach(n => {
       const ex = map.get(n.materia_disciplinar_id);
@@ -483,7 +497,9 @@ export default function NotasAdmin() {
 
   if (layer.type === "academia_niveis") {
     const { academia, ano } = layer;
-    const notas = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano);
+    const notas = notasDeAcademia(academia.codigo_academia).filter(
+      n => normalizarValor(n.ano_lectivo) === normalizarValor(ano)
+    );
     const niveisAcademicos = sortAnosAcademicos(
       Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
     );
@@ -513,9 +529,7 @@ export default function NotasAdmin() {
 
   if (layer.type === "academia_periodos") {
     const { academia, ano, nivel } = layer;
-    const notas = notasDeAcademia(academia.codigo_academia).filter(
-      n => n.ano_lectivo === ano && n.ano_academico === nivel
-    );
+    const notas = filtrarNotasContexto(academia.codigo_academia, ano, nivel);
     const periodos = Array.from(new Set(notas.map(n => n.periodo))).sort(
       (a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b)
     );
@@ -545,9 +559,7 @@ export default function NotasAdmin() {
   if (layer.type === "academia_materias") {
     const { academia, ano, nivel, periodo } = layer;
     const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, nivel, periodo);
-    const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(
-      n => n.ano_lectivo === ano && n.ano_academico === nivel && n.periodo === periodo
-    );
+    const notasPeriodo = filtrarNotasContexto(academia.codigo_academia, ano, nivel, periodo);
     const niveisPresentes = sortAnosAcademicos(
       Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[]
     );
@@ -588,8 +600,8 @@ export default function NotasAdmin() {
 
   if (layer.type === "academia_notas") {
     const { academia, ano, nivel, periodo, materiaId, materiaNome } = layer;
-    const notas = notasDeAcademia(academia.codigo_academia).filter(
-      n => n.ano_lectivo === ano && n.ano_academico === nivel && n.periodo === periodo && n.materia_disciplinar_id === materiaId
+    const notas = filtrarNotasContexto(academia.codigo_academia, ano, nivel, periodo).filter(
+      n => n.materia_disciplinar_id === materiaId
     );
     const isSup = isAcademiaSuperior(academia.codigo_academia);
     const niveisNotas = sortAnosAcademicos(

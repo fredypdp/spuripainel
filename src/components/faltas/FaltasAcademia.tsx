@@ -51,6 +51,10 @@ function turmaAtiva(t: Turma): boolean {
   return t.status !== "inativo" && t.status !== "deletado";
 }
 
+function normCodigoEstudante(codigo: string): string {
+  return (codigo ?? "").trim().toLowerCase();
+}
+
 const ANOS_FUNDAMENTAL = [
   "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental",
   "5_ano_fundamental","6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
@@ -431,19 +435,25 @@ function ModalRegistrarFalta({
 function TabelaFaltas({
   faltas,
   estudantesMap,
+  codigosTurma,
   onEditar,
   onDeletar,
 }: {
   faltas: Falta[];
   estudantesMap: Map<string, string>;
+  codigosTurma?: string[];
   onEditar: (f: Falta) => void;
   onDeletar: (f: Falta) => void;
 }) {
-  if (!faltas.length) return (
+  if (!faltas.length && (!codigosTurma || codigosTurma.length === 0)) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:check-circle" width={40} className="mx-auto mb-2 text-green-400 opacity-80" />
       <p className="text-sm">Nenhuma falta registada nesta matéria.</p>
     </div>
+  );
+
+  const codigosSemFalta = (codigosTurma ?? []).filter(codigo =>
+    !faltas.some(f => normCodigoEstudante(f.codigo_estudante) === normCodigoEstudante(codigo))
   );
 
   return (
@@ -494,6 +504,20 @@ function TabelaFaltas({
                   </button>
                 </div>
               </td>
+            </tr>
+          ))}
+          {codigosSemFalta.map(codigo => (
+            <tr key={`sem-falta-${codigo}`} className="bg-white dark:bg-gray-800/70">
+              <td className="px-4 py-3">
+                <p className="font-medium text-gray-900 dark:text-white capitalize">
+                  {estudantesMap.get(codigo) || codigo}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">{codigo}</p>
+              </td>
+              <td className="px-4 py-3 text-gray-400 dark:text-gray-600">—</td>
+              <td className="px-4 py-3 text-center text-gray-400 dark:text-gray-600">0</td>
+              <td className="px-4 py-3 text-gray-400 dark:text-gray-600">Sem faltas registadas</td>
+              <td className="px-4 py-3 text-center text-gray-400 dark:text-gray-600">—</td>
             </tr>
           ))}
         </tbody>
@@ -600,8 +624,9 @@ export default function FaltasAcademia() {
   }
 
   function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
+    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
     return todasFaltas.filter(f =>
-      turma.estudantes.includes(f.codigo_estudante) &&
+      codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
       f.materia_disciplinar_id === materiaId &&
       (anoLectivo ? f.ano_lectivo === anoLectivo : true)
     ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
@@ -619,8 +644,9 @@ export default function FaltasAcademia() {
       return curso ? m.curso_id === curso.id : false;
     });
 
+    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
     const faltasDaTurma = todasFaltas.filter(f =>
-      turma.estudantes.includes(f.codigo_estudante) &&
+      codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
       (anoLectivo ? f.ano_lectivo === anoLectivo : true)
     );
 
@@ -790,8 +816,9 @@ export default function FaltasAcademia() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {ts.map(t => {
+                const codigosTurma = new Set(t.estudantes.map(normCodigoEstudante).filter(Boolean));
                 const faltasTurma = todasFaltas.filter(f =>
-                  t.estudantes.includes(f.codigo_estudante) &&
+                  codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
                   (anoLectivo ? f.ano_lectivo === anoLectivo : true)
                 );
                 const totalFaltas = faltasTurma.reduce((acc, f) => acc + f.quantidade, 0);
@@ -840,6 +867,7 @@ export default function FaltasAcademia() {
       const { nivel, turma, materiaId, materiaNome } = layer;
       const faltas      = faltasDaTurmaEMateria(turma, materiaId);
       const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
+      const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
@@ -854,7 +882,7 @@ export default function FaltasAcademia() {
               <div><p className="text-xs text-gray-500 uppercase tracking-wide">Estudantes</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{new Set(faltas.map(f => f.codigo_estudante)).size}</p></div>
             </div>
           )}
-          <TabelaFaltas faltas={faltas} estudantesMap={estudantesMap} onEditar={setEditingFalta} onDeletar={setDeletingFalta} />
+          <TabelaFaltas faltas={faltas} estudantesMap={estudantesMap} codigosTurma={codigosTurma} onEditar={setEditingFalta} onDeletar={setDeletingFalta} />
         </div>
       );
     }
@@ -910,8 +938,9 @@ export default function FaltasAcademia() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {ts.map(t => {
+                const codigosTurma = new Set(t.estudantes.map(normCodigoEstudante).filter(Boolean));
                 const faltasTurma = todasFaltas.filter(f =>
-                  t.estudantes.includes(f.codigo_estudante) &&
+                  codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
                   (anoLectivo ? f.ano_lectivo === anoLectivo : true)
                 );
                 const totalFaltas = faltasTurma.reduce((acc, f) => acc + f.quantidade, 0);
@@ -960,6 +989,7 @@ export default function FaltasAcademia() {
       const { curso, nivel, turma, materiaId, materiaNome } = layer as any;
       const faltas      = faltasDaTurmaEMateria(turma, materiaId);
       const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
+      const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
@@ -974,7 +1004,7 @@ export default function FaltasAcademia() {
               <div><p className="text-xs text-gray-500 uppercase tracking-wide">Estudantes</p><p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{new Set(faltas.map(f => f.codigo_estudante)).size}</p></div>
             </div>
           )}
-          <TabelaFaltas faltas={faltas} estudantesMap={estudantesMap} onEditar={setEditingFalta} onDeletar={setDeletingFalta} />
+          <TabelaFaltas faltas={faltas} estudantesMap={estudantesMap} codigosTurma={codigosTurma} onEditar={setEditingFalta} onDeletar={setDeletingFalta} />
         </div>
       );
     }
