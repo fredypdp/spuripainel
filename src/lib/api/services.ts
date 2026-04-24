@@ -232,7 +232,7 @@ export const consultasService = {
     if (params?.limit)  qs.append('limit',  params.limit.toString());
     if (params?.offset) qs.append('offset', params.offset.toString());
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<{ notas: Nota[]; total: number; total_geral: number; limit: number; offset: number }>(`/notas${query}`, {
+    return api.get<import('@/types/api').ListarNotasResponse>(`/notas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },
@@ -249,7 +249,7 @@ export const consultasService = {
     if (params?.limit)  qs.append('limit',  params.limit.toString());
     if (params?.offset) qs.append('offset', params.offset.toString());
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<{ faltas: Falta[]; total: number; total_geral: number; limit: number; offset: number }>(`/faltas${query}`, {
+    return api.get<import('@/types/api').ListarFaltasResponse>(`/faltas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },

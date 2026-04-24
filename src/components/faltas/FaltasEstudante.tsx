@@ -42,6 +42,7 @@ interface AcadInfo {
   codigo: string;
   nome: string;
 }
+const MAX_LIMIT = 1000;
 
 type Layer =
   | { type: "academias" }
@@ -100,31 +101,63 @@ export default function FaltasEstudante() {
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
   const token = tokenStorage.get() ?? undefined;
 
-  const { data: historicoFaltas, execute: carregarFaltas, loading: loadingFaltas } =
-    useApi(consultasService.faltasEstudante);
+  const [todasFaltas, setTodasFaltas] = useState<Falta[]>([]);
+  const [loadingFaltas, setLoadingFaltas] = useState(false);
+  const { execute: carregarFaltasPage } = useApi(consultasService.listarFaltas);
   const { data: historicoTurmas, execute: carregarTurmas, loading: loadingTurmas } =
     useApi(consultasService.turmasEstudante);
+  const { data: academiasData, execute: carregarAcademias } =
+    useApi(consultasService.listarAcademias);
 
   useEffect(() => {
     if (codigoEstudante) {
-      carregarFaltas(codigoEstudante, token);
+      carregarTodasFaltas();
       carregarTurmas(codigoEstudante, token);
+      carregarAcademias(token);
     }
   }, [codigoEstudante]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const todasFaltas: Falta[] = historicoFaltas?.faltas ?? [];
   const todasTurmas: Turma[] = (historicoTurmas as any)?.turmas ?? [];
+
+  async function carregarTodasFaltas() {
+    setLoadingFaltas(true);
+    try {
+      const primeira = await carregarFaltasPage({ limit: MAX_LIMIT, offset: 0, token });
+      if (!primeira) return;
+
+      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
+      let acumulado: Falta[] = [...(primeira.faltas ?? [])];
+
+      if (totalGeral > MAX_LIMIT) {
+        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
+        const promises: Promise<any>[] = [];
+        for (let p = 1; p < paginas; p++) {
+          promises.push(carregarFaltasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
+        }
+        const resultados = await Promise.all(promises);
+        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.faltas ?? [])]; });
+      }
+
+      setTodasFaltas(acumulado.filter(f => f.codigo_estudante === codigoEstudante));
+    } finally {
+      setLoadingFaltas(false);
+    }
+  }
 
   // Academias únicas a partir das faltas
   const academias = useMemo((): AcadInfo[] => {
     const map = new Map<string, AcadInfo>();
     todasFaltas.forEach(f => {
       if (!map.has(f.codigo_academia)) {
-        map.set(f.codigo_academia, { codigo: f.codigo_academia, nome: f.codigo_academia });
+        const academiaNome =
+          f.academia_nome ||
+          ((academiasData as any)?.academias ?? []).find((a: any) => a.codigo_academia === f.codigo_academia)?.nome ||
+          f.codigo_academia;
+        map.set(f.codigo_academia, { codigo: f.codigo_academia, nome: academiaNome });
       }
     });
     return Array.from(map.values());
-  }, [todasFaltas]);
+  }, [todasFaltas, academiasData]);
 
   /**
    * Retorna as turmas de uma academia que possuem faltas para este estudante.
