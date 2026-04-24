@@ -1,6 +1,6 @@
 // src/components/faltas/FaltasAcademia.tsx
 "use client"
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
   ApiDate, MeuPerfilResponse, Falta, AtualizarFaltaRequest, RegistrarFaltasRequest,
@@ -528,8 +528,6 @@ function TabelaFaltas({
 
 // ─── componente principal ─────────────────────────────────────────────────────
 
-const MAX_LIMIT = 1000;
-
 export default function FaltasAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const token  = tokenStorage.get() ?? undefined;
@@ -549,7 +547,7 @@ export default function FaltasAcademia() {
 
   const [layer, setLayer]                     = useState<Layer>(initLayer);
   const [alert, setAlert]                     = useState<{ variant: "success" | "error"; message: string } | null>(null);
-  const [todasFaltas, setTodasFaltas]         = useState<Falta[]>([]);
+  const [faltasPorEstudante, setFaltasPorEstudante] = useState<Record<string, Falta[]>>({});
   const [carregandoFaltas, setCarregandoFaltas] = useState(false);
   const [editingFalta, setEditingFalta]       = useState<Falta | null>(null);
   const [deletingFalta, setDeletingFalta]     = useState<Falta | null>(null);
@@ -559,7 +557,6 @@ export default function FaltasAcademia() {
   const { data: dataEstudantes,                           execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data: dataMaterias,                             execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnoLetivo,                            execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
-  const { execute: carregarFaltasPage }                                                 = useApi(consultasService.listarFaltas);
   const { execute: executarRegistrar, loading: registrando } = useApi(academiaService.registrarFaltas);
   const { execute: executarAtualizar }                       = useApi(academiaService.atualizarFalta);
   const { execute: executarDeletar }                         = useApi(academiaService.deletarFalta);
@@ -572,33 +569,8 @@ export default function FaltasAcademia() {
     carregarEstudantes(undefined, token);
     carregarMaterias(token);
     buscarAnoLetivo(token);
-    carregarTodasFaltas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const carregarTodasFaltas = useCallback(async () => {
-    setCarregandoFaltas(true);
-    try {
-      const primeira = await carregarFaltasPage({ limit: MAX_LIMIT, offset: 0, token });
-      if (!primeira) return;
-      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
-      let acumulado: Falta[] = [...(primeira.faltas ?? [])];
-      if (totalGeral > MAX_LIMIT) {
-        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
-        const promises: Promise<any>[] = [];
-        for (let p = 1; p < paginas; p++) {
-          promises.push(carregarFaltasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
-        }
-        const resultados = await Promise.all(promises);
-        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.faltas ?? [])]; });
-      }
-      setTodasFaltas(acumulado);
-    } catch {
-      // silencioso
-    } finally {
-      setCarregandoFaltas(false);
-    }
-  }, [token, carregarFaltasPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dados derivados
   const turmas: Turma[]                 = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
@@ -607,6 +579,7 @@ export default function FaltasAcademia() {
   const materias                        = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
   const anoLectivo                      = (dataAnoLetivo as any)?.ano_letivo ?? "";
   const turmasAtivas: Turma[]           = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
+  const todasFaltas                     = useMemo(() => Object.values(faltasPorEstudante).flat(), [faltasPorEstudante]);
 
   const estudantesMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -619,14 +592,49 @@ export default function FaltasAcademia() {
     [materias]
   );
 
+  function codigosTurmaNormalizados(turma: Turma): string[] {
+    return Array.from(new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean)));
+  }
+
+  function codigoOriginalDaTurma(turma: Turma, codigoNorm: string): string {
+    return turma.estudantes.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
+  }
+
+  async function carregarFaltasDosEstudantesDaTurma(turma: Turma, force = false) {
+    const codigosNorm = codigosTurmaNormalizados(turma);
+    const codigosParaBuscar = force ? codigosNorm : codigosNorm.filter(c => !faltasPorEstudante[c]);
+    if (codigosParaBuscar.length === 0) return;
+
+    setCarregandoFaltas(true);
+    try {
+      const resultados = await Promise.all(
+        codigosParaBuscar.map(async (codigoNorm) => {
+          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm);
+          const resposta = await consultasService.faltasEstudante(codigoOriginal, token);
+          return { codigoNorm, faltas: resposta?.faltas ?? [] };
+        })
+      );
+
+      setFaltasPorEstudante(prev => {
+        const next = { ...prev };
+        resultados.forEach(({ codigoNorm, faltas }) => { next[codigoNorm] = faltas; });
+        return next;
+      });
+    } catch {
+      // silencioso
+    } finally {
+      setCarregandoFaltas(false);
+    }
+  }
+
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
   function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
-    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
-    return todasFaltas.filter(f =>
-      codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
+    const codigosTurma = codigosTurmaNormalizados(turma);
+    const faltasDaTurma = codigosTurma.flatMap(c => faltasPorEstudante[c] ?? []);
+    return faltasDaTurma.filter(f =>
       f.materia_disciplinar_id === materiaId &&
       (anoLectivo ? f.ano_lectivo === anoLectivo : true)
     ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
@@ -644,11 +652,10 @@ export default function FaltasAcademia() {
       return curso ? m.curso_id === curso.id : false;
     });
 
-    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
-    const faltasDaTurma = todasFaltas.filter(f =>
-      codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
-      (anoLectivo ? f.ano_lectivo === anoLectivo : true)
-    );
+    const codigosTurma = codigosTurmaNormalizados(turma);
+    const faltasDaTurma = codigosTurma
+      .flatMap(c => faltasPorEstudante[c] ?? [])
+      .filter(f => (anoLectivo ? f.ano_lectivo === anoLectivo : true));
 
     return materiasConfig.map((m: any) => {
       const id = m.id;
@@ -663,21 +670,24 @@ export default function FaltasAcademia() {
   async function handleRegistrar(data: RegistrarFaltasRequest) {
     await executarRegistrar(data, token);
     showAlert("success", "Falta registrada com sucesso!");
-    await carregarTodasFaltas();
+    const turmaAtual = layer.type === "materias" || layer.type === "faltas" ? layer.turma : null;
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
   }
 
   async function handleAtualizar(data: AtualizarFaltaRequest) {
     await executarAtualizar(data, token);
     showAlert("success", "Falta atualizada com sucesso!");
     setEditingFalta(null);
-    await carregarTodasFaltas();
+    const turmaAtual = layer.type === "materias" || layer.type === "faltas" ? layer.turma : null;
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
   }
 
   async function handleDeletar(faltaId: string, motivo: string) {
     await executarDeletar(faltaId, motivo, token);
     showAlert("success", "Falta excluída com sucesso!");
     setDeletingFalta(null);
-    setTodasFaltas(prev => prev.filter(f => f.id !== faltaId));
+    const turmaAtual = layer.type === "materias" || layer.type === "faltas" ? layer.turma : null;
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
   }
 
   // Navegação helpers
@@ -826,7 +836,10 @@ export default function FaltasAcademia() {
                   <CardBtn key={t.codigo_turma} icon="mdi:account-group"
                     title={`Turma ${t.codigo_turma}`}
                     subtitle={`${t.estudantes.length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
-                    onClick={() => setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: t })} />
+                    onClick={async () => {
+                      await carregarFaltasDosEstudantesDaTurma(t);
+                      setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: t });
+                    }} />
                 );
               })}
             </div>
@@ -948,7 +961,10 @@ export default function FaltasAcademia() {
                   <CardBtn key={t.codigo_turma} icon="mdi:account-group"
                     title={`Turma ${t.codigo_turma}`}
                     subtitle={`${t.estudantes.length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
-                    onClick={() => setLayer({ mode: "sup", type: "materias", curso, nivel, turma: t })} />
+                    onClick={async () => {
+                      await carregarFaltasDosEstudantesDaTurma(t);
+                      setLayer({ mode: "sup", type: "materias", curso, nivel, turma: t });
+                    }} />
                 );
               })}
             </div>

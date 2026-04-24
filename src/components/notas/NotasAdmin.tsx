@@ -260,55 +260,22 @@ function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudant
 
 // ─── componente principal ─────────────────────────────────────────────────────
 
-// Limite máximo da API para buscar todos os registros de uma vez
-const MAX_LIMIT = 1000;
-
 export default function NotasAdmin() {
   const token = tokenStorage.get() ?? undefined;
   const [layer, setLayer] = useState<Layer>({ type: "provincias" });
   const [loadingPeriodo, setLoadingPeriodo] = useState(false);
-  const [todasNotas, setTodasNotas] = useState<Nota[]>([]);
+  const [notasPorEstudante, setNotasPorEstudante] = useState<Record<string, Nota[]>>({});
   const [carregandoNotas, setCarregandoNotas] = useState(false);
 
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } = useApi(consultasService.listarAcademias);
-  const { execute: carregarNotasPage } = useApi(consultasService.listarNotas);
   const { data: estudantesData, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
 
   useEffect(() => {
     carregarAcademias(token);
     carregarEstudantes(undefined, token);
-    carregarTodasNotas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function carregarTodasNotas() {
-    setCarregandoNotas(true);
-    try {
-      // Primeira página para saber o total
-      const primeira = await carregarNotasPage({ limit: MAX_LIMIT, offset: 0, token });
-      if (!primeira) { setCarregandoNotas(false); return; }
-
-      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
-      let acumulado: Nota[] = [...(primeira.notas ?? [])];
-
-      // Buscar páginas restantes se necessário
-      if (totalGeral > MAX_LIMIT) {
-        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
-        const promises = [];
-        for (let p = 1; p < paginas; p++) {
-          promises.push(carregarNotasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
-        }
-        const resultados = await Promise.all(promises);
-        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.notas ?? [])]; });
-      }
-
-      setTodasNotas(acumulado);
-    } catch {
-      // erro silencioso — dados parciais já exibidos
-    } finally {
-      setCarregandoNotas(false);
-    }
-  }
+  const todasNotas = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
 
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
@@ -326,6 +293,39 @@ export default function NotasAdmin() {
     ((estudantesData as any)?.estudantes ?? []).forEach((e: any) => { m[e.codigo_estudante] = e.nome; });
     return m;
   }, [estudantesData]);
+
+  function estudantesDaAcademia(codigoAcademia: string): string[] {
+    const codigos = ((estudantesData as any)?.estudantes ?? [])
+      .filter((e: any) => e.codigo_academia === codigoAcademia)
+      .map((e: any) => normalizarValor(e.codigo_estudante))
+      .filter(Boolean);
+    return Array.from(new Set(codigos));
+  }
+
+  async function carregarNotasDaAcademia(codigoAcademia: string, force = false) {
+    const codigos = estudantesDaAcademia(codigoAcademia);
+    const codigosParaBuscar = force ? codigos : codigos.filter(c => !notasPorEstudante[c]);
+    if (codigosParaBuscar.length === 0) return;
+
+    setCarregandoNotas(true);
+    try {
+      const resultados = await Promise.all(
+        codigosParaBuscar.map(async (codigo) => {
+          const res = await consultasService.notasEstudante(codigo, token);
+          return { codigo, notas: res?.notas ?? [] };
+        })
+      );
+      setNotasPorEstudante(prev => {
+        const next = { ...prev };
+        resultados.forEach(({ codigo, notas }) => { next[codigo] = notas; });
+        return next;
+      });
+    } catch {
+      // erro silencioso
+    } finally {
+      setCarregandoNotas(false);
+    }
+  }
 
   const provincias = useMemo(() =>
     Array.from(new Set(academias.map(a => a.provincia))).sort(),
@@ -462,7 +462,10 @@ export default function NotasAdmin() {
                 title={a.nome}
                 subtitle={`${a.codigo_academia} · ${notasAcad.length} nota(s)`}
                 badge={a.type}
-                onClick={() => setLayer({ type: "academia_anos", academia: a })}
+                onClick={async () => {
+                  await carregarNotasDaAcademia(a.codigo_academia);
+                  setLayer({ type: "academia_anos", academia: a });
+                }}
               />
             );
           })}

@@ -8,7 +8,6 @@ import Icon from "@/components/ui/Icon";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const MAX_LIMIT = 1000;
 const ORDEM_ANOS = [
   "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental",
   "6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
@@ -159,42 +158,20 @@ export default function FaltasAdmin() {
   const token = tokenStorage.get() ?? undefined;
 
   const [layer, setLayer]               = useState<Layer>({ type: "provincias" });
-  const [todasFaltas, setTodasFaltas]   = useState<FaltaExt[]>([]);
+  const [faltasPorEstudante, setFaltasPorEstudante] = useState<Record<string, FaltaExt[]>>({});
   const [carregandoFaltas, setCarregandoFaltas] = useState(false);
 
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } =
     useApi(consultasService.listarAcademias);
-  const { execute: carregarFaltasPage } = useApi(consultasService.listarFaltas);
+  const { data: estudantesData, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
 
   useEffect(() => {
     carregarAcademias(token);
-    carregarTodasFaltas();
+    carregarEstudantes(undefined, token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function carregarTodasFaltas() {
-    setCarregandoFaltas(true);
-    try {
-      const primeira = await carregarFaltasPage({ limit: MAX_LIMIT, offset: 0, token });
-      if (!primeira) return;
-      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
-      let acumulado: FaltaExt[] = [...(primeira.faltas as FaltaExt[])];
-      if (totalGeral > MAX_LIMIT) {
-        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
-        const promises: Promise<any>[] = [];
-        for (let p = 1; p < paginas; p++) {
-          promises.push(carregarFaltasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
-        }
-        const resultados = await Promise.all(promises);
-        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.faltas as FaltaExt[])]; });
-      }
-      setTodasFaltas(acumulado);
-    } catch {
-      // silencioso
-    } finally {
-      setCarregandoFaltas(false);
-    }
-  }
+  const todasFaltas = useMemo(() => Object.values(faltasPorEstudante).flat(), [faltasPorEstudante]);
 
   // Use academia.nivel ('escola' | 'superior') — NOT academia.type ('public' | 'private')
   const academias: AcadInfo[] = useMemo(() =>
@@ -215,6 +192,40 @@ export default function FaltasAdmin() {
 
   function academiasNaProvincia(prov: string): AcadInfo[] {
     return academias.filter(a => a.provincia === prov);
+  }
+
+  function estudantesDaAcademia(codigoAcademia: string): string[] {
+    const codigos = ((estudantesData as any)?.estudantes ?? [])
+      .filter((e: any) => e.codigo_academia === codigoAcademia)
+      .map((e: any) => (e.codigo_estudante ?? "").trim().toLowerCase())
+      .filter(Boolean);
+    return Array.from(new Set(codigos));
+  }
+
+  async function carregarFaltasDaAcademia(codigoAcademia: string, force = false) {
+    const codigos = estudantesDaAcademia(codigoAcademia);
+    const codigosParaBuscar = force ? codigos : codigos.filter(c => !faltasPorEstudante[c]);
+    if (codigosParaBuscar.length === 0) return;
+
+    setCarregandoFaltas(true);
+    try {
+      const resultados = await Promise.all(
+        codigosParaBuscar.map(async (codigo) => {
+          const res = await consultasService.faltasEstudante(codigo, token);
+          return { codigo, faltas: (res?.faltas as FaltaExt[]) ?? [] };
+        })
+      );
+
+      setFaltasPorEstudante(prev => {
+        const next = { ...prev };
+        resultados.forEach(({ codigo, faltas }) => { next[codigo] = faltas; });
+        return next;
+      });
+    } catch {
+      // silencioso
+    } finally {
+      setCarregandoFaltas(false);
+    }
   }
 
   function faltasDeAcademia(codigoAcademia: string): FaltaExt[] {
@@ -347,7 +358,10 @@ export default function FaltasAdmin() {
                 title={a.nome}
                 subtitle={`${a.codigo_academia} · ${total} falta(s) · ${niveis} nível(eis)`}
                 badge={a.nivel}
-                onClick={() => setLayer({ type: "niveis", academia: a })}
+                onClick={async () => {
+                  await carregarFaltasDaAcademia(a.codigo_academia);
+                  setLayer({ type: "niveis", academia: a });
+                }}
               />
             );
           })}
