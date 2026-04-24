@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
+import { adminService, jobApiService, pollJob, tokenStorage } from "@/lib/api";
 import { resolveJobItemError } from "@/lib/api/job-service";
 import { getCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
@@ -457,6 +457,20 @@ export default function PageContent() {
   const [currentUser, setCurrentUser] = useState<MeuPerfilResponse | null>(null);
   const [academia, setAcademia] = useState<AcademiaInfo | null>(null);
   const [authError, setAuthError] = useState<string>("");
+  const [cadastroLoading, setCadastroLoading] = useState(false);
+  const [cadastroMsg, setCadastroMsg] = useState<string>("");
+  const [cadastroErro, setCadastroErro] = useState<string>("");
+  const [cadastroForm, setCadastroForm] = useState({
+    nivel: "escola" as "escola" | "superior",
+    type: "private" as "private" | "public",
+    nome: "",
+    provincia: "",
+    endereco: "",
+    numero_telefone: "",
+    email: "",
+    website: "",
+    nivel_escolar: "fundamental" as "fundamental" | "medio" | "misto",
+  });
 
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [materias, setMaterias] = useState<Materia[]>([]);
@@ -537,6 +551,53 @@ export default function PageContent() {
       setFaltaConfig(p => ({ ...p, qtdEstudantes: p.qtdEstudantes === 0 ? estudantes.length : p.qtdEstudantes }));
     }
   }, [estudantes.length]);
+
+  const handleCadastroAcademia = useCallback(async () => {
+    if (cadastroLoading) return;
+    setCadastroMsg("");
+    setCadastroErro("");
+
+    if (!cadastroForm.nome.trim() || !cadastroForm.provincia.trim() || !cadastroForm.endereco.trim()) {
+      setCadastroErro("Preencha os campos obrigatórios: nome, província e endereço.");
+      return;
+    }
+
+    try {
+      setCadastroLoading(true);
+      const basePayload = {
+        nivel: cadastroForm.nivel,
+        type: cadastroForm.type,
+        nome: cadastroForm.nome.trim(),
+        provincia: cadastroForm.provincia.trim(),
+        endereco: cadastroForm.endereco.trim(),
+        numero_telefone: cadastroForm.numero_telefone.trim() || undefined,
+        email: cadastroForm.email.trim() || undefined,
+        website: cadastroForm.website.trim() || undefined,
+      };
+
+      const payload = cadastroForm.nivel === "escola"
+        ? { ...basePayload, nivel_escolar: cadastroForm.nivel_escolar }
+        : basePayload;
+
+      const resp = await adminService.registrarAcademia(payload as any);
+      const codigo = resp?.data?.codigo_academia || resp?.codigo_academia;
+      setCadastroMsg(codigo
+        ? `Academia cadastrada com sucesso. Código: ${codigo}.`
+        : "Academia cadastrada com sucesso.");
+      setCadastroForm((prev) => ({
+        ...prev,
+        nome: "",
+        endereco: "",
+        numero_telefone: "",
+        email: "",
+        website: "",
+      }));
+    } catch (error: any) {
+      setCadastroErro(error?.message || "Não foi possível cadastrar a academia.");
+    } finally {
+      setCadastroLoading(false);
+    }
+  }, [cadastroForm, cadastroLoading]);
 
   useEffect(() => { if (academia) refreshData(academia); }, [academia?.codigo]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1607,6 +1668,50 @@ export default function PageContent() {
   }
 
   if (!academia) {
+    if (currentUser?.tipo === "admin") {
+      return (
+        <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ maxWidth: 760, margin: "0 auto", border: "1px solid #1e293b", borderRadius: 12, background: "#0f172a", padding: 24 }}>
+            <h1 style={{ marginTop: 0, marginBottom: 8, fontSize: 24 }}>Cadastrar Academia</h1>
+            <p style={{ marginTop: 0, color: "#94a3b8", marginBottom: 20 }}>
+              Preencha os dados abaixo para registrar uma nova academia.
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <input placeholder="Nome *" value={cadastroForm.nome} onChange={(e) => setCadastroForm((p) => ({ ...p, nome: e.target.value }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }} />
+              <input placeholder="Província *" value={cadastroForm.provincia} onChange={(e) => setCadastroForm((p) => ({ ...p, provincia: e.target.value }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }} />
+              <input placeholder="Endereço *" value={cadastroForm.endereco} onChange={(e) => setCadastroForm((p) => ({ ...p, endereco: e.target.value }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px", gridColumn: "1 / -1" }} />
+              <select value={cadastroForm.nivel} onChange={(e) => setCadastroForm((p) => ({ ...p, nivel: e.target.value as "escola" | "superior" }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }}>
+                <option value="escola">Escola</option>
+                <option value="superior">Superior</option>
+              </select>
+              <select value={cadastroForm.type} onChange={(e) => setCadastroForm((p) => ({ ...p, type: e.target.value as "private" | "public" }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }}>
+                <option value="private">Privada</option>
+                <option value="public">Pública</option>
+              </select>
+              {cadastroForm.nivel === "escola" && (
+                <select value={cadastroForm.nivel_escolar} onChange={(e) => setCadastroForm((p) => ({ ...p, nivel_escolar: e.target.value as "fundamental" | "medio" | "misto" }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }}>
+                  <option value="fundamental">Fundamental</option>
+                  <option value="medio">Médio</option>
+                  <option value="misto">Misto</option>
+                </select>
+              )}
+              <input placeholder="Telefone" value={cadastroForm.numero_telefone} onChange={(e) => setCadastroForm((p) => ({ ...p, numero_telefone: e.target.value }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }} />
+              <input placeholder="Email" value={cadastroForm.email} onChange={(e) => setCadastroForm((p) => ({ ...p, email: e.target.value }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px" }} />
+              <input placeholder="Website" value={cadastroForm.website} onChange={(e) => setCadastroForm((p) => ({ ...p, website: e.target.value }))} style={{ background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "10px 12px", gridColumn: "1 / -1" }} />
+            </div>
+
+            {cadastroErro && <p style={{ color: "#f87171", marginTop: 16 }}>{cadastroErro}</p>}
+            {cadastroMsg && <p style={{ color: "#4ade80", marginTop: 16 }}>{cadastroMsg}</p>}
+
+            <button onClick={handleCadastroAcademia} disabled={cadastroLoading} style={{ marginTop: 12, background: cadastroLoading ? "#1e293b" : "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontWeight: 700, cursor: cadastroLoading ? "not-allowed" : "pointer" }}>
+              {cadastroLoading ? "Cadastrando..." : "Cadastrar Academia"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{ minHeight: "100vh", background: "#020817", color: "#e2e8f0", padding: 24, fontFamily: "'JetBrains Mono', monospace", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ fontSize: 14, color: "#475569" }}>Carregando dados da academia...</div>
