@@ -382,8 +382,10 @@ export interface Nota {
   id: string;
   codigo_estudante: string;
   codigo_academia: string;
+  estudante_nome?: string;
+  academia_nome?: string;
   ano_lectivo: string;
-  ano_academico?: string;
+  ano_academico: string;
   periodo: Periodo;
   materia_disciplinar_id: string;
   materia_nome?: string;
@@ -400,6 +402,8 @@ export interface Falta {
   id: string;
   codigo_estudante: string;
   codigo_academia: string;
+  estudante_nome?: string;
+  academia_nome?: string;
   ano_lectivo: string;
   ano_academico: string;
   data: string;
@@ -616,6 +620,22 @@ export interface ListarTurmasResponse {
 export interface ListarCategoriasNotaResponse {
   categorias: CategoriaNotaItem[];
   total: number;
+}
+
+export interface ListarNotasResponse {
+  notas: Nota[];
+  total: number;
+  total_geral: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ListarFaltasResponse {
+  faltas: Falta[];
+  total: number;
+  total_geral: number;
+  limit: number;
+  offset: number;
 }
 
 export interface NotasEstudanteResponse {

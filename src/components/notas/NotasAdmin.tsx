@@ -13,6 +13,12 @@ const PERIODOS_LABEL: Record<string, string> = {
   "1_semestre": "1º Semestre",   "2_semestre": "2º Semestre",
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
+const ORDEM_ANOS = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental",
+  "6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
+  "1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio",
+  "1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior",
+];
 
 function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
@@ -38,9 +44,20 @@ function calcMedia(notas: Nota[]) {
   return notas.reduce((s, n) => s + n.nota, 0) / notas.length;
 }
 
+function sortAnosAcademicos(anos: string[]): string[] {
+  return [...anos].sort((a, b) => {
+    const ia = ORDEM_ANOS.indexOf(a);
+    const ib = ORDEM_ANOS.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
 function formatCategoria(c: string) {
   const m: Record<string, string> = {
-    nota_escola: "Nota Final", nota_professor: "Nota Prof.",
+    nota_escola: "Nota Escola", nota_professor: "Nota do Professor",
     nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame",
   };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
@@ -148,11 +165,12 @@ function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudante
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
+            const nomeEstudante = estudantesMap[codigo] ?? notasEst[0]?.estudante_nome ?? "-";
             const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
             const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
 
@@ -161,7 +179,7 @@ function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudante
                 <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
                   {i === 0 && (
                     <>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{estudantesMap[codigo] ?? "-"}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{nomeEstudante}</td>
                       <td className="px-4 py-3 text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
                     </>
                   )}
@@ -173,7 +191,7 @@ function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudante
 
             return (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{estudantesMap[codigo] ?? "-"}</td>
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nomeEstudante}</td>
                 <td className="px-4 py-3 text-gray-400 font-mono text-xs">{codigo}</td>
                 <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>
                   {notaProf?.nota ?? "—"}
@@ -221,7 +239,7 @@ function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudant
               <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
                 {i === 0 && (
                   <>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{estudantesMap[codigo] ?? "-"}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{estudantesMap[codigo] ?? notasEst[0]?.estudante_nome ?? "-"}</td>
                     <td className="px-4 py-3 text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
                   </>
                 )}
@@ -465,7 +483,9 @@ export default function NotasAdmin() {
     const { academia, ano } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano);
     const periodos = periodosNoAno(academia.codigo_academia, ano);
-    const anosAcademicos = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
+    const anosAcademicos = sortAnosAcademicos(
+      Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
+    );
 
     return (
       <div className="space-y-6">
@@ -517,7 +537,9 @@ export default function NotasAdmin() {
     const { academia, ano, periodo } = layer;
     const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, periodo);
     const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano && n.periodo === periodo);
-    const niveisPresentes = Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[];
+    const niveisPresentes = sortAnosAcademicos(
+      Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[]
+    );
 
     return (
       <div className="space-y-6">
@@ -559,7 +581,9 @@ export default function NotasAdmin() {
       n => n.ano_lectivo === ano && n.periodo === periodo && n.materia_disciplinar_id === materiaId
     );
     const isSup = isAcademiaSuperior(academia.codigo_academia);
-    const niveisNotas = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
+    const niveisNotas = sortAnosAcademicos(
+      Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
+    );
 
     return (
       <div className="space-y-6">

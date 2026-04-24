@@ -31,7 +31,7 @@ const PERIODOS_LABEL: Record<string, string> = {
 const PERIODOS_ESCOLA   = [{ label: "1º Trimestre", value: "1_trimestre" }, { label: "2º Trimestre", value: "2_trimestre" }, { label: "3º Trimestre", value: "3_trimestre" }];
 const PERIODOS_SUPERIOR = [{ label: "1º Semestre", value: "1_semestre" }, { label: "2º Semestre", value: "2_semestre" }];
 
-const CATEGORIAS_ESCOLAR        = [{ label: "Nota Final", value: "nota_escola" }, { label: "Nota Professor", value: "nota_professor" }];
+const CATEGORIAS_ESCOLAR        = [{ label: "Nota Escola", value: "nota_escola" }, { label: "Nota do Professor", value: "nota_professor" }];
 const CATEGORIAS_FIXAS_SUPERIOR = [{ label: "PP1", value: "nota_pp1" }, { label: "PP2", value: "nota_pp2" }, { label: "Exame", value: "nota_exame" }];
 
 const ANOS_FUNDAMENTAL = [
@@ -73,7 +73,7 @@ function calcMedia(notas: Nota[]) {
 
 function formatCategoria(c: string) {
   const m: Record<string, string> = {
-    nota_escola: "Nota Final", nota_professor: "Nota Prof.",
+    nota_escola: "Nota Escola", nota_professor: "Nota do Professor",
     nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame",
   };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
@@ -160,7 +160,7 @@ function StatsRow({ notas, label }: { notas: Nota[]; label: string }) {
   );
 }
 
-// Tabela escolar: Nome, Código, Nota Professor, Nota Final
+// Tabela escolar: Nome, Código, Nota do Professor, Nota Escola
 function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: EstudanteDetalhado[] }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
@@ -183,7 +183,7 @@ function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: 
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">

@@ -18,6 +18,12 @@ const PERIODOS_LABEL: Record<string, string> = {
   "1_semestre": "1º Semestre",   "2_semestre": "2º Semestre",
 };
 const ORDEM_PERIODOS = ["1_trimestre","2_trimestre","3_trimestre","1_semestre","2_semestre"];
+const ORDEM_ANOS = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental",
+  "6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
+  "1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio",
+  "1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior",
+];
 
 /**
  * Retorna label explícito do nível académico.
@@ -36,7 +42,7 @@ function labelNivel(v: string): string {
 
 function formatCategoria(c: string) {
   const m: Record<string, string> = {
-    nota_escola: "Nota Final",
+    nota_escola: "Nota Escola",
     nota_professor: "Nota do Professor",
     nota_pp1: "PP1",
     nota_pp2: "PP2",
@@ -49,6 +55,17 @@ function corNota(n: number) {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
   return "text-red-600 dark:text-red-400";
+}
+
+function sortAnosAcademicos(anos: string[]): string[] {
+  return [...anos].sort((a, b) => {
+    const ia = ORDEM_ANOS.indexOf(a);
+    const ib = ORDEM_ANOS.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
 }
 
 // ─── tipos ───────────────────────────────────────────────────────────────────
@@ -107,7 +124,7 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
 
 /**
  * Tabela para visão do estudante — escolar.
- * Colunas: Matéria Disciplinar | Nota do Professor | Nota Final
+ * Colunas: Matéria Disciplinar | Nota do Professor | Nota Escola
  * Sem médias.
  */
 function TabelaNotasEscolarEstudante({
@@ -137,7 +154,7 @@ function TabelaNotasEscolarEstudante({
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria Disciplinar</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Final</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -338,7 +355,9 @@ export default function NotasEstudante() {
   // ── Academia ──
   if (layer.type === "academia") {
     const notas = notasDe(layer.a.codigo);
-    const anosAcademicos = Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[];
+    const anosAcademicos = sortAnosAcademicos(
+      Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
+    );
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={crumbs} />
