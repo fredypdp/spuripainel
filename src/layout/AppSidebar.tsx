@@ -112,7 +112,8 @@ export default function AppSidebar() {
       user?.academia?.nivel === "escola" &&
       user?.academia?.nivel_escolar === "fundamental";
 
-    const isFpp = user?.tipo === "admin" && user?.admin?.role === "fpp";
+    const isAdmin = user?.tipo === "admin";
+    const isFpp = isAdmin && user?.admin?.role === "fpp";
 
     return navItems
       .filter((item) => {
@@ -151,12 +152,12 @@ export default function AppSidebar() {
           };
         }
 
-        // Academias: "Cadastrar" só para admin FPP
+        // Academias: "Cadastrar" só para admin
         if (item.name === "Academias" && item.subItems) {
           return {
             ...item,
             subItems: item.subItems.filter(
-              (sub) => sub.path !== "/academias/cadastrar" || isFpp,
+              (sub) => sub.path !== "/academias/cadastrar" || isAdmin,
             ),
           };
         }
