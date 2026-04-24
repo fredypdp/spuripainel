@@ -515,31 +515,11 @@ export default function PageContent() {
   useEffect(() => {
     const userCookie = getCookie("user");
     const token = tokenStorage.get();
-    if (!userCookie || !token) { setAuthError("Sem sessão ativa. Faça login como academia para usar esta página."); return; }
+    if (!userCookie || !token) { setAuthError("Sem sessão ativa. Faça login como admin para usar esta página."); return; }
     try {
       const parsed: MeuPerfilResponse = JSON.parse(userCookie);
-      if (parsed.tipo !== "academia") { setAuthError("Esta página é exclusiva para academias."); return; }
-      if (!parsed.academia) { setAuthError("Dados da academia não encontrados. Faça login novamente."); return; }
+      if (parsed.tipo !== "admin") { setAuthError("Esta página é exclusiva para admins."); return; }
       setCurrentUser(parsed);
-      const ac = parsed.academia;
-      const acInfo: AcademiaInfo = {
-        codigo: ac.codigo_academia,
-        token,
-        tipo: ac.nivel,
-        nivel: ac.nivel_escolar,
-        anos_academicos: ac.anos_academicos || [],
-        ano_letivo: ac.ano_letivo,
-      };
-      setAcademia(acInfo);
-
-      const tiposCurso = tiposCursoValidos(acInfo);
-      if (tiposCurso.length > 0) setCursoConfig(p => ({ ...p, tipo: tiposCurso[0].value }));
-      const tiposMateria = tiposMateriaValidos(acInfo);
-      if (tiposMateria.length > 0) setMateriaConfig(p => ({ ...p, tipo: tiposMateria[0].value }));
-
-      if (acInfo.nivel === "misto") {
-        setEstudanteConfig(p => ({ ...p, modoPrincipal: "fundamental" }));
-      }
     } catch { setAuthError("Erro ao ler dados da sessão. Faça login novamente."); }
   }, []);
 
