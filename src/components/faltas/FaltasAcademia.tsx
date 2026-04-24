@@ -624,15 +624,9 @@ export default function FaltasAcademia() {
       (anoLectivo ? f.ano_lectivo === anoLectivo : true)
     );
 
-    const merged = new Map<string, string>();
-    materiasConfig.forEach((m: any) => merged.set(m.id, m.nome));
-    faltasDaTurma.forEach(f => {
-      if (!merged.has(f.materia_disciplinar_id)) {
-        merged.set(f.materia_disciplinar_id, f.materia_nome ?? f.materia_disciplinar_id);
-      }
-    });
-
-    return Array.from(merged.entries()).map(([id, nome]) => {
+    return materiasConfig.map((m: any) => {
+      const id = m.id;
+      const nome = m.nome;
       const fs    = faltasDaTurma.filter(f => f.materia_disciplinar_id === id);
       const total = fs.reduce((acc, f) => acc + f.quantidade, 0);
       return { id, nome, totalFaltas: total, registros: fs.length };

@@ -209,6 +209,13 @@ function estudanteCompatívelComTurma(
   return true;
 }
 
+function getAnoAcademicoEstudante(estudante: Estudante, academia: AcademiaInfo): string | null {
+  if (academia.tipo === "superior") return estudante.ano_superior ?? null;
+  if (academia.nivel === "fundamental") return estudante.ano_escolar ?? null;
+  if (academia.nivel === "medio") return estudante.ano_escolar_medio ?? null;
+  return estudante.ano_escolar_medio || estudante.ano_escolar || null;
+}
+
 // ─── NumberStepper Component ───────────────────────────────────────────────────
 
 function NumberStepper({
@@ -1254,7 +1261,6 @@ export default function PageContent() {
     let totalSkippedBatch = 0;
 
     const materiasTipo = materias.filter(m => tiposMateriasCompativeis.includes(m.type));
-
     if (materiasTipo.length === 0) {
       addLog(`  ✗ Nenhuma matéria ativa compatível (tipos esperados: ${tiposMateriasCompativeis.join(", ")})`, "err");
       return;
@@ -1265,12 +1271,27 @@ export default function PageContent() {
 
       const est = sample[i];
 
+      const anoAcademico = getAnoAcademicoEstudante(est, academia);
+      if (!anoAcademico) continue;
+
+      const materiasDoAno = materiasTipo.filter(mat => {
+        if (academia.tipo === "superior") {
+          return !!mat.curso_id && mat.anos_academicos?.includes(anoAcademico) && mat.curso_id === est.curso_superior_id;
+        }
+        if (anoAcademico.includes("medio")) {
+          return mat.type === "medio" && !!mat.curso_id && mat.curso_id === est.curso_medio_id;
+        }
+        return mat.type === "fundamental" && mat.anos_academicos?.includes(anoAcademico);
+      });
+
+      if (materiasDoAno.length === 0) continue;
+
       // Seleciona até 3 matérias por estudante (rotação por índice para distribuição uniforme)
-      const numMaterias = Math.min(3, materiasTipo.length);
-      const startIdx = i % materiasTipo.length;
+      const numMaterias = Math.min(3, materiasDoAno.length);
+      const startIdx = i % materiasDoAno.length;
       const materiasSample: Materia[] = [];
       for (let m = 0; m < numMaterias; m++) {
-        materiasSample.push(materiasTipo[(startIdx + m) % materiasTipo.length]);
+        materiasSample.push(materiasDoAno[(startIdx + m) % materiasDoAno.length]);
       }
 
       for (const mat of materiasSample) {
@@ -1432,7 +1453,21 @@ export default function PageContent() {
       if (cancelRef.current) break;
 
       const est = sample[i];
-      const materiasSample = pickN(materiasTipo, Math.min(2, materiasTipo.length));
+      const anoAcademico = getAnoAcademicoEstudante(est, academia);
+      if (!anoAcademico) continue;
+
+      const materiasDoAno = materiasTipo.filter(mat => {
+        if (academia.tipo === "superior") {
+          return !!mat.curso_id && mat.anos_academicos?.includes(anoAcademico) && mat.curso_id === est.curso_superior_id;
+        }
+        if (anoAcademico.includes("medio")) {
+          return mat.type === "medio" && !!mat.curso_id && mat.curso_id === est.curso_medio_id;
+        }
+        return mat.type === "fundamental" && mat.anos_academicos?.includes(anoAcademico);
+      });
+
+      if (materiasDoAno.length === 0) continue;
+      const materiasSample = pickN(materiasDoAno, Math.min(2, materiasDoAno.length));
 
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);

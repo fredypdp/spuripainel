@@ -636,15 +636,9 @@ export default function NotasAcademia() {
       return curso ? m.curso_id === curso.id && m.periodo === periodo : false;
     });
 
-    const notasPeriodo = notasDaTurmaEmPeriodo(turma, periodo);
-    const materiasDeNotas = new Map<string, string>();
-    notasPeriodo.forEach(n => { if (!materiasDeNotas.has(n.materia_disciplinar_id)) materiasDeNotas.set(n.materia_disciplinar_id, n.materia_nome ?? n.materia_disciplinar_id); });
-
-    const merged = new Map<string, string>();
-    materiasContexto.forEach((m: any) => merged.set(m.id, m.nome));
-    materiasDeNotas.forEach((nome, id) => { if (!merged.has(id)) merged.set(id, nome); });
-
-    return Array.from(merged.entries()).map(([id, nome]) => {
+    return materiasContexto.map((m: any) => {
+      const id = m.id;
+      const nome = m.nome;
       const notasMateria = notasDaTurmaEmPeriodoEMateria(turma, periodo, id);
       return { id, nome, notasCount: notasMateria.length, media: calcMedia(notasMateria) };
     }).sort((a, b) => a.nome.localeCompare(b.nome));

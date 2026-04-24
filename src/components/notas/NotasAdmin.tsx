@@ -78,10 +78,10 @@ type Layer =
   | { type: "provincias" }
   | { type: "academias"; provincia: string }
   | { type: "academia_anos"; academia: AcadInfo }
-  | { type: "academia_turmas"; academia: AcadInfo; ano: string }
-  | { type: "academia_periodos"; academia: AcadInfo; ano: string; turma: string }
-  | { type: "academia_materias"; academia: AcadInfo; ano: string; periodo: string }
-  | { type: "academia_notas"; academia: AcadInfo; ano: string; periodo: string; materiaId: string; materiaNome: string };
+  | { type: "academia_niveis"; academia: AcadInfo; ano: string }
+  | { type: "academia_periodos"; academia: AcadInfo; ano: string; nivel: string }
+  | { type: "academia_materias"; academia: AcadInfo; ano: string; nivel: string; periodo: string }
+  | { type: "academia_notas"; academia: AcadInfo; ano: string; nivel: string; periodo: string; materiaId: string; materiaNome: string };
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
@@ -351,9 +351,11 @@ export default function NotasAdmin() {
   }
 
   function materiasNoAnoEPeriodo(
-    codigoAcademia: string, ano: string, periodo: string
+    codigoAcademia: string, ano: string, nivel: string, periodo: string
   ): { id: string; nome: string; notasCount: number; media: number | null }[] {
-    const notas = notasDeAcademia(codigoAcademia).filter(n => n.ano_lectivo === ano && n.periodo === periodo);
+    const notas = notasDeAcademia(codigoAcademia).filter(
+      n => n.ano_lectivo === ano && n.ano_academico === nivel && n.periodo === periodo
+    );
     const map = new Map<string, { nome: string; count: number; sum: number }>();
     notas.forEach(n => {
       const ex = map.get(n.materia_disciplinar_id);
@@ -376,10 +378,10 @@ export default function NotasAdmin() {
     if (layer.type === "provincias") return [provs];
     if (layer.type === "academias") return [provs, { label: nomeProvinciaDeCodigo(layer.provincia) }];
     if (layer.type === "academia_anos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome }];
-    if (layer.type === "academia_turmas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/") }];
-    if (layer.type === "academia_materias") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
-    if (layer.type === "academia_notas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ type: "academia_materias", academia: layer.academia, ano: layer.ano, periodo: layer.periodo }) }, { label: layer.materiaNome }];
-    if (layer.type === "academia_periodos") return [provs];
+    if (layer.type === "academia_niveis") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/") }];
+    if (layer.type === "academia_periodos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, ano: layer.ano }) }, { label: labelNivel(layer.nivel) }];
+    if (layer.type === "academia_materias") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, ano: layer.ano }) }, { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "academia_periodos", academia: layer.academia, ano: layer.ano, nivel: layer.nivel }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
+    if (layer.type === "academia_notas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, ano: layer.ano }) }, { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "academia_periodos", academia: layer.academia, ano: layer.ano, nivel: layer.nivel }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ type: "academia_materias", academia: layer.academia, ano: layer.ano, nivel: layer.nivel, periodo: layer.periodo }) }, { label: layer.materiaNome }];
     return [provs];
   }
 
@@ -472,18 +474,17 @@ export default function NotasAdmin() {
           : <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano => {
               const np = notas.filter(n => n.ano_lectivo === ano);
               const med = calcMedia(np);
-              return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g, "/")}`} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_turmas", academia, ano })} />;
+              return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g, "/")}`} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_niveis", academia, ano })} />;
             })}</div>
         }
       </div>
     );
   }
 
-  if (layer.type === "academia_turmas") {
+  if (layer.type === "academia_niveis") {
     const { academia, ano } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano);
-    const periodos = periodosNoAno(academia.codigo_academia, ano);
-    const anosAcademicos = sortAnosAcademicos(
+    const niveisAcademicos = sortAnosAcademicos(
       Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
     );
 
@@ -492,51 +493,61 @@ export default function NotasAdmin() {
         <Breadcrumb crumbs={buildCrumbs()} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano letivo {ano.replace(/_/g, "/")}</h2>
         <StatsRow notas={notas} />
-
-        {anosAcademicos.length > 0 && (
-          <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Níveis com notas</p>
-            <div className="flex flex-wrap gap-2">
-              {anosAcademicos.map(a => (
-                <span key={a} className="text-xs px-2 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium">
-                  {labelNivel(a)}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Períodos</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {periodos.map(p => {
-              const np = notas.filter(n => n.periodo === p);
-              const med = calcMedia(np);
-              return (
-                <CardBtn
-                  key={p}
-                  icon="mdi:clipboard-text-clock-outline"
-                  title={PERIODOS_LABEL[p] ?? p}
-                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
-                  onClick={() => entrarNoPeriodo({ type: "academia_materias", academia, ano, periodo: p })}
-                />
-              );
-            })}
-          </div>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {niveisAcademicos.map(nivel => {
+            const nn = notas.filter(n => n.ano_academico === nivel);
+            return (
+              <CardBtn
+                key={nivel}
+                icon="mdi:numeric"
+                title={labelNivel(nivel)}
+                subtitle={`${nn.length} nota(s)`}
+                onClick={() => setLayer({ type: "academia_periodos", academia, ano, nivel })}
+              />
+            );
+          })}
         </div>
       </div>
     );
   }
 
   if (layer.type === "academia_periodos") {
-    setLayer({ type: "academia_turmas", academia: layer.academia, ano: layer.ano });
-    return null;
+    const { academia, ano, nivel } = layer;
+    const notas = notasDeAcademia(academia.codigo_academia).filter(
+      n => n.ano_lectivo === ano && n.ano_academico === nivel
+    );
+    const periodos = Array.from(new Set(notas.map(n => n.periodo))).sort(
+      (a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b)
+    );
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={buildCrumbs()} />
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {periodos.map(p => {
+            const np = notas.filter(n => n.periodo === p);
+            const med = calcMedia(np);
+            return (
+              <CardBtn
+                key={p}
+                icon="mdi:clipboard-text-clock-outline"
+                title={PERIODOS_LABEL[p] ?? p}
+                subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                onClick={() => entrarNoPeriodo({ type: "academia_materias", academia, ano, nivel, periodo: p })}
+              />
+            );
+          })}
+        </div>
+      </div>
+    );
   }
 
   if (layer.type === "academia_materias") {
-    const { academia, ano, periodo } = layer;
-    const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, periodo);
-    const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(n => n.ano_lectivo === ano && n.periodo === periodo);
+    const { academia, ano, nivel, periodo } = layer;
+    const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, nivel, periodo);
+    const notasPeriodo = notasDeAcademia(academia.codigo_academia).filter(
+      n => n.ano_lectivo === ano && n.ano_academico === nivel && n.periodo === periodo
+    );
     const niveisPresentes = sortAnosAcademicos(
       Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[]
     );
@@ -547,7 +558,7 @@ export default function NotasAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {academia.nome} · {ano.replace(/_/g, "/")}
+            {academia.nome} · {ano.replace(/_/g, "/")} · {labelNivel(nivel)}
             {niveisPresentes.length > 0 && (
               <span className="ml-1">· {niveisPresentes.map(labelNivel).join(", ")}</span>
             )}
@@ -564,7 +575,7 @@ export default function NotasAdmin() {
                     <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome}
                       subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas"}
                       badge={m.notasCount === 0 ? "vazia" : undefined}
-                      onClick={() => setLayer({ type: "academia_notas", academia, ano, periodo, materiaId: m.id, materiaNome: m.nome })}
+                      onClick={() => setLayer({ type: "academia_notas", academia, ano, nivel, periodo, materiaId: m.id, materiaNome: m.nome })}
                     />
                   ))}</div>
               }
@@ -576,9 +587,9 @@ export default function NotasAdmin() {
   }
 
   if (layer.type === "academia_notas") {
-    const { academia, ano, periodo, materiaId, materiaNome } = layer;
+    const { academia, ano, nivel, periodo, materiaId, materiaNome } = layer;
     const notas = notasDeAcademia(academia.codigo_academia).filter(
-      n => n.ano_lectivo === ano && n.periodo === periodo && n.materia_disciplinar_id === materiaId
+      n => n.ano_lectivo === ano && n.ano_academico === nivel && n.periodo === periodo && n.materia_disciplinar_id === materiaId
     );
     const isSup = isAcademiaSuperior(academia.codigo_academia);
     const niveisNotas = sortAnosAcademicos(
@@ -591,7 +602,7 @@ export default function NotasAdmin() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {academia.nome} · {ano.replace(/_/g, "/")} · {PERIODOS_LABEL[periodo] ?? periodo}
+            {academia.nome} · {ano.replace(/_/g, "/")} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo}
             {niveisNotas.length > 0 && (
               <span className="ml-1">· {niveisNotas.map(labelNivel).join(", ")}</span>
             )}
