@@ -568,8 +568,6 @@ function ModalGestao({
 
 // ─── componente principal ─────────────────────────────────────────────────────
 
-const MAX_LIMIT = 1000;
-
 export default function NotasAcademia() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const token = tokenStorage.get() ?? undefined;
@@ -591,7 +589,7 @@ export default function NotasAcademia() {
   };
   const [layer, setLayer]             = useState<Layer>(initLayer);
   const [alert, setAlert]             = useState<{ variant: "success" | "error"; message: string } | null>(null);
-  const [todasNotas, setTodasNotas]   = useState<Nota[]>([]);
+  const [notasPorEstudante, setNotasPorEstudante] = useState<Record<string, Nota[]>>({});
   const [carregandoNotas, setCarregandoNotas] = useState(false);
 
   const { data: dataTurmas,     loading: loadingTurmas,     execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
@@ -600,7 +598,6 @@ export default function NotasAcademia() {
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataCategorias,                              execute: carregarCategorias } = useApi(academiaService.listarCategoriasNota);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
-  const { execute: carregarNotasPage }                                                     = useApi(consultasService.listarNotas);
 
   const { isOpen, openModal, closeModal } = useModal();
 
@@ -611,36 +608,8 @@ export default function NotasAcademia() {
     carregarMaterias(token);
     buscarAnoLetivo(token);
     if (isSuperior) carregarCategorias(token);
-    carregarTodasNotas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function carregarTodasNotas() {
-    setCarregandoNotas(true);
-    try {
-      const primeira = await carregarNotasPage({ limit: MAX_LIMIT, offset: 0, token });
-      if (!primeira) { setCarregandoNotas(false); return; }
-
-      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
-      let acumulado: Nota[] = [...(primeira.notas ?? [])];
-
-      if (totalGeral > MAX_LIMIT) {
-        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
-        const promises = [];
-        for (let p = 1; p < paginas; p++) {
-          promises.push(carregarNotasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
-        }
-        const resultados = await Promise.all(promises);
-        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.notas ?? [])]; });
-      }
-
-      setTodasNotas(acumulado);
-    } catch {
-      // erro silencioso — UI continua funcionando com dados parciais
-    } finally {
-      setCarregandoNotas(false);
-    }
-  }
 
   const turmas: Turma[]                  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
@@ -649,28 +618,68 @@ export default function NotasAcademia() {
   const categorias                       = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
   const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
+  const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
 
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  function notasDaTurmaEmPeriodo(turma: Turma, periodo: string): Nota[] {
-    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
-    return todasNotas.filter(n =>
-      codigosTurma.has(normCodigoEstudante(n.codigo_estudante)) &&
-      n.periodo === periodo &&
-      (anoLectivo ? n.ano_lectivo === anoLectivo : true)
+  function codigosTurmaNormalizados(turma: Turma): string[] {
+    return Array.from(new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean)));
+  }
+
+  function codigoOriginalDaTurma(turma: Turma, codigoNorm: string): string {
+    return turma.estudantes.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
+  }
+
+  async function carregarNotasDosEstudantesDaTurma(turma: Turma, force = false) {
+    const codigosNorm = codigosTurmaNormalizados(turma);
+    const codigosParaBuscar = force ? codigosNorm : codigosNorm.filter(c => !notasPorEstudante[c]);
+    if (codigosParaBuscar.length === 0) return;
+
+    setCarregandoNotas(true);
+    try {
+      const resultados = await Promise.all(
+        codigosParaBuscar.map(async (codigoNorm) => {
+          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm);
+          const resposta = await consultasService.notasEstudante(codigoOriginal, token);
+          return { codigoNorm, notas: resposta?.notas ?? [] };
+        })
+      );
+
+      setNotasPorEstudante(prev => {
+        const next = { ...prev };
+        resultados.forEach(({ codigoNorm, notas }) => { next[codigoNorm] = notas; });
+        return next;
+      });
+    } catch {
+      // erro silencioso — UI continua funcionando com dados parciais
+    } finally {
+      setCarregandoNotas(false);
+    }
+  }
+
+  function notasDaTurmaEmPeriodo(turma: Turma, nivel: string, periodo: string): Nota[] {
+    const codigosTurma = codigosTurmaNormalizados(turma);
+
+    // 1) notas de estudantes da turma (carregadas via /notas-estudante/:codigo)
+    const notasDaTurma = codigosTurma.flatMap(codigo => notasPorEstudante[codigo] ?? []);
+
+    // 2) ano letivo atual da academia (quando informado)
+    const notasAnoLetivo = anoLectivo
+      ? notasDaTurma.filter(n => n.ano_lectivo === anoLectivo)
+      : notasDaTurma;
+
+    // 3) contexto atual: ano académico + período
+    return notasAnoLetivo.filter(n =>
+      n.ano_academico === nivel &&
+      n.periodo === periodo
     );
   }
 
-  function notasDaTurmaEmPeriodoEMateria(turma: Turma, periodo: string, materiaId: string): Nota[] {
-    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
-    return todasNotas.filter(n =>
-      codigosTurma.has(normCodigoEstudante(n.codigo_estudante)) &&
-      n.periodo === periodo &&
-      n.materia_disciplinar_id === materiaId &&
-      (anoLectivo ? n.ano_lectivo === anoLectivo : true)
-    );
+  function notasDaTurmaEmPeriodoEMateria(turma: Turma, nivel: string, periodo: string, materiaId: string): Nota[] {
+    const notasContexto = notasDaTurmaEmPeriodo(turma, nivel, periodo);
+    return notasContexto.filter(n => n.materia_disciplinar_id === materiaId);
   }
 
   function getMateriasPorContexto(
@@ -688,7 +697,7 @@ export default function NotasAcademia() {
     return materiasContexto.map((m: any) => {
       const id = m.id;
       const nome = m.nome;
-      const notasMateria = notasDaTurmaEmPeriodoEMateria(turma, periodo, id);
+      const notasMateria = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, id);
       return { id, nome, notasCount: notasMateria.length, media: calcMedia(notasMateria) };
     }).sort((a, b) => a.nome.localeCompare(b.nome));
   }
@@ -706,16 +715,19 @@ export default function NotasAcademia() {
   async function handleRegistrar(d: RegistrarNotasRequest) {
     await academiaService.registrarNota(d, token);
     showAlert("success", "Nota registada com sucesso.");
-    await carregarTodasNotas();
+    const turmaAtual = layer.type === "periodos" || layer.type === "materias" || layer.type === "notas" ? layer.turma : null;
+    if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
   }
   async function handleAtualizar(d: AtualizarNotaRequest) {
     await academiaService.atualizarNota(d, token);
     showAlert("success", "Nota atualizada com sucesso.");
-    await carregarTodasNotas();
+    const turmaAtual = layer.type === "periodos" || layer.type === "materias" || layer.type === "notas" ? layer.turma : null;
+    if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
   }
   async function handleDeletar(notaId: string, motivo: string) {
     await academiaService.deletarNota(notaId, motivo, token);
-    setTodasNotas(prev => prev.filter(n => n.id !== notaId));
+    const turmaAtual = layer.type === "periodos" || layer.type === "materias" || layer.type === "notas" ? layer.turma : null;
+    if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
     showAlert("success", "Nota excluída com sucesso.");
   }
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
@@ -802,7 +814,7 @@ export default function NotasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel)}</h2>
           {ts.length === 0
             ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma turma ativa para este nível.</p></div>
-            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={() => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: t })} />))}</div>
+            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: t }); }} />))}</div>
           }
         </div>
       );
@@ -850,7 +862,7 @@ export default function NotasAcademia() {
 
     if (layer.mode === "fund" && layer.type === "notas") {
       const { nivel, turma, periodo, materiaId, materiaNome } = layer;
-      const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      const notas = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, materiaId);
       const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
@@ -899,7 +911,7 @@ export default function NotasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
           {ts.length === 0
             ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma turma ativa para este nível neste curso.</p></div>
-            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s)`} onClick={() => setLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t })} />))}</div>
+            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s)`} onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t }); }} />))}</div>
           }
         </div>
       );
@@ -947,7 +959,7 @@ export default function NotasAcademia() {
 
     if (layer.mode === "sup" && layer.type === "notas") {
       const { curso, nivel, turma, periodo, materiaId, materiaNome } = layer as any;
-      const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      const notas = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, materiaId);
       const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
