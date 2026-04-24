@@ -158,7 +158,9 @@ function TabelaNotasEscolarEstudante({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porMateria.entries()).map(([, { nome, notas: nm }]) => {
+          {Array.from(porMateria.entries())
+            .sort((a, b) => a[1].nome.localeCompare(b[1].nome))
+            .map(([, { nome, notas: nm }]) => {
             const notaProf = nm.find(n => n.categoria === "nota_professor");
             const notaFinal = nm.find(n => n.categoria === "nota_escola");
 
@@ -228,7 +230,9 @@ function TabelaNotasSuperiorEstudante({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porMateria.entries()).map(([, { nome, notas: nm }]) =>
+          {Array.from(porMateria.entries())
+            .sort((a, b) => a[1].nome.localeCompare(b[1].nome))
+            .map(([, { nome, notas: nm }]) =>
             nm.map((n, i) => (
               <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 {i === 0 && (

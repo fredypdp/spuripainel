@@ -171,7 +171,10 @@ export default function FaltasEstudante() {
         .filter(Boolean)
     );
     return todasTurmas.filter(
-      t => t.codigo_academia === codigoAcademia && niveisComFaltas.has(t.nivel)
+      t =>
+        t.codigo_academia === codigoAcademia &&
+        niveisComFaltas.has(t.nivel) &&
+        t.estudantes.includes(codigoEstudante)
     );
   }
 

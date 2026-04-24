@@ -9,6 +9,12 @@ import Icon from "@/components/ui/Icon";
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 const MAX_LIMIT = 1000;
+const ORDEM_ANOS = [
+  "1_ano_fundamental","2_ano_fundamental","3_ano_fundamental","4_ano_fundamental","5_ano_fundamental",
+  "6_ano_fundamental","7_ano_fundamental","8_ano_fundamental","9_ano_fundamental",
+  "1_ano_medio","2_ano_medio","3_ano_medio","4_ano_medio",
+  "1_ano_superior","2_ano_superior","3_ano_superior","4_ano_superior","5_ano_superior","6_ano_superior",
+];
 
 function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
@@ -35,6 +41,15 @@ function formatarData(data: string) {
       day: "2-digit", month: "2-digit", year: "numeric",
     });
   } catch { return data; }
+}
+
+function ordenarAnoAcademico(a: string, b: string) {
+  const ia = ORDEM_ANOS.indexOf(a);
+  const ib = ORDEM_ANOS.indexOf(b);
+  if (ia === -1 && ib === -1) return a.localeCompare(b);
+  if (ia === -1) return 1;
+  if (ib === -1) return -1;
+  return ia - ib;
 }
 
 // FaltaRegistroDTO: GET /faltas retorna estudante_nome e academia_nome extras
@@ -218,7 +233,7 @@ export default function FaltasAdmin() {
     });
     return Array.from(map.entries())
       .map(([nivel, stats]) => ({ nivel, ...stats }))
-      .sort((a, b) => a.nivel.localeCompare(b.nivel));
+      .sort((a, b) => ordenarAnoAcademico(a.nivel, b.nivel));
   }
 
   function materiasDoNivel(codigoAcademia: string, nivel: string) {
