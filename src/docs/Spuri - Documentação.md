@@ -1,8 +1,8 @@
 ---
-modificado: 18-04-2026 15:05
+modificado: 24-04-2026 10:30
 criado: 05-04-2026 13:01
 ---
-Versão atual: 1.3.0
+Versão atual: 1.3.1
 ## Índice
 
 1. [[#1. Visão Geral]]
@@ -511,7 +511,8 @@ Pode ser chamado múltiplas vezes — cada chamada substitui o valor anterior. O
 3. Sistema verifica que estudante pertence à academia
 4. Sistema verifica que matéria pertence à academia
 5. Sistema infere o `ano_academico`:
-    - Se estudante tem `ano_escolar` preenchido (fundamental) → usa esse valor
+    - Se estudante tem `ano_escolar` preenchido (fundamental) → usa esse valor **somente se** esse ano existir em `anos_academicos` da matéria
+    - Se não existir, o registro é bloqueado com erro de validação (incompatibilidade estudante × matéria)
     - Caso contrário → usa `anos_academicos[0]` da matéria
 6. Sistema verifica idempotência (chave: `anoLectivo_periodo_materiaID_tipo_categoria`)
 7. Se não for duplicata, emite `NotasRegistradas` no ledger do estudante
@@ -549,7 +550,7 @@ Academias podem criar **categorias adicionais** personalizadas, disponíveis par
 
 **Quantidade**: deve ser positiva (≥ 1)
 
-**Data**: formato `AAAA-MM-DD`
+**Data**: formato `AAAA-MM-DD` (date-only, sem componente de hora)
 
 **Regra de registro**: faltas mantêm unicidade por combinação de ano letivo + data + matéria.
 
@@ -764,6 +765,7 @@ Se qualquer item falhar, o job fica como `failed` (não `done`), permitindo que 
 | ------------------------------------------- | ------------------------------------------------------------- |
 | Nota deve ser 0 ou mais                     | Validação no aggregate, não apenas no handler                 |
 | Academia escola só registra notas `escolar` | Academia superior só registra `superior`                      |
+| Ano do estudante deve pertencer à matéria   | Se `ano_escolar` não estiver em `anos_academicos`, bloqueia   |
 | Observação obrigatória na correção          | Justificativa da alteração                                    |
 | Motivo obrigatório na deleção               | Para auditoria                                                |
 | Duplicata bloqueada no aggregate            | Mesma combinação ano/período/matéria/tipo/categoria rejeitada |
