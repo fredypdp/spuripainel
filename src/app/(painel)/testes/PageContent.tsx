@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { jobApiService, pollJob, tokenStorage } from "@/lib/api";
 import { resolveJobItemError } from "@/lib/api/job-service";
 import { getCookie } from "@/lib/utils/cookies";
-import type { MeuPerfilResponse } from "@/types/api";
+import type { ApiDate, MeuPerfilResponse } from "@/types/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ const MATERIAS_MEDIO = ["Língua Portuguesa","Matemática","Física","Química",
 const MATERIAS_SUPERIOR = ["Álgebra Linear","Cálculo I","Programação","Estruturas de Dados","Redes","Sistemas Operativos","Base de Dados","Engenharia de Software","Inteligência Artificial","Segurança Informática"];
 
 const TURNOS = ["manha","tarde","noite"] as const;
-const DATAS_FALTA = ["2025-03-10","2025-04-07","2025-05-05","2025-06-02","2025-07-07","2025-09-01","2025-10-06","2025-11-03"];
+const DATAS_FALTA: ApiDate[] = ["2025-03-10","2025-04-07","2025-05-05","2025-06-02","2025-07-07","2025-09-01","2025-10-06","2025-11-03"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

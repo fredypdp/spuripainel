@@ -2,7 +2,7 @@
 "use client"
 import { useState, useEffect, useMemo } from "react";
 import { useApi, consultasService, tokenStorage } from "@/lib/api";
-import type { Falta } from "@/types/api";
+import type { ApiDate, Falta } from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
@@ -35,7 +35,7 @@ function corQuantidade(q: number) {
   return "text-gray-700 dark:text-gray-300";
 }
 
-function formatarData(data: string) {
+function formatarData(data: ApiDate) {
   try {
     return new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
       day: "2-digit", month: "2-digit", year: "numeric",

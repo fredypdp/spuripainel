@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
-  MeuPerfilResponse, Falta, AtualizarFaltaRequest, RegistrarFaltasRequest,
+  ApiDate, MeuPerfilResponse, Falta, AtualizarFaltaRequest, RegistrarFaltasRequest,
   Turma, Curso, EstudanteDetalhado,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -39,7 +39,7 @@ function corQuantidade(q: number) {
   return "text-gray-700 dark:text-gray-300";
 }
 
-function formatarData(data: string) {
+function formatarData(data: ApiDate) {
   try {
     return new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
       day: "2-digit", month: "2-digit", year: "numeric",
@@ -217,7 +217,7 @@ function ModalEditarFalta({
   onConfirm: (data: AtualizarFaltaRequest) => Promise<void>;
   onClose: () => void;
 }) {
-  const [dataFalta, setDataFalta]     = useState(falta.data);
+  const [dataFalta, setDataFalta]     = useState<ApiDate>(falta.data);
   const [materiaId, setMateriaId]     = useState(falta.materia_disciplinar_id);
   const [quantidade, setQuantidade]   = useState(falta.quantidade.toString());
   const [observacao, setObservacao]   = useState(falta.observacao || "");
@@ -277,7 +277,7 @@ function ModalEditarFalta({
             placeholder="Selecione"
             defaultDate={dataFalta}
             onChange={dates => {
-              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0]);
+              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0] as ApiDate);
             }}
           />
         </div>
@@ -326,7 +326,7 @@ function ModalRegistrarFalta({
   onClose: () => void;
 }) {
   const [codigoEstudante, setCodigoEstudante] = useState("");
-  const [dataFalta, setDataFalta]             = useState(new Date().toISOString().split("T")[0]);
+  const [dataFalta, setDataFalta]             = useState<ApiDate>(new Date().toISOString().split("T")[0] as ApiDate);
   const [materiaId, setMateriaId]             = useState("");
   const [quantidade, setQuantidade]           = useState("");
   const [observacao, setObservacao]           = useState("");
@@ -351,7 +351,7 @@ function ModalRegistrarFalta({
         observacao: observacao || undefined,
       });
       setCodigoEstudante(""); setMateriaId(""); setQuantidade(""); setObservacao("");
-      setDataFalta(new Date().toISOString().split("T")[0]);
+      setDataFalta(new Date().toISOString().split("T")[0] as ApiDate);
       onClose();
     } catch (err: any) {
       setError(err?.message ?? "Erro ao registrar falta");
@@ -402,7 +402,7 @@ function ModalRegistrarFalta({
             placeholder="Selecione"
             defaultDate={dataFalta}
             onChange={dates => {
-              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0]);
+              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0] as ApiDate);
             }}
           />
         </div>
