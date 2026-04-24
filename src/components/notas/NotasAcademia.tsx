@@ -654,23 +654,29 @@ export default function NotasAcademia() {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  function notasDaTurmaEmPeriodo(turma: Turma, periodo: string): Nota[] {
+  function notasDaTurmaEmPeriodo(turma: Turma, nivel: string, periodo: string): Nota[] {
     const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
-    return todasNotas.filter(n =>
-      codigosTurma.has(normCodigoEstudante(n.codigo_estudante)) &&
-      n.periodo === periodo &&
-      (anoLectivo ? n.ano_lectivo === anoLectivo : true)
+
+    // 1) notas de estudantes da turma
+    const notasDaTurma = todasNotas.filter(n =>
+      codigosTurma.has(normCodigoEstudante(n.codigo_estudante))
+    );
+
+    // 2) ano letivo atual da academia (quando informado)
+    const notasAnoLetivo = anoLectivo
+      ? notasDaTurma.filter(n => n.ano_lectivo === anoLectivo)
+      : notasDaTurma;
+
+    // 3) contexto atual: ano académico + período
+    return notasAnoLetivo.filter(n =>
+      n.ano_academico === nivel &&
+      n.periodo === periodo
     );
   }
 
-  function notasDaTurmaEmPeriodoEMateria(turma: Turma, periodo: string, materiaId: string): Nota[] {
-    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
-    return todasNotas.filter(n =>
-      codigosTurma.has(normCodigoEstudante(n.codigo_estudante)) &&
-      n.periodo === periodo &&
-      n.materia_disciplinar_id === materiaId &&
-      (anoLectivo ? n.ano_lectivo === anoLectivo : true)
-    );
+  function notasDaTurmaEmPeriodoEMateria(turma: Turma, nivel: string, periodo: string, materiaId: string): Nota[] {
+    const notasContexto = notasDaTurmaEmPeriodo(turma, nivel, periodo);
+    return notasContexto.filter(n => n.materia_disciplinar_id === materiaId);
   }
 
   function getMateriasPorContexto(
@@ -688,7 +694,7 @@ export default function NotasAcademia() {
     return materiasContexto.map((m: any) => {
       const id = m.id;
       const nome = m.nome;
-      const notasMateria = notasDaTurmaEmPeriodoEMateria(turma, periodo, id);
+      const notasMateria = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, id);
       return { id, nome, notasCount: notasMateria.length, media: calcMedia(notasMateria) };
     }).sort((a, b) => a.nome.localeCompare(b.nome));
   }
@@ -850,7 +856,7 @@ export default function NotasAcademia() {
 
     if (layer.mode === "fund" && layer.type === "notas") {
       const { nivel, turma, periodo, materiaId, materiaNome } = layer;
-      const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      const notas = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, materiaId);
       const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
@@ -947,7 +953,7 @@ export default function NotasAcademia() {
 
     if (layer.mode === "sup" && layer.type === "notas") {
       const { curso, nivel, turma, periodo, materiaId, materiaNome } = layer as any;
-      const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      const notas = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, materiaId);
       const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
