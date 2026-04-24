@@ -67,6 +67,8 @@ export type MateriaType = 'fundamental' | 'medio' | 'superior';
 export type Genero      = 'masculino' | 'feminino';
 
 export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
+/** Date-only ISO string (YYYY-MM-DD), correspondente ao tipo `date` na documentação da API. */
+export type ApiDate = string;
 
 // =====================
 // REQUEST TYPES
@@ -136,7 +138,7 @@ export interface CriarEstudanteRequest {
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
   ano_academico?: string;
-  data: string;
+  data: ApiDate;
   materia_disciplinar_id: string;
   quantidade: number;
   observacao?: string;
@@ -310,7 +312,7 @@ export interface AtualizarNotaRequest {
 
 export interface AtualizarFaltaRequest {
   id: string;
-  data?: string;
+  data?: ApiDate;
   materia_disciplinar_id?: string;
   quantidade?: number;
   observacao?: string;
@@ -406,7 +408,7 @@ export interface Falta {
   academia_nome?: string;
   ano_lectivo: string;
   ano_academico: string;
-  data: string;
+  data: ApiDate;
   materia_disciplinar_id: string;
   materia_nome?: string;
   quantidade: number;
