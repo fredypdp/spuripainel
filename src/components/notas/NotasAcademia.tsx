@@ -84,6 +84,10 @@ function turmaAtiva(turma: Turma): boolean {
   return s !== "inativo" && s !== "deletado";
 }
 
+function normCodigoEstudante(codigo: string): string {
+  return (codigo ?? "").trim().toLowerCase();
+}
+
 // ─── tipos de layer ───────────────────────────────────────────────────────────
 
 type LayerFund =
@@ -161,8 +165,16 @@ function StatsRow({ notas, label }: { notas: Nota[]; label: string }) {
 }
 
 // Tabela escolar: Nome, Código, Nota do Professor, Nota Escola
-function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: EstudanteDetalhado[] }) {
-  if (!notas.length) return (
+function TabelaNotasEscolar({
+  notas,
+  estudantes,
+  codigosTurma,
+}: {
+  notas: Nota[];
+  estudantes: EstudanteDetalhado[];
+  codigosTurma?: string[];
+}) {
+  if (!notas.length && (!codigosTurma || codigosTurma.length === 0)) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
       <p className="text-sm">Nenhuma nota registada nesta matéria para este período.</p>
@@ -174,6 +186,9 @@ function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: 
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
     porEstudante.get(n.codigo_estudante)!.push(n);
   });
+  const codigos = codigosTurma && codigosTurma.length > 0
+    ? codigosTurma
+    : Array.from(porEstudante.keys());
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
@@ -187,10 +202,22 @@ function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: 
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
+          {codigos.map((codigo) => {
+            const notasEst = porEstudante.get(codigo) ?? [];
             const est = estudantes.find(e => e.codigo_estudante === codigo);
             const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
             const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
+
+            if (notasEst.length === 0) {
+              return (
+                <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
+                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
+                </tr>
+              );
+            }
 
             if (!notaProf && !notaFinal) {
               return notasEst.map((nota, i) => (
@@ -227,8 +254,16 @@ function TabelaNotasEscolar({ notas, estudantes }: { notas: Nota[]; estudantes: 
 }
 
 // Tabela superior: Nome, Código, Categoria, Nota
-function TabelaNotasSuperior({ notas, estudantes }: { notas: Nota[]; estudantes: EstudanteDetalhado[] }) {
-  if (!notas.length) return (
+function TabelaNotasSuperior({
+  notas,
+  estudantes,
+  codigosTurma,
+}: {
+  notas: Nota[];
+  estudantes: EstudanteDetalhado[];
+  codigosTurma?: string[];
+}) {
+  if (!notas.length && (!codigosTurma || codigosTurma.length === 0)) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
       <p className="text-sm">Nenhuma nota registada nesta matéria para este período.</p>
@@ -240,6 +275,9 @@ function TabelaNotasSuperior({ notas, estudantes }: { notas: Nota[]; estudantes:
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
     porEstudante.get(n.codigo_estudante)!.push(n);
   });
+  const codigos = codigosTurma && codigosTurma.length > 0
+    ? codigosTurma
+    : Array.from(porEstudante.keys());
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
@@ -253,8 +291,21 @@ function TabelaNotasSuperior({ notas, estudantes }: { notas: Nota[]; estudantes:
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
+          {codigos.map((codigo) => {
+            const notasEst = porEstudante.get(codigo) ?? [];
             const est = estudantes.find(e => e.codigo_estudante === codigo);
+
+            if (notasEst.length === 0) {
+              return (
+                <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                  <td className="px-4 py-3 text-gray-400 dark:text-gray-600">—</td>
+                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
+                </tr>
+              );
+            }
+
             return notasEst.map((nota, i) => (
               <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 {i === 0 && (
@@ -604,23 +655,21 @@ export default function NotasAcademia() {
   }
 
   function notasDaTurmaEmPeriodo(turma: Turma, periodo: string): Nota[] {
-    return turma.estudantes.flatMap(codigo =>
-      todasNotas.filter(n =>
-        n.codigo_estudante === codigo &&
-        n.periodo === periodo &&
-        (anoLectivo ? n.ano_lectivo === anoLectivo : true)
-      )
+    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
+    return todasNotas.filter(n =>
+      codigosTurma.has(normCodigoEstudante(n.codigo_estudante)) &&
+      n.periodo === periodo &&
+      (anoLectivo ? n.ano_lectivo === anoLectivo : true)
     );
   }
 
   function notasDaTurmaEmPeriodoEMateria(turma: Turma, periodo: string, materiaId: string): Nota[] {
-    return turma.estudantes.flatMap(codigo =>
-      todasNotas.filter(n =>
-        n.codigo_estudante === codigo &&
-        n.periodo === periodo &&
-        n.materia_disciplinar_id === materiaId &&
-        (anoLectivo ? n.ano_lectivo === anoLectivo : true)
-      )
+    const codigosTurma = new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean));
+    return todasNotas.filter(n =>
+      codigosTurma.has(normCodigoEstudante(n.codigo_estudante)) &&
+      n.periodo === periodo &&
+      n.materia_disciplinar_id === materiaId &&
+      (anoLectivo ? n.ano_lectivo === anoLectivo : true)
     );
   }
 
@@ -802,6 +851,7 @@ export default function NotasAcademia() {
     if (layer.mode === "fund" && layer.type === "notas") {
       const { nivel, turma, periodo, materiaId, materiaNome } = layer;
       const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
@@ -810,7 +860,7 @@ export default function NotasAcademia() {
             <p className="text-sm text-gray-500 mt-1">{PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {labelNivel(nivel)}</p>
           </div>
           {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
-          <TabelaNotasEscolar notas={notas} estudantes={estudantes} />
+          <TabelaNotasEscolar notas={notas} estudantes={estudantes} codigosTurma={codigosTurma} />
         </div>
       );
     }
@@ -898,6 +948,7 @@ export default function NotasAcademia() {
     if (layer.mode === "sup" && layer.type === "notas") {
       const { curso, nivel, turma, periodo, materiaId, materiaNome } = layer as any;
       const notas = notasDaTurmaEmPeriodoEMateria(turma, periodo, materiaId);
+      const codigosTurma = turma.estudantes.filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
@@ -906,7 +957,7 @@ export default function NotasAcademia() {
             <p className="text-sm text-gray-500 mt-1">{PERIODOS_LABEL[periodo]} · Turma {turma.codigo_turma} · {curso.nome} · {labelNivel(nivel)}</p>
           </div>
           {notas.length > 0 && <StatsRow notas={notas} label="Notas registadas" />}
-          <TabelaNotasSuperior notas={notas} estudantes={estudantes} />
+          <TabelaNotasSuperior notas={notas} estudantes={estudantes} codigosTurma={codigosTurma} />
         </div>
       );
     }
