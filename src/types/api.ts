@@ -276,6 +276,137 @@ export interface RegistrarAprovacaoAnoRequest {
   observacao?: string;
 }
 
+/**
+ * Parâmetros de filtro para GET /notas
+ * Proteção: admin ou academia
+ */
+export interface ListarNotasParams {
+  /** Paginação: padrão 50, máximo 1000 */
+  limit?: number;
+  /** Paginação: padrão 0 */
+  offset?: number;
+  /** Ex: '2025_2026' */
+  ano_letivo?: string;
+  /** Ex: '3_ano_fundamental' */
+  ano_academico?: string;
+  /** UUID do curso (filtra por nível médio ou superior) */
+  curso_id?: string;
+  /** Código da turma (requer codigo_academia em consultas admin) */
+  codigo_turma?: string;
+  /** '1_trimestre' | '2_trimestre' | '3_trimestre' | '1_semestre' | '2_semestre' */
+  periodo?: string;
+  /** UUID da matéria disciplinar */
+  materia_disciplinar_id?: string;
+  /**
+   * Código da academia.
+   * Para admin: filtra por academia.
+   * Para academia autenticada: ignorado (sempre usa o próprio código).
+   */
+  codigo_academia?: string;
+  /** Token JWT; usa tokenStorage.get() se omitido */
+  token?: string;
+}
+ 
+/**
+ * Parâmetros de filtro para GET /faltas
+ * Proteção: admin ou academia
+ */
+export interface ListarFaltasParams {
+  /** Paginação: padrão 50, máximo 1000 */
+  limit?: number;
+  /** Paginação: padrão 0 */
+  offset?: number;
+  /** Ex: '2025_2026' */
+  ano_letivo?: string;
+  /** Ex: '3_ano_fundamental' */
+  ano_academico?: string;
+  /** UUID do curso (filtra por nível médio ou superior) */
+  curso_id?: string;
+  /** Código da turma (requer codigo_academia em consultas admin) */
+  codigo_turma?: string;
+  /** Período da matéria: '1_trimestre' | '2_trimestre' | '3_trimestre' | '1_semestre' | '2_semestre' */
+  periodo?: string;
+  /** UUID da matéria disciplinar */
+  materia_disciplinar_id?: string;
+  /**
+   * Código da academia.
+   * Para admin: filtra por academia.
+   * Para academia autenticada: ignorado (sempre usa o próprio código).
+   */
+  codigo_academia?: string;
+  /** Token JWT; usa tokenStorage.get() se omitido */
+  token?: string;
+}
+ 
+/**
+ * Parâmetros de filtro para GET /avaliacoes
+ * Proteção: autenticado (qualquer tipo)
+ */
+export interface ListarAvaliacoesParams {
+  /** 'fundamental' | 'medio' | 'superior' */
+  tipo_ensino?: TipoEnsino;
+  /** Ex: '2025_2026' */
+  ano_letivo?: string;
+  /** Ano académico em que o estudante foi re/aprovado. Ex: '3_ano_fundamental' */
+  ano_academico_atual?: string;
+  /** Código da turma (requer codigo_academia em consultas admin) */
+  codigo_turma?: string;
+  /**
+   * Código da academia.
+   * Para admin: filtra por academia.
+   * Para academia autenticada: ignorado (sempre usa o próprio código).
+   */
+  codigo_academia?: string;
+  /** Token JWT; usa tokenStorage.get() se omitido */
+  token?: string;
+}
+ 
+/**
+ * Parâmetros de filtro para GET /aprovacoes (aprovado = true)
+ * Proteção: autenticado (qualquer tipo)
+ */
+export interface ListarAprovacoesParams {
+  /** 'fundamental' | 'medio' | 'superior' */
+  tipo_ensino?: TipoEnsino;
+  /** Ex: '2025_2026' */
+  ano_letivo?: string;
+  /** Ano académico em que o estudante foi aprovado. Ex: '3_ano_fundamental' */
+  ano_academico_atual?: string;
+  /** Código da turma (requer codigo_academia em consultas admin) */
+  codigo_turma?: string;
+  /**
+   * Código da academia.
+   * Para admin: filtra por academia.
+   * Para academia autenticada: ignorado (sempre usa o próprio código).
+   */
+  codigo_academia?: string;
+  /** Token JWT; usa tokenStorage.get() se omitido */
+  token?: string;
+}
+ 
+/**
+ * Parâmetros de filtro para GET /reprovacoes (aprovado = false)
+ * Proteção: autenticado (qualquer tipo)
+ */
+export interface ListarReprovacoesParams {
+  /** 'fundamental' | 'medio' | 'superior' */
+  tipo_ensino?: TipoEnsino;
+  /** Ex: '2025_2026' */
+  ano_letivo?: string;
+  /** Ano académico em que o estudante foi reprovado. Ex: '3_ano_fundamental' */
+  ano_academico_atual?: string;
+  /** Código da turma (requer codigo_academia em consultas admin) */
+  codigo_turma?: string;
+  /**
+   * Código da academia.
+   * Para admin: filtra por academia.
+   * Para academia autenticada: ignorado (sempre usa o próprio código).
+   */
+  codigo_academia?: string;
+  /** Token JWT; usa tokenStorage.get() se omitido */
+  token?: string;
+}
+
 // ── Notas ────────────────────────────────────────────────────────────────────
 
 export type TipoNota = 'escolar' | 'superior';

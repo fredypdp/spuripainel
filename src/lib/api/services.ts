@@ -61,8 +61,14 @@ import type {
   AdminDetalhado,
   Curso,
   Materia,
-  Nota,
-  Falta,
+  ListarNotasResponse,
+  ListarFaltasResponse,
+  // Novos tipos de params de filtro
+  ListarNotasParams,
+  ListarFaltasParams,
+  ListarAvaliacoesParams,
+  ListarAprovacoesParams,
+  ListarReprovacoesParams,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -183,24 +189,80 @@ export const consultasService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  listarAvaliacoes: (params?: { tipo_ensino?: string; token?: string }) => {
+  /**
+   * GET /avaliacoes
+   * Lista avaliações finais. Escopo varia por tipo de usuário.
+   * Proteção: autenticado (qualquer tipo)
+   *
+   * Query Params:
+   * - tipo_ensino: filtro por nível — 'fundamental' | 'medio' | 'superior'
+   * - ano_letivo: ex: '2025_2026'
+   * - ano_academico_atual: ex: '3_ano_fundamental'
+   * - codigo_turma: filtra por turma (requer codigo_academia em consultas admin)
+   * - codigo_academia: filtro de academia (admin); academia autenticada ignora este param
+   */
+  listarAvaliacoes: (params?: ListarAvaliacoesParams) => {
     const qs = new URLSearchParams();
-    if (params?.tipo_ensino) qs.append('tipo_ensino', params.tipo_ensino);
+    if (params?.tipo_ensino)        qs.append('tipo_ensino',        params.tipo_ensino);
+    if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
+    if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
+    if (params?.codigo_turma)       qs.append('codigo_turma',       params.codigo_turma);
+    if (params?.codigo_academia)    qs.append('codigo_academia',    params.codigo_academia);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarAvaliacoesResponse>(`/avaliacoes${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },
 
-  listarAprovacoes: (token?: string) =>
-    api.get<ListarAprovacoesResponse>('/aprovacoes', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+  /**
+   * GET /aprovacoes
+   * Lista apenas avaliações com aprovado = true.
+   * Proteção: autenticado (qualquer tipo)
+   *
+   * Query Params:
+   * - tipo_ensino: filtro por nível — 'fundamental' | 'medio' | 'superior'
+   * - ano_letivo: ex: '2025_2026'
+   * - ano_academico_atual: ex: '3_ano_fundamental'
+   * - codigo_turma: filtra por turma
+   * - codigo_academia: filtro de academia (admin)
+   */
+  listarAprovacoes: (params?: ListarAprovacoesParams) => {
+    const qs = new URLSearchParams();
+    if (params?.tipo_ensino)        qs.append('tipo_ensino',        params.tipo_ensino);
+    if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
+    if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
+    if (params?.codigo_turma)       qs.append('codigo_turma',       params.codigo_turma);
+    if (params?.codigo_academia)    qs.append('codigo_academia',    params.codigo_academia);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<ListarAprovacoesResponse>(`/aprovacoes${query}`, {
+      token: params?.token || tokenStorage.get() || undefined,
+    });
+  },
 
-  listarReprovacoes: (token?: string) =>
-    api.get<{ reprovacoes: import('@/types/api').AvaliacaoFinal[]; total: number }>('/reprovacoes', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+  /**
+   * GET /reprovacoes
+   * Lista apenas avaliações com aprovado = false.
+   * Proteção: autenticado (qualquer tipo)
+   *
+   * Query Params:
+   * - tipo_ensino: filtro por nível — 'fundamental' | 'medio' | 'superior'
+   * - ano_letivo: ex: '2025_2026'
+   * - ano_academico_atual: ex: '3_ano_fundamental'
+   * - codigo_turma: filtra por turma
+   * - codigo_academia: filtro de academia (admin)
+   */
+  listarReprovacoes: (params?: ListarReprovacoesParams) => {
+    const qs = new URLSearchParams();
+    if (params?.tipo_ensino)        qs.append('tipo_ensino',        params.tipo_ensino);
+    if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
+    if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
+    if (params?.codigo_turma)       qs.append('codigo_turma',       params.codigo_turma);
+    if (params?.codigo_academia)    qs.append('codigo_academia',    params.codigo_academia);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<ListarReprovacoesResponse>(`/reprovacoes${query}`, {
+      token: params?.token || tokenStorage.get() || undefined,
+    });
+  },
 
   notasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<NotasEstudanteResponse>(
@@ -209,7 +271,7 @@ export const consultasService = {
     ),
 
   faltasEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<import('@/types/api').FaltasEstudanteResponse>(
+    api.get<FaltasEstudanteResponse>(
       `/faltas-estudante/${codigoEstudante}`,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -226,13 +288,31 @@ export const consultasService = {
    * - admin: todas as notas do sistema
    * - academia: apenas notas da própria academia
    * Proteção: autenticado (admin ou academia)
+   *
+   * Query Params:
+   * - limit: padrão 50, máximo 1000
+   * - offset: padrão 0
+   * - ano_letivo: filtra por ano letivo
+   * - ano_academico: filtra por ano académico (ex: '3_ano_fundamental')
+   * - curso_id: filtra por curso (médio ou superior)
+   * - codigo_turma: filtra por turma (requer codigo_academia em consultas admin)
+   * - periodo: '1_trimestre' | '2_trimestre' | '3_trimestre' | '1_semestre' | '2_semestre'
+   * - materia_disciplinar_id: filtra por matéria
+   * - codigo_academia: filtro de academia (admin); academia autenticada ignora este param
    */
-  listarNotas: (params?: { limit?: number; offset?: number; token?: string }) => {
+  listarNotas: (params?: ListarNotasParams) => {
     const qs = new URLSearchParams();
-    if (params?.limit)  qs.append('limit',  params.limit.toString());
-    if (params?.offset) qs.append('offset', params.offset.toString());
+    if (params?.limit)                  qs.append('limit',                  params.limit.toString());
+    if (params?.offset)                 qs.append('offset',                 params.offset.toString());
+    if (params?.ano_letivo)             qs.append('ano_letivo',             params.ano_letivo);
+    if (params?.ano_academico)          qs.append('ano_academico',          params.ano_academico);
+    if (params?.curso_id)               qs.append('curso_id',               params.curso_id);
+    if (params?.codigo_turma)           qs.append('codigo_turma',           params.codigo_turma);
+    if (params?.periodo)                qs.append('periodo',                params.periodo);
+    if (params?.materia_disciplinar_id) qs.append('materia_disciplinar_id', params.materia_disciplinar_id);
+    if (params?.codigo_academia)        qs.append('codigo_academia',        params.codigo_academia);
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<import('@/types/api').ListarNotasResponse>(`/notas${query}`, {
+    return api.get<ListarNotasResponse>(`/notas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },
@@ -243,13 +323,31 @@ export const consultasService = {
    * - admin: todas as faltas do sistema
    * - academia: apenas faltas da própria academia
    * Proteção: autenticado (admin ou academia)
+   *
+   * Query Params:
+   * - limit: padrão 50, máximo 1000
+   * - offset: padrão 0
+   * - ano_letivo: filtra por ano letivo
+   * - ano_academico: filtra por ano académico (ex: '3_ano_fundamental')
+   * - curso_id: filtra por curso (médio ou superior)
+   * - codigo_turma: filtra por turma (requer codigo_academia em consultas admin)
+   * - periodo: período da matéria
+   * - materia_disciplinar_id: filtra por matéria
+   * - codigo_academia: filtro de academia (admin); academia autenticada ignora este param
    */
-  listarFaltas: (params?: { limit?: number; offset?: number; token?: string }) => {
+  listarFaltas: (params?: ListarFaltasParams) => {
     const qs = new URLSearchParams();
-    if (params?.limit)  qs.append('limit',  params.limit.toString());
-    if (params?.offset) qs.append('offset', params.offset.toString());
+    if (params?.limit)                  qs.append('limit',                  params.limit.toString());
+    if (params?.offset)                 qs.append('offset',                 params.offset.toString());
+    if (params?.ano_letivo)             qs.append('ano_letivo',             params.ano_letivo);
+    if (params?.ano_academico)          qs.append('ano_academico',          params.ano_academico);
+    if (params?.curso_id)               qs.append('curso_id',               params.curso_id);
+    if (params?.codigo_turma)           qs.append('codigo_turma',           params.codigo_turma);
+    if (params?.periodo)                qs.append('periodo',                params.periodo);
+    if (params?.materia_disciplinar_id) qs.append('materia_disciplinar_id', params.materia_disciplinar_id);
+    if (params?.codigo_academia)        qs.append('codigo_academia',        params.codigo_academia);
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<import('@/types/api').ListarFaltasResponse>(`/faltas${query}`, {
+    return api.get<ListarFaltasResponse>(`/faltas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
     });
   },
