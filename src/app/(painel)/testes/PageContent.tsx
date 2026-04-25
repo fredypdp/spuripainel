@@ -1071,14 +1071,6 @@ export default function PageContent() {
   };
 
   // ─── Buscar registros existentes de notas via GET /notas (paginado) ───────────
-  //
-  // Em vez de fazer N chamadas GET /notas-estudante/:codigo (uma por estudante),
-  // buscamos todos os registros da academia de uma só vez com GET /notas,
-  // paginando até obter todos (limit=1000 por página, máximo suportado pela API).
-  //
-  // Retorna um Set de chaves "codigoEstudante|anoLetivo|materiaId|periodo|tipo|categoria"
-  // usadas para dedup antes de montar o batch.
-  //
   const fetchNotasExistentes = async (
     anoLetivo: string,
     logPrefix: string
@@ -1110,10 +1102,8 @@ export default function PageContent() {
       const notas: any[] = (data as any)?.notas || [];
       totalGeral = (data as any)?.total_geral ?? totalGeral;
 
-      // Indexa apenas notas do ano letivo atual desta academia
       for (const n of notas) {
         if (n.ano_lectivo === anoLetivo) {
-          // Chave global: inclui codigo_estudante para dedup por estudante
           const key = `${n.codigo_estudante}|${n.ano_lectivo}|${n.materia_disciplinar_id}|${n.periodo}|${n.tipo}|${n.categoria}`;
           notasExistentes.add(key);
         }
@@ -1125,12 +1115,10 @@ export default function PageContent() {
         "dim"
       );
 
-      // Verifica se há mais páginas
       if (notas.length < LIMIT) break;
       offset += LIMIT;
       pagina++;
 
-      // Pequena pausa entre páginas para não sobrecarregar
       await sleep(200);
     }
 
@@ -1143,12 +1131,6 @@ export default function PageContent() {
   };
 
   // ─── Buscar registros existentes de faltas via GET /faltas (paginado) ─────────
-  //
-  // Mesma estratégia: uma chamada paginada a GET /faltas em vez de N chamadas
-  // GET /faltas-estudante/:codigo.
-  //
-  // Retorna um Set de chaves "codigoEstudante|materiaId|data"
-  //
   const fetchFaltasExistentes = async (
     anoLetivo: string,
     logPrefix: string
@@ -1180,10 +1162,8 @@ export default function PageContent() {
       const faltas: any[] = (data as any)?.faltas || [];
       totalGeral = (data as any)?.total_geral ?? totalGeral;
 
-      // Indexa apenas faltas do ano letivo atual desta academia
       for (const f of faltas) {
         if (f.ano_lectivo === anoLetivo) {
-          // Chave: inclui codigo_estudante para dedup por estudante
           const key = `${f.codigo_estudante}|${f.materia_disciplinar_id}|${f.data}`;
           faltasExistentes.add(key);
         }
@@ -1211,11 +1191,6 @@ export default function PageContent() {
   };
 
   // ─── Gerar Notas ──────────────────────────────────────────────────────────────
-  //
-  // MELHORIA: em vez de N chamadas GET /notas-estudante/:codigo (uma por estudante),
-  // usa GET /notas paginado para buscar todos os registros da academia de uma vez.
-  // Isso reduz as requisições de N para ceil(totalNotas / 1000).
-  //
   const gerarNotas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes — crie-os primeiro", "warn");
@@ -1241,20 +1216,14 @@ export default function PageContent() {
 
     addLog(`Gerando notas para ${sample.length} estudante(s) — tipo: ${tipoNota}, categorias: ${categoriasAtivas.join(", ")}`, "step");
 
-    // ── Fase 1/2: busca notas existentes com UMA chamada paginada ────────────
     const notasExistentes = await fetchNotasExistentes(academia.ano_letivo, "Fase 1/2:");
 
     if (cancelRef.current) return;
 
-    // ── Fase 2/2: monta batch ────────────────────────────────────────────────
     addLog(`  Fase 2/2: montando batch para ${sample.length} estudante(s)...`, "info");
 
     const periodosEscolares = ["1_trimestre", "2_trimestre", "3_trimestre"];
     const batch: any[] = [];
-
-    // Dedup interno ao batch para cobrir possíveis duplicatas dentro do próprio lote
-    // (ex: se a mesma combinação aparecer para dois estudantes diferentes — não deve
-    // acontecer, mas protege contra bugs futuros)
     const batchDedup = new Set<string>();
 
     let totalSkippedServer = 0;
@@ -1286,7 +1255,6 @@ export default function PageContent() {
 
       if (materiasDoAno.length === 0) continue;
 
-      // Seleciona até 3 matérias por estudante (rotação por índice para distribuição uniforme)
       const numMaterias = Math.min(3, materiasDoAno.length);
       const startIdx = i % materiasDoAno.length;
       const materiasSample: Materia[] = [];
@@ -1315,16 +1283,13 @@ export default function PageContent() {
 
         for (const p of periodos) {
           for (const categoria of categoriasAtivas) {
-            // Chave global (inclui estudante) — usada tanto para checar no servidor quanto no batch
             const key = `${est.codigo_estudante}|${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
 
-            // 1. Já existe no servidor?
             if (notasExistentes.has(key)) {
               totalSkippedServer++;
               continue;
             }
 
-            // 2. Já está no batch?
             if (batchDedup.has(key)) {
               totalSkippedBatch++;
               continue;
@@ -1361,7 +1326,6 @@ export default function PageContent() {
 
     addLog(`  Total a registrar: ${batch.length} nota(s) novas`, "info");
 
-    // Divide em chunks de 2000 (limite da API)
     const CHUNK_SIZE = 2000;
     const chunks: any[][] = [];
     for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
@@ -1410,10 +1374,6 @@ export default function PageContent() {
   };
 
   // ─── Gerar Faltas ─────────────────────────────────────────────────────────────
-  //
-  // MELHORIA: em vez de N chamadas GET /faltas-estudante/:codigo (uma por estudante),
-  // usa GET /faltas paginado para buscar todos os registros da academia de uma vez.
-  //
   const gerarFaltas = async () => {
     if (!academia || materias.length === 0 || estudantes.length === 0) {
       addLog("Sem matérias ou estudantes", "warn");
@@ -1436,12 +1396,10 @@ export default function PageContent() {
       return;
     }
 
-    // ── Fase 1/2: busca faltas existentes com UMA chamada paginada ────────────
     const faltasExistentes = await fetchFaltasExistentes(academia.ano_letivo, "Fase 1/2:");
 
     if (cancelRef.current) return;
 
-    // ── Fase 2/2: monta batch ────────────────────────────────────────────────
     addLog(`  Fase 2/2: montando batch para ${sample.length} estudante(s)...`, "info");
 
     const batch: any[] = [];
@@ -1471,7 +1429,6 @@ export default function PageContent() {
 
       for (const mat of materiasSample) {
         const dataFalta = pick(DATAS_FALTA);
-        // Chave: inclui codigo_estudante para dedup por estudante
         const key = `${est.codigo_estudante}|${mat.id}|${dataFalta}`;
 
         if (faltasExistentes.has(key)) {
@@ -1553,6 +1510,11 @@ export default function PageContent() {
   };
 
   // ─── Gerar Avaliações Finais ───────────────────────────────────────────────────
+  //
+  // FIX: proximo_ano_academico NÃO deve ser enviado no payload.
+  // O backend calcula automaticamente e retorna 400 se o campo for incluído.
+  // Ref: documentação § 11 — POST /academia/avaliacao-final
+  //
   const gerarAvaliacoes = async () => {
     if (!academia || estudantes.length === 0) { addLog("Sem estudantes disponíveis", "warn"); return; }
     if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
@@ -1568,16 +1530,10 @@ export default function PageContent() {
       const est = sample[idx];
       const aprovado = idx < nAprov;
       let nivelAtual = "";
-      let proximoNivel: string | undefined;
 
       if (tipoEnsino === "fundamental") {
         const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental")).sort();
-        const anoAtual = est.ano_escolar || (anosF.length > 0 ? pick(anosF) : "1_ano_fundamental");
-        nivelAtual = anoAtual;
-        const idx2 = anosF.indexOf(anoAtual);
-        if (aprovado && idx2 >= 0 && idx2 < anosF.length - 1) {
-          proximoNivel = anosF[idx2 + 1];
-        }
+        nivelAtual = est.ano_escolar || (anosF.length > 0 ? pick(anosF) : "1_ano_fundamental");
       } else if (tipoEnsino === "medio") {
         const c = cursos.find(x => x.type === "medio" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];
@@ -1585,12 +1541,7 @@ export default function PageContent() {
           addLog(`  ! Nenhum curso médio ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
           continue;
         }
-        const anoAtual = est.ano_escolar_medio || anos[0];
-        nivelAtual = anoAtual;
-        const idx2 = anos.indexOf(anoAtual);
-        if (aprovado && idx2 >= 0 && idx2 < anos.length - 1) {
-          proximoNivel = anos[idx2 + 1];
-        }
+        nivelAtual = est.ano_escolar_medio || anos[0];
       } else if (tipoEnsino === "superior") {
         const c = cursos.find(x => x.type === "superior" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];
@@ -1598,28 +1549,20 @@ export default function PageContent() {
           addLog(`  ! Nenhum curso superior ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
           continue;
         }
-        const anoAtual = est.ano_superior || anos[0];
-        nivelAtual = anoAtual;
-        const idx2 = anos.indexOf(anoAtual);
-        if (aprovado && idx2 >= 0 && idx2 < anos.length - 1) {
-          proximoNivel = anos[idx2 + 1];
-        }
+        nivelAtual = est.ano_superior || anos[0];
       }
 
       if (!nivelAtual) continue;
 
-      const item: any = {
+      // IMPORTANTE: proximo_ano_academico NÃO é enviado.
+      // O backend calcula automaticamente — enviar o campo causa erro 400.
+      batch.push({
         codigo_estudante: est.codigo_estudante,
         tipo_ensino: tipoEnsino,
         nivel_ano_academico_atual: nivelAtual,
         aprovado,
         observacao: "Avaliação gerada pelo painel de testes",
-      };
-      if (aprovado && proximoNivel) {
-        item.proximo_ano_academico = proximoNivel;
-      }
-
-      batch.push(item);
+      });
     }
 
     if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
