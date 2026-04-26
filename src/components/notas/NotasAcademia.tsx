@@ -783,6 +783,8 @@ export default function NotasAcademia() {
   }, [layer]);
 
   // ─── pré-selecionar primeira matéria quando as matérias ficam disponíveis ───
+  // Aguarda que todos os nomes estejam resolvidos no cache antes de selecionar,
+  // garantindo que a ordenação alfabética seja feita com os nomes reais.
 
   useEffect(() => {
     if (layer.type !== "notas") return;
@@ -806,9 +808,17 @@ export default function NotasAcademia() {
       );
 
     const ids = [...new Set(notasCtx.map((n: Nota) => n.materia_disciplinar_id))];
+    if (ids.length === 0) return;
+
+    // Aguardar que todos os ids já estejam resolvidos no cache com nome real.
+    // Se algum id ainda não tem entrada no cache (ou o nome ainda é o próprio id),
+    // o effect de busca de matérias ainda está a correr — não pré-selecionar ainda.
+    const todosResolvidos = ids.every(id => materiasCache[id] && materiasCache[id].nome !== id);
+    if (!todosResolvidos) return;
+
     const materiasDisp = ids
-      .map(id => materiasCache[id] ?? { id, nome: id })
-      .sort((a, b) => a.nome.localeCompare(b.nome));
+      .map(id => materiasCache[id])
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
 
     if (materiasDisp.length > 0) {
       setMateriaSelecionada(materiasDisp[0].id);
