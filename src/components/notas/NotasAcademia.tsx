@@ -218,18 +218,25 @@ function TabelaNotasEscolar({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {codigosTurma.map(codigo => {
-            const notasEst = porEstudante.get(codigo) ?? [];
-            const est      = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
-            const notaProf = notasEst.find(n => n.categoria === "nota_professor");
-            const notaEsc  = notasEst.find(n => n.categoria === "nota_escola");
-            return (
+          {[...codigosTurma]
+            .map(codigo => {
+              const notasEst = porEstudante.get(codigo) ?? [];
+              const est      = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
+              return {
+                codigo,
+                nome: est?.nome ?? "-",
+                notaProf: notasEst.find(n => n.categoria === "nota_professor"),
+                notaEsc:  notasEst.find(n => n.categoria === "nota_escola"),
+              };
+            })
+            .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
+            .map(({ codigo, nome, notaProf, notaEsc }) => (
               <tr
                 key={codigo}
                 className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors"
               >
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                  {est?.nome ?? "-"}
+                  {nome}
                 </td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">
                   {exibirCodigoEstudante(codigo)}
@@ -241,8 +248,7 @@ function TabelaNotasEscolar({
                   {notaEsc != null ? notaEsc.nota : "—"}
                 </td>
               </tr>
-            );
-          })}
+            ))}
         </tbody>
       </table>
     </div>
@@ -289,25 +295,31 @@ function TabelaNotasSuperior({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {codigosTurma.map(codigo => {
-            const notasEst = porEstudante.get(codigo) ?? [];
-            const est      = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
-            const pp1      = notasEst.find(n => n.categoria === "nota_pp1");
-            const pp2      = notasEst.find(n => n.categoria === "nota_pp2");
-            const exame    = notasEst.find(n => n.categoria === "nota_exame");
-            return (
+          {[...codigosTurma]
+            .map(codigo => {
+              const notasEst = porEstudante.get(codigo) ?? [];
+              const est      = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
+              return {
+                codigo,
+                nome: est?.nome ?? "-",
+                pp1:   notasEst.find(n => n.categoria === "nota_pp1"),
+                pp2:   notasEst.find(n => n.categoria === "nota_pp2"),
+                exame: notasEst.find(n => n.categoria === "nota_exame"),
+              };
+            })
+            .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
+            .map(({ codigo, nome, pp1, pp2, exame }) => (
               <tr
                 key={codigo}
                 className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors"
               >
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                 <td className={`px-4 py-3 text-right font-bold ${pp1   ? corNota(pp1.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp1   != null ? pp1.nota   : "—"}</td>
                 <td className={`px-4 py-3 text-right font-bold ${pp2   ? corNota(pp2.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp2   != null ? pp2.nota   : "—"}</td>
                 <td className={`px-4 py-3 text-right font-bold ${exame ? corNota(exame.nota) : "text-gray-300 dark:text-gray-600"}`}>{exame != null ? exame.nota : "—"}</td>
               </tr>
-            );
-          })}
+            ))}
         </tbody>
       </table>
     </div>
@@ -993,13 +1005,14 @@ export default function NotasAcademia() {
       <div className="space-y-5">
         {/* Cabeçalho */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {PERIODOS_LABEL[periodo] ?? periodo}
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Turma {turma.codigo_turma} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo} · {(anoLetivoSelecionado || anoLectivo || "").replace("_", "/")}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Turma {turma.codigo_turma} · {labelNivel(nivel)}
-            {subtitulo ? ` · ${subtitulo}` : ""}
-          </p>
+          {materiaSelecionada && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Notas de {materiasCache[materiaSelecionada]?.nome ?? materiaSelecionada}
+            </p>
+          )}
         </div>
 
         {/* Selector de matéria */}
@@ -1010,9 +1023,18 @@ export default function NotasAcademia() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Selecione uma matéria:
-            </p>
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                {materiaSelecionada
+                  ? `Notas de ${materiasCache[materiaSelecionada]?.nome ?? materiaSelecionada}`
+                  : "Selecione uma matéria:"}
+              </p>
+              {!materiaSelecionada && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Clique numa matéria abaixo para ver as notas
+                </p>
+              )}
+            </div>
             {carregandoMaterias && materiasDisponiveis.every(m => m.nome === m.id) ? (
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-500" />
@@ -1106,9 +1128,10 @@ export default function NotasAcademia() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setAnoLetivoSelecionado("")}
-                className="text-sm text-brand-600 hover:text-brand-500"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
               >
-                ← Voltar aos anos letivos
+                <Icon icon="mdi:arrow-left" width={16} />
+                Voltar aos anos letivos
               </button>
               <span className="text-xs text-gray-400">
                 Ano letivo: {anoLetivoSelecionado.replace("_", "/")}
@@ -1254,9 +1277,10 @@ export default function NotasAcademia() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setAnoLetivoSelecionado("")}
-                  className="text-sm text-brand-600 hover:text-brand-500"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
                 >
-                  ← Voltar aos anos letivos
+                  <Icon icon="mdi:arrow-left" width={16} />
+                  Voltar aos anos letivos
                 </button>
                 <span className="text-xs text-gray-400">
                   Ano letivo: {anoLetivoSelecionado.replace("_", "/")}

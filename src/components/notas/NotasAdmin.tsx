@@ -26,7 +26,7 @@ function labelNivel(v: string): string {
   const [, n, tipo] = match;
   if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
-  return `${n}º Ano`;
+  return `${n}º Ano Superior`;
 }
 
 function nomeProvinciaDeCodigo(codigo: string): string {
@@ -116,7 +116,10 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
   icon: string; title: string; subtitle?: string; badge?: string; onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group">
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group"
+    >
       <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
         <Icon icon={icon} width={22} className="text-brand-500" />
       </div>
@@ -129,6 +132,7 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
           {badge}
         </span>
       )}
+      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0" />
     </button>
   );
 }
@@ -154,6 +158,8 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
   );
 }
 
+// ─── Tabela escolar (nota_professor + nota_escola) — ordenada por nome ────────
+
 function TabelaNotasEscolar({ notas }: { notas: Nota[] }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
@@ -162,66 +168,54 @@ function TabelaNotasEscolar({ notas }: { notas: Nota[] }) {
     </div>
   );
 
+  // Agrupa por estudante
   const porEstudante = new Map<string, Nota[]>();
   notas.forEach(n => {
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
     porEstudante.get(n.codigo_estudante)!.push(n);
   });
-  const materias = Array.from(
-    notas.reduce((acc, n) => {
-      if (!acc.has(n.materia_disciplinar_id)) {
-        acc.set(n.materia_disciplinar_id, { id: n.materia_disciplinar_id, nome: n.materia_nome ?? n.materia_disciplinar_id });
-      }
-      return acc;
-    }, new Map<string, { id: string; nome: string }>() ).values()
-  ).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  // Ordena por nome alfabeticamente
+  const linhas = Array.from(porEstudante.entries())
+    .map(([codigo, notasEst]) => ({
+      codigo,
+      nome: notasEst[0]?.estudante_nome ?? codigo,
+      notaProf: notasEst.find(n => n.categoria === "nota_professor"),
+      notaEsc: notasEst.find(n => n.categoria === "nota_escola"),
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm min-w-[500px]">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400" rowSpan={2}>Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400" rowSpan={2}>Código</th>
-            {materias.map(m => (
-              <th key={m.id} className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400" colSpan={2}>{m.nome}</th>
-            ))}
-          </tr>
-          <tr>
-            {materias.map(m => (
-              <Fragment key={`${m.id}-sub`}>
-                <th className="px-4 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-                <th className="px-4 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
-              </Fragment>
-            ))}
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
-            const nomeEstudante = notasEst[0]?.estudante_nome ?? codigo;
-
-            return (
-              <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nomeEstudante}</td>
-                <td className="px-4 py-3 text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
-                {materias.map((m) => {
-                  const notaProf = notasEst.find(n => n.materia_disciplinar_id === m.id && n.categoria === "nota_professor");
-                  const notaEsc = notasEst.find(n => n.materia_disciplinar_id === m.id && n.categoria === "nota_escola");
-                  return (
-                    <Fragment key={`${codigo}-${m.id}`}>
-                      <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaProf?.nota ?? "—"}</td>
-                      <td className={`px-4 py-3 text-right font-bold ${notaEsc ? corNota(notaEsc.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaEsc?.nota ?? "—"}</td>
-                    </Fragment>
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {linhas.map(({ codigo, nome, notaProf, notaEsc }) => (
+            <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
+              <td className="px-4 py-3 text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
+              <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-300 dark:text-gray-600"}`}>
+                {notaProf != null ? notaProf.nota : "—"}
+              </td>
+              <td className={`px-4 py-3 text-right font-bold ${notaEsc ? corNota(notaEsc.nota) : "text-gray-300 dark:text-gray-600"}`}>
+                {notaEsc != null ? notaEsc.nota : "—"}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
+
+// ─── Tabela superior (pp1 + pp2 + exame) — ordenada por nome ─────────────────
 
 function TabelaNotasSuperior({ notas }: { notas: Nota[] }) {
   if (!notas.length) return (
@@ -231,38 +225,45 @@ function TabelaNotasSuperior({ notas }: { notas: Nota[] }) {
     </div>
   );
 
+  // Agrupa e ordena por nome
   const porEstudante = new Map<string, Nota[]>();
   notas.forEach(n => {
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
     porEstudante.get(n.codigo_estudante)!.push(n);
   });
 
+  const linhas = Array.from(porEstudante.entries())
+    .map(([codigo, notasEst]) => ({
+      codigo,
+      nome: notasEst[0]?.estudante_nome ?? codigo,
+      pp1: notasEst.find(n => n.categoria === "nota_pp1"),
+      pp2: notasEst.find(n => n.categoria === "nota_pp2"),
+      exame: notasEst.find(n => n.categoria === "nota_exame"),
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
+
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm min-w-[560px]">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP1</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP2</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Exame</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {Array.from(porEstudante.entries()).map(([codigo, notasEst]) =>
-            notasEst.map((n, i) => (
-              <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
-                {i === 0 && (
-                  <>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{notasEst[0]?.estudante_nome ?? codigo}</td>
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
-                  </>
-                )}
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
-                <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
-              </tr>
-            ))
-          )}
+          {linhas.map(({ codigo, nome, pp1, pp2, exame }) => (
+            <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
+              <td className="px-4 py-3 text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
+              <td className={`px-4 py-3 text-right font-bold ${pp1   ? corNota(pp1.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp1   != null ? pp1.nota   : "—"}</td>
+              <td className={`px-4 py-3 text-right font-bold ${pp2   ? corNota(pp2.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp2   != null ? pp2.nota   : "—"}</td>
+              <td className={`px-4 py-3 text-right font-bold ${exame ? corNota(exame.nota) : "text-gray-300 dark:text-gray-600"}`}>{exame != null ? exame.nota : "—"}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -281,14 +282,40 @@ export default function NotasAdmin() {
   // Notas carregadas sob demanda com filtros da API
   const { data: notasData, execute: carregarNotas, loading: loadingNotas } = useApi(consultasService.listarNotas);
 
-  // Anos letivos disponíveis por academia (carregados via notas com limit=1 para descobrir)
+  // Anos letivos disponíveis por academia
   const [anosLetivosPorAcademia, setAnosLetivosPorAcademia] = useState<Record<string, string[]>>({});
   const [loadingAnos, setLoadingAnos] = useState(false);
+
+  // Matéria selecionada na camada "notas"
+  const [materiaSelecionada, setMateriaSelecionada] = useState<string | null>(null);
+
+  // Cache de nomes de matérias
+  const [materiasCache, setMateriasCache] = useState<Record<string, { id: string; nome: string }>>({});
+
+  // Reseta matéria selecionada quando a camada muda
+  useEffect(() => {
+    setMateriaSelecionada(null);
+  }, [layer.type]);
 
   useEffect(() => {
     carregarAcademias({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Popula cache de nomes de matérias a partir das notas carregadas
+  useEffect(() => {
+    const notas: Nota[] = (notasData as any)?.notas ?? [];
+    if (!notas.length) return;
+    setMateriasCache(prev => {
+      const next = { ...prev };
+      notas.forEach(n => {
+        if (n.materia_disciplinar_id && n.materia_nome && !next[n.materia_disciplinar_id]) {
+          next[n.materia_disciplinar_id] = { id: n.materia_disciplinar_id, nome: n.materia_nome };
+        }
+      });
+      return next;
+    });
+  }, [notasData]);
 
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
@@ -312,7 +339,6 @@ export default function NotasAdmin() {
     if (anosLetivosPorAcademia[codigoAcademia]) return;
     setLoadingAnos(true);
     try {
-      // Busca notas com limit alto para extrair anos letivos únicos
       const res = await consultasService.listarNotas({ codigo_academia: codigoAcademia, limit: 1000, token });
       const anos = Array.from(new Set((res?.notas ?? []).map(n => n.ano_lectivo).filter(Boolean))).sort();
       setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: anos }));
@@ -325,10 +351,7 @@ export default function NotasAdmin() {
 
   // Notas actuais (filtradas pelo servidor)
   const notasActuais: Nota[] = useMemo(() => (notasData as any)?.notas ?? [], [notasData]);
-  const totalGeral: number = useMemo(() => (notasData as any)?.total_geral ?? 0, [notasData]);
 
-  // Filtrar notas localmente só para subníveis (matérias / notas finais)
-  // Tudo o que é raro (periodo/materia) já vem filtrado do servidor
   function academiasNaProvincia(prov: string) {
     return academias.filter(a => a.provincia?.toUpperCase() === prov.toUpperCase());
   }
@@ -417,7 +440,7 @@ export default function NotasAdmin() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{academia.nome}</h2>
           <p className="text-sm text-gray-500 mt-1">{academia.codigo_academia} · {academia.nivel === "superior" ? "Ensino Superior" : "Escola"}</p>
         </div>
-        {(loadingAnos) ? (
+        {loadingAnos ? (
           <LoadingSpinner message="Carregando anos letivos..." />
         ) : anos.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
@@ -434,7 +457,6 @@ export default function NotasAdmin() {
                 subtitle="Ver notas por nível académico"
                 badge={anos[0] === ano ? "actual" : undefined}
                 onClick={async () => {
-                  // Carrega notas filtradas por academia + ano letivo
                   await carregarNotas({ codigo_academia: academia.codigo_academia, ano_letivo: ano, limit: 1000, token });
                   setLayer({ type: "academia_niveis", academia, anoLetivo: ano });
                 }}
@@ -495,7 +517,6 @@ export default function NotasAdmin() {
   // ── Períodos ──
   if (layer.type === "academia_periodos") {
     const { academia, anoLetivo, nivel } = layer;
-    // Filtrar localmente do que já foi carregado (mesmo ano letivo)
     const notasNivel = notasActuais.filter(n => n.ano_academico === nivel);
     const periodos = Array.from(new Set(notasNivel.map(n => n.periodo))).sort(
       (a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b)
@@ -543,7 +564,6 @@ export default function NotasAdmin() {
     const { academia, anoLetivo, nivel, periodo } = layer;
     const notasPeriodo = notasActuais.filter(n => n.ano_academico === nivel && n.periodo === periodo);
 
-    // Agrupa por matéria
     const materiasMap = new Map<string, { nome: string; count: number; sum: number }>();
     notasPeriodo.forEach(n => {
       const ex = materiasMap.get(n.materia_disciplinar_id);
@@ -590,31 +610,103 @@ export default function NotasAdmin() {
     );
   }
 
-  // ── Notas de uma matéria ──
+  // ── Notas de uma matéria (com seletor inline, igual ao NotasAcademia) ──
   if (layer.type === "academia_notas") {
     const { academia, anoLetivo, nivel, periodo, materiaId, materiaNome } = layer;
-    const notas = notasActuais.filter(n =>
-      n.ano_academico === nivel && n.periodo === periodo && n.materia_disciplinar_id === materiaId
+
+    // Todas as notas deste nível + período
+    const notasContexto = notasActuais.filter(n =>
+      n.ano_academico === nivel && n.periodo === periodo
     );
-    const isSup = notas.some(n => n.tipo === "superior") || academia.nivel === "superior";
+
+    // Matérias disponíveis a partir das notas carregadas
+    const materiaIdsCtx = [...new Set(notasContexto.map(n => n.materia_disciplinar_id))];
+    const materiasDisponiveis = materiaIdsCtx
+      .map(id => materiasCache[id] ?? { id, nome: id })
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    // Inicializa a matéria selecionada com a que veio do nível anterior
+    const materiaEfetiva = materiaSelecionada ?? materiaId;
+
+    // Notas filtradas pela matéria selecionada
+    const notasFiltradas = notasContexto.filter(n => n.materia_disciplinar_id === materiaEfetiva);
+
+    const isSup = notasFiltradas.some(n => n.tipo === "superior") ||
+      notasContexto.some(n => n.tipo === "superior") ||
+      academia.nivel === "superior";
+
+    // Título: academia · nível · período · ano letivo  (admin não tem turma no fluxo)
+    const titulo = `${academia.nome} · ${labelNivel(nivel)} · ${PERIODOS_LABEL[periodo] ?? periodo} · ${anoLetivo.replace(/_/g, "/")}`;
+    const subtitulo = `Notas de ${materiasCache[materiaEfetiva]?.nome ?? materiaNome}`;
 
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
+
+        {/* Cabeçalho */}
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
-            <p className="text-sm text-gray-500 mt-1">{academia.nome} · {anoLetivo.replace(/_/g, "/")} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo}</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {titulo}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">{academia.nome}</p>
           </div>
           <div className="flex gap-2 flex-wrap ml-auto">
-            <FilterTag label="Matéria" value={materiaNome} />
+            <FilterTag label="Matéria" value={materiasCache[materiaEfetiva]?.nome ?? materiaNome} />
           </div>
         </div>
-        {notas.length > 0 && <StatsRow notas={notas} />}
-        {isSup
-          ? <TabelaNotasSuperior notas={notas} />
-          : <TabelaNotasEscolar notas={notas} />
-        }
+
+        {/* Seletor de matéria */}
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {subtitulo}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Selecione uma matéria abaixo para ver as notas
+            </p>
+          </div>
+          {materiasDisponiveis.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {materiasDisponiveis.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setMateriaSelecionada(prev => prev === m.id ? null : m.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+                    materiaEfetiva === m.id
+                      ? "bg-brand-500 text-white border-brand-500 shadow-sm"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400"
+                  }`}
+                >
+                  {m.nome}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Stats */}
+        {notasFiltradas.length > 0 && <StatsRow notas={notasFiltradas} />}
+
+        {/* Tabela */}
+        {materiaEfetiva ? (
+          notasFiltradas.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma nota nesta matéria para este período.</p>
+            </div>
+          ) : isSup ? (
+            <TabelaNotasSuperior notas={notasFiltradas} />
+          ) : (
+            <TabelaNotasEscolar notas={notasFiltradas} />
+          )
+        ) : (
+          materiasDisponiveis.length > 0 && (
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic text-center py-4">
+              Selecione uma matéria acima para ver as notas.
+            </p>
+          )
+        )}
       </div>
     );
   }
