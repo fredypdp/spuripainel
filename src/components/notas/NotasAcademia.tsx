@@ -782,6 +782,40 @@ export default function NotasAcademia() {
     setMateriaSelecionada(null);
   }, [layer]);
 
+  // ─── pré-selecionar primeira matéria quando as matérias ficam disponíveis ───
+
+  useEffect(() => {
+    if (layer.type !== "notas") return;
+    if (materiaSelecionada) return; // já tem seleção, não sobrescrever
+
+    const l = layer as any;
+    const anoFiltro = anoLetivoSelecionado || anoLectivo;
+    const codigosHistorico: string[] = anoFiltro
+      ? (l.turma.historico_estudantes_ano_letivo?.[anoFiltro] ?? [])
+      : [];
+    const codigosOrigem: string[] = codigosHistorico.length > 0 ? codigosHistorico : (l.turma.estudantes ?? []);
+    const codigosNorm = [
+      ...new Set(codigosOrigem.map((c: string) => (c ?? "").trim().toLowerCase()).filter(Boolean)),
+    ];
+    const notasCtx: Nota[] = codigosNorm
+      .flatMap((c: string) => notasPorEstudante[c] ?? [])
+      .filter((n: Nota) =>
+        (!anoFiltro || n.ano_lectivo === anoFiltro) &&
+        n.ano_academico === l.nivel &&
+        n.periodo === l.periodo
+      );
+
+    const ids = [...new Set(notasCtx.map((n: Nota) => n.materia_disciplinar_id))];
+    const materiasDisp = ids
+      .map(id => materiasCache[id] ?? { id, nome: id })
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    if (materiasDisp.length > 0) {
+      setMateriaSelecionada(materiasDisp[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layer, materiasCache, notasPorEstudante]);
+
   // ─── buscar detalhes das matérias quando na camada "notas" ─────────────────
   // Pega os materia_disciplinar_id únicos das notas filtradas e chama GET /academia/materia/:id
 
@@ -984,6 +1018,50 @@ export default function NotasAcademia() {
     return [];
   }
 
+  // ─── voltar à secção anterior ────────────────────────────────────────────────
+
+  function goBack() {
+    if (layer.mode === "misto" && layer.type === "choose") return; // raiz, sem back
+
+    if (layer.mode === "fund") {
+      if (layer.type === "anos") {
+        if (isMisto) setLayer({ mode: "misto", type: "choose" });
+        // senão é a raiz — nada a fazer
+      } else if (layer.type === "turmas") {
+        setLayer({ mode: "fund", type: "anos" });
+      } else if (layer.type === "periodos") {
+        setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel });
+      } else if (layer.type === "notas") {
+        setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma });
+      }
+      return;
+    }
+
+    if (layer.mode === "sup") {
+      const l = layer as any;
+      if (layer.type === "cursos") {
+        if (isMisto) setLayer({ mode: "misto", type: "choose" });
+      } else if (layer.type === "anos") {
+        setLayer({ mode: "sup", type: "cursos" });
+      } else if (layer.type === "turmas") {
+        setLayer({ mode: "sup", type: "anos", curso: l.curso });
+      } else if (layer.type === "periodos") {
+        setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel });
+      } else if (layer.type === "notas") {
+        setLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma });
+      }
+      return;
+    }
+  }
+
+  /** Retorna true se há uma secção anterior para onde voltar */
+  function canGoBack(): boolean {
+    if (layer.mode === "misto" && layer.type === "choose") return false;
+    if (layer.mode === "fund" && layer.type === "anos" && !isMisto) return false;
+    if (layer.mode === "sup"  && layer.type === "cursos" && !isMisto) return false;
+    return true;
+  }
+
   // ─── seletor de matérias + tabela (camada "notas") ──────────────────────────
 
   function renderNotasLayer(nivel: string, turma: Turma, periodo: string, usarTabelaSuperior: boolean, subtitulo?: string) {
@@ -1076,6 +1154,16 @@ export default function NotasAcademia() {
   function renderLayer() {
     const crumbs = buildCrumbs();
 
+    const BotaoVoltar = canGoBack() ? (
+      <button
+        onClick={goBack}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
+      >
+        <Icon icon="mdi:arrow-left" width={16} />
+        Voltar
+      </button>
+    ) : null;
+
     if (loadingTurmas || carregandoNotas) return (
       <div className="flex items-center justify-center py-16">
         <div className="flex flex-col items-center gap-3">
@@ -1090,6 +1178,7 @@ export default function NotasAcademia() {
     // ── modo misto: escolha de nível ──────────────────────────────────────────
     if (layer.mode === "misto" && layer.type === "choose") return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas</h2>
           <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
@@ -1104,6 +1193,7 @@ export default function NotasAcademia() {
     // ── fundamental: anos ────────────────────────────────────────────────────
     if (layer.mode === "fund" && layer.type === "anos") return (
       <div className="space-y-4">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
         {!anoLetivoSelecionado ? (
@@ -1121,16 +1211,15 @@ export default function NotasAcademia() {
         ) : (
           <>
             <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Ano letivo: <span className="font-semibold text-gray-700 dark:text-gray-200">{anoLetivoSelecionado.replace("_", "/")}</span>
+              </span>
               <button
                 onClick={() => setAnoLetivoSelecionado("")}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+                className="text-xs text-gray-400 hover:text-brand-500 underline transition-colors"
               >
-                <Icon icon="mdi:arrow-left" width={16} />
-                Voltar aos anos letivos
+                Trocar ano letivo
               </button>
-              <span className="text-xs text-gray-400">
-                Ano letivo: {anoLetivoSelecionado.replace("_", "/")}
-              </span>
             </div>
             {niveisFundamentais.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
@@ -1160,6 +1249,7 @@ export default function NotasAcademia() {
       const ts = turmasPorNivel(layer.nivel);
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel)}</h2>
           {ts.length === 0 ? (
@@ -1192,6 +1282,7 @@ export default function NotasAcademia() {
       const { nivel, turma } = layer;
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
           <p className="text-sm text-gray-500">{labelNivel(nivel)}</p>
@@ -1215,6 +1306,7 @@ export default function NotasAcademia() {
       const { nivel, turma, periodo } = layer;
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           {renderNotasLayer(nivel, turma, periodo, false)}
         </div>
@@ -1224,6 +1316,7 @@ export default function NotasAcademia() {
     // ── superior: cursos ─────────────────────────────────────────────────────
     if (layer.mode === "sup" && layer.type === "cursos") return (
       <div className="space-y-4">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
         {cursos.length === 0 ? (
@@ -1253,6 +1346,7 @@ export default function NotasAcademia() {
       const anos      = anosDosCurso(curso);
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
           {!anoLetivoSelecionado ? (
@@ -1270,16 +1364,15 @@ export default function NotasAcademia() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                  Ano letivo: <span className="font-semibold text-gray-700 dark:text-gray-200">{anoLetivoSelecionado.replace("_", "/")}</span>
+                </span>
                 <button
                   onClick={() => setAnoLetivoSelecionado("")}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+                  className="text-xs text-gray-400 hover:text-brand-500 underline transition-colors"
                 >
-                  <Icon icon="mdi:arrow-left" width={16} />
-                  Voltar aos anos letivos
+                  Trocar ano letivo
                 </button>
-                <span className="text-xs text-gray-400">
-                  Ano letivo: {anoLetivoSelecionado.replace("_", "/")}
-                </span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 {anos.map(nivel => (
@@ -1304,6 +1397,7 @@ export default function NotasAcademia() {
       const ts               = turmasPorCurso(curso.id).filter(t => t.nivel === nivel);
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
           {ts.length === 0 ? (
@@ -1339,6 +1433,7 @@ export default function NotasAcademia() {
         : PERIODOS_SUPERIOR;
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
           <p className="text-sm text-gray-500">{labelNivel(nivel)} · {curso.nome}</p>
@@ -1362,6 +1457,7 @@ export default function NotasAcademia() {
       const { curso, nivel, turma, periodo } = layer as { mode: "sup"; type: "notas"; curso: Curso; nivel: string; turma: Turma; periodo: string };
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
           {renderNotasLayer(nivel, turma, periodo, true, curso.nome)}
         </div>
