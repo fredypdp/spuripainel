@@ -78,6 +78,15 @@ export interface ErrorResponse {
   request_id?: string;
 }
 
+function appendMultiValueParam(qs: URLSearchParams, key: string, value?: string | string[]) {
+  if (!value) return;
+  if (Array.isArray(value)) {
+    value.filter(Boolean).forEach((item) => qs.append(key, item));
+    return;
+  }
+  qs.append(key, value);
+}
+
 // =====================
 // AUTH (rotas públicas)
 // =====================
@@ -265,11 +274,24 @@ export const consultasService = {
     });
   },
 
-  notasEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<NotasEstudanteResponse>(
-      `/notas-estudante/${codigoEstudante}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  notasEstudante: (
+    codigoEstudante: string,
+    params?: Omit<ListarNotasParams, 'limit' | 'offset' | 'codigo_academia' | 'token'> & { token?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
+    appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
+    appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+    appendMultiValueParam(qs, 'codigo_turma', params?.codigo_turma);
+    appendMultiValueParam(qs, 'periodo', params?.periodo);
+    appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
+    appendMultiValueParam(qs, 'categoria', params?.categoria);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<NotasEstudanteResponse>(
+      `/notas-estudante/${codigoEstudante}${query}`,
+      { token: params?.token || tokenStorage.get() || undefined }
+    );
+  },
 
   faltasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<FaltasEstudanteResponse>(
@@ -305,13 +327,14 @@ export const consultasService = {
     const qs = new URLSearchParams();
     if (params?.limit)                  qs.append('limit',                  params.limit.toString());
     if (params?.offset)                 qs.append('offset',                 params.offset.toString());
-    if (params?.ano_letivo)             qs.append('ano_letivo',             params.ano_letivo);
-    if (params?.ano_academico)          qs.append('ano_academico',          params.ano_academico);
-    if (params?.curso_id)               qs.append('curso_id',               params.curso_id);
-    if (params?.codigo_turma)           qs.append('codigo_turma',           params.codigo_turma);
-    if (params?.periodo)                qs.append('periodo',                params.periodo);
-    if (params?.materia_disciplinar_id) qs.append('materia_disciplinar_id', params.materia_disciplinar_id);
-    if (params?.codigo_academia)        qs.append('codigo_academia',        params.codigo_academia);
+    appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
+    appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
+    appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+    appendMultiValueParam(qs, 'codigo_turma', params?.codigo_turma);
+    appendMultiValueParam(qs, 'periodo', params?.periodo);
+    appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
+    appendMultiValueParam(qs, 'categoria', params?.categoria);
+    appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarNotasResponse>(`/notas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -340,13 +363,13 @@ export const consultasService = {
     const qs = new URLSearchParams();
     if (params?.limit)                  qs.append('limit',                  params.limit.toString());
     if (params?.offset)                 qs.append('offset',                 params.offset.toString());
-    if (params?.ano_letivo)             qs.append('ano_letivo',             params.ano_letivo);
-    if (params?.ano_academico)          qs.append('ano_academico',          params.ano_academico);
-    if (params?.curso_id)               qs.append('curso_id',               params.curso_id);
-    if (params?.codigo_turma)           qs.append('codigo_turma',           params.codigo_turma);
-    if (params?.periodo)                qs.append('periodo',                params.periodo);
-    if (params?.materia_disciplinar_id) qs.append('materia_disciplinar_id', params.materia_disciplinar_id);
-    if (params?.codigo_academia)        qs.append('codigo_academia',        params.codigo_academia);
+    appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
+    appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
+    appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+    appendMultiValueParam(qs, 'codigo_turma', params?.codigo_turma);
+    appendMultiValueParam(qs, 'periodo', params?.periodo);
+    appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
+    appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarFaltasResponse>(`/faltas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,

@@ -286,23 +286,25 @@ export interface ListarNotasParams {
   /** Paginação: padrão 0 */
   offset?: number;
   /** Ex: '2025_2026' */
-  ano_letivo?: string;
+  ano_letivo?: string | string[];
   /** Ex: '3_ano_fundamental' */
-  ano_academico?: string;
+  ano_academico?: string | string[];
   /** UUID do curso (filtra por nível médio ou superior) */
-  curso_id?: string;
+  curso_id?: string | string[];
   /** Código da turma (requer codigo_academia em consultas admin) */
-  codigo_turma?: string;
+  codigo_turma?: string | string[];
   /** '1_trimestre' | '2_trimestre' | '3_trimestre' | '1_semestre' | '2_semestre' */
-  periodo?: string;
+  periodo?: string | string[];
   /** UUID da matéria disciplinar */
-  materia_disciplinar_id?: string;
+  materia_disciplinar_id?: string | string[];
+  /** Categoria da nota. Ex: 'nota_professor' | 'nota_escola' | 'nota_pp1' */
+  categoria?: string | string[];
   /**
    * Código da academia.
    * Para admin: filtra por academia.
    * Para academia autenticada: ignorado (sempre usa o próprio código).
    */
-  codigo_academia?: string;
+  codigo_academia?: string | string[];
   /** Token JWT; usa tokenStorage.get() se omitido */
   token?: string;
 }
@@ -317,23 +319,23 @@ export interface ListarFaltasParams {
   /** Paginação: padrão 0 */
   offset?: number;
   /** Ex: '2025_2026' */
-  ano_letivo?: string;
+  ano_letivo?: string | string[];
   /** Ex: '3_ano_fundamental' */
-  ano_academico?: string;
+  ano_academico?: string | string[];
   /** UUID do curso (filtra por nível médio ou superior) */
-  curso_id?: string;
+  curso_id?: string | string[];
   /** Código da turma (requer codigo_academia em consultas admin) */
-  codigo_turma?: string;
+  codigo_turma?: string | string[];
   /** Período da matéria: '1_trimestre' | '2_trimestre' | '3_trimestre' | '1_semestre' | '2_semestre' */
-  periodo?: string;
+  periodo?: string | string[];
   /** UUID da matéria disciplinar */
-  materia_disciplinar_id?: string;
+  materia_disciplinar_id?: string | string[];
   /**
    * Código da academia.
    * Para admin: filtra por academia.
    * Para academia autenticada: ignorado (sempre usa o próprio código).
    */
-  codigo_academia?: string;
+  codigo_academia?: string | string[];
   /** Token JWT; usa tokenStorage.get() se omitido */
   token?: string;
 }

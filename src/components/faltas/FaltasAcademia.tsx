@@ -821,13 +821,20 @@ export default function FaltasAcademia() {
           Anos Académicos — Ensino Fundamental
         </h2>
         {anosLetivosDisponiveis.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {anosLetivosDisponiveis.map((ano: string) => (
-              <button key={ano} onClick={() => setAnoLetivoSelecionado(ano)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}>
-                {ano.replace("_", "/")}
-              </button>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anosLetivosDisponiveis.map((ano: string) => {
+              const ativo = ano === (anoLetivoSelecionado || anoLectivo);
+              return (
+                <CardBtn
+                  key={ano}
+                  icon="mdi:calendar-school"
+                  title={`Ano Letivo ${ano.replace("_", "/")}`}
+                  subtitle={ativo ? "Ano letivo selecionado" : "Clique para filtrar"}
+                  badge={ativo ? "ativo" : undefined}
+                  onClick={() => setAnoLetivoSelecionado(ano)}
+                />
+              );
+            })}
           </div>
         )}
         {niveisFundamentais.length === 0 ? (
@@ -958,13 +965,20 @@ export default function FaltasAcademia() {
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
           {anosLetivosDisponiveis.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {anosLetivosDisponiveis.map((ano: string) => (
-                <button key={ano} onClick={() => setAnoLetivoSelecionado(ano)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}>
-                  {ano.replace("_", "/")}
-                </button>
-              ))}
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {anosLetivosDisponiveis.map((ano: string) => {
+                const ativo = ano === (anoLetivoSelecionado || anoLectivo);
+                return (
+                  <CardBtn
+                    key={ano}
+                    icon="mdi:calendar-school"
+                    title={`Ano Letivo ${ano.replace("_", "/")}`}
+                    subtitle={ativo ? "Ano letivo selecionado" : "Clique para filtrar"}
+                    badge={ativo ? "ativo" : undefined}
+                    onClick={() => setAnoLetivoSelecionado(ano)}
+                  />
+                );
+              })}
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
