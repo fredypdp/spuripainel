@@ -362,7 +362,7 @@ export default function AvaliacoesFinaisAdmin() {
   useEffect(() => {
     carregarAcads({ token });
     // Descobrir anos letivos globais
-    consultasService.listarAvaliacoes({ limit: 1000, token }).then(res => {
+    consultasService.listarAvaliacoes({ token }).then(res => {
       const anos = Array.from(new Set((res?.avaliacoes ?? []).map(a => a.ano_lectivo).filter(Boolean))).sort().reverse();
       setAnosGlobais(anos);
       if (anos.length > 0) setAnoLetivoGlobal(anos[0]);
@@ -401,7 +401,7 @@ export default function AvaliacoesFinaisAdmin() {
   const entrarNaAcademia = useCallback(async (acad: AcadInfo) => {
     setLoadingAnosAcad(true);
     try {
-      const res = await consultasService.listarAvaliacoes({ codigo_academia: acad.codigo_academia, limit: 1000, token });
+      const res = await consultasService.listarAvaliacoes({ codigo_academia: acad.codigo_academia, token });
       const avs  = res?.avaliacoes ?? [];
       const anos = Array.from(new Set(avs.map(a => a.ano_lectivo).filter(Boolean))).sort().reverse();
       setAnosAcademia(anos);
