@@ -274,11 +274,24 @@ export const consultasService = {
     });
   },
 
-  notasEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<NotasEstudanteResponse>(
-      `/notas-estudante/${codigoEstudante}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  notasEstudante: (
+    codigoEstudante: string,
+    params?: Omit<ListarNotasParams, 'limit' | 'offset' | 'codigo_academia' | 'token'> & { token?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
+    appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
+    appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+    appendMultiValueParam(qs, 'codigo_turma', params?.codigo_turma);
+    appendMultiValueParam(qs, 'periodo', params?.periodo);
+    appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
+    appendMultiValueParam(qs, 'categoria', params?.categoria);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<NotasEstudanteResponse>(
+      `/notas-estudante/${codigoEstudante}${query}`,
+      { token: params?.token || tokenStorage.get() || undefined }
+    );
+  },
 
   faltasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<FaltasEstudanteResponse>(

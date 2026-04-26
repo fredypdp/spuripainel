@@ -644,6 +644,47 @@ export default function NotasAcademia() {
     return codigosOrigem.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
   }
 
+  function filtrosNotasDoContexto(turma: Turma) {
+    const anoLetivo = anoLetivoSelecionado || anoLectivo || undefined;
+    const base = {
+      ano_letivo: anoLetivo,
+      codigo_turma: turma.codigo_turma,
+    };
+
+    if (layer.type === "notas") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+        periodo: layer.periodo,
+        materia_disciplinar_id: layer.materiaId,
+      };
+    }
+
+    if (layer.type === "materias") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+        periodo: layer.periodo,
+      };
+    }
+
+    if (layer.type === "periodos") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+      };
+    }
+
+    if (layer.type === "turmas") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+      };
+    }
+
+    return base;
+  }
+
   async function carregarNotasDosEstudantesDaTurma(turma: Turma, force = false) {
     const anoFiltro = anoLetivoSelecionado || anoLectivo || undefined;
     const codigosNorm = codigosTurmaDoAnoLetivo(turma, anoFiltro);
@@ -655,7 +696,10 @@ export default function NotasAcademia() {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async (codigoNorm) => {
           const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
-          const resposta = await consultasService.notasEstudante(codigoOriginal, token);
+          const resposta = await consultasService.notasEstudante(codigoOriginal, {
+            ...filtrosNotasDoContexto(turma),
+            token,
+          });
           return { codigoNorm, notas: resposta?.notas ?? [] };
         })
       );
