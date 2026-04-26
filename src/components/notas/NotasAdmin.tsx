@@ -74,20 +74,17 @@ function turmaAtiva(turma: Turma): boolean {
 }
 
 // ─── tipos de layer ───────────────────────────────────────────────────────────
-// Admin: Províncias → Academias → Anos letivos → (replica NotasAcademia)
-// Após anos letivos: anos/cursos → turmas → períodos → notas (igual à academia)
 
 type AcadInfo = {
   codigo_academia: string;
   nome: string;
   provincia: string;
-  nivel: string;              // 'escola' | 'superior'
-  nivel_escolar?: string;     // 'fundamental' | 'medio' | 'misto'
+  nivel: string;
+  nivel_escolar?: string;
   anos_academicos?: string[];
   status: string;
 };
 
-// Sub-layers internos da academia (idênticos ao NotasAcademia, mas com academia no contexto)
 type AcadLayer =
   | { mode: "fund"; type: "anos" }
   | { mode: "fund"; type: "turmas"; nivel: string }
@@ -313,48 +310,37 @@ export default function NotasAdmin() {
   const [layer, setLayer] = useState<Layer>({ type: "provincias" });
   const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null);
 
-  // ── dados base ──────────────────────────────────────────────────────────────
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } =
     useApi(consultasService.listarAcademias);
 
-  // Dados carregados ao entrar numa academia específica
   const { data: dataTurmas,      execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,      execute: carregarCursos     } = useApi(academiaService.listarCursos);
   const { data: dataEstudantes,  execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
 
-  // Anos letivos disponíveis por academia (buscados via GET /notas com limit=1)
   const [anosLetivosPorAcad, setAnosLetivosPorAcad] = useState<Record<string, string[]>>({});
   const [loadingAnos, setLoadingAnos]               = useState(false);
 
-  // Notas por estudante (cache local, igual ao NotasAcademia)
   const [notasPorEstudante, setNotasPorEstudante]   = useState<Record<string, Nota[]>>({});
   const [carregandoNotas, setCarregandoNotas]       = useState(false);
 
-  // Cache de detalhes de matérias
   const [materiasCache, setMateriasCache]           = useState<Record<string, { id: string; nome: string }>>({});
   const [carregandoMaterias, setCarregandoMaterias] = useState(false);
 
-  // Matéria selecionada na camada de notas
   const [materiaSelecionada, setMateriaSelecionada] = useState<string | null>(null);
 
-  // Sub-layer interno da academia (espelha NotasAcademia)
   const [acadLayer, setAcadLayer] = useState<AcadLayer>({ mode: "fund", type: "anos" });
 
-  // Ano letivo selecionado dentro da academia
   const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
 
-  // ── carga inicial ───────────────────────────────────────────────────────────
   useEffect(() => {
     carregarAcademias({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reseta sub-layer ao trocar matéria
   useEffect(() => {
     setMateriaSelecionada(null);
   }, [acadLayer]);
 
-  // ── dados derivados ─────────────────────────────────────────────────────────
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
       codigo_academia: a.codigo_academia,
@@ -378,7 +364,6 @@ export default function NotasAdmin() {
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
   const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
 
-  // Academia actual (quando em academia_root)
   const academiaAtual: AcadInfo | null = layer.type === "academia_root" ? layer.academia : null;
 
   const isSuperior    = academiaAtual?.nivel === "superior";
@@ -387,7 +372,6 @@ export default function NotasAdmin() {
   const isMisto       = !isSuperior && nivelEscolar === "misto";
   const PERIODOS      = isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA;
 
-  // Níveis fundamentais disponíveis
   const niveisFundamentais = useMemo(() => {
     if (!academiaAtual) return [];
     const anosAcademia = academiaAtual.anos_academicos ?? [];
@@ -396,12 +380,10 @@ export default function NotasAdmin() {
     return sortAnos(base);
   }, [turmasAtivas, academiaAtual]);
 
-  // Anos letivos disponíveis dentro da academia
   const anosLetivosDisponiveis = useMemo(() =>
     (anosLetivosPorAcad[academiaAtual?.codigo_academia ?? ""] ?? []).sort(),
     [anosLetivosPorAcad, academiaAtual]);
 
-  // ── pré-selecionar primeira matéria (igual ao NotasAcademia) ────────────────
   useEffect(() => {
     if (layer.type !== "academia_root") return;
     if (acadLayer.type !== "notas") return;
@@ -439,7 +421,6 @@ export default function NotasAdmin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acadLayer, materiasCache, notasPorEstudante, layer]);
 
-  // ── buscar detalhes de matérias quando na camada notas ─────────────────────
   useEffect(() => {
     if (layer.type !== "academia_root") return;
     if (acadLayer.type !== "notas") return;
@@ -477,8 +458,6 @@ export default function NotasAdmin() {
       .finally(() => setCarregandoMaterias(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acadLayer, notasPorEstudante, anoLetivoSelecionado, layer]);
-
-  // ── helpers internos ────────────────────────────────────────────────────────
 
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message });
@@ -538,8 +517,6 @@ export default function NotasAdmin() {
   const turmasPorCurso = (cursoId: string) => turmasAtivas.filter(t => t.curso_id === cursoId);
   const anosDosCurso   = (c: Curso) => sortAnos(c.anos_academicos ?? []);
 
-  // ── entrar numa academia ────────────────────────────────────────────────────
-
   const carregarAnosLetivosAcademia = useCallback(async (codigoAcademia: string) => {
     if (anosLetivosPorAcad[codigoAcademia]) return;
     setLoadingAnos(true);
@@ -556,18 +533,12 @@ export default function NotasAdmin() {
 
   async function entrarNaAcademia(academia: AcadInfo) {
     await carregarAnosLetivosAcademia(academia.codigo_academia);
-    // Carregar dados da academia (turmas, cursos, estudantes) — usando admin token
-    // Estes endpoints retornam dados da academia autenticada, mas para o admin
-    // usamos os endpoints públicos com o código da academia. Para turmas/cursos
-    // não há endpoint público com filtro de academia, então chamamos os da academia
-    // com o token de admin (que tem acesso total).
     await Promise.all([
       carregarTurmas(token),
       carregarCursos(token),
       carregarEstudantes(token),
     ]);
 
-    // Determinar sub-layer inicial com base no tipo da academia
     const nivelEsc  = academia.nivel_escolar ?? "fundamental";
     const isSup     = academia.nivel === "superior";
     const isFund    = !isSup && nivelEsc === "fundamental";
@@ -670,15 +641,7 @@ export default function NotasAdmin() {
 
   function canGoBack(): boolean {
     if (layer.type === "provincias") return false;
-    if (layer.type === "academias") return true;
-    if (layer.type === "academia_root") {
-      const al = acadLayer;
-      if (al.mode === "misto" && al.type === "choose") return true; // volta a academias
-      if (al.mode === "fund" && al.type === "anos" && !isMisto && !anoLetivoSelecionado) return true;
-      if (al.mode === "sup"  && al.type === "cursos" && !isMisto) return true;
-      return true;
-    }
-    return false;
+    return true;
   }
 
   function goBack() {
@@ -686,45 +649,78 @@ export default function NotasAdmin() {
       setLayer({ type: "provincias" });
       return;
     }
-    if (layer.type === "academia_root") {
-      const al = acadLayer;
 
-      // Se está no nível inicial da academia (choose/anos/cursos sem sub-navegação),
-      // volta à lista de academias
-      if (
-        (al.mode === "misto" && al.type === "choose") ||
-        (al.mode === "fund" && al.type === "anos" && !isMisto && !anoLetivoSelecionado) ||
-        (al.mode === "sup"  && al.type === "cursos" && !isMisto)
-      ) {
-        setLayer({ type: "academias", provincia: layer.academia.provincia });
+    if (layer.type !== "academia_root") return;
+
+    const al = acadLayer;
+    const provinciaAtual = layer.academia.provincia;
+
+    // ── modo misto: "choose" volta direto à lista de academias
+    if (al.mode === "misto") {
+      setLayer({ type: "academias", provincia: provinciaAtual });
+      return;
+    }
+
+    // ── modo fundamental
+    if (al.mode === "fund") {
+      if (al.type === "notas") {
+        setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: al.turma });
         return;
       }
-
-      // Limpa ano letivo quando está na tela de anos com um selecionado
-      if (al.type === "anos" && anoLetivoSelecionado) {
+      if (al.type === "periodos") {
+        setAcadLayer({ mode: "fund", type: "turmas", nivel: al.nivel });
+        return;
+      }
+      if (al.type === "turmas") {
+        setAcadLayer({ mode: "fund", type: "anos" });
+        return;
+      }
+      // al.type === "anos"
+      if (anoLetivoSelecionado) {
         setAnoLetivoSelecionado("");
         return;
       }
-
-      // Navega para trás dentro do sub-layer
-      if (al.mode === "fund") {
-        if (al.type === "anos")     { if (isMisto) setAcadLayer({ mode: "misto", type: "choose" }); }
-        else if (al.type === "turmas")   setAcadLayer({ mode: "fund", type: "anos" });
-        else if (al.type === "periodos") setAcadLayer({ mode: "fund", type: "turmas", nivel: al.nivel });
-        else if (al.type === "notas")    setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: al.turma });
-      } else if (al.mode === "sup") {
-        if (al.type === "cursos")   { if (isMisto) setAcadLayer({ mode: "misto", type: "choose" }); }
-        else if (al.type === "anos")     setAcadLayer({ mode: "sup", type: "cursos" });
-        else if (al.type === "turmas")   setAcadLayer({ mode: "sup", type: "anos", curso: al.curso });
-        else if (al.type === "periodos") setAcadLayer({ mode: "sup", type: "turmas", curso: al.curso, nivel: al.nivel });
-        else if (al.type === "notas")    setAcadLayer({ mode: "sup", type: "periodos", curso: al.curso, nivel: al.nivel, turma: al.turma });
-      } else if (al.mode === "misto") {
-        setLayer({ type: "academias", provincia: layer.academia.provincia });
+      if (isMisto) {
+        setAcadLayer({ mode: "misto", type: "choose" });
+        return;
       }
+      setLayer({ type: "academias", provincia: provinciaAtual });
+      return;
+    }
+
+    // ── modo superior
+    if (al.mode === "sup") {
+      if (al.type === "notas") {
+        setAcadLayer({ mode: "sup", type: "periodos", curso: al.curso, nivel: al.nivel, turma: al.turma });
+        return;
+      }
+      if (al.type === "periodos") {
+        setAcadLayer({ mode: "sup", type: "turmas", curso: al.curso, nivel: al.nivel });
+        return;
+      }
+      if (al.type === "turmas") {
+        setAcadLayer({ mode: "sup", type: "anos", curso: al.curso });
+        return;
+      }
+      if (al.type === "anos") {
+        if (anoLetivoSelecionado) {
+          setAnoLetivoSelecionado("");
+          return;
+        }
+        setAcadLayer({ mode: "sup", type: "cursos" });
+        return;
+      }
+      // al.type === "cursos"
+      if (isMisto) {
+        setAcadLayer({ mode: "misto", type: "choose" });
+        return;
+      }
+      setLayer({ type: "academias", provincia: provinciaAtual });
+      return;
     }
   }
 
-  // ── render da camada de notas (igual ao NotasAcademia) ──────────────────────
+  // ── render da camada de notas ────────────────────────────────────────────────
 
   function renderNotasLayer(nivel: string, turma: Turma, periodo: string, usarTabelaSuperior: boolean) {
     const codigosTurma   = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado).filter(Boolean);
@@ -817,15 +813,12 @@ export default function NotasAdmin() {
 
     if (carregandoNotas) return <LoadingSpinner message="Carregando notas..." />;
 
-    // misto: escolha de nível
     if (al.mode === "misto" && al.type === "choose") return (
       <div className="grid gap-3 sm:grid-cols-2">
         <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
         <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setAcadLayer({ mode: "sup", type: "cursos" })} />
       </div>
     );
-
-    // ── FUNDAMENTAL ────────────────────────────────────────────────────────────
 
     if (al.mode === "fund" && al.type === "anos") return (
       <div className="space-y-4">
@@ -929,11 +922,8 @@ export default function NotasAdmin() {
     }
 
     if (al.mode === "fund" && al.type === "notas") {
-      const { nivel, turma, periodo } = al;
-      return renderNotasLayer(nivel, turma, periodo, false);
+      return renderNotasLayer(al.nivel, al.turma, al.periodo, false);
     }
-
-    // ── SUPERIOR ───────────────────────────────────────────────────────────────
 
     if (al.mode === "sup" && al.type === "cursos") return (
       <div className="space-y-4">
@@ -1062,8 +1052,7 @@ export default function NotasAdmin() {
     }
 
     if (al.mode === "sup" && al.type === "notas") {
-      const { nivel, turma, periodo } = al;
-      return renderNotasLayer(nivel, turma, periodo, true);
+      return renderNotasLayer(al.nivel, al.turma, al.periodo, true);
     }
 
     return null;
@@ -1083,7 +1072,6 @@ export default function NotasAdmin() {
 
   if (loadingAcads) return <LoadingSpinner message="Carregando academias..." />;
 
-  // ── Províncias ──────────────────────────────────────────────────────────────
   if (layer.type === "provincias") return (
     <div className="space-y-6">
       {alert && (
@@ -1118,7 +1106,6 @@ export default function NotasAdmin() {
     </div>
   );
 
-  // ── Academias ───────────────────────────────────────────────────────────────
   if (layer.type === "academias") {
     const acads = academias.filter(a => a.provincia?.toUpperCase() === layer.provincia.toUpperCase());
     return (
@@ -1150,7 +1137,6 @@ export default function NotasAdmin() {
     );
   }
 
-  // ── Academia root (espelha NotasAcademia) ────────────────────────────────────
   if (layer.type === "academia_root") {
     const { academia } = layer;
     return (
@@ -1161,7 +1147,6 @@ export default function NotasAdmin() {
         {BotaoVoltar}
         <Breadcrumb crumbs={buildCrumbs()} />
 
-        {/* Cabeçalho da academia */}
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{academia.nome}</h2>
