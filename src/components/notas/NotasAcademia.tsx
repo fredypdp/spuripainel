@@ -1008,11 +1008,6 @@ export default function NotasAcademia() {
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
             Turma {turma.codigo_turma} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo} · {(anoLetivoSelecionado || anoLectivo || "").replace("_", "/")}
           </h2>
-          {materiaSelecionada && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Notas de {materiasCache[materiaSelecionada]?.nome ?? materiaSelecionada}
-            </p>
-          )}
         </div>
 
         {/* Selector de matéria */}

@@ -649,7 +649,6 @@ export default function NotasAdmin() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {titulo}
             </h2>
-            <p className="text-sm text-gray-500 mt-1">{academia.nome}</p>
           </div>
           <div className="flex gap-2 flex-wrap ml-auto">
             <FilterTag label="Matéria" value={materiasCache[materiaEfetiva]?.nome ?? materiaNome} />
