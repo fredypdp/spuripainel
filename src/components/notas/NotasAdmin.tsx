@@ -1,8 +1,8 @@
 // src/components/notas/NotasAdmin.tsx
 "use client"
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, consultasService, tokenStorage } from "@/lib/api";
-import type { Nota } from "@/types/api";
+import type { Nota, ListarNotasParams } from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
@@ -63,17 +63,13 @@ function formatCategoria(c: string) {
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
-function normalizarValor(v?: string | null): string {
-  return (v ?? "").trim().toLowerCase();
-}
-
 // ─── tipos ───────────────────────────────────────────────────────────────────
 
 type AcadInfo = {
   codigo_academia: string;
   nome: string;
   provincia: string;
-  type: string;
+  nivel: string;
   nivel_escolar?: string;
   status: string;
 };
@@ -82,10 +78,21 @@ type Layer =
   | { type: "provincias" }
   | { type: "academias"; provincia: string }
   | { type: "academia_anos"; academia: AcadInfo }
-  | { type: "academia_niveis"; academia: AcadInfo; ano: string }
-  | { type: "academia_periodos"; academia: AcadInfo; ano: string; nivel: string }
-  | { type: "academia_materias"; academia: AcadInfo; ano: string; nivel: string; periodo: string }
-  | { type: "academia_notas"; academia: AcadInfo; ano: string; nivel: string; periodo: string; materiaId: string; materiaNome: string };
+  | { type: "academia_niveis"; academia: AcadInfo; anoLetivo: string }
+  | { type: "academia_periodos"; academia: AcadInfo; anoLetivo: string; nivel: string }
+  | { type: "academia_materias"; academia: AcadInfo; anoLetivo: string; nivel: string; periodo: string }
+  | { type: "academia_notas"; academia: AcadInfo; anoLetivo: string; nivel: string; periodo: string; materiaId: string; materiaNome: string };
+
+// ─── FilterTag ───────────────────────────────────────────────────────────────
+
+function FilterTag({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800/50 rounded-full text-xs text-brand-700 dark:text-brand-300">
+      <span className="text-brand-400">{label}:</span>
+      <span className="font-medium">{value}</span>
+    </span>
+  );
+}
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
@@ -147,7 +154,7 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
   );
 }
 
-function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudantesMap: Record<string, string> }) {
+function TabelaNotasEscolar({ notas }: { notas: Nota[] }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
@@ -167,14 +174,14 @@ function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudante
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
-            const nomeEstudante = estudantesMap[codigo] ?? notasEst[0]?.estudante_nome ?? "-";
+            const nomeEstudante = notasEst[0]?.estudante_nome ?? codigo;
             const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
             const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
 
@@ -212,7 +219,7 @@ function TabelaNotasEscolar({ notas, estudantesMap }: { notas: Nota[]; estudante
   );
 }
 
-function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudantesMap: Record<string, string> }) {
+function TabelaNotasSuperior({ notas }: { notas: Nota[] }) {
   if (!notas.length) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
@@ -232,7 +239,7 @@ function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudant
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
           </tr>
@@ -243,7 +250,7 @@ function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudant
               <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
                 {i === 0 && (
                   <>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{estudantesMap[codigo] ?? notasEst[0]?.estudante_nome ?? "-"}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{notasEst[0]?.estudante_nome ?? codigo}</td>
                     <td className="px-4 py-3 text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
                   </>
                 )}
@@ -263,159 +270,85 @@ function TabelaNotasSuperior({ notas, estudantesMap }: { notas: Nota[]; estudant
 export default function NotasAdmin() {
   const token = tokenStorage.get() ?? undefined;
   const [layer, setLayer] = useState<Layer>({ type: "provincias" });
-  const [loadingPeriodo, setLoadingPeriodo] = useState(false);
-  const [notasPorEstudante, setNotasPorEstudante] = useState<Record<string, Nota[]>>({});
-  const [carregandoNotas, setCarregandoNotas] = useState(false);
 
+  // Dados base: academias (leves, sem notas)
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } = useApi(consultasService.listarAcademias);
-  const { data: estudantesData, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
+
+  // Notas carregadas sob demanda com filtros da API
+  const { data: notasData, execute: carregarNotas, loading: loadingNotas } = useApi(consultasService.listarNotas);
+
+  // Anos letivos disponíveis por academia (carregados via notas com limit=1 para descobrir)
+  const [anosLetivosPorAcademia, setAnosLetivosPorAcademia] = useState<Record<string, string[]>>({});
+  const [loadingAnos, setLoadingAnos] = useState(false);
 
   useEffect(() => {
-    carregarAcademias(token);
-    carregarEstudantes(undefined, token);
+    carregarAcademias({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const todasNotas = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
 
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
       codigo_academia: a.codigo_academia,
       nome: a.nome,
       provincia: a.provincia,
-      type: a.type,
+      nivel: a.nivel,
       nivel_escolar: a.nivel_escolar,
       status: a.status,
     })),
     [academiasData]);
 
-  const estudantesMap: Record<string, string> = useMemo(() => {
-    const m: Record<string, string> = {};
-    ((estudantesData as any)?.estudantes ?? []).forEach((e: any) => { m[e.codigo_estudante] = e.nome; });
-    return m;
-  }, [estudantesData]);
-
-  function estudantesDaAcademia(codigoAcademia: string): string[] {
-    const codigos = ((estudantesData as any)?.estudantes ?? [])
-      .filter((e: any) => e.codigo_academia === codigoAcademia)
-      .map((e: any) => normalizarValor(e.codigo_estudante))
-      .filter(Boolean);
-    return Array.from(new Set(codigos));
-  }
-
-  async function carregarNotasDaAcademia(codigoAcademia: string, force = false) {
-    const codigos = estudantesDaAcademia(codigoAcademia);
-    const codigosParaBuscar = force ? codigos : codigos.filter(c => !notasPorEstudante[c]);
-    if (codigosParaBuscar.length === 0) return;
-
-    setCarregandoNotas(true);
-    try {
-      const resultados = await Promise.all(
-        codigosParaBuscar.map(async (codigo) => {
-          const res = await consultasService.notasEstudante(codigo, token);
-          return { codigo, notas: res?.notas ?? [] };
-        })
-      );
-      setNotasPorEstudante(prev => {
-        const next = { ...prev };
-        resultados.forEach(({ codigo, notas }) => { next[codigo] = notas; });
-        return next;
-      });
-    } catch {
-      // erro silencioso
-    } finally {
-      setCarregandoNotas(false);
-    }
-  }
-
   const provincias = useMemo(() =>
-    Array.from(new Set(academias.map(a => a.provincia))).sort(),
+    Array.from(new Set(academias.map(a => a.provincia?.toUpperCase()).filter(Boolean))).sort((a, b) =>
+      nomeProvinciaDeCodigo(a).localeCompare(nomeProvinciaDeCodigo(b))
+    ),
     [academias]);
 
+  // Carrega anos letivos disponíveis para uma academia
+  const carregarAnosLetivosAcademia = useCallback(async (codigoAcademia: string) => {
+    if (anosLetivosPorAcademia[codigoAcademia]) return;
+    setLoadingAnos(true);
+    try {
+      // Busca notas com limit alto para extrair anos letivos únicos
+      const res = await consultasService.listarNotas({ codigo_academia: codigoAcademia, limit: 1000, token });
+      const anos = Array.from(new Set((res?.notas ?? []).map(n => n.ano_lectivo).filter(Boolean))).sort().reverse();
+      setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: anos }));
+    } catch {
+      setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: [] }));
+    } finally {
+      setLoadingAnos(false);
+    }
+  }, [anosLetivosPorAcademia, token]);
+
+  // Notas actuais (filtradas pelo servidor)
+  const notasActuais: Nota[] = useMemo(() => (notasData as any)?.notas ?? [], [notasData]);
+  const totalGeral: number = useMemo(() => (notasData as any)?.total_geral ?? 0, [notasData]);
+
+  // Filtrar notas localmente só para subníveis (matérias / notas finais)
+  // Tudo o que é raro (periodo/materia) já vem filtrado do servidor
   function academiasNaProvincia(prov: string) {
-    return academias.filter(a => a.provincia === prov);
+    return academias.filter(a => a.provincia?.toUpperCase() === prov.toUpperCase());
   }
-
-  function notasDeAcademia(codigoAcademia: string): Nota[] {
-    return todasNotas.filter(n => n.codigo_academia === codigoAcademia);
-  }
-
-  function filtrarNotasContexto(codigoAcademia: string, ano: string, nivel: string, periodo?: string) {
-    const anoNorm = normalizarValor(ano);
-    const nivelNorm = normalizarValor(nivel);
-    const periodoNorm = normalizarValor(periodo);
-    return notasDeAcademia(codigoAcademia).filter(n => {
-      const matchAno = normalizarValor(n.ano_lectivo) === anoNorm;
-      const matchNivel = normalizarValor(n.ano_academico) === nivelNorm;
-      const matchPeriodo = !periodo ? true : normalizarValor(n.periodo) === periodoNorm;
-      return matchAno && matchNivel && matchPeriodo;
-    });
-  }
-
-  function anosDeAcademia(codigoAcademia: string): string[] {
-    return Array.from(new Set(notasDeAcademia(codigoAcademia).map(n => n.ano_lectivo))).sort().reverse();
-  }
-
-  function periodosNoAno(codigoAcademia: string, ano: string): string[] {
-    const ps = Array.from(new Set(notasDeAcademia(codigoAcademia).filter(n => n.ano_lectivo === ano).map(n => n.periodo)));
-    return ps.sort((a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b));
-  }
-
-  function isAcademiaSuperior(codigoAcademia: string): boolean {
-    const acad = academias.find(a => a.codigo_academia === codigoAcademia);
-    if (acad?.type === "superior") return true;
-    return notasDeAcademia(codigoAcademia).some(n => n.tipo === "superior");
-  }
-
-  function materiasNoAnoEPeriodo(
-    codigoAcademia: string, ano: string, nivel: string, periodo: string
-  ): { id: string; nome: string; notasCount: number; media: number | null }[] {
-    const notas = filtrarNotasContexto(codigoAcademia, ano, nivel, periodo);
-    const map = new Map<string, { nome: string; count: number; sum: number }>();
-    notas.forEach(n => {
-      const ex = map.get(n.materia_disciplinar_id);
-      if (ex) { ex.count++; ex.sum += n.nota; }
-      else map.set(n.materia_disciplinar_id, { nome: n.materia_nome ?? n.materia_disciplinar_id, count: 1, sum: n.nota });
-    });
-    return Array.from(map.entries())
-      .map(([id, { nome, count, sum }]) => ({ id, nome, notasCount: count, media: count > 0 ? sum / count : null }))
-      .sort((a, b) => a.nome.localeCompare(b.nome));
-  }
-
-  const entrarNoPeriodo = (nextLayer: Layer) => {
-    setLoadingPeriodo(true);
-    setLayer(nextLayer);
-    setTimeout(() => setLoadingPeriodo(false), 80);
-  };
 
   function buildCrumbs(): { label: string; onClick?: () => void }[] {
     const provs = { label: "Províncias", onClick: () => setLayer({ type: "provincias" }) };
     if (layer.type === "provincias") return [provs];
     if (layer.type === "academias") return [provs, { label: nomeProvinciaDeCodigo(layer.provincia) }];
     if (layer.type === "academia_anos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome }];
-    if (layer.type === "academia_niveis") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/") }];
-    if (layer.type === "academia_periodos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, ano: layer.ano }) }, { label: labelNivel(layer.nivel) }];
-    if (layer.type === "academia_materias") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, ano: layer.ano }) }, { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "academia_periodos", academia: layer.academia, ano: layer.ano, nivel: layer.nivel }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
-    if (layer.type === "academia_notas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.ano.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, ano: layer.ano }) }, { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "academia_periodos", academia: layer.academia, ano: layer.ano, nivel: layer.nivel }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ type: "academia_materias", academia: layer.academia, ano: layer.ano, nivel: layer.nivel, periodo: layer.periodo }) }, { label: layer.materiaNome }];
+    if (layer.type === "academia_niveis") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.anoLetivo.replace(/_/g, "/") }];
+    if (layer.type === "academia_periodos") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.anoLetivo.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, anoLetivo: layer.anoLetivo }) }, { label: labelNivel(layer.nivel) }];
+    if (layer.type === "academia_materias") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.anoLetivo.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, anoLetivo: layer.anoLetivo }) }, { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "academia_periodos", academia: layer.academia, anoLetivo: layer.anoLetivo, nivel: layer.nivel }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo }];
+    if (layer.type === "academia_notas") return [provs, { label: nomeProvinciaDeCodigo(layer.academia.provincia), onClick: () => setLayer({ type: "academias", provincia: layer.academia.provincia }) }, { label: layer.academia.nome, onClick: () => setLayer({ type: "academia_anos", academia: layer.academia }) }, { label: layer.anoLetivo.replace(/_/g, "/"), onClick: () => setLayer({ type: "academia_niveis", academia: layer.academia, anoLetivo: layer.anoLetivo }) }, { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "academia_periodos", academia: layer.academia, anoLetivo: layer.anoLetivo, nivel: layer.nivel }) }, { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo, onClick: () => setLayer({ type: "academia_materias", academia: layer.academia, anoLetivo: layer.anoLetivo, nivel: layer.nivel, periodo: layer.periodo }) }, { label: layer.materiaNome }];
     return [provs];
   }
 
-  if (loadingAcads || carregandoNotas) return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        {carregandoNotas ? "Carregando notas do sistema..." : "Carregando academias..."}
-      </p>
-    </div>
-  );
+  if (loadingAcads) return <LoadingSpinner message="Carregando academias..." />;
 
+  // ── Províncias ──
   if (layer.type === "provincias") return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas do Sistema</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {todasNotas.length > 0 ? `${todasNotas.length} notas carregadas · ` : ""}
-          Selecione uma província
-        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma província para explorar as notas</p>
       </div>
       {provincias.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
@@ -426,15 +359,12 @@ export default function NotasAdmin() {
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           {provincias.map(prov => {
             const acads = academiasNaProvincia(prov);
-            const notasProv = todasNotas.filter(n =>
-              acads.some(a => a.codigo_academia === n.codigo_academia)
-            );
             return (
               <CardBtn
                 key={prov}
                 icon="mdi:map-marker-radius"
                 title={nomeProvinciaDeCodigo(prov)}
-                subtitle={`${acads.length} academia(s) · ${notasProv.length} nota(s)`}
+                subtitle={`${acads.length} academia(s)`}
                 onClick={() => setLayer({ type: "academias", provincia: prov })}
               />
             );
@@ -444,6 +374,7 @@ export default function NotasAdmin() {
     </div>
   );
 
+  // ── Academias ──
   if (layer.type === "academias") {
     const acads = academiasNaProvincia(layer.provincia);
     return (
@@ -453,180 +384,232 @@ export default function NotasAdmin() {
           Província {nomeProvinciaDeCodigo(layer.provincia)}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {acads.map(a => {
-            const notasAcad = notasDeAcademia(a.codigo_academia);
-            return (
-              <CardBtn
-                key={a.codigo_academia}
-                icon={a.type === "superior" ? "mdi:university" : "mdi:school"}
-                title={a.nome}
-                subtitle={`${a.codigo_academia} · ${notasAcad.length} nota(s)`}
-                badge={a.type}
-                onClick={async () => {
-                  await carregarNotasDaAcademia(a.codigo_academia);
-                  setLayer({ type: "academia_anos", academia: a });
-                }}
-              />
-            );
-          })}
+          {acads.map(a => (
+            <CardBtn
+              key={a.codigo_academia}
+              icon={a.nivel === "superior" ? "mdi:university" : "mdi:school"}
+              title={a.nome}
+              subtitle={a.codigo_academia}
+              badge={a.nivel}
+              onClick={async () => {
+                await carregarAnosLetivosAcademia(a.codigo_academia);
+                setLayer({ type: "academia_anos", academia: a });
+              }}
+            />
+          ))}
         </div>
       </div>
     );
   }
 
+  // ── Anos letivos da academia ──
   if (layer.type === "academia_anos") {
     const { academia } = layer;
-    const notas = notasDeAcademia(academia.codigo_academia);
-    const anos = anosDeAcademia(academia.codigo_academia);
+    const anos = anosLetivosPorAcademia[academia.codigo_academia] ?? [];
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{academia.nome}</h2>
-          <p className="text-sm text-gray-500 mt-1">{academia.codigo_academia} · {academia.type === "superior" ? "Superior" : "Escola"}</p>
+          <p className="text-sm text-gray-500 mt-1">{academia.codigo_academia} · {academia.nivel === "superior" ? "Ensino Superior" : "Escola"}</p>
         </div>
-        {notas.length > 0 && <StatsRow notas={notas} />}
-        {anos.length === 0
-          ? <p className="text-gray-400 text-sm py-8 text-center">Nenhuma nota registada nesta academia.</p>
-          : <div className="grid gap-3 sm:grid-cols-2">{anos.map(ano => {
-              const np = notas.filter(n => n.ano_lectivo === ano);
-              const med = calcMedia(np);
-              return <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano ${ano.replace(/_/g, "/")}`} subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`} onClick={() => setLayer({ type: "academia_niveis", academia, ano })} />;
-            })}</div>
-        }
+        {(loadingAnos) ? (
+          <LoadingSpinner message="Carregando anos letivos..." />
+        ) : anos.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Icon icon="mdi:calendar-blank-outline" width={44} className="mx-auto mb-3 opacity-40" />
+            <p className="text-sm">Nenhum registro de notas nesta academia.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anos.map(ano => (
+              <CardBtn
+                key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace(/_/g, "/")}`}
+                subtitle="Ver notas por nível académico"
+                badge={anos[0] === ano ? "actual" : undefined}
+                onClick={async () => {
+                  // Carrega notas filtradas por academia + ano letivo
+                  await carregarNotas({ codigo_academia: academia.codigo_academia, ano_letivo: ano, limit: 1000, token });
+                  setLayer({ type: "academia_niveis", academia, anoLetivo: ano });
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── Níveis académicos ──
   if (layer.type === "academia_niveis") {
-    const { academia, ano } = layer;
-    const notas = notasDeAcademia(academia.codigo_academia).filter(
-      n => normalizarValor(n.ano_lectivo) === normalizarValor(ano)
-    );
+    const { academia, anoLetivo } = layer;
+    if (loadingNotas) return <LoadingSpinner message={`Carregando notas de ${anoLetivo.replace(/_/g, "/")}...`} />;
+
     const niveisAcademicos = sortAnosAcademicos(
-      Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
+      Array.from(new Set(notasActuais.map(n => n.ano_academico).filter(Boolean))) as string[]
     );
 
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano letivo {ano.replace(/_/g, "/")}</h2>
-        <StatsRow notas={notas} />
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-          {niveisAcademicos.map(nivel => {
-            const nn = notas.filter(n => n.ano_academico === nivel);
-            return (
-              <CardBtn
-                key={nivel}
-                icon="mdi:numeric"
-                title={labelNivel(nivel)}
-                subtitle={`${nn.length} nota(s)`}
-                onClick={() => setLayer({ type: "academia_periodos", academia, ano, nivel })}
-              />
-            );
-          })}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano Letivo {anoLetivo.replace(/_/g, "/")}</h2>
+            <p className="text-sm text-gray-500 mt-1">{academia.nome}</p>
+          </div>
+          <div className="flex gap-2 flex-wrap ml-auto">
+            <FilterTag label="Academia" value={academia.codigo_academia} />
+            <FilterTag label="Ano letivo" value={anoLetivo.replace(/_/g, "/")} />
+          </div>
         </div>
+        {notasActuais.length > 0 && <StatsRow notas={notasActuais} />}
+        {niveisAcademicos.length === 0 ? (
+          <p className="text-gray-400 text-sm py-8 text-center">Nenhum nível académico com notas neste ano letivo.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {niveisAcademicos.map(nivel => {
+              const nn = notasActuais.filter(n => n.ano_academico === nivel);
+              const med = calcMedia(nn);
+              return (
+                <CardBtn
+                  key={nivel}
+                  icon="mdi:numeric"
+                  title={labelNivel(nivel)}
+                  subtitle={`${nn.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  onClick={() => setLayer({ type: "academia_periodos", academia, anoLetivo, nivel })}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── Períodos ──
   if (layer.type === "academia_periodos") {
-    const { academia, ano, nivel } = layer;
-    const notas = filtrarNotasContexto(academia.codigo_academia, ano, nivel);
-    const periodos = Array.from(new Set(notas.map(n => n.periodo))).sort(
+    const { academia, anoLetivo, nivel } = layer;
+    // Filtrar localmente do que já foi carregado (mesmo ano letivo)
+    const notasNivel = notasActuais.filter(n => n.ano_academico === nivel);
+    const periodos = Array.from(new Set(notasNivel.map(n => n.periodo))).sort(
       (a, b) => ORDEM_PERIODOS.indexOf(a) - ORDEM_PERIODOS.indexOf(b)
     );
+
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {periodos.map(p => {
-            const np = notas.filter(n => n.periodo === p);
-            const med = calcMedia(np);
-            return (
-              <CardBtn
-                key={p}
-                icon="mdi:clipboard-text-clock-outline"
-                title={PERIODOS_LABEL[p] ?? p}
-                subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
-                onClick={() => entrarNoPeriodo({ type: "academia_materias", academia, ano, nivel, periodo: p })}
-              />
-            );
-          })}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
+            <p className="text-sm text-gray-500 mt-1">{academia.nome} · {anoLetivo.replace(/_/g, "/")}</p>
+          </div>
+          <div className="flex gap-2 flex-wrap ml-auto">
+            <FilterTag label="Ano letivo" value={anoLetivo.replace(/_/g, "/")} />
+            <FilterTag label="Nível" value={labelNivel(nivel)} />
+          </div>
         </div>
+        {notasNivel.length > 0 && <StatsRow notas={notasNivel} />}
+        {periodos.length === 0 ? (
+          <p className="text-gray-400 text-sm py-8 text-center">Nenhum período com notas neste nível.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {periodos.map(p => {
+              const np = notasNivel.filter(n => n.periodo === p);
+              const med = calcMedia(np);
+              return (
+                <CardBtn
+                  key={p}
+                  icon="mdi:clipboard-text-clock-outline"
+                  title={PERIODOS_LABEL[p] ?? p}
+                  subtitle={`${np.length} nota(s)${med !== null ? ` · Média ${med.toFixed(1)}` : ""}`}
+                  onClick={() => setLayer({ type: "academia_materias", academia, anoLetivo, nivel, periodo: p })}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── Matérias ──
   if (layer.type === "academia_materias") {
-    const { academia, ano, nivel, periodo } = layer;
-    const materiasLista = materiasNoAnoEPeriodo(academia.codigo_academia, ano, nivel, periodo);
-    const notasPeriodo = filtrarNotasContexto(academia.codigo_academia, ano, nivel, periodo);
-    const niveisPresentes = sortAnosAcademicos(
-      Array.from(new Set(notasPeriodo.map(n => n.ano_academico).filter(Boolean))) as string[]
-    );
+    const { academia, anoLetivo, nivel, periodo } = layer;
+    const notasPeriodo = notasActuais.filter(n => n.ano_academico === nivel && n.periodo === periodo);
+
+    // Agrupa por matéria
+    const materiasMap = new Map<string, { nome: string; count: number; sum: number }>();
+    notasPeriodo.forEach(n => {
+      const ex = materiasMap.get(n.materia_disciplinar_id);
+      if (ex) { ex.count++; ex.sum += n.nota; }
+      else materiasMap.set(n.materia_disciplinar_id, { nome: n.materia_nome ?? n.materia_disciplinar_id, count: 1, sum: n.nota });
+    });
+    const materiasList = Array.from(materiasMap.entries())
+      .map(([id, { nome, count, sum }]) => ({ id, nome, notasCount: count, media: count > 0 ? sum / count : null }))
+      .sort((a, b) => a.nome.localeCompare(b.nome));
 
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {academia.nome} · {ano.replace(/_/g, "/")} · {labelNivel(nivel)}
-            {niveisPresentes.length > 0 && (
-              <span className="ml-1">· {niveisPresentes.map(labelNivel).join(", ")}</span>
-            )}
-          </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo} — Matérias</h2>
+            <p className="text-sm text-gray-500 mt-1">{academia.nome} · {anoLetivo.replace(/_/g, "/")} · {labelNivel(nivel)}</p>
+          </div>
+          <div className="flex gap-2 flex-wrap ml-auto">
+            <FilterTag label="Período" value={PERIODOS_LABEL[periodo] ?? periodo} />
+          </div>
         </div>
-        {loadingPeriodo
-          ? <LoadingSpinner message="Carregando matérias e notas..." />
-          : (
-            <>
-              {notasPeriodo.length > 0 && <StatsRow notas={notasPeriodo} />}
-              {materiasLista.length === 0
-                ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma matéria com notas neste período.</p></div>
-                : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{materiasLista.map(m => (
-                    <CardBtn key={m.id} icon="mdi:book-open-variant" title={m.nome}
-                      subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas"}
-                      badge={m.notasCount === 0 ? "vazia" : undefined}
-                      onClick={() => setLayer({ type: "academia_notas", academia, ano, nivel, periodo, materiaId: m.id, materiaNome: m.nome })}
-                    />
-                  ))}</div>
-              }
-            </>
-          )
-        }
+        {notasPeriodo.length > 0 && <StatsRow notas={notasPeriodo} />}
+        {materiasList.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Icon icon="mdi:book-outline" width={48} className="mx-auto mb-3 opacity-40" />
+            <p className="text-sm">Nenhuma matéria com notas neste período.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {materiasList.map(m => (
+              <CardBtn
+                key={m.id}
+                icon="mdi:book-open-variant"
+                title={m.nome}
+                subtitle={m.notasCount > 0 ? `${m.notasCount} nota(s)${m.media !== null ? ` · Média ${m.media.toFixed(1)}` : ""}` : "Sem notas"}
+                badge={m.notasCount === 0 ? "vazia" : undefined}
+                onClick={() => setLayer({ type: "academia_notas", academia, anoLetivo, nivel, periodo, materiaId: m.id, materiaNome: m.nome })}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── Notas de uma matéria ──
   if (layer.type === "academia_notas") {
-    const { academia, ano, nivel, periodo, materiaId, materiaNome } = layer;
-    const notas = filtrarNotasContexto(academia.codigo_academia, ano, nivel, periodo).filter(
-      n => n.materia_disciplinar_id === materiaId
+    const { academia, anoLetivo, nivel, periodo, materiaId, materiaNome } = layer;
+    const notas = notasActuais.filter(n =>
+      n.ano_academico === nivel && n.periodo === periodo && n.materia_disciplinar_id === materiaId
     );
-    const isSup = isAcademiaSuperior(academia.codigo_academia);
-    const niveisNotas = sortAnosAcademicos(
-      Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]
-    );
+    const isSup = notas.some(n => n.tipo === "superior") || academia.nivel === "superior";
 
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={buildCrumbs()} />
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {academia.nome} · {ano.replace(/_/g, "/")} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo}
-            {niveisNotas.length > 0 && (
-              <span className="ml-1">· {niveisNotas.map(labelNivel).join(", ")}</span>
-            )}
-          </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{materiaNome}</h2>
+            <p className="text-sm text-gray-500 mt-1">{academia.nome} · {anoLetivo.replace(/_/g, "/")} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo}</p>
+          </div>
+          <div className="flex gap-2 flex-wrap ml-auto">
+            <FilterTag label="Matéria" value={materiaNome} />
+          </div>
         </div>
         {notas.length > 0 && <StatsRow notas={notas} />}
         {isSup
-          ? <TabelaNotasSuperior notas={notas} estudantesMap={estudantesMap} />
-          : <TabelaNotasEscolar notas={notas} estudantesMap={estudantesMap} />
+          ? <TabelaNotasSuperior notas={notas} />
+          : <TabelaNotasEscolar notas={notas} />
         }
       </div>
     );
