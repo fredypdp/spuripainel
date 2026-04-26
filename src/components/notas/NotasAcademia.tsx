@@ -88,6 +88,10 @@ function normCodigoEstudante(codigo: string): string {
   return (codigo ?? "").trim().toLowerCase();
 }
 
+function exibirCodigoEstudante(codigo: string): string {
+  return (codigo ?? "").trim().toUpperCase();
+}
+
 // ─── tipos de layer ───────────────────────────────────────────────────────────
 
 type LayerFund =
@@ -204,7 +208,7 @@ function TabelaNotasEscolar({
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {codigos.map((codigo) => {
             const notasEst = porEstudante.get(codigo) ?? [];
-            const est = estudantes.find(e => e.codigo_estudante === codigo);
+            const est = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === normCodigoEstudante(codigo));
             const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
             const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
 
@@ -212,7 +216,7 @@ function TabelaNotasEscolar({
               return (
                 <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
                 </tr>
@@ -225,7 +229,7 @@ function TabelaNotasEscolar({
                   {i === 0 && (
                     <>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{est?.nome ?? "-"}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{exibirCodigoEstudante(codigo)}</td>
                     </>
                   )}
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
@@ -237,7 +241,7 @@ function TabelaNotasEscolar({
             return (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                 <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>
                   {notaProf?.nota ?? "—"}
                 </td>
@@ -293,13 +297,13 @@ function TabelaNotasSuperior({
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {codigos.map((codigo) => {
             const notasEst = porEstudante.get(codigo) ?? [];
-            const est = estudantes.find(e => e.codigo_estudante === codigo);
+            const est = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === normCodigoEstudante(codigo));
 
             if (notasEst.length === 0) {
               return (
                 <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                   <td className="px-4 py-3 text-gray-400 dark:text-gray-600">—</td>
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
                 </tr>
@@ -311,7 +315,7 @@ function TabelaNotasSuperior({
                 {i === 0 && (
                   <>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{est?.nome ?? "-"}</td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{exibirCodigoEstudante(codigo)}</td>
                   </>
                 )}
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(nota.categoria)}</td>
@@ -651,6 +655,47 @@ export default function NotasAcademia() {
     return codigosOrigem.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
   }
 
+  function filtrosNotasDoContexto(turma: Turma) {
+    const anoLetivo = anoLetivoSelecionado || anoLectivo || undefined;
+    const base = {
+      ano_letivo: anoLetivo,
+      codigo_turma: turma.codigo_turma,
+    };
+
+    if (layer.type === "notas") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+        periodo: layer.periodo,
+        materia_disciplinar_id: layer.materiaId,
+      };
+    }
+
+    if (layer.type === "materias") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+        periodo: layer.periodo,
+      };
+    }
+
+    if (layer.type === "periodos") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+      };
+    }
+
+    if (layer.type === "turmas") {
+      return {
+        ...base,
+        ano_academico: layer.nivel,
+      };
+    }
+
+    return base;
+  }
+
   async function carregarNotasDosEstudantesDaTurma(turma: Turma, force = false) {
     const anoFiltro = anoLetivoSelecionado || anoLectivo || undefined;
     const codigosNorm = codigosTurmaDoAnoLetivo(turma, anoFiltro);
@@ -662,7 +707,10 @@ export default function NotasAcademia() {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async (codigoNorm) => {
           const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
-          const resposta = await consultasService.notasEstudante(codigoOriginal, token);
+          const resposta = await consultasService.notasEstudante(codigoOriginal, {
+            ...filtrosNotasDoContexto(turma),
+            token,
+          });
           return { codigoNorm, notas: resposta?.notas ?? [] };
         })
       );
@@ -821,16 +869,20 @@ export default function NotasAcademia() {
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
         {anosLetivosDisponiveis.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {anosLetivosDisponiveis.map((ano: string) => (
-              <button
-                key={ano}
-                onClick={() => setAnoLetivoSelecionado(ano)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}
-              >
-                {ano.replace("_", "/")}
-              </button>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anosLetivosDisponiveis.map((ano: string) => {
+              const ativo = ano === (anoLetivoSelecionado || anoLectivo);
+              return (
+                <CardBtn
+                  key={ano}
+                  icon="mdi:calendar-school"
+                  title={`Ano Letivo ${ano.replace("_", "/")}`}
+                  subtitle={ativo ? "Ano letivo selecionado" : "Clique para filtrar"}
+                  badge={ativo ? "ativo" : undefined}
+                  onClick={() => setAnoLetivoSelecionado(ano)}
+                />
+              );
+            })}
           </div>
         )}
         {niveisFundamentais.length === 0
@@ -930,16 +982,20 @@ export default function NotasAcademia() {
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
           {anosLetivosDisponiveis.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {anosLetivosDisponiveis.map((ano: string) => (
-                <button
-                  key={ano}
-                  onClick={() => setAnoLetivoSelecionado(ano)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}
-                >
-                  {ano.replace("_", "/")}
-                </button>
-              ))}
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {anosLetivosDisponiveis.map((ano: string) => {
+                const ativo = ano === (anoLetivoSelecionado || anoLectivo);
+                return (
+                  <CardBtn
+                    key={ano}
+                    icon="mdi:calendar-school"
+                    title={`Ano Letivo ${ano.replace("_", "/")}`}
+                    subtitle={ativo ? "Ano letivo selecionado" : "Clique para filtrar"}
+                    badge={ativo ? "ativo" : undefined}
+                    onClick={() => setAnoLetivoSelecionado(ano)}
+                  />
+                );
+              })}
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
