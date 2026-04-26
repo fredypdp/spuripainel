@@ -1,6 +1,6 @@
 // src/components/notas/NotasAdmin.tsx
 "use client"
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Fragment, useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, consultasService, tokenStorage } from "@/lib/api";
 import type { Nota, ListarNotasParams } from "@/types/api";
 import { Provincias } from "@/types/api";
@@ -167,49 +167,53 @@ function TabelaNotasEscolar({ notas }: { notas: Nota[] }) {
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
     porEstudante.get(n.codigo_estudante)!.push(n);
   });
+  const materias = Array.from(
+    notas.reduce((acc, n) => {
+      if (!acc.has(n.materia_disciplinar_id)) {
+        acc.set(n.materia_disciplinar_id, { id: n.materia_disciplinar_id, nome: n.materia_nome ?? n.materia_disciplinar_id });
+      }
+      return acc;
+    }, new Map<string, { id: string; nome: string }>() ).values()
+  ).sort((a, b) => a.nome.localeCompare(b.nome));
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400" rowSpan={2}>Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400" rowSpan={2}>Código</th>
+            {materias.map(m => (
+              <th key={m.id} className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400" colSpan={2}>{m.nome}</th>
+            ))}
+          </tr>
+          <tr>
+            {materias.map(m => (
+              <Fragment key={`${m.id}-sub`}>
+                <th className="px-4 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
+                <th className="px-4 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
+              </Fragment>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {Array.from(porEstudante.entries()).map(([codigo, notasEst]) => {
             const nomeEstudante = notasEst[0]?.estudante_nome ?? codigo;
-            const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
-            const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
-
-            if (!notaProf && !notaFinal) {
-              return notasEst.map((nota, i) => (
-                <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
-                  {i === 0 && (
-                    <>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{nomeEstudante}</td>
-                      <td className="px-4 py-3 text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
-                    </>
-                  )}
-                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
-                  <td className={`px-4 py-3 text-right font-bold ${corNota(nota.nota)}`}>{nota.nota}</td>
-                </tr>
-              ));
-            }
 
             return (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nomeEstudante}</td>
-                <td className="px-4 py-3 text-gray-400 font-mono text-xs">{codigo}</td>
-                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>
-                  {notaProf?.nota ?? "—"}
-                </td>
-                <td className={`px-4 py-3 text-right font-bold ${notaFinal ? corNota(notaFinal.nota) : "text-gray-400 dark:text-gray-600"}`}>
-                  {notaFinal?.nota ?? "—"}
-                </td>
+                <td className="px-4 py-3 text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
+                {materias.map((m) => {
+                  const notaProf = notasEst.find(n => n.materia_disciplinar_id === m.id && n.categoria === "nota_professor");
+                  const notaEsc = notasEst.find(n => n.materia_disciplinar_id === m.id && n.categoria === "nota_escola");
+                  return (
+                    <Fragment key={`${codigo}-${m.id}`}>
+                      <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaProf?.nota ?? "—"}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${notaEsc ? corNota(notaEsc.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaEsc?.nota ?? "—"}</td>
+                    </Fragment>
+                  );
+                })}
               </tr>
             );
           })}

@@ -590,12 +590,6 @@ export default function FaltasAcademia() {
   const turmasAtivas: Turma[]           = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
   const todasFaltas                     = useMemo(() => Object.values(faltasPorEstudante).flat(), [faltasPorEstudante]);
 
-  useEffect(() => {
-    if (anoLetivoSelecionado) return;
-    if (anoLectivo) { setAnoLetivoSelecionado(anoLectivo); return; }
-    if (anosLetivosDisponiveis.length > 0) setAnoLetivoSelecionado(anosLetivosDisponiveis[0]);
-  }, [anoLectivo, anosLetivosDisponiveis, anoLetivoSelecionado]);
-
   const estudantesMap = useMemo(() => {
     const m = new Map<string, string>();
     estudantes.forEach(e => m.set(e.codigo_estudante, e.nome));
@@ -820,32 +814,33 @@ export default function FaltasAcademia() {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Anos Académicos — Ensino Fundamental
         </h2>
-        {anosLetivosDisponiveis.length > 0 && (
+        {!anoLetivoSelecionado ? (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anosLetivosDisponiveis.map((ano: string) => {
-              const ativo = ano === (anoLetivoSelecionado || anoLectivo);
-              return (
-                <CardBtn
-                  key={ano}
-                  icon="mdi:calendar-school"
-                  title={`Ano Letivo ${ano.replace("_", "/")}`}
-                  subtitle={ativo ? "Ano letivo selecionado" : "Clique para filtrar"}
-                  badge={ativo ? "ativo" : undefined}
-                  onClick={() => setAnoLetivoSelecionado(ano)}
-                />
-              );
-            })}
-          </div>
-        )}
-        {niveisFundamentais.length === 0 ? (
-          <p className="text-gray-400 text-sm py-8 text-center">Nenhum nível fundamental configurado.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {niveisFundamentais.map(nivel => (
-              <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)}
-                subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`}
-                onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <CardBtn
+                key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace("_", "/")}`}
+                subtitle="Entrar para ver anos académicos"
+                onClick={() => setAnoLetivoSelecionado(ano)}
+              />
             ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <button onClick={() => setAnoLetivoSelecionado("")} className="text-sm text-brand-600 hover:text-brand-500">← Voltar aos anos letivos</button>
+            <p className="text-sm text-gray-500">Ano letivo selecionado: {anoLetivoSelecionado.replace("_", "/")}</p>
+            {niveisFundamentais.length === 0 ? (
+              <p className="text-gray-400 text-sm py-8 text-center">Nenhum nível fundamental configurado.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {niveisFundamentais.map(nivel => (
+                  <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)}
+                    subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`}
+                    onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -964,30 +959,31 @@ export default function FaltasAcademia() {
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
-          {anosLetivosDisponiveis.length > 0 && (
+          {!anoLetivoSelecionado ? (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-              {anosLetivosDisponiveis.map((ano: string) => {
-                const ativo = ano === (anoLetivoSelecionado || anoLectivo);
-                return (
-                  <CardBtn
-                    key={ano}
-                    icon="mdi:calendar-school"
-                    title={`Ano Letivo ${ano.replace("_", "/")}`}
-                    subtitle={ativo ? "Ano letivo selecionado" : "Clique para filtrar"}
-                    badge={ativo ? "ativo" : undefined}
-                    onClick={() => setAnoLetivoSelecionado(ano)}
-                  />
-                );
-              })}
+              {anosLetivosDisponiveis.map((ano: string) => (
+                <CardBtn
+                  key={ano}
+                  icon="mdi:calendar-school"
+                  title={`Ano Letivo ${ano.replace("_", "/")}`}
+                  subtitle="Entrar para ver anos académicos"
+                  onClick={() => setAnoLetivoSelecionado(ano)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button onClick={() => setAnoLetivoSelecionado("")} className="text-sm text-brand-600 hover:text-brand-500">← Voltar aos anos letivos</button>
+              <p className="text-sm text-gray-500">Ano letivo selecionado: {anoLetivoSelecionado.replace("_", "/")}</p>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {anos.map(nivel => (
+                  <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)}
+                    subtitle={`${turmasPorCurso(curso.id, nivel).length} turma(s)`}
+                    onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />
+                ))}
+              </div>
             </div>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anos.map(nivel => (
-              <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)}
-                subtitle={`${turmasPorCurso(curso.id, nivel).length} turma(s)`}
-                onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />
-            ))}
-          </div>
         </div>
       );
     }
