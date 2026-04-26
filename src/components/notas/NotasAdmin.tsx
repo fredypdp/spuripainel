@@ -310,7 +310,7 @@ export default function NotasAdmin() {
     try {
       // Busca notas com limit alto para extrair anos letivos únicos
       const res = await consultasService.listarNotas({ codigo_academia: codigoAcademia, limit: 1000, token });
-      const anos = Array.from(new Set((res?.notas ?? []).map(n => n.ano_lectivo).filter(Boolean))).sort().reverse();
+      const anos = Array.from(new Set((res?.notas ?? []).map(n => n.ano_lectivo).filter(Boolean))).sort();
       setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: anos }));
     } catch {
       setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: [] }));
