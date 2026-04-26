@@ -853,6 +853,16 @@ export interface DefinirAnoLetivoResponse {
   tipo?: string;
 }
 
+/** GET /academia/anos-letivos-lista */
+export interface ListarAnosLetivosAcademiaResponse {
+  anos_letivos_lista: Array<{
+    ano_letivo: string;
+    tipo?: 'escola' | 'superior';
+    definido_por?: string;
+    definido_em?: string;
+  }>;
+}
+
 export interface AlterarCursoResponse {
   message: string;
   codigo_estudante: string;

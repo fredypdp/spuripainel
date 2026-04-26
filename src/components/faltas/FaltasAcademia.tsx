@@ -557,6 +557,7 @@ export default function FaltasAcademia() {
   const { data: dataEstudantes,                           execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data: dataMaterias,                             execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnoLetivo,                            execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
+  const { data: dataAnosLetivosLista,                     execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);
   const { execute: executarRegistrar, loading: registrando } = useApi(academiaService.registrarFaltas);
   const { execute: executarAtualizar }                       = useApi(academiaService.atualizarFalta);
   const { execute: executarDeletar }                         = useApi(academiaService.deletarFalta);
@@ -569,6 +570,7 @@ export default function FaltasAcademia() {
     carregarEstudantes(undefined, token);
     carregarMaterias(token);
     buscarAnoLetivo(token);
+    buscarAnosLetivos(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -578,8 +580,21 @@ export default function FaltasAcademia() {
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
   const materias                        = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
   const anoLectivo                      = (dataAnoLetivo as any)?.ano_letivo ?? "";
+  const anosLetivosDisponiveis          = useMemo(() => (
+    ((dataAnosLetivosLista as any)?.anos_letivos_lista ?? [])
+      .map((x: any) => x?.ano_letivo)
+      .filter(Boolean)
+      .sort()
+  ), [dataAnosLetivosLista]);
+  const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
   const turmasAtivas: Turma[]           = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
   const todasFaltas                     = useMemo(() => Object.values(faltasPorEstudante).flat(), [faltasPorEstudante]);
+
+  useEffect(() => {
+    if (anoLetivoSelecionado) return;
+    if (anoLectivo) { setAnoLetivoSelecionado(anoLectivo); return; }
+    if (anosLetivosDisponiveis.length > 0) setAnoLetivoSelecionado(anosLetivosDisponiveis[0]);
+  }, [anoLectivo, anosLetivosDisponiveis, anoLetivoSelecionado]);
 
   const estudantesMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -592,16 +607,21 @@ export default function FaltasAcademia() {
     [materias]
   );
 
-  function codigosTurmaNormalizados(turma: Turma): string[] {
-    return Array.from(new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean)));
+  function codigosTurmaDoAnoLetivo(turma: Turma, anoLetivo?: string): string[] {
+    const codigosHistorico = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
+    const codigosOrigem = codigosHistorico.length > 0 ? codigosHistorico : turma.estudantes;
+    return Array.from(new Set(codigosOrigem.map(normCodigoEstudante).filter(Boolean)));
   }
 
-  function codigoOriginalDaTurma(turma: Turma, codigoNorm: string): string {
-    return turma.estudantes.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
+  function codigoOriginalDaTurma(turma: Turma, codigoNorm: string, anoLetivo?: string): string {
+    const codigosHistorico = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
+    const codigosOrigem = codigosHistorico.length > 0 ? codigosHistorico : turma.estudantes;
+    return codigosOrigem.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
   }
 
   async function carregarFaltasDosEstudantesDaTurma(turma: Turma, force = false) {
-    const codigosNorm = codigosTurmaNormalizados(turma);
+    const anoFiltro = anoLetivoSelecionado || anoLectivo || undefined;
+    const codigosNorm = codigosTurmaDoAnoLetivo(turma, anoFiltro);
     const codigosParaBuscar = force ? codigosNorm : codigosNorm.filter(c => !faltasPorEstudante[c]);
     if (codigosParaBuscar.length === 0) return;
 
@@ -609,7 +629,7 @@ export default function FaltasAcademia() {
     try {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async (codigoNorm) => {
-          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm);
+          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
           const resposta = await consultasService.faltasEstudante(codigoOriginal, token);
           return { codigoNorm, faltas: resposta?.faltas ?? [] };
         })
@@ -632,11 +652,11 @@ export default function FaltasAcademia() {
   }
 
   function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
-    const codigosTurma = codigosTurmaNormalizados(turma);
+    const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo);
     const faltasDaTurma = codigosTurma.flatMap(c => faltasPorEstudante[c] ?? []);
     return faltasDaTurma.filter(f =>
       f.materia_disciplinar_id === materiaId &&
-      (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+      (anoLetivoSelecionado || anoLectivo ? f.ano_lectivo === (anoLetivoSelecionado || anoLectivo) : true)
     ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }
 
@@ -652,10 +672,10 @@ export default function FaltasAcademia() {
       return curso ? m.curso_id === curso.id : false;
     });
 
-    const codigosTurma = codigosTurmaNormalizados(turma);
+    const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo);
     const faltasDaTurma = codigosTurma
       .flatMap(c => faltasPorEstudante[c] ?? [])
-      .filter(f => (anoLectivo ? f.ano_lectivo === anoLectivo : true));
+      .filter(f => (anoLetivoSelecionado || anoLectivo ? f.ano_lectivo === (anoLetivoSelecionado || anoLectivo) : true));
 
     return materiasConfig.map((m: any) => {
       const id = m.id;
@@ -800,6 +820,16 @@ export default function FaltasAcademia() {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Anos Académicos — Ensino Fundamental
         </h2>
+        {anosLetivosDisponiveis.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <button key={ano} onClick={() => setAnoLetivoSelecionado(ano)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}>
+                {ano.replace("_", "/")}
+              </button>
+            ))}
+          </div>
+        )}
         {niveisFundamentais.length === 0 ? (
           <p className="text-gray-400 text-sm py-8 text-center">Nenhum nível fundamental configurado.</p>
         ) : (
@@ -826,16 +856,16 @@ export default function FaltasAcademia() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {ts.map(t => {
-                const codigosTurma = new Set(t.estudantes.map(normCodigoEstudante).filter(Boolean));
+                const codigosTurma = new Set(codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo));
                 const faltasTurma = todasFaltas.filter(f =>
                   codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
-                  (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+                  (anoLetivoSelecionado || anoLectivo ? f.ano_lectivo === (anoLetivoSelecionado || anoLectivo) : true)
                 );
                 const totalFaltas = faltasTurma.reduce((acc, f) => acc + f.quantidade, 0);
                 return (
                   <CardBtn key={t.codigo_turma} icon="mdi:account-group"
                     title={`Turma ${t.codigo_turma}`}
-                    subtitle={`${t.estudantes.length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
+                    subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
                     onClick={async () => {
                       await carregarFaltasDosEstudantesDaTurma(t);
                       setLayer({ mode: "fund", type: "materias", nivel: layer.nivel, turma: t });
@@ -880,7 +910,7 @@ export default function FaltasAcademia() {
       const { nivel, turma, materiaId, materiaNome } = layer;
       const faltas      = faltasDaTurmaEMateria(turma, materiaId);
       const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
-      const codigosTurma = turma.estudantes.filter(Boolean);
+      const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo).filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
@@ -927,6 +957,16 @@ export default function FaltasAcademia() {
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
+          {anosLetivosDisponiveis.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {anosLetivosDisponiveis.map((ano: string) => (
+                <button key={ano} onClick={() => setAnoLetivoSelecionado(ano)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}>
+                  {ano.replace("_", "/")}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anos.map(nivel => (
               <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)}
@@ -951,16 +991,16 @@ export default function FaltasAcademia() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {ts.map(t => {
-                const codigosTurma = new Set(t.estudantes.map(normCodigoEstudante).filter(Boolean));
+                const codigosTurma = new Set(codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo));
                 const faltasTurma = todasFaltas.filter(f =>
                   codigosTurma.has(normCodigoEstudante(f.codigo_estudante)) &&
-                  (anoLectivo ? f.ano_lectivo === anoLectivo : true)
+                  (anoLetivoSelecionado || anoLectivo ? f.ano_lectivo === (anoLetivoSelecionado || anoLectivo) : true)
                 );
                 const totalFaltas = faltasTurma.reduce((acc, f) => acc + f.quantidade, 0);
                 return (
                   <CardBtn key={t.codigo_turma} icon="mdi:account-group"
                     title={`Turma ${t.codigo_turma}`}
-                    subtitle={`${t.estudantes.length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
+                    subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s) · ${t.turno} · ${totalFaltas} falta(s)`}
                     onClick={async () => {
                       await carregarFaltasDosEstudantesDaTurma(t);
                       setLayer({ mode: "sup", type: "materias", curso, nivel, turma: t });
@@ -1005,7 +1045,7 @@ export default function FaltasAcademia() {
       const { curso, nivel, turma, materiaId, materiaNome } = layer as any;
       const faltas      = faltasDaTurmaEMateria(turma, materiaId);
       const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
-      const codigosTurma = turma.estudantes.filter(Boolean);
+      const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo).filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />

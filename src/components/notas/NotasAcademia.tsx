@@ -598,6 +598,7 @@ export default function NotasAcademia() {
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataCategorias,                              execute: carregarCategorias } = useApi(academiaService.listarCategoriasNota);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
+  const { data: dataAnosLetivosLista,                        execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);
 
   const { isOpen, openModal, closeModal } = useModal();
 
@@ -607,6 +608,7 @@ export default function NotasAcademia() {
     carregarEstudantes(undefined, token);
     carregarMaterias(token);
     buscarAnoLetivo(token);
+    buscarAnosLetivos(token);
     if (isSuperior) carregarCategorias(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -617,23 +619,41 @@ export default function NotasAcademia() {
   const materias                         = useMemo(() => (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [], [dataMaterias]);
   const categorias                       = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
   const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
+  const anosLetivosDisponiveis           = useMemo(() => (
+    ((dataAnosLetivosLista as any)?.anos_letivos_lista ?? [])
+      .map((x: any) => x?.ano_letivo)
+      .filter(Boolean)
+      .sort()
+  ), [dataAnosLetivosLista]);
+  const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
   const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
+
+  useEffect(() => {
+    if (anoLetivoSelecionado) return;
+    if (anoLectivo) { setAnoLetivoSelecionado(anoLectivo); return; }
+    if (anosLetivosDisponiveis.length > 0) setAnoLetivoSelecionado(anosLetivosDisponiveis[0]);
+  }, [anoLectivo, anosLetivosDisponiveis, anoLetivoSelecionado]);
 
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
 
-  function codigosTurmaNormalizados(turma: Turma): string[] {
-    return Array.from(new Set(turma.estudantes.map(normCodigoEstudante).filter(Boolean)));
+  function codigosTurmaDoAnoLetivo(turma: Turma, anoLetivo?: string): string[] {
+    const codigosHistorico = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
+    const codigosOrigem = codigosHistorico.length > 0 ? codigosHistorico : turma.estudantes;
+    return Array.from(new Set(codigosOrigem.map(normCodigoEstudante).filter(Boolean)));
   }
 
-  function codigoOriginalDaTurma(turma: Turma, codigoNorm: string): string {
-    return turma.estudantes.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
+  function codigoOriginalDaTurma(turma: Turma, codigoNorm: string, anoLetivo?: string): string {
+    const codigosHistorico = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
+    const codigosOrigem = codigosHistorico.length > 0 ? codigosHistorico : turma.estudantes;
+    return codigosOrigem.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
   }
 
   async function carregarNotasDosEstudantesDaTurma(turma: Turma, force = false) {
-    const codigosNorm = codigosTurmaNormalizados(turma);
+    const anoFiltro = anoLetivoSelecionado || anoLectivo || undefined;
+    const codigosNorm = codigosTurmaDoAnoLetivo(turma, anoFiltro);
     const codigosParaBuscar = force ? codigosNorm : codigosNorm.filter(c => !notasPorEstudante[c]);
     if (codigosParaBuscar.length === 0) return;
 
@@ -641,7 +661,7 @@ export default function NotasAcademia() {
     try {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async (codigoNorm) => {
-          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm);
+          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
           const resposta = await consultasService.notasEstudante(codigoOriginal, token);
           return { codigoNorm, notas: resposta?.notas ?? [] };
         })
@@ -660,14 +680,15 @@ export default function NotasAcademia() {
   }
 
   function notasDaTurmaEmPeriodo(turma: Turma, nivel: string, periodo: string): Nota[] {
-    const codigosTurma = codigosTurmaNormalizados(turma);
+    const anoFiltro = anoLetivoSelecionado || anoLectivo;
+    const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoFiltro);
 
     // 1) notas de estudantes da turma (carregadas via /notas-estudante/:codigo)
     const notasDaTurma = codigosTurma.flatMap(codigo => notasPorEstudante[codigo] ?? []);
 
     // 2) ano letivo atual da academia (quando informado)
-    const notasAnoLetivo = anoLectivo
-      ? notasDaTurma.filter(n => n.ano_lectivo === anoLectivo)
+    const notasAnoLetivo = anoFiltro
+      ? notasDaTurma.filter(n => n.ano_lectivo === anoFiltro)
       : notasDaTurma;
 
     // 3) contexto atual: ano académico + período
@@ -799,6 +820,19 @@ export default function NotasAcademia() {
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
+        {anosLetivosDisponiveis.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <button
+                key={ano}
+                onClick={() => setAnoLetivoSelecionado(ano)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}
+              >
+                {ano.replace("_", "/")}
+              </button>
+            ))}
+          </div>
+        )}
         {niveisFundamentais.length === 0
           ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p></div>
           : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{niveisFundamentais.map(nivel => (<CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)} subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`} onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />))}</div>
@@ -814,7 +848,7 @@ export default function NotasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel)}</h2>
           {ts.length === 0
             ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma turma ativa para este nível.</p></div>
-            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s) · ${t.turno}`} onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: t }); }} />))}</div>
+            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s) · ${t.turno}`} onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: t }); }} />))}</div>
           }
         </div>
       );
@@ -863,7 +897,7 @@ export default function NotasAcademia() {
     if (layer.mode === "fund" && layer.type === "notas") {
       const { nivel, turma, periodo, materiaId, materiaNome } = layer;
       const notas = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, materiaId);
-      const codigosTurma = turma.estudantes.filter(Boolean);
+      const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo).filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
@@ -895,6 +929,19 @@ export default function NotasAcademia() {
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
+          {anosLetivosDisponiveis.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {anosLetivosDisponiveis.map((ano: string) => (
+                <button
+                  key={ano}
+                  onClick={() => setAnoLetivoSelecionado(ano)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}
+                >
+                  {ano.replace("_", "/")}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anos.map(nivel => (<CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)} subtitle={`${turmasPorCurso(curso.id).filter(t => t.nivel === nivel).length} turma(s)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />))}
           </div>
@@ -911,7 +958,7 @@ export default function NotasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
           {ts.length === 0
             ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhuma turma ativa para este nível neste curso.</p></div>
-            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${t.estudantes.length} estudante(s)`} onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t }); }} />))}</div>
+            : <div className="grid gap-3 sm:grid-cols-2">{ts.map(t => (<CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma} subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s)`} onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t }); }} />))}</div>
           }
         </div>
       );
@@ -960,7 +1007,7 @@ export default function NotasAcademia() {
     if (layer.mode === "sup" && layer.type === "notas") {
       const { curso, nivel, turma, periodo, materiaId, materiaNome } = layer as any;
       const notas = notasDaTurmaEmPeriodoEMateria(turma, nivel, periodo, materiaId);
-      const codigosTurma = turma.estudantes.filter(Boolean);
+      const codigosTurma = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo).filter(Boolean);
       return (
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />

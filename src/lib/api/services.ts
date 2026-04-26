@@ -41,6 +41,7 @@ import type {
   ListarAdminsResponse,
   DefinirAnoLetivoAcademiaRequest,
   AnoLetivoAcademiaResponse,
+  ListarAnosLetivosAcademiaResponse,
   DefinirAnoLetivoResponse,
   AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
@@ -497,6 +498,12 @@ export const academiaService = {
   getAnoLetivo: (token?: string) =>
     api.get<AnoLetivoAcademiaResponse>(
       '/academia/ano-letivo',
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarAnosLetivosLista: (token?: string) =>
+    api.get<ListarAnosLetivosAcademiaResponse>(
+      '/academia/anos-letivos-lista',
       { token: token || tokenStorage.get() || undefined }
     ),
 

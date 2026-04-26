@@ -261,7 +261,7 @@ export default function NotasEstudante() {
   // Anos letivos de uma academia
   const anosLetivosDe = (codigoAcad: string) => {
     const anos = Array.from(new Set(notasDe(codigoAcad).map(n => n.ano_lectivo).filter(Boolean)));
-    return anos.sort().reverse();
+    return anos.sort();
   };
 
   // Anos académicos dentro de um ano letivo

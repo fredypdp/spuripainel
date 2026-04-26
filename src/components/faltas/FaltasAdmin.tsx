@@ -203,7 +203,7 @@ export default function FaltasAdmin() {
     setLoadingAnos(true);
     try {
       const res = await consultasService.listarFaltas({ codigo_academia: codigoAcademia, limit: 1000, token });
-      const anos = Array.from(new Set((res?.faltas ?? []).map(f => f.ano_lectivo).filter(Boolean))).sort().reverse();
+      const anos = Array.from(new Set((res?.faltas ?? []).map(f => f.ano_lectivo).filter(Boolean))).sort();
       setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: anos }));
     } catch {
       setAnosLetivosPorAcademia(prev => ({ ...prev, [codigoAcademia]: [] }));
