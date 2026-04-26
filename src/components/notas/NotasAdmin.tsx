@@ -1,6 +1,6 @@
 // src/components/notas/NotasAdmin.tsx
 "use client"
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useApi, consultasService, academiaService, tokenStorage } from "@/lib/api";
 import type { Nota, Turma, EstudanteDetalhado, Curso } from "@/types/api";
 import { Provincias } from "@/types/api";
@@ -73,34 +73,44 @@ function turmaAtiva(turma: Turma): boolean {
   return s !== "inativo" && s !== "deletado";
 }
 
-// ─── tipos de layer ───────────────────────────────────────────────────────────
+// ─── tipos ────────────────────────────────────────────────────────────────────
 
 type AcadInfo = {
   codigo_academia: string;
-  nome: string;
-  provincia: string;
-  nivel: string;
-  nivel_escolar?: string;
+  nome:            string;
+  provincia:       string;
+  nivel:           string;
+  nivel_escolar?:  string;
   anos_academicos?: string[];
-  status: string;
+  status:          string;
 };
 
-type AcadLayer =
-  | { mode: "fund"; type: "anos" }
-  | { mode: "fund"; type: "turmas"; nivel: string }
-  | { mode: "fund"; type: "periodos"; nivel: string; turma: Turma }
-  | { mode: "fund"; type: "notas";   nivel: string; turma: Turma; periodo: string }
-  | { mode: "sup";  type: "cursos" }
-  | { mode: "sup";  type: "anos";    curso: Curso }
-  | { mode: "sup";  type: "turmas";  curso: Curso; nivel: string }
-  | { mode: "sup";  type: "periodos"; curso: Curso; nivel: string; turma: Turma }
-  | { mode: "sup";  type: "notas";   curso: Curso; nivel: string; turma: Turma; periodo: string }
-  | { mode: "misto"; type: "choose" };
-
-type Layer =
+// Camada de navegação global
+type NavLayer =
   | { type: "provincias" }
   | { type: "academias"; provincia: string }
-  | { type: "academia_root"; academia: AcadInfo; anoLetivo: string; acad: AcadLayer };
+  | { type: "academia";  academia: AcadInfo };
+
+// Camada interna (igual a NotasAcademia)
+type LayerFund =
+  | { mode: "fund"; type: "anos" }
+  | { mode: "fund"; type: "turmas";   nivel: string }
+  | { mode: "fund"; type: "periodos"; nivel: string; turma: Turma }
+  | { mode: "fund"; type: "notas";    nivel: string; turma: Turma; periodo: string };
+
+type LayerSup =
+  | { mode: "sup"; type: "cursos" }
+  | { mode: "sup"; type: "anos";     curso: Curso }
+  | { mode: "sup"; type: "turmas";   curso: Curso; nivel: string }
+  | { mode: "sup"; type: "periodos"; curso: Curso; nivel: string; turma: Turma }
+  | { mode: "sup"; type: "notas";    curso: Curso; nivel: string; turma: Turma; periodo: string };
+
+type LayerMisto =
+  | { mode: "misto"; type: "choose" }
+  | LayerFund
+  | LayerSup;
+
+type AcadLayer = LayerFund | LayerSup | LayerMisto;
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
@@ -113,10 +123,7 @@ function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void 
           {i === crumbs.length - 1
             ? <span className="text-gray-900 dark:text-white font-medium">{c.label}</span>
             : (
-              <button
-                onClick={c.onClick}
-                className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
-              >
+              <button onClick={c.onClick} className="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
                 {c.label}
               </button>
             )
@@ -154,8 +161,8 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
 
 function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+    <div className="flex flex-col items-center justify-center py-16 gap-3">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
       <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
     </div>
   );
@@ -163,29 +170,22 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
 
 // ─── Tabela escolar ───────────────────────────────────────────────────────────
 
-function TabelaNotasEscolar({
-  notas,
-  estudantes,
-  codigosTurma,
-}: {
-  notas: Nota[];
-  estudantes: EstudanteDetalhado[];
-  codigosTurma: string[];
+function TabelaNotasEscolar({ notas, estudantes, codigosTurma }: {
+  notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[];
 }) {
-  if (codigosTurma.length === 0) {
+  if (codigosTurma.length === 0)
     return (
       <div className="text-center py-10 text-gray-400">
         <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
         <p className="text-sm">Nenhum estudante encontrado nesta turma.</p>
       </div>
     );
-  }
 
-  const porEstudante = new Map<string, Nota[]>();
+  const porEst = new Map<string, Nota[]>();
   notas.forEach(n => {
     const k = normCodigo(n.codigo_estudante);
-    if (!porEstudante.has(k)) porEstudante.set(k, []);
-    porEstudante.get(k)!.push(n);
+    if (!porEst.has(k)) porEst.set(k, []);
+    porEst.get(k)!.push(n);
   });
 
   return (
@@ -193,7 +193,7 @@ function TabelaNotasEscolar({
       <table className="w-full text-sm min-w-[500px]">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
@@ -202,30 +202,18 @@ function TabelaNotasEscolar({
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {[...codigosTurma]
             .map(codigo => {
-              const notasEst = porEstudante.get(codigo) ?? [];
-              const est      = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
-              const nome     = est?.nome ?? notasEst[0]?.estudante_nome ?? "-";
-              return {
-                codigo,
-                nome,
-                notaProf: notasEst.find(n => n.categoria === "nota_professor"),
-                notaEsc:  notasEst.find(n => n.categoria === "nota_escola"),
-              };
+              const ne   = porEst.get(codigo) ?? [];
+              const est  = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
+              const nome = est?.nome ?? ne[0]?.estudante_nome ?? "-";
+              return { codigo, nome, notaProf: ne.find(n => n.categoria === "nota_professor"), notaEsc: ne.find(n => n.categoria === "nota_escola") };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
             .map(({ codigo, nome, notaProf, notaEsc }) => (
-              <tr
-                key={codigo}
-                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors"
-              >
+              <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
-                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-300 dark:text-gray-600"}`}>
-                  {notaProf != null ? notaProf.nota : "—"}
-                </td>
-                <td className={`px-4 py-3 text-right font-bold ${notaEsc ? corNota(notaEsc.nota) : "text-gray-300 dark:text-gray-600"}`}>
-                  {notaEsc != null ? notaEsc.nota : "—"}
-                </td>
+                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaProf != null ? notaProf.nota : "—"}</td>
+                <td className={`px-4 py-3 text-right font-bold ${notaEsc  ? corNota(notaEsc.nota)  : "text-gray-300 dark:text-gray-600"}`}>{notaEsc  != null ? notaEsc.nota  : "—"}</td>
               </tr>
             ))}
         </tbody>
@@ -236,29 +224,22 @@ function TabelaNotasEscolar({
 
 // ─── Tabela superior ──────────────────────────────────────────────────────────
 
-function TabelaNotasSuperior({
-  notas,
-  estudantes,
-  codigosTurma,
-}: {
-  notas: Nota[];
-  estudantes: EstudanteDetalhado[];
-  codigosTurma: string[];
+function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
+  notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[];
 }) {
-  if (codigosTurma.length === 0) {
+  if (codigosTurma.length === 0)
     return (
       <div className="text-center py-10 text-gray-400">
         <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-40" />
         <p className="text-sm">Nenhum estudante encontrado nesta turma.</p>
       </div>
     );
-  }
 
-  const porEstudante = new Map<string, Nota[]>();
+  const porEst = new Map<string, Nota[]>();
   notas.forEach(n => {
     const k = normCodigo(n.codigo_estudante);
-    if (!porEstudante.has(k)) porEstudante.set(k, []);
-    porEstudante.get(k)!.push(n);
+    if (!porEst.has(k)) porEst.set(k, []);
+    porEst.get(k)!.push(n);
   });
 
   return (
@@ -266,7 +247,7 @@ function TabelaNotasSuperior({
       <table className="w-full text-sm min-w-[600px]">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP1</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP2</th>
@@ -276,16 +257,10 @@ function TabelaNotasSuperior({
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {[...codigosTurma]
             .map(codigo => {
-              const notasEst = porEstudante.get(codigo) ?? [];
-              const est      = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
-              const nome     = est?.nome ?? notasEst[0]?.estudante_nome ?? "-";
-              return {
-                codigo,
-                nome,
-                pp1:   notasEst.find(n => n.categoria === "nota_pp1"),
-                pp2:   notasEst.find(n => n.categoria === "nota_pp2"),
-                exame: notasEst.find(n => n.categoria === "nota_exame"),
-              };
+              const ne   = porEst.get(codigo) ?? [];
+              const est  = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
+              const nome = est?.nome ?? ne[0]?.estudante_nome ?? "-";
+              return { codigo, nome, pp1: ne.find(n => n.categoria === "nota_pp1"), pp2: ne.find(n => n.categoria === "nota_pp2"), exame: ne.find(n => n.categoria === "nota_exame") };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
             .map(({ codigo, nome, pp1, pp2, exame }) => (
@@ -307,39 +282,33 @@ function TabelaNotasSuperior({
 
 export default function NotasAdmin() {
   const token = tokenStorage.get() ?? undefined;
-  const [layer, setLayer] = useState<Layer>({ type: "provincias" });
-  const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null);
 
-  const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } =
+  // navegação global
+  const [navLayer, setNavLayer] = useState<NavLayer>({ type: "provincias" });
+  const [alert, setAlert]       = useState<{ variant: "success" | "error"; message: string } | null>(null);
+
+  // estado da academia seleccionada
+  const [acadLayer, setAcadLayer]                               = useState<AcadLayer>({ mode: "fund", type: "anos" });
+  const [anoLetivoSelecionado, setAnoLetivoSelecionado]         = useState("");
+  const [notasPorEstudante, setNotasPorEstudante]               = useState<Record<string, Nota[]>>({});
+  const [carregandoNotas, setCarregandoNotas]                   = useState(false);
+  const [materiaSelecionada, setMateriaSelecionada]             = useState<string | null>(null);
+  const [materiasCache, setMateriasCache]                       = useState<Record<string, { id: string; nome: string }>>({});
+  const [carregandoMaterias, setCarregandoMaterias]             = useState(false);
+
+  // APIs
+  const { data: academiasData, loading: loadingAcads, execute: fetchAcademias } =
     useApi(consultasService.listarAcademias);
 
-  const { data: dataTurmas,      execute: carregarTurmas     } = useApi(
-    (codigoAcademia: string, tok?: string) =>
-      academiaService.listarTurmas({ codigo_academia: codigoAcademia, token: tok })
-  );
-  const { data: dataCursos,      execute: carregarCursos     } = useApi(
-    (codigoAcademia: string, tok?: string) =>
-      academiaService.listarCursos({ codigo_academia: codigoAcademia, token: tok })
-  );
-  const { data: dataEstudantes,  execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-
-  const [anosLetivosPorAcad, setAnosLetivosPorAcad] = useState<Record<string, string[]>>({});
-  const [loadingAnos, setLoadingAnos]               = useState(false);
-
-  const [notasPorEstudante, setNotasPorEstudante]   = useState<Record<string, Nota[]>>({});
-  const [carregandoNotas, setCarregandoNotas]       = useState(false);
-
-  const [materiasCache, setMateriasCache]           = useState<Record<string, { id: string; nome: string }>>({});
-  const [carregandoMaterias, setCarregandoMaterias] = useState(false);
-
-  const [materiaSelecionada, setMateriaSelecionada] = useState<string | null>(null);
-
-  const [acadLayer, setAcadLayer] = useState<AcadLayer>({ mode: "fund", type: "anos" });
-
-  const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
+  const { data: dataTurmas,     loading: loadingTurmas, execute: fetchTurmas     } = useApi(academiaService.listarTurmas);
+  const { data: dataCursos,     loading: loadingCursos, execute: fetchCursos     } = useApi(academiaService.listarCursos);
+  const { data: dataEstudantes, loading: loadingEstud,  execute: fetchEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataMaterias,                           execute: fetchMaterias   } = useApi(academiaService.listarMaterias);
+  const { data: dataAnosLetivos, loading: loadingAnos,  execute: fetchAnosLetivos} = useApi(academiaService.listarAnosLetivosLista);
+  const { data: dataAnoLetivo,                          execute: fetchAnoLetivo  } = useApi(academiaService.getAnoLetivo);
 
   useEffect(() => {
-    carregarAcademias({ token });
+    fetchAcademias({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -347,15 +316,16 @@ export default function NotasAdmin() {
     setMateriaSelecionada(null);
   }, [acadLayer]);
 
+  // dados derivados
   const academias: AcadInfo[] = useMemo(() =>
     ((academiasData as any)?.academias ?? []).map((a: any) => ({
       codigo_academia: a.codigo_academia,
-      nome: a.nome,
-      provincia: a.provincia,
-      nivel: a.nivel,
-      nivel_escolar: a.nivel_escolar,
+      nome:            a.nome,
+      provincia:       a.provincia,
+      nivel:           a.nivel,
+      nivel_escolar:   a.nivel_escolar,
       anos_academicos: a.anos_academicos ?? [],
-      status: a.status,
+      status:          a.status,
     })),
     [academiasData]);
 
@@ -364,95 +334,78 @@ export default function NotasAdmin() {
       .sort((a, b) => nomeProvinciaDeCodigo(a).localeCompare(nomeProvinciaDeCodigo(b))),
     [academias]);
 
-  const turmas: Turma[]                  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
-  const cursos: Curso[]                  = useMemo(() => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
+  const turmas: Turma[]                  = useMemo(() => (dataTurmas    as any)?.turmas   ?? [], [dataTurmas]);
+  const cursos: Curso[]                  = useMemo(() => (dataCursos    as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
-  const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
   const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
+  const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
 
-  const academiaAtual: AcadInfo | null = layer.type === "academia_root" ? layer.academia : null;
+  const anosLetivosDisponiveis: string[] = useMemo(() => (
+    ((dataAnosLetivos as any)?.anos_letivos_lista ?? [])
+      .map((x: any) => x?.ano_letivo)
+      .filter(Boolean)
+      .sort()
+  ), [dataAnosLetivos]);
 
+  const anoLectivo = (dataAnoLetivo as any)?.ano_letivo ?? "";
+
+  const academiaAtual: AcadInfo | null = navLayer.type === "academia" ? navLayer.academia : null;
   const isSuperior    = academiaAtual?.nivel === "superior";
   const nivelEscolar  = academiaAtual?.nivel_escolar ?? "fundamental";
-  const isFundamental = !isSuperior && nivelEscolar === "fundamental";
   const isMisto       = !isSuperior && nivelEscolar === "misto";
-  const PERIODOS      = isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA;
 
+  // Níveis fundamentais: derivados das turmas carregadas + fallback para anos_academicos
   const niveisFundamentais = useMemo(() => {
     if (!academiaAtual) return [];
     const anosAcademia = academiaAtual.anos_academicos ?? [];
-    const comTurmas    = anosAcademia.filter(a => a.includes("fundamental") && turmasAtivas.some(t => t.nivel === a));
-    const base         = comTurmas.length > 0 ? comTurmas : anosAcademia.filter(a => a.includes("fundamental"));
+    // Preferir turmas já carregadas da academia seleccionada
+    const niveisComTurmas = [...new Set(turmasAtivas.map(t => t.nivel).filter(n => n.includes("fundamental")))];
+    if (niveisComTurmas.length > 0) return sortAnos(niveisComTurmas);
+    // Fallback: anos_academicos filtrados
+    const base = anosAcademia.filter(a => a.includes("fundamental"));
     return sortAnos(base);
   }, [turmasAtivas, academiaAtual]);
 
-  const anosLetivosDisponiveis = useMemo(() =>
-    (anosLetivosPorAcad[academiaAtual?.codigo_academia ?? ""] ?? []).sort(),
-    [anosLetivosPorAcad, academiaAtual]);
-
+  // pré-selecionar primeira matéria quando o cache estiver pronto
   useEffect(() => {
-    if (layer.type !== "academia_root") return;
     if (acadLayer.type !== "notas") return;
     if (materiaSelecionada) return;
-
     const l = acadLayer as any;
-    const anoFiltro = anoLetivoSelecionado;
-    const codigosHistorico: string[] = anoFiltro
-      ? (l.turma.historico_estudantes_ano_letivo?.[anoFiltro] ?? [])
-      : [];
-    const codigosOrigem: string[] = codigosHistorico.length > 0 ? codigosHistorico : (l.turma.estudantes ?? []);
-    const codigosNorm = [...new Set(codigosOrigem.map((c: string) => normCodigo(c)).filter(Boolean))];
-
-    const notasCtx: Nota[] = codigosNorm
+    const anoFiltro = anoLetivoSelecionado || anoLectivo;
+    const codsHistorico: string[] = anoFiltro ? (l.turma.historico_estudantes_ano_letivo?.[anoFiltro] ?? []) : [];
+    const codsOrigem: string[]    = codsHistorico.length > 0 ? codsHistorico : (l.turma.estudantes ?? []);
+    const codsNorm = [...new Set(codsOrigem.map((c: string) => normCodigo(c)).filter(Boolean))];
+    const notasCtx: Nota[] = codsNorm
       .flatMap((c: string) => notasPorEstudante[c] ?? [])
-      .filter((n: Nota) =>
-        (!anoFiltro || n.ano_lectivo === anoFiltro) &&
-        n.ano_academico === l.nivel &&
-        n.periodo === l.periodo
-      );
-
+      .filter((n: Nota) => (!anoFiltro || n.ano_lectivo === anoFiltro) && n.ano_academico === l.nivel && n.periodo === l.periodo);
     const ids = [...new Set(notasCtx.map((n: Nota) => n.materia_disciplinar_id))];
     if (ids.length === 0) return;
-
     const todosResolvidos = ids.every(id => materiasCache[id] && materiasCache[id].nome !== id);
     if (!todosResolvidos) return;
-
-    const materiasDisp = ids
-      .map(id => materiasCache[id])
-      .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
-
-    if (materiasDisp.length > 0) {
-      setMateriaSelecionada(materiasDisp[0].id);
-    }
+    const sorted = ids.map(id => materiasCache[id]).sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
+    if (sorted.length > 0) setMateriaSelecionada(sorted[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acadLayer, materiasCache, notasPorEstudante, layer]);
+  }, [acadLayer, materiasCache, notasPorEstudante]);
 
+  // buscar detalhes das matérias via GET /academia/materia/:id?codigo_academia=...
   useEffect(() => {
-    if (layer.type !== "academia_root") return;
     if (acadLayer.type !== "notas") return;
-
     const l = acadLayer as any;
-    const anoFiltro = anoLetivoSelecionado;
-    const codigosHistorico: string[] = anoFiltro
-      ? (l.turma.historico_estudantes_ano_letivo?.[anoFiltro] ?? [])
-      : [];
-    const codigosOrigem: string[] = codigosHistorico.length > 0 ? codigosHistorico : (l.turma.estudantes ?? []);
-    const codigosNorm = [...new Set(codigosOrigem.map((c: string) => normCodigo(c)).filter(Boolean))];
-
-    const notasCtx: Nota[] = codigosNorm
+    const anoFiltro = anoLetivoSelecionado || anoLectivo;
+    const codsHistorico: string[] = anoFiltro ? (l.turma.historico_estudantes_ano_letivo?.[anoFiltro] ?? []) : [];
+    const codsOrigem: string[]    = codsHistorico.length > 0 ? codsHistorico : (l.turma.estudantes ?? []);
+    const codsNorm = [...new Set(codsOrigem.map((c: string) => normCodigo(c)).filter(Boolean))];
+    const notasCtx: Nota[] = codsNorm
       .flatMap((c: string) => notasPorEstudante[c] ?? [])
-      .filter((n: Nota) =>
-        (!anoFiltro || n.ano_lectivo === anoFiltro) &&
-        n.ano_academico === l.nivel &&
-        n.periodo       === l.periodo
-      );
-
+      .filter((n: Nota) => (!anoFiltro || n.ano_lectivo === anoFiltro) && n.ano_academico === l.nivel && n.periodo === l.periodo);
     const ids: string[]     = [...new Set(notasCtx.map((n: Nota) => n.materia_disciplinar_id))];
     const missing: string[] = ids.filter(id => !materiasCache[id]);
     if (missing.length === 0) return;
 
     setCarregandoMaterias(true);
-    Promise.all(missing.map(id => academiaService.getMateria(id, token)))
+    Promise.all(
+      missing.map(id => academiaService.getMateria(id, { codigo_academia: academiaAtual?.codigo_academia, token }))
+    )
       .then(results => {
         setMateriasCache(prev => {
           const next = { ...prev };
@@ -463,7 +416,9 @@ export default function NotasAdmin() {
       .catch(() => {})
       .finally(() => setCarregandoMaterias(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acadLayer, notasPorEstudante, anoLetivoSelecionado, layer]);
+  }, [acadLayer, notasPorEstudante, anoLetivoSelecionado, anoLectivo]);
+
+  // ─── helpers internos ───────────────────────────────────────────────────────
 
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message });
@@ -471,29 +426,28 @@ export default function NotasAdmin() {
   }
 
   function codigosTurmaDoAnoLetivo(turma: Turma, anoLetivo?: string): string[] {
-    const codigosHistorico = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
-    const codigosOrigem    = codigosHistorico.length > 0 ? codigosHistorico : turma.estudantes;
-    return Array.from(new Set(codigosOrigem.map(normCodigo).filter(Boolean)));
+    const hist   = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
+    const origem = hist.length > 0 ? hist : turma.estudantes;
+    return Array.from(new Set(origem.map(normCodigo).filter(Boolean)));
   }
 
   function codigoOriginalDaTurma(turma: Turma, codigoNorm: string, anoLetivo?: string): string {
-    const codigosHistorico = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
-    const codigosOrigem    = codigosHistorico.length > 0 ? codigosHistorico : turma.estudantes;
-    return codigosOrigem.find(c => normCodigo(c) === codigoNorm) ?? codigoNorm;
+    const hist   = anoLetivo ? (turma.historico_estudantes_ano_letivo?.[anoLetivo] ?? []) : [];
+    const origem = hist.length > 0 ? hist : turma.estudantes;
+    return origem.find(c => normCodigo(c) === codigoNorm) ?? codigoNorm;
   }
 
   async function carregarNotasDosEstudantesDaTurma(turma: Turma, force = false) {
-    const codigosNorm       = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado);
-    const codigosParaBuscar = force
-      ? codigosNorm
-      : codigosNorm.filter(c => !(c in notasPorEstudante));
-    if (codigosParaBuscar.length === 0) return;
+    const anoFiltro         = anoLetivoSelecionado || anoLectivo || undefined;
+    const codsNorm          = codigosTurmaDoAnoLetivo(turma, anoFiltro);
+    const codsParaBuscar    = force ? codsNorm : codsNorm.filter(c => !(c in notasPorEstudante));
+    if (codsParaBuscar.length === 0) return;
 
     setCarregandoNotas(true);
     try {
       const resultados = await Promise.all(
-        codigosParaBuscar.map(async codigoNorm => {
-          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoLetivoSelecionado);
+        codsParaBuscar.map(async codigoNorm => {
+          const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
           const resposta = await consultasService.notasEstudante(codigoOriginal, { token });
           return { codigoNorm, notas: resposta?.notas ?? [] };
         })
@@ -503,255 +457,184 @@ export default function NotasAdmin() {
         resultados.forEach(({ codigoNorm, notas }) => { next[codigoNorm] = notas; });
         return next;
       });
-    } catch {
-      // erro silencioso
-    } finally {
-      setCarregandoNotas(false);
-    }
+    } catch { /* erro silencioso */ }
+    finally { setCarregandoNotas(false); }
   }
 
   function notasDaTurmaEmPeriodo(turma: Turma, nivel: string, periodo: string): Nota[] {
-    const codigosTurma  = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado);
-    const notasDaTurma  = codigosTurma.flatMap(c => notasPorEstudante[c] ?? []);
-    const notasAnoLetivo = anoLetivoSelecionado
-      ? notasDaTurma.filter(n => n.ano_lectivo === anoLetivoSelecionado)
-      : notasDaTurma;
-    return notasAnoLetivo.filter(n => n.ano_academico === nivel && n.periodo === periodo);
+    const anoFiltro    = anoLetivoSelecionado || anoLectivo;
+    const cods         = codigosTurmaDoAnoLetivo(turma, anoFiltro);
+    const notasDaTurma = cods.flatMap(c => notasPorEstudante[c] ?? []);
+    const filtAno      = anoFiltro ? notasDaTurma.filter(n => n.ano_lectivo === anoFiltro) : notasDaTurma;
+    return filtAno.filter(n => n.ano_academico === nivel && n.periodo === periodo);
   }
 
-  const turmasPorNivel = (nivel: string) => turmasAtivas.filter(t => t.nivel === nivel);
+  const turmasPorNivel = (nivel: string)   => turmasAtivas.filter(t => t.nivel === nivel);
   const turmasPorCurso = (cursoId: string) => turmasAtivas.filter(t => t.curso_id === cursoId);
-  const anosDosCurso   = (c: Curso) => sortAnos(c.anos_academicos ?? []);
+  const anosDosCurso   = (c: Curso)        => sortAnos(c.anos_academicos ?? []);
 
-  const carregarAnosLetivosAcademia = useCallback(async (codigoAcademia: string) => {
-    if (anosLetivosPorAcad[codigoAcademia]) return;
-    setLoadingAnos(true);
-    try {
-      const res = await consultasService.listarNotas({ codigo_academia: codigoAcademia, limit: 1000, token });
-      const anos = Array.from(new Set((res?.notas ?? []).map(n => n.ano_lectivo).filter(Boolean))).sort();
-      setAnosLetivosPorAcad(prev => ({ ...prev, [codigoAcademia]: anos }));
-    } catch {
-      setAnosLetivosPorAcad(prev => ({ ...prev, [codigoAcademia]: [] }));
-    } finally {
-      setLoadingAnos(false);
-    }
-  }, [anosLetivosPorAcad, token]);
+  // ─── entrar na academia: navegação imediata, carregamentos em paralelo ──────
 
-  async function entrarNaAcademia(academia: AcadInfo) {
-    await carregarAnosLetivosAcademia(academia.codigo_academia);
-    await Promise.all([
-      carregarTurmas(academia.codigo_academia, token),
-      carregarCursos(academia.codigo_academia, token),
-      carregarEstudantes(token),
-    ]);
-
-    const nivelEsc  = academia.nivel_escolar ?? "fundamental";
-    const isSup     = academia.nivel === "superior";
-    const isFund    = !isSup && nivelEsc === "fundamental";
-    const isMst     = !isSup && nivelEsc === "misto";
-
-    let initAcad: AcadLayer;
-    if (isFund)      initAcad = { mode: "fund", type: "anos" };
-    else if (isMst)  initAcad = { mode: "misto", type: "choose" };
-    else             initAcad = { mode: "sup", type: "cursos" };
-
-    setAcadLayer(initAcad);
+  function entrarNaAcademia(academia: AcadInfo) {
+    // Reset
     setAnoLetivoSelecionado("");
     setNotasPorEstudante({});
+    setMateriasCache({});
     setMateriaSelecionada(null);
-    setLayer({ type: "academia_root", academia, anoLetivo: "", acad: initAcad });
+
+    const isSup  = academia.nivel === "superior";
+    const nivelE = academia.nivel_escolar ?? "fundamental";
+    const isFund = !isSup && nivelE === "fundamental";
+    const isMst  = !isSup && nivelE === "misto";
+
+    const initLayer: AcadLayer =
+      isFund ? { mode: "fund", type: "anos" }
+      : isMst ? { mode: "misto", type: "choose" }
+      : { mode: "sup", type: "cursos" };
+
+    setAcadLayer(initLayer);
+    // Navegar imediatamente — spinners cuidam da espera
+    setNavLayer({ type: "academia", academia });
+
+    const cod = academia.codigo_academia;
+    // Disparar todos os carregamentos sem bloquear
+    fetchTurmas({ codigo_academia: cod, token });
+    fetchCursos({ codigo_academia: cod, token });
+    fetchMaterias({ codigo_academia: cod, token });
+    fetchEstudantes(token);
+    fetchAnosLetivos(token);
+    fetchAnoLetivo(token);
   }
 
-  // ── breadcrumbs ─────────────────────────────────────────────────────────────
+  // ─── breadcrumbs ─────────────────────────────────────────────────────────────
 
   function buildCrumbs(): { label: string; onClick?: () => void }[] {
-    const goProvs = () => setLayer({ type: "provincias" });
+    const goProvs  = () => setNavLayer({ type: "provincias" });
+    const goAcads  = () => academiaAtual && setNavLayer({ type: "academias", provincia: academiaAtual.provincia });
+    const goInicio = () => setAcadLayer({ mode: "misto", type: "choose" });
 
-    if (layer.type === "provincias") return [{ label: "Províncias" }];
+    if (navLayer.type === "provincias") return [{ label: "Províncias" }];
 
-    if (layer.type === "academias") return [
+    if (navLayer.type === "academias") return [
       { label: "Províncias", onClick: goProvs },
-      { label: nomeProvinciaDeCodigo(layer.provincia) },
+      { label: nomeProvinciaDeCodigo(navLayer.provincia) },
     ];
 
-    if (layer.type === "academia_root") {
-      const { academia } = layer;
-      const goAcads  = () => setLayer({ type: "academias", provincia: academia.provincia });
-      const goAcad   = () => {
-        setAcadLayer({ mode: "fund", type: "anos" });
-        setAnoLetivoSelecionado("");
-        setLayer(prev => prev.type === "academia_root" ? { ...prev, acad: { mode: "fund", type: "anos" } } : prev);
-      };
+    // dentro de academia
+    const navBase = [
+      { label: "Províncias", onClick: goProvs },
+      { label: nomeProvinciaDeCodigo(academiaAtual!.provincia), onClick: goAcads },
+      { label: academiaAtual!.nome, onClick: () => setAcadLayer(
+          isMisto ? { mode: "misto", type: "choose" }
+          : isSuperior ? { mode: "sup", type: "cursos" }
+          : { mode: "fund", type: "anos" }
+        )
+      },
+    ];
 
-      const base = [
-        { label: "Províncias", onClick: goProvs },
-        { label: nomeProvinciaDeCodigo(academia.provincia), onClick: goAcads },
-        { label: academia.nome, onClick: goAcad },
+    const al = acadLayer;
+
+    if (al.mode === "misto" && al.type === "choose") return navBase;
+
+    if (al.mode === "fund") {
+      const goAnos    = () => setAcadLayer({ mode: "fund", type: "anos" });
+      const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
+      const base      = isMisto ? [...navBase, { label: "Início", onClick: goInicio }, anosCrumb] : [...navBase, anosCrumb];
+      if (al.type === "anos")     return base;
+      if (al.type === "turmas")   return [...base, { label: labelNivel(al.nivel) }];
+      if (al.type === "periodos") return [...base,
+        { label: labelNivel(al.nivel), onClick: () => setAcadLayer({ mode: "fund", type: "turmas", nivel: al.nivel }) },
+        { label: al.turma.codigo_turma },
       ];
-
-      const al = acadLayer;
-
-      if (al.mode === "misto" && al.type === "choose") return base;
-
-      if (al.mode === "fund") {
-        const goAnos = () => setAcadLayer({ mode: "fund", type: "anos" });
-        const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
-        const ext = isMisto ? [{ label: "Início", onClick: () => setAcadLayer({ mode: "misto", type: "choose" }) }, anosCrumb] : [anosCrumb];
-
-        if (al.type === "anos")     return [...base, ...ext];
-        if (al.type === "turmas")   return [...base, ...ext, { label: labelNivel(al.nivel) }];
-        if (al.type === "periodos") return [...base, ...ext,
-          { label: labelNivel(al.nivel), onClick: () => setAcadLayer({ mode: "fund", type: "turmas", nivel: al.nivel }) },
-          { label: al.turma.codigo_turma },
-        ];
-        if (al.type === "notas") return [...base, ...ext,
-          { label: labelNivel(al.nivel), onClick: () => setAcadLayer({ mode: "fund", type: "turmas", nivel: al.nivel }) },
-          { label: al.turma.codigo_turma, onClick: () => setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: al.turma }) },
-          { label: PERIODOS_LABEL[al.periodo] ?? al.periodo },
-        ];
-      }
-
-      if (al.mode === "sup") {
-        const goCursos = () => setAcadLayer({ mode: "sup", type: "cursos" });
-        const cursosCrumb = { label: isMisto ? "Médio" : "Cursos", onClick: goCursos };
-        const ext = isMisto
-          ? [{ label: "Início", onClick: () => setAcadLayer({ mode: "misto", type: "choose" }) }, cursosCrumb]
-          : [cursosCrumb];
-
-        if (al.type === "cursos") return [...base, ...ext];
-        if (al.type === "anos")   return [...base, ...ext, { label: al.curso.nome }];
-        if (al.type === "turmas") return [...base, ...ext,
-          { label: al.curso.nome, onClick: () => setAcadLayer({ mode: "sup", type: "anos", curso: al.curso }) },
-          { label: labelNivel(al.nivel) },
-        ];
-        if (al.type === "periodos") return [...base, ...ext,
-          { label: al.curso.nome,        onClick: () => setAcadLayer({ mode: "sup", type: "anos",   curso: al.curso }) },
-          { label: labelNivel(al.nivel), onClick: () => setAcadLayer({ mode: "sup", type: "turmas", curso: al.curso, nivel: al.nivel }) },
-          { label: al.turma.codigo_turma },
-        ];
-        if (al.type === "notas") return [...base, ...ext,
-          { label: al.curso.nome,               onClick: () => setAcadLayer({ mode: "sup", type: "anos",     curso: al.curso }) },
-          { label: labelNivel(al.nivel),         onClick: () => setAcadLayer({ mode: "sup", type: "turmas",   curso: al.curso, nivel: al.nivel }) },
-          { label: al.turma.codigo_turma,        onClick: () => setAcadLayer({ mode: "sup", type: "periodos", curso: al.curso, nivel: al.nivel, turma: al.turma }) },
-          { label: PERIODOS_LABEL[al.periodo] ?? al.periodo },
-        ];
-      }
-
-      return base;
+      if (al.type === "notas") return [...base,
+        { label: labelNivel(al.nivel),  onClick: () => setAcadLayer({ mode: "fund", type: "turmas",   nivel: al.nivel }) },
+        { label: al.turma.codigo_turma, onClick: () => setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: al.turma }) },
+        { label: PERIODOS_LABEL[al.periodo] ?? al.periodo },
+      ];
     }
 
-    return [];
+    if (al.mode === "sup") {
+      const goCursos    = () => setAcadLayer({ mode: "sup", type: "cursos" });
+      const cursosCrumb = { label: isMisto ? "Médio" : "Cursos", onClick: goCursos };
+      const base        = isMisto ? [...navBase, { label: "Início", onClick: goInicio }, cursosCrumb] : [...navBase, cursosCrumb];
+      const l = al as any;
+      if (al.type === "cursos")   return base;
+      if (al.type === "anos")     return [...base, { label: l.curso.nome }];
+      if (al.type === "turmas")   return [...base,
+        { label: l.curso.nome, onClick: () => setAcadLayer({ mode: "sup", type: "anos", curso: l.curso }) },
+        { label: labelNivel(l.nivel) },
+      ];
+      if (al.type === "periodos") return [...base,
+        { label: l.curso.nome,        onClick: () => setAcadLayer({ mode: "sup", type: "anos",    curso: l.curso }) },
+        { label: labelNivel(l.nivel), onClick: () => setAcadLayer({ mode: "sup", type: "turmas",  curso: l.curso, nivel: l.nivel }) },
+        { label: l.turma.codigo_turma },
+      ];
+      if (al.type === "notas") return [...base,
+        { label: l.curso.nome,              onClick: () => setAcadLayer({ mode: "sup", type: "anos",     curso: l.curso }) },
+        { label: labelNivel(l.nivel),        onClick: () => setAcadLayer({ mode: "sup", type: "turmas",   curso: l.curso, nivel: l.nivel }) },
+        { label: l.turma.codigo_turma,       onClick: () => setAcadLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma }) },
+        { label: PERIODOS_LABEL[l.periodo] ?? l.periodo },
+      ];
+    }
+
+    return navBase;
   }
 
-  // ── voltar ──────────────────────────────────────────────────────────────────
+  // ─── voltar ───────────────────────────────────────────────────────────────────
 
   function canGoBack(): boolean {
-    if (layer.type === "provincias") return false;
+    if (navLayer.type === "provincias") return false;
     return true;
   }
 
   function goBack() {
-    if (layer.type === "academias") {
-      setLayer({ type: "provincias" });
-      return;
-    }
+    if (navLayer.type === "academias") { setNavLayer({ type: "provincias" }); return; }
+    if (navLayer.type !== "academia")  return;
 
-    if (layer.type !== "academia_root") return;
+    const prov = academiaAtual!.provincia;
+    const al   = acadLayer;
 
-    const al = acadLayer;
-    const provinciaAtual = layer.academia.provincia;
+    if (al.mode === "misto" && al.type === "choose") { setNavLayer({ type: "academias", provincia: prov }); return; }
 
-    // ── modo misto: "choose" volta direto à lista de academias
-    if (al.mode === "misto") {
-      setLayer({ type: "academias", provincia: provinciaAtual });
-      return;
-    }
+    if (al.type === "anos" && anoLetivoSelecionado) { setAnoLetivoSelecionado(""); return; }
 
-    // ── modo fundamental
     if (al.mode === "fund") {
-      if (al.type === "notas") {
-        setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: al.turma });
-        return;
-      }
-      if (al.type === "periodos") {
-        setAcadLayer({ mode: "fund", type: "turmas", nivel: al.nivel });
-        return;
-      }
-      if (al.type === "turmas") {
-        setAcadLayer({ mode: "fund", type: "anos" });
-        return;
-      }
-      // al.type === "anos"
-      if (anoLetivoSelecionado) {
-        setAnoLetivoSelecionado("");
-        return;
-      }
-      if (isMisto) {
-        setAcadLayer({ mode: "misto", type: "choose" });
-        return;
-      }
-      setLayer({ type: "academias", provincia: provinciaAtual });
+      if      (al.type === "anos")     isMisto ? setAcadLayer({ mode: "misto", type: "choose" }) : setNavLayer({ type: "academias", provincia: prov });
+      else if (al.type === "turmas")   setAcadLayer({ mode: "fund", type: "anos" });
+      else if (al.type === "periodos") setAcadLayer({ mode: "fund", type: "turmas",   nivel: al.nivel });
+      else if (al.type === "notas")    setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: al.turma });
       return;
     }
-
-    // ── modo superior
     if (al.mode === "sup") {
-      if (al.type === "notas") {
-        setAcadLayer({ mode: "sup", type: "periodos", curso: al.curso, nivel: al.nivel, turma: al.turma });
-        return;
-      }
-      if (al.type === "periodos") {
-        setAcadLayer({ mode: "sup", type: "turmas", curso: al.curso, nivel: al.nivel });
-        return;
-      }
-      if (al.type === "turmas") {
-        setAcadLayer({ mode: "sup", type: "anos", curso: al.curso });
-        return;
-      }
-      if (al.type === "anos") {
-        if (anoLetivoSelecionado) {
-          setAnoLetivoSelecionado("");
-          return;
-        }
-        setAcadLayer({ mode: "sup", type: "cursos" });
-        return;
-      }
-      // al.type === "cursos"
-      if (isMisto) {
-        setAcadLayer({ mode: "misto", type: "choose" });
-        return;
-      }
-      setLayer({ type: "academias", provincia: provinciaAtual });
+      const l = al as any;
+      if      (al.type === "cursos")   isMisto ? setAcadLayer({ mode: "misto", type: "choose" }) : setNavLayer({ type: "academias", provincia: prov });
+      else if (al.type === "anos")     setAcadLayer({ mode: "sup", type: "cursos" });
+      else if (al.type === "turmas")   setAcadLayer({ mode: "sup", type: "anos",    curso: l.curso });
+      else if (al.type === "periodos") setAcadLayer({ mode: "sup", type: "turmas",  curso: l.curso, nivel: l.nivel });
+      else if (al.type === "notas")    setAcadLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma });
       return;
     }
   }
 
-  // ── render da camada de notas ────────────────────────────────────────────────
+  // ─── seletor de matérias + tabela ────────────────────────────────────────────
 
   function renderNotasLayer(nivel: string, turma: Turma, periodo: string, usarTabelaSuperior: boolean) {
-    const codigosTurma   = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado).filter(Boolean);
-    const notasContexto  = notasDaTurmaEmPeriodo(turma, nivel, periodo);
-    const materiaIdsCtx  = [...new Set(notasContexto.map(n => n.materia_disciplinar_id))];
-
+    const anoFiltro           = anoLetivoSelecionado || anoLectivo;
+    const codigosTurma        = codigosTurmaDoAnoLetivo(turma, anoFiltro).filter(Boolean);
+    const notasContexto       = notasDaTurmaEmPeriodo(turma, nivel, periodo);
+    const materiaIdsCtx       = [...new Set(notasContexto.map(n => n.materia_disciplinar_id))];
     const materiasDisponiveis = materiaIdsCtx
       .map(id => materiasCache[id] ?? { id, nome: id })
       .sort((a, b) => a.nome.localeCompare(b.nome));
-
     const notasFiltradas = materiaSelecionada
       ? notasContexto.filter(n => n.materia_disciplinar_id === materiaSelecionada)
       : [];
 
-    const academiaLabel = academiaAtual
-      ? `${academiaAtual.nome} · `
-      : "";
-
     return (
       <div className="space-y-5">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            {academiaLabel}Turma {turma.codigo_turma} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo} · {(anoLetivoSelecionado || "").replace("_", "/")}
-          </h2>
-        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+          Turma {turma.codigo_turma} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo} · {(anoFiltro || "").replace("_", "/")}
+        </h2>
 
         {materiasDisponiveis.length === 0 && !carregandoMaterias ? (
           <div className="text-center py-10 text-gray-400">
@@ -760,18 +643,14 @@ export default function NotasAdmin() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                {materiaSelecionada
-                  ? `Notas de ${materiasCache[materiaSelecionada]?.nome ?? materiaSelecionada}`
-                  : "Selecione uma matéria:"}
-              </p>
-              {!materiaSelecionada && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Clique numa matéria abaixo para ver as notas
-                </p>
-              )}
-            </div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {materiaSelecionada
+                ? `Notas de ${materiasCache[materiaSelecionada]?.nome ?? materiaSelecionada}`
+                : "Selecione uma matéria:"}
+            </p>
+            {!materiaSelecionada && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">Clique numa matéria abaixo para ver as notas</p>
+            )}
             {carregandoMaterias && materiasDisponiveis.every(m => m.nome === m.id) ? (
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-500" />
@@ -812,113 +691,125 @@ export default function NotasAdmin() {
     );
   }
 
-  // ── render sub-layer da academia ─────────────────────────────────────────────
+  // ─── renderAcadLayer ─────────────────────────────────────────────────────────
 
   function renderAcadLayer() {
-    const al = acadLayer;
+    const crumbs    = buildCrumbs();
+    const BotaoVoltar = canGoBack() ? (
+      <button
+        onClick={goBack}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
+      >
+        <Icon icon="mdi:arrow-left" width={16} /> Voltar
+      </button>
+    ) : null;
 
-    if (carregandoNotas) return <LoadingSpinner message="Carregando notas..." />;
-
-    if (al.mode === "misto" && al.type === "choose") return (
-      <div className="grid gap-3 sm:grid-cols-2">
-        <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
-        <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setAcadLayer({ mode: "sup", type: "cursos" })} />
+    if (carregandoNotas) return (
+      <div className="space-y-4">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <LoadingSpinner message="Carregando notas..." />
       </div>
     );
 
+    const al = acadLayer;
+
+    // misto
+    if (al.mode === "misto" && al.type === "choose") return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas</h2>
+          <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setAcadLayer({ mode: "sup",  type: "cursos" })} />
+        </div>
+      </div>
+    );
+
+    // fundamental: anos letivos / níveis
     if (al.mode === "fund" && al.type === "anos") return (
       <div className="space-y-4">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
         {!anoLetivoSelecionado ? (
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {loadingAnos
-              ? <LoadingSpinner message="Carregando anos letivos..." />
-              : anosLetivosDisponiveis.length === 0
+          loadingAnos ? <LoadingSpinner message="Carregando anos letivos..." /> : (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {anosLetivosDisponiveis.length === 0
                 ? <p className="text-sm text-gray-400 col-span-full text-center py-8">Nenhum ano letivo encontrado.</p>
                 : anosLetivosDisponiveis.map((ano: string) => (
-                  <CardBtn
-                    key={ano}
-                    icon="mdi:calendar-school"
-                    title={`Ano Letivo ${ano.replace("_", "/")}`}
-                    subtitle="Entrar para ver anos académicos"
-                    onClick={() => setAnoLetivoSelecionado(ano)}
-                  />
+                  <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano Letivo ${ano.replace("_", "/")}`} subtitle="Entrar para ver anos académicos" onClick={() => setAnoLetivoSelecionado(ano)} />
                 ))
-            }
-          </div>
+              }
+            </div>
+          )
         ) : (
           <>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-800">
-                Ano letivo {anoLetivoSelecionado.replace("_", "/")}
-              </span>
-            </div>
-            {niveisFundamentais.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />
-                <p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p>
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {niveisFundamentais.map(nivel => (
-                  <CardBtn
-                    key={nivel}
-                    icon="mdi:numeric"
-                    title={labelNivel(nivel)}
-                    subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`}
-                    onClick={() => setAcadLayer({ mode: "fund", type: "turmas", nivel })}
-                  />
-                ))}
-              </div>
-            )}
+            <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-800">
+              Ano letivo {anoLetivoSelecionado.replace("_", "/")}
+            </span>
+            {loadingTurmas ? <LoadingSpinner message="Carregando turmas..." /> :
+              niveisFundamentais.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {niveisFundamentais.map(nivel => (
+                    <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)} subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`} onClick={() => setAcadLayer({ mode: "fund", type: "turmas", nivel })} />
+                  ))}
+                </div>
+              )}
           </>
         )}
       </div>
     );
 
+    // fundamental: turmas
     if (al.mode === "fund" && al.type === "turmas") {
       const ts = turmasPorNivel(al.nivel);
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(al.nivel)}</h2>
-          {ts.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" />
-              <p className="text-sm">Nenhuma turma ativa para este nível.</p>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {ts.map(t => (
-                <CardBtn
-                  key={t.id ?? t.codigo_turma}
-                  icon="mdi:account-group"
-                  title={t.codigo_turma}
-                  subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado).length} estudante(s) · ${t.turno}`}
-                  onClick={async () => {
-                    await carregarNotasDosEstudantesDaTurma(t);
-                    setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: t });
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          {loadingTurmas ? <LoadingSpinner message="Carregando turmas..." /> :
+            ts.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm">Nenhuma turma ativa para este nível.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {ts.map(t => (
+                  <CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma}
+                    subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s) · ${t.turno}`}
+                    onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setAcadLayer({ mode: "fund", type: "periodos", nivel: al.nivel, turma: t }); }}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       );
     }
 
+    // fundamental: períodos
     if (al.mode === "fund" && al.type === "periodos") {
       const { nivel, turma } = al;
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
           <p className="text-sm text-gray-500">{labelNivel(nivel)}</p>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {PERIODOS_ESCOLA.map(p => (
-              <CardBtn
-                key={p.value}
-                icon="mdi:clipboard-text-clock-outline"
-                title={p.label}
-                subtitle="Ver notas"
+              <CardBtn key={p.value} icon="mdi:clipboard-text-clock-outline" title={p.label} subtitle="Ver notas"
                 onClick={() => setAcadLayer({ mode: "fund", type: "notas", nivel, turma, periodo: p.value })}
               />
             ))}
@@ -927,71 +818,67 @@ export default function NotasAdmin() {
       );
     }
 
-    if (al.mode === "fund" && al.type === "notas") {
-      return renderNotasLayer(al.nivel, al.turma, al.periodo, false);
-    }
-
-    if (al.mode === "sup" && al.type === "cursos") return (
+    // fundamental: notas
+    if (al.mode === "fund" && al.type === "notas") return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
-        {cursos.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <Icon icon="mdi:book-open-outline" width={48} className="mx-auto mb-3 opacity-40" />
-            <p className="text-sm">Nenhum curso ativo.</p>
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {cursos.map(c => (
-              <CardBtn
-                key={c.id}
-                icon="mdi:book-open-variant"
-                title={c.nome}
-                subtitle={`${c.anos_academicos?.length ?? 0} ano(s)`}
-                onClick={() => setAcadLayer({ mode: "sup", type: "anos", curso: c })}
-              />
-            ))}
-          </div>
-        )}
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        {renderNotasLayer(al.nivel, al.turma, al.periodo, false)}
       </div>
     );
 
+    // superior: cursos
+    if (al.mode === "sup" && al.type === "cursos") return (
+      <div className="space-y-4">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
+        {loadingCursos ? <LoadingSpinner message="Carregando cursos..." /> :
+          cursos.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Icon icon="mdi:book-open-outline" width={48} className="mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Nenhum curso ativo.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cursos.map(c => (
+                <CardBtn key={c.id} icon="mdi:book-open-variant" title={c.nome} subtitle={`${c.anos_academicos?.length ?? 0} ano(s)`}
+                  onClick={() => setAcadLayer({ mode: "sup", type: "anos", curso: c })}
+                />
+              ))}
+            </div>
+          )}
+      </div>
+    );
+
+    // superior: anos
     if (al.mode === "sup" && al.type === "anos") {
       const { curso } = al;
       const anos      = anosDosCurso(curso);
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
           {!anoLetivoSelecionado ? (
-            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-              {loadingAnos
-                ? <LoadingSpinner message="Carregando anos letivos..." />
-                : anosLetivosDisponiveis.length === 0
+            loadingAnos ? <LoadingSpinner message="Carregando anos letivos..." /> : (
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {anosLetivosDisponiveis.length === 0
                   ? <p className="text-sm text-gray-400 col-span-full text-center py-8">Nenhum ano letivo encontrado.</p>
                   : anosLetivosDisponiveis.map((ano: string) => (
-                    <CardBtn
-                      key={ano}
-                      icon="mdi:calendar-school"
-                      title={`Ano Letivo ${ano.replace("_", "/")}`}
-                      subtitle="Entrar para ver anos académicos"
-                      onClick={() => setAnoLetivoSelecionado(ano)}
-                    />
+                    <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano Letivo ${ano.replace("_", "/")}`} subtitle="Entrar para ver anos académicos" onClick={() => setAnoLetivoSelecionado(ano)} />
                   ))
-              }
-            </div>
+                }
+              </div>
+            )
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-800">
-                  Ano letivo {anoLetivoSelecionado.replace("_", "/")}
-                </span>
-              </div>
+              <span className="inline-block text-xs px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-800">
+                Ano letivo {anoLetivoSelecionado.replace("_", "/")}
+              </span>
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 {anos.map(nivel => (
-                  <CardBtn
-                    key={nivel}
-                    icon="mdi:calendar-school"
-                    title={labelNivel(nivel)}
-                    subtitle={`${turmasPorCurso(curso.id).filter(t => t.nivel === nivel).length} turma(s)`}
+                  <CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)} subtitle={`${turmasPorCurso(curso.id).filter(t => t.nivel === nivel).length} turma(s)`}
                     onClick={() => setAcadLayer({ mode: "sup", type: "turmas", curso, nivel })}
                   />
                 ))}
@@ -1002,53 +889,50 @@ export default function NotasAdmin() {
       );
     }
 
+    // superior: turmas
     if (al.mode === "sup" && al.type === "turmas") {
       const { curso, nivel } = al;
-      const ts               = turmasPorCurso(curso.id).filter(t => t.nivel === nivel);
+      const ts = turmasPorCurso(curso.id).filter(t => t.nivel === nivel);
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
-          {ts.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" />
-              <p className="text-sm">Nenhuma turma ativa para este nível neste curso.</p>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {ts.map(t => (
-                <CardBtn
-                  key={t.id ?? t.codigo_turma}
-                  icon="mdi:account-group"
-                  title={t.codigo_turma}
-                  subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado).length} estudante(s)`}
-                  onClick={async () => {
-                    await carregarNotasDosEstudantesDaTurma(t);
-                    setAcadLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t });
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          {loadingTurmas ? <LoadingSpinner message="Carregando turmas..." /> :
+            ts.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <Icon icon="mdi:account-group-outline" width={48} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm">Nenhuma turma ativa para este nível neste curso.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {ts.map(t => (
+                  <CardBtn key={t.id ?? t.codigo_turma} icon="mdi:account-group" title={t.codigo_turma}
+                    subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s)`}
+                    onClick={async () => { await carregarNotasDosEstudantesDaTurma(t); setAcadLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t }); }}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       );
     }
 
+    // superior: períodos
     if (al.mode === "sup" && al.type === "periodos") {
       const { curso, nivel, turma } = al;
-      const periodosDisponiveis     = curso.periodos?.length
+      const periodos = curso.periodos?.length
         ? curso.periodos.map(v => ({ label: PERIODOS_LABEL[v] ?? v, value: v }))
         : PERIODOS_SUPERIOR;
       return (
         <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
           <p className="text-sm text-gray-500">{labelNivel(nivel)} · {curso.nome}</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {periodosDisponiveis.map(p => (
-              <CardBtn
-                key={p.value}
-                icon="mdi:clipboard-text-clock-outline"
-                title={p.label}
-                subtitle="Ver notas"
+            {periodos.map(p => (
+              <CardBtn key={p.value} icon="mdi:clipboard-text-clock-outline" title={p.label} subtitle="Ver notas"
                 onClick={() => setAcadLayer({ mode: "sup", type: "notas", curso, nivel, turma, periodo: p.value })}
               />
             ))}
@@ -1057,33 +941,26 @@ export default function NotasAdmin() {
       );
     }
 
-    if (al.mode === "sup" && al.type === "notas") {
-      return renderNotasLayer(al.nivel, al.turma, al.periodo, true);
-    }
+    // superior: notas
+    if (al.mode === "sup" && al.type === "notas") return (
+      <div className="space-y-4">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        {renderNotasLayer(al.nivel, al.turma, al.periodo, true)}
+      </div>
+    );
 
     return null;
   }
 
-  // ── render principal ─────────────────────────────────────────────────────────
-
-  const BotaoVoltar = canGoBack() ? (
-    <button
-      onClick={goBack}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
-    >
-      <Icon icon="mdi:arrow-left" width={16} />
-      Voltar
-    </button>
-  ) : null;
+  // ─── render principal ─────────────────────────────────────────────────────────
 
   if (loadingAcads) return <LoadingSpinner message="Carregando academias..." />;
 
-  if (layer.type === "provincias") return (
+  // províncias
+  if (navLayer.type === "provincias") return (
     <div className="space-y-6">
-      {alert && (
-        <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />
-      )}
-      {BotaoVoltar}
+      {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas do Sistema</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma província para explorar as notas</p>
@@ -1098,12 +975,8 @@ export default function NotasAdmin() {
           {provincias.map(prov => {
             const acads = academias.filter(a => a.provincia?.toUpperCase() === prov.toUpperCase());
             return (
-              <CardBtn
-                key={prov}
-                icon="mdi:map-marker-radius"
-                title={nomeProvinciaDeCodigo(prov)}
-                subtitle={`${acads.length} academia(s)`}
-                onClick={() => setLayer({ type: "academias", provincia: prov })}
+              <CardBtn key={prov} icon="mdi:map-marker-radius" title={nomeProvinciaDeCodigo(prov)} subtitle={`${acads.length} academia(s)`}
+                onClick={() => setNavLayer({ type: "academias", provincia: prov })}
               />
             );
           })}
@@ -1112,29 +985,29 @@ export default function NotasAdmin() {
     </div>
   );
 
-  if (layer.type === "academias") {
-    const acads = academias.filter(a => a.provincia?.toUpperCase() === layer.provincia.toUpperCase());
+  // academias
+  if (navLayer.type === "academias") {
+    const acads = academias.filter(a => a.provincia?.toUpperCase() === navLayer.provincia.toUpperCase());
     return (
       <div className="space-y-6">
-        {alert && (
-          <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />
-        )}
-        {BotaoVoltar}
+        {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />}
+        <button onClick={() => setNavLayer({ type: "provincias" })}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+        >
+          <Icon icon="mdi:arrow-left" width={16} /> Voltar
+        </button>
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Província de {nomeProvinciaDeCodigo(layer.provincia)}
+            Província de {nomeProvinciaDeCodigo(navLayer.provincia)}
           </h2>
           <p className="text-sm text-gray-500 mt-1">{acads.length} academia(s)</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {acads.map(a => (
-            <CardBtn
-              key={a.codigo_academia}
+            <CardBtn key={a.codigo_academia}
               icon={a.nivel === "superior" ? "mdi:university" : "mdi:school"}
-              title={a.nome}
-              subtitle={a.codigo_academia}
-              badge={a.nivel}
+              title={a.nome} subtitle={a.codigo_academia} badge={a.nivel}
               onClick={() => entrarNaAcademia(a)}
             />
           ))}
@@ -1143,23 +1016,21 @@ export default function NotasAdmin() {
     );
   }
 
-  if (layer.type === "academia_root") {
-    const { academia } = layer;
+  // academia seleccionada
+  if (navLayer.type === "academia") {
+    const { academia } = navLayer;
     return (
       <div className="space-y-6">
-        {alert && (
-          <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />
-        )}
-        {BotaoVoltar}
-        <Breadcrumb crumbs={buildCrumbs()} />
+        {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Erro"} message={alert.message} />}
 
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{academia.nome}</h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {academia.codigo_academia} · {turmasAtivas.length} turma(s) ativa(s) · {estudantes.length} estudante(s) · {todasNotas.length} nota(s)
-            </p>
-          </div>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{academia.nome}</h2>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            {academia.codigo_academia}
+            {!loadingTurmas  && turmasAtivas.length > 0  && ` · ${turmasAtivas.length} turma(s) ativa(s)`}
+            {!loadingEstud   && estudantes.length > 0    && ` · ${estudantes.length} estudante(s)`}
+            {todasNotas.length > 0                       && ` · ${todasNotas.length} nota(s) carregada(s)`}
+          </p>
         </div>
 
         {renderAcadLayer()}
