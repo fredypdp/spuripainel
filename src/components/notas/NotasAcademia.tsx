@@ -1,6 +1,6 @@
 // src/components/notas/NotasAcademia.tsx
 "use client"
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
   MeuPerfilResponse, Nota, Turma, EstudanteDetalhado, Curso,
@@ -86,6 +86,10 @@ function turmaAtiva(turma: Turma): boolean {
 
 function normCodigoEstudante(codigo: string): string {
   return (codigo ?? "").trim().toLowerCase();
+}
+
+function exibirCodigoEstudante(codigo: string): string {
+  return (codigo ?? "").trim().toUpperCase();
 }
 
 // ─── tipos de layer ───────────────────────────────────────────────────────────
@@ -186,6 +190,17 @@ function TabelaNotasEscolar({
     if (!porEstudante.has(n.codigo_estudante)) porEstudante.set(n.codigo_estudante, []);
     porEstudante.get(n.codigo_estudante)!.push(n);
   });
+  const materias = Array.from(
+    notas.reduce((acc, n) => {
+      if (!acc.has(n.materia_disciplinar_id)) {
+        acc.set(n.materia_disciplinar_id, {
+          id: n.materia_disciplinar_id,
+          nome: n.materia_nome ?? n.materia_disciplinar_id,
+        });
+      }
+      return acc;
+    }, new Map<string, { id: string; nome: string }>() ).values()
+  ).sort((a, b) => a.nome.localeCompare(b.nome));
   const codigos = codigosTurma && codigosTurma.length > 0
     ? codigosTurma
     : Array.from(porEstudante.keys());
@@ -195,55 +210,39 @@ function TabelaNotasEscolar({
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400" rowSpan={2}>Nome do Estudante</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400" rowSpan={2}>Código do Estudante</th>
+            {materias.map(m => (
+              <th key={m.id} className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400" colSpan={2}>{m.nome}</th>
+            ))}
+          </tr>
+          <tr>
+            {materias.map(m => (
+              <Fragment key={`${m.id}-sub`}>
+                <th className="px-4 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
+                <th className="px-4 py-2 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
+              </Fragment>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {codigos.map((codigo) => {
             const notasEst = porEstudante.get(codigo) ?? [];
-            const est = estudantes.find(e => e.codigo_estudante === codigo);
-            const notaProf  = notasEst.find(n => n.categoria === "nota_professor");
-            const notaFinal = notasEst.find(n => n.categoria === "nota_escola");
-
-            if (notasEst.length === 0) {
-              return (
-                <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
-                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
-                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
-                </tr>
-              );
-            }
-
-            if (!notaProf && !notaFinal) {
-              return notasEst.map((nota, i) => (
-                <tr key={nota.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                  {i === 0 && (
-                    <>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{est?.nome ?? "-"}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
-                    </>
-                  )}
-                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
-                  <td className={`px-4 py-3 text-right font-bold ${corNota(nota.nota)}`}>{nota.nota}</td>
-                </tr>
-              ));
-            }
-
+            const est = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === normCodigoEstudante(codigo));
             return (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
-                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>
-                  {notaProf?.nota ?? "—"}
-                </td>
-                <td className={`px-4 py-3 text-right font-bold ${notaFinal ? corNota(notaFinal.nota) : "text-gray-400 dark:text-gray-600"}`}>
-                  {notaFinal?.nota ?? "—"}
-                </td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
+                {materias.map((m) => {
+                  const notaProf = notasEst.find(n => n.materia_disciplinar_id === m.id && n.categoria === "nota_professor");
+                  const notaEsc = notasEst.find(n => n.materia_disciplinar_id === m.id && n.categoria === "nota_escola");
+                  return (
+                    <Fragment key={`${codigo}-${m.id}`}>
+                      <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaProf?.nota ?? "—"}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${notaEsc ? corNota(notaEsc.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaEsc?.nota ?? "—"}</td>
+                    </Fragment>
+                  );
+                })}
               </tr>
             );
           })}
@@ -293,13 +292,13 @@ function TabelaNotasSuperior({
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {codigos.map((codigo) => {
             const notasEst = porEstudante.get(codigo) ?? [];
-            const est = estudantes.find(e => e.codigo_estudante === codigo);
+            const est = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === normCodigoEstudante(codigo));
 
             if (notasEst.length === 0) {
               return (
                 <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "-"}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                   <td className="px-4 py-3 text-gray-400 dark:text-gray-600">—</td>
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
                 </tr>
@@ -311,7 +310,7 @@ function TabelaNotasSuperior({
                 {i === 0 && (
                   <>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white" rowSpan={notasEst.length}>{est?.nome ?? "-"}</td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{codigo}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs" rowSpan={notasEst.length}>{exibirCodigoEstudante(codigo)}</td>
                   </>
                 )}
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(nota.categoria)}</td>
@@ -629,12 +628,6 @@ export default function NotasAcademia() {
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
   const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
 
-  useEffect(() => {
-    if (anoLetivoSelecionado) return;
-    if (anoLectivo) { setAnoLetivoSelecionado(anoLectivo); return; }
-    if (anosLetivosDisponiveis.length > 0) setAnoLetivoSelecionado(anosLetivosDisponiveis[0]);
-  }, [anoLectivo, anosLetivosDisponiveis, anoLetivoSelecionado]);
-
   function showAlert(variant: "success" | "error", message: string) {
     setAlert({ variant, message }); setTimeout(() => setAlert(null), 4000);
   }
@@ -820,23 +813,37 @@ export default function NotasAcademia() {
       <div className="space-y-4">
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
-        {anosLetivosDisponiveis.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+        {!anoLetivoSelecionado ? (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anosLetivosDisponiveis.map((ano: string) => (
-              <button
+              <CardBtn
                 key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace("_", "/")}`}
+                subtitle="Entrar para ver anos académicos"
                 onClick={() => setAnoLetivoSelecionado(ano)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}
-              >
-                {ano.replace("_", "/")}
-              </button>
+              />
             ))}
           </div>
+        ) : (
+          <div className="space-y-3">
+            <button
+              onClick={() => setAnoLetivoSelecionado("")}
+              className="text-sm text-brand-600 hover:text-brand-500"
+            >
+              ← Voltar aos anos letivos
+            </button>
+            <p className="text-sm text-gray-500">Ano letivo selecionado: {anoLetivoSelecionado.replace("_", "/")}</p>
+          </div>
         )}
-        {niveisFundamentais.length === 0
-          ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p></div>
-          : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{niveisFundamentais.map(nivel => (<CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)} subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`} onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />))}</div>
-        }
+        {!anoLetivoSelecionado ? null : (
+          <>
+            {niveisFundamentais.length === 0
+              ? <div className="text-center py-12 text-gray-400"><Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" /><p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p></div>
+              : <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">{niveisFundamentais.map(nivel => (<CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)} subtitle={`${turmasPorNivel(nivel).length} turma(s) ativa(s)`} onClick={() => setLayer({ mode: "fund", type: "turmas", nivel })} />))}</div>
+            }
+          </>
+        )}
       </div>
     );
 
@@ -929,22 +936,32 @@ export default function NotasAcademia() {
         <div className="space-y-4">
           <Breadcrumb crumbs={crumbs} />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
-          {anosLetivosDisponiveis.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+          {!anoLetivoSelecionado ? (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
               {anosLetivosDisponiveis.map((ano: string) => (
-                <button
+                <CardBtn
                   key={ano}
+                  icon="mdi:calendar-school"
+                  title={`Ano Letivo ${ano.replace("_", "/")}`}
+                  subtitle="Entrar para ver anos académicos"
                   onClick={() => setAnoLetivoSelecionado(ano)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${ano === (anoLetivoSelecionado || anoLectivo) ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"}`}
-                >
-                  {ano.replace("_", "/")}
-                </button>
+                />
               ))}
             </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={() => setAnoLetivoSelecionado("")}
+                className="text-sm text-brand-600 hover:text-brand-500"
+              >
+                ← Voltar aos anos letivos
+              </button>
+              <p className="text-sm text-gray-500">Ano letivo selecionado: {anoLetivoSelecionado.replace("_", "/")}</p>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {anos.map(nivel => (<CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)} subtitle={`${turmasPorCurso(curso.id).filter(t => t.nivel === nivel).length} turma(s)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />))}
+              </div>
+            </div>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {anos.map(nivel => (<CardBtn key={nivel} icon="mdi:calendar-school" title={labelNivel(nivel)} subtitle={`${turmasPorCurso(curso.id).filter(t => t.nivel === nivel).length} turma(s)`} onClick={() => setLayer({ mode: "sup", type: "turmas", curso, nivel })} />))}
-          </div>
         </div>
       );
     }

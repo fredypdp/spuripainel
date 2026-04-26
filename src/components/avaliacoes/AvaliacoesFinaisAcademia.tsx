@@ -426,7 +426,7 @@ export default function AvaliacoesFinaisAcademia() {
   // Após ter as avaliações, determina anos disponíveis e selecciona o actual
   useEffect(() => {
     const todasAvs: AvaliacaoFinal[] = (dataAvaliacoes as any)?.avaliacoes ?? [];
-    const anos = Array.from(new Set(todasAvs.map(a => a.ano_lectivo).filter(Boolean))).sort().reverse();
+    const anos = Array.from(new Set(todasAvs.map(a => a.ano_lectivo).filter(Boolean))).sort();
     setAnosDisponiveis(anos);
 
     // Preferir o ano letivo activo da academia

@@ -197,7 +197,7 @@ export default function AvaliacoesFinaisEstudante() {
   // Anos letivos disponíveis (ordenados do mais recente)
   const anosLetivos = useMemo(() => {
     const set = new Set(todasAvaliacoes.map(a => a.ano_lectivo).filter(Boolean));
-    return Array.from(set).sort().reverse();
+    return Array.from(set).sort();
   }, [todasAvaliacoes]);
 
   const [anoSel, setAnoSel] = useState<string>("");
