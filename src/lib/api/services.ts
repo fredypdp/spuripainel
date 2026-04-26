@@ -583,16 +583,42 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarCursos: (token?: string) =>
-    api.get<ListarCursosResponse>('/academia/cursos', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+  /**
+   * GET /academia/cursos
+   * Lista cursos da academia autenticada.
+   * Proteção: autenticado (academia ativa ou admin)
+   *
+   * Query params (quando admin):
+   * - codigo_academia: obrigatório
+   */
+  listarCursos: (params?: { codigo_academia?: string; token?: string } | string) => {
+    // Suporte a chamada legada: listarCursos(token?)
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<ListarCursosResponse>(`/academia/cursos${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
 
-  getCurso: (cursoId: string, token?: string) =>
-    api.get<Curso>(
-      `/academia/curso/${cursoId}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  /**
+   * GET /academia/curso/:id
+   * Proteção: autenticado (academia ativa ou admin)
+   *
+   * Query params (quando admin):
+   * - codigo_academia: obrigatório
+   */
+  getCurso: (cursoId: string, params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<Curso>(
+      `/academia/curso/${cursoId}${qs}`,
+      { token: tok || tokenStorage.get() || undefined }
+    );
+  },
 
   ativarCurso: (cursoId: string, token?: string) =>
     api.put<{ message: string; nome: string }>(
@@ -635,16 +661,42 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarMaterias: (token?: string) =>
-    api.get<ListarMateriasResponse>('/academia/materias', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+  /**
+   * GET /academia/materias
+   * Lista matérias da academia autenticada.
+   * Proteção: autenticado (academia ativa ou admin)
+   *
+   * Query params (quando admin):
+   * - codigo_academia: obrigatório
+   */
+  listarMaterias: (params?: { codigo_academia?: string; token?: string } | string) => {
+    // Suporte a chamada legada: listarMaterias(token?)
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<ListarMateriasResponse>(`/academia/materias${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
 
-  getMateria: (materiaId: string, token?: string) =>
-    api.get<Materia>(
-      `/academia/materia/${materiaId}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  /**
+   * GET /academia/materia/:id
+   * Proteção: autenticado (academia ativa ou admin)
+   *
+   * Query params (quando admin):
+   * - codigo_academia: obrigatório
+   */
+  getMateria: (materiaId: string, params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<Materia>(
+      `/academia/materia/${materiaId}${qs}`,
+      { token: tok || tokenStorage.get() || undefined }
+    );
+  },
 
   ativarMateria: (materiaId: string, token?: string) =>
     api.put<{ message: string; nome: string }>(
@@ -689,16 +741,42 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarTurmas: (token?: string) =>
-    api.get<ListarTurmasResponse>('/academia/turmas', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+  /**
+   * GET /academia/turmas
+   * Lista turmas da academia autenticada.
+   * Proteção: autenticado (academia ativa ou admin)
+   *
+   * Query params (quando admin):
+   * - codigo_academia: obrigatório
+   */
+  listarTurmas: (params?: { codigo_academia?: string; token?: string } | string) => {
+    // Suporte a chamada legada: listarTurmas(token?)
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<ListarTurmasResponse>(`/academia/turmas${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
 
-  getTurma: (codigoTurma: string, token?: string) =>
-    api.get<Turma>(
-      `/academia/turma/${codigoTurma}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  /**
+   * GET /academia/turma/:codigo
+   * Proteção: autenticado (academia ativa ou admin)
+   *
+   * Query params (quando admin):
+   * - codigo_academia: obrigatório (o código da turma é contextual por academia)
+   */
+  getTurma: (codigoTurma: string, params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<Turma>(
+      `/academia/turma/${codigoTurma}${qs}`,
+      { token: tok || tokenStorage.get() || undefined }
+    );
+  },
 
   ativarTurma: (codigoTurma: string, token?: string) =>
     api.put<{ message: string; codigo_turma: string }>(

@@ -313,8 +313,14 @@ export default function NotasAdmin() {
   const { data: academiasData, execute: carregarAcademias, loading: loadingAcads } =
     useApi(consultasService.listarAcademias);
 
-  const { data: dataTurmas,      execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
-  const { data: dataCursos,      execute: carregarCursos     } = useApi(academiaService.listarCursos);
+  const { data: dataTurmas,      execute: carregarTurmas     } = useApi(
+    (codigoAcademia: string, tok?: string) =>
+      academiaService.listarTurmas({ codigo_academia: codigoAcademia, token: tok })
+  );
+  const { data: dataCursos,      execute: carregarCursos     } = useApi(
+    (codigoAcademia: string, tok?: string) =>
+      academiaService.listarCursos({ codigo_academia: codigoAcademia, token: tok })
+  );
   const { data: dataEstudantes,  execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
 
   const [anosLetivosPorAcad, setAnosLetivosPorAcad] = useState<Record<string, string[]>>({});
@@ -534,8 +540,8 @@ export default function NotasAdmin() {
   async function entrarNaAcademia(academia: AcadInfo) {
     await carregarAnosLetivosAcademia(academia.codigo_academia);
     await Promise.all([
-      carregarTurmas(token),
-      carregarCursos(token),
+      carregarTurmas(academia.codigo_academia, token),
+      carregarCursos(academia.codigo_academia, token),
       carregarEstudantes(token),
     ]);
 
