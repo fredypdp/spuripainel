@@ -1021,12 +1021,18 @@ export default function NotasAcademia() {
   // ─── voltar à secção anterior ────────────────────────────────────────────────
 
   function goBack() {
-    if (layer.mode === "misto" && layer.type === "choose") return; // raiz, sem back
+    if (layer.mode === "misto" && layer.type === "choose") return;
+
+    // Se estiver na secção de anos com um ano letivo já selecionado,
+    // o "Voltar" limpa o ano letivo (volta à lista de anos letivos) antes de mudar de secção
+    if ((layer.type === "anos") && anoLetivoSelecionado) {
+      setAnoLetivoSelecionado("");
+      return;
+    }
 
     if (layer.mode === "fund") {
       if (layer.type === "anos") {
         if (isMisto) setLayer({ mode: "misto", type: "choose" });
-        // senão é a raiz — nada a fazer
       } else if (layer.type === "turmas") {
         setLayer({ mode: "fund", type: "anos" });
       } else if (layer.type === "periodos") {
@@ -1057,7 +1063,7 @@ export default function NotasAcademia() {
   /** Retorna true se há uma secção anterior para onde voltar */
   function canGoBack(): boolean {
     if (layer.mode === "misto" && layer.type === "choose") return false;
-    if (layer.mode === "fund" && layer.type === "anos" && !isMisto) return false;
+    if (layer.mode === "fund" && layer.type === "anos" && !isMisto && !anoLetivoSelecionado) return false;
     if (layer.mode === "sup"  && layer.type === "cursos" && !isMisto) return false;
     return true;
   }
@@ -1210,16 +1216,10 @@ export default function NotasAcademia() {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                Ano letivo: <span className="font-semibold text-gray-700 dark:text-gray-200">{anoLetivoSelecionado.replace("_", "/")}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-800">
+                Ano letivo {anoLetivoSelecionado.replace("_", "/")}
               </span>
-              <button
-                onClick={() => setAnoLetivoSelecionado("")}
-                className="text-xs text-gray-400 hover:text-brand-500 underline transition-colors"
-              >
-                Trocar ano letivo
-              </button>
             </div>
             {niveisFundamentais.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
@@ -1363,16 +1363,10 @@ export default function NotasAcademia() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                  Ano letivo: <span className="font-semibold text-gray-700 dark:text-gray-200">{anoLetivoSelecionado.replace("_", "/")}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-800">
+                  Ano letivo {anoLetivoSelecionado.replace("_", "/")}
                 </span>
-                <button
-                  onClick={() => setAnoLetivoSelecionado("")}
-                  className="text-xs text-gray-400 hover:text-brand-500 underline transition-colors"
-                >
-                  Trocar ano letivo
-                </button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 {anos.map(nivel => (
