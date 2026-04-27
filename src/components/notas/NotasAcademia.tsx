@@ -1211,7 +1211,7 @@ export default function NotasAcademia() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Académicos — Ensino Fundamental</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Letivos — Ensino Fundamental</h2>
         {!anoLetivoSelecionado ? (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anosLetivosDisponiveis.map((ano: string) => (
@@ -1219,7 +1219,7 @@ export default function NotasAcademia() {
                 key={ano}
                 icon="mdi:calendar-school"
                 title={`Ano Letivo ${ano.replace("_", "/")}`}
-                subtitle="Entrar para ver anos académicos"
+                subtitle="Entrar para ver anos letivos"
                 onClick={() => setAnoLetivoSelecionado(ano)}
               />
             ))}
@@ -1350,7 +1350,7 @@ export default function NotasAcademia() {
       </div>
     );
 
-    // ── superior: anos académicos ─────────────────────────────────────────────
+    // ── superior: anos letivos ────────────────────────────────────────────────
     if (layer.mode === "sup" && layer.type === "anos") {
       const { curso } = layer as { mode: "sup"; type: "anos"; curso: Curso };
       const anos      = anosDosCurso(curso);
@@ -1366,7 +1366,7 @@ export default function NotasAcademia() {
                   key={ano}
                   icon="mdi:calendar-school"
                   title={`Ano Letivo ${ano.replace("_", "/")}`}
-                  subtitle="Entrar para ver anos académicos"
+                  subtitle="Entrar para ver anos letivos"
                   onClick={() => setAnoLetivoSelecionado(ano)}
                 />
               ))}
