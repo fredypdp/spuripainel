@@ -1211,7 +1211,9 @@ export default function NotasAcademia() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Letivos — Ensino Fundamental</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {anoLetivoSelecionado ? "Anos Académicos — Ensino Fundamental" : "Anos Letivos — Ensino Fundamental"}
+        </h2>
         {!anoLetivoSelecionado ? (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {anosLetivosDisponiveis.map((ano: string) => (
@@ -1219,7 +1221,7 @@ export default function NotasAcademia() {
                 key={ano}
                 icon="mdi:calendar-school"
                 title={`Ano Letivo ${ano.replace("_", "/")}`}
-                subtitle="Entrar para ver anos letivos"
+                subtitle="Entrar para ver os anos académicos"
                 onClick={() => setAnoLetivoSelecionado(ano)}
               />
             ))}
@@ -1358,7 +1360,12 @@ export default function NotasAcademia() {
         <div className="space-y-4">
           {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {anoLetivoSelecionado ? "Anos Académicos" : curso.nome}
+          </h2>
+          {anoLetivoSelecionado && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">{curso.nome}</p>
+          )}
           {!anoLetivoSelecionado ? (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
               {anosLetivosDisponiveis.map((ano: string) => (
@@ -1366,7 +1373,7 @@ export default function NotasAcademia() {
                   key={ano}
                   icon="mdi:calendar-school"
                   title={`Ano Letivo ${ano.replace("_", "/")}`}
-                  subtitle="Entrar para ver anos letivos"
+                  subtitle="Entrar para ver os anos académicos"
                   onClick={() => setAnoLetivoSelecionado(ano)}
                 />
               ))}

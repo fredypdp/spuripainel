@@ -735,14 +735,16 @@ export default function NotasAdmin() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Anos Letivos — Ensino Fundamental</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {anoLetivoSelecionado ? "Anos Académicos — Ensino Fundamental" : "Anos Letivos — Ensino Fundamental"}
+        </h2>
         {!anoLetivoSelecionado ? (
           loadingAnos ? <LoadingSpinner message="Carregando anos letivos..." /> : (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
               {anosLetivosDisponiveis.length === 0
                 ? <p className="text-sm text-gray-400 col-span-full text-center py-8">Nenhum ano letivo encontrado.</p>
                 : anosLetivosDisponiveis.map((ano: string) => (
-                  <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano Letivo ${ano.replace("_", "/")}`} subtitle="Entrar para ver anos letivos" onClick={() => setAnoLetivoSelecionado(ano)} />
+                  <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano Letivo ${ano.replace("_", "/")}`} subtitle="Entrar para ver os anos académicos" onClick={() => setAnoLetivoSelecionado(ano)} />
                 ))
               }
             </div>
@@ -859,14 +861,19 @@ export default function NotasAdmin() {
         <div className="space-y-4">
           {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {anoLetivoSelecionado ? "Anos Académicos" : curso.nome}
+          </h2>
+          {anoLetivoSelecionado && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">{curso.nome}</p>
+          )}
           {!anoLetivoSelecionado ? (
             loadingAnos ? <LoadingSpinner message="Carregando anos letivos..." /> : (
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 {anosLetivosDisponiveis.length === 0
                   ? <p className="text-sm text-gray-400 col-span-full text-center py-8">Nenhum ano letivo encontrado.</p>
                   : anosLetivosDisponiveis.map((ano: string) => (
-                    <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano Letivo ${ano.replace("_", "/")}`} subtitle="Entrar para ver anos letivos" onClick={() => setAnoLetivoSelecionado(ano)} />
+                    <CardBtn key={ano} icon="mdi:calendar-school" title={`Ano Letivo ${ano.replace("_", "/")}`} subtitle="Entrar para ver os anos académicos" onClick={() => setAnoLetivoSelecionado(ano)} />
                   ))
                 }
               </div>
