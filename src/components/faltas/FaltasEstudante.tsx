@@ -42,7 +42,6 @@ interface AcadInfo {
   codigo: string;
   nome: string;
 }
-const MAX_LIMIT = 1000;
 
 type Layer =
   | { type: "academias" }
@@ -102,47 +101,30 @@ export default function FaltasEstudante() {
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
   const token = tokenStorage.get() ?? undefined;
 
-  const [todasFaltas, setTodasFaltas] = useState<Falta[]>([]);
-  const [loadingFaltas, setLoadingFaltas] = useState(false);
-  const { execute: carregarFaltasPage } = useApi(consultasService.listarFaltas);
+  // ✅ Usa a rota correta do estudante: GET /faltas-estudante/:codigo
+  const { data: faltasData, loading: loadingFaltas, execute: carregarFaltas } =
+    useApi(consultasService.faltasEstudante);
+
   const { data: historicoTurmas, execute: carregarTurmas, loading: loadingTurmas } =
     useApi(consultasService.turmasEstudante);
-  const { data: academiasData, execute: carregarAcademias } =
-    useApi(consultasService.listarAcademias);
 
   useEffect(() => {
     if (codigoEstudante) {
-      carregarTodasFaltas();
+      carregarFaltas(codigoEstudante, token);
       carregarTurmas(codigoEstudante, token);
-      carregarAcademias(token);
     }
   }, [codigoEstudante]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const todasFaltas: Falta[] = faltasData?.faltas ?? [];
   const todasTurmas: Turma[] = (historicoTurmas as any)?.turmas ?? [];
 
-  async function carregarTodasFaltas() {
-    setLoadingFaltas(true);
-    try {
-      const primeira = await carregarFaltasPage({ limit: MAX_LIMIT, offset: 0, token });
-      if (!primeira) return;
-
-      const totalGeral = primeira.total_geral ?? primeira.total ?? 0;
-      let acumulado: Falta[] = [...(primeira.faltas ?? [])];
-
-      if (totalGeral > MAX_LIMIT) {
-        const paginas = Math.ceil(totalGeral / MAX_LIMIT);
-        const promises: Promise<any>[] = [];
-        for (let p = 1; p < paginas; p++) {
-          promises.push(carregarFaltasPage({ limit: MAX_LIMIT, offset: p * MAX_LIMIT, token }));
-        }
-        const resultados = await Promise.all(promises);
-        resultados.forEach(r => { if (r) acumulado = [...acumulado, ...(r.faltas ?? [])]; });
-      }
-
-      setTodasFaltas(acumulado.filter(f => f.codigo_estudante === codigoEstudante));
-    } finally {
-      setLoadingFaltas(false);
-    }
+  // ── Resolução do nome da academia ─────────────────────────────────────────
+  // FaltaDTO não inclui academia_nome, então usamos a academia_info do perfil
+  // como fonte primária, com fallback para o código.
+  function resolverNomeAcademia(codigoAcademia: string): string {
+    const academiaInfo = user?.estudante?.academia_info ?? (user?.estudante as any)?.academia;
+    if (academiaInfo?.codigo === codigoAcademia) return academiaInfo.nome;
+    return codigoAcademia;
   }
 
   // Academias únicas a partir das faltas
@@ -150,34 +132,14 @@ export default function FaltasEstudante() {
     const map = new Map<string, AcadInfo>();
     todasFaltas.forEach(f => {
       if (!map.has(f.codigo_academia)) {
-        const academiaNome =
-          f.academia_nome ||
-          ((academiasData as any)?.academias ?? []).find((a: any) => a.codigo_academia === f.codigo_academia)?.nome ||
-          f.codigo_academia;
-        map.set(f.codigo_academia, { codigo: f.codigo_academia, nome: academiaNome });
+        map.set(f.codigo_academia, {
+          codigo: f.codigo_academia,
+          nome: resolverNomeAcademia(f.codigo_academia),
+        });
       }
     });
     return Array.from(map.values());
-  }, [todasFaltas, academiasData]);
-
-  /**
-   * Retorna as turmas de uma academia que possuem faltas para este estudante.
-   * Correspondência: turma.codigo_academia === academia && turma.nivel === falta.ano_academico
-   */
-  function turmasDaAcademia(codigoAcademia: string, anoLetivo: string): Turma[] {
-    const niveisComFaltas = new Set(
-      todasFaltas
-        .filter(f => f.codigo_academia === codigoAcademia)
-        .map(f => f.ano_academico)
-        .filter(Boolean)
-    );
-    return todasTurmas.filter(
-      t =>
-        t.codigo_academia === codigoAcademia &&
-        niveisComFaltas.has(t.nivel) &&
-        ((t.historico_estudantes_ano_letivo?.[anoLetivo] ?? t.estudantes).includes(codigoEstudante))
-    );
-  }
+  }, [todasFaltas, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function anosLetivosDaAcademia(codigoAcademia: string): string[] {
     return Array.from(
@@ -190,7 +152,26 @@ export default function FaltasEstudante() {
     ).sort();
   }
 
-  /** Faltas do estudante nesta turma (academia + nivel). */
+  /**
+   * Retorna as turmas de uma academia que possuem faltas para este estudante.
+   * Correspondência: turma.codigo_academia === academia && turma.nivel === falta.ano_academico
+   */
+  function turmasDaAcademia(codigoAcademia: string, anoLetivo: string): Turma[] {
+    const niveisComFaltas = new Set(
+      todasFaltas
+        .filter(f => f.codigo_academia === codigoAcademia && f.ano_lectivo === anoLetivo)
+        .map(f => f.ano_academico)
+        .filter(Boolean)
+    );
+    return todasTurmas.filter(
+      t =>
+        t.codigo_academia === codigoAcademia &&
+        niveisComFaltas.has(t.nivel) &&
+        ((t.historico_estudantes_ano_letivo?.[anoLetivo] ?? t.estudantes).includes(codigoEstudante))
+    );
+  }
+
+  /** Faltas do estudante nesta turma (academia + nivel + anoLetivo). */
   function faltasDaTurma(codigoAcademia: string, turma: Turma, anoLetivo: string): Falta[] {
     return todasFaltas.filter(
       f =>
