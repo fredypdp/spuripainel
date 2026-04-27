@@ -203,13 +203,6 @@ export const consultasService = {
    * GET /avaliacoes
    * Lista avaliações finais. Escopo varia por tipo de usuário.
    * Proteção: autenticado (qualquer tipo)
-   *
-   * Query Params:
-   * - tipo_ensino: filtro por nível — 'fundamental' | 'medio' | 'superior'
-   * - ano_letivo: ex: '2025_2026'
-   * - ano_academico_atual: ex: '3_ano_fundamental'
-   * - codigo_turma: filtra por turma (requer codigo_academia em consultas admin)
-   * - codigo_academia: filtro de academia (admin); academia autenticada ignora este param
    */
   listarAvaliacoes: (params?: ListarAvaliacoesParams) => {
     const qs = new URLSearchParams();
@@ -228,13 +221,6 @@ export const consultasService = {
    * GET /aprovacoes
    * Lista apenas avaliações com aprovado = true.
    * Proteção: autenticado (qualquer tipo)
-   *
-   * Query Params:
-   * - tipo_ensino: filtro por nível — 'fundamental' | 'medio' | 'superior'
-   * - ano_letivo: ex: '2025_2026'
-   * - ano_academico_atual: ex: '3_ano_fundamental'
-   * - codigo_turma: filtra por turma
-   * - codigo_academia: filtro de academia (admin)
    */
   listarAprovacoes: (params?: ListarAprovacoesParams) => {
     const qs = new URLSearchParams();
@@ -253,13 +239,6 @@ export const consultasService = {
    * GET /reprovacoes
    * Lista apenas avaliações com aprovado = false.
    * Proteção: autenticado (qualquer tipo)
-   *
-   * Query Params:
-   * - tipo_ensino: filtro por nível — 'fundamental' | 'medio' | 'superior'
-   * - ano_letivo: ex: '2025_2026'
-   * - ano_academico_atual: ex: '3_ano_fundamental'
-   * - codigo_turma: filtra por turma
-   * - codigo_academia: filtro de academia (admin)
    */
   listarReprovacoes: (params?: ListarReprovacoesParams) => {
     const qs = new URLSearchParams();
@@ -308,20 +287,7 @@ export const consultasService = {
   /**
    * GET /notas
    * Lista registros de notas com escopo por perfil.
-   * - admin: todas as notas do sistema
-   * - academia: apenas notas da própria academia
    * Proteção: autenticado (admin ou academia)
-   *
-   * Query Params:
-   * - limit: padrão 50, máximo 1000
-   * - offset: padrão 0
-   * - ano_letivo: filtra por ano letivo
-   * - ano_academico: filtra por ano académico (ex: '3_ano_fundamental')
-   * - curso_id: filtra por curso (médio ou superior)
-   * - codigo_turma: filtra por turma (requer codigo_academia em consultas admin)
-   * - periodo: '1_trimestre' | '2_trimestre' | '3_trimestre' | '1_semestre' | '2_semestre'
-   * - materia_disciplinar_id: filtra por matéria
-   * - codigo_academia: filtro de academia (admin); academia autenticada ignora este param
    */
   listarNotas: (params?: ListarNotasParams) => {
     const qs = new URLSearchParams();
@@ -344,20 +310,7 @@ export const consultasService = {
   /**
    * GET /faltas
    * Lista registros de faltas com escopo por perfil.
-   * - admin: todas as faltas do sistema
-   * - academia: apenas faltas da própria academia
    * Proteção: autenticado (admin ou academia)
-   *
-   * Query Params:
-   * - limit: padrão 50, máximo 1000
-   * - offset: padrão 0
-   * - ano_letivo: filtra por ano letivo
-   * - ano_academico: filtra por ano académico (ex: '3_ano_fundamental')
-   * - curso_id: filtra por curso (médio ou superior)
-   * - codigo_turma: filtra por turma (requer codigo_academia em consultas admin)
-   * - periodo: período da matéria
-   * - materia_disciplinar_id: filtra por matéria
-   * - codigo_academia: filtro de academia (admin); academia autenticada ignora este param
    */
   listarFaltas: (params?: ListarFaltasParams) => {
     const qs = new URLSearchParams();
@@ -518,17 +471,45 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  getAnoLetivo: (token?: string) =>
-    api.get<AnoLetivoAcademiaResponse>(
-      '/academia/ano-letivo',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  /**
+   * GET /academia/ano-letivo
+   *
+   * Retorna o ano letivo ativo da academia alvo.
+   *
+   * - Para `academia`: o backend ignora `codigo_academia` e retorna o próprio ano letivo.
+   * - Para `admin`: `codigo_academia` é **obrigatório**; a busca é feita pelo código informado.
+   *
+   * @param params - string (token legado) ou objeto com `{ codigo_academia?, token? }`
+   */
+  getAnoLetivo: (params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<AnoLetivoAcademiaResponse>(`/academia/ano-letivo${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
 
-  listarAnosLetivosLista: (token?: string) =>
-    api.get<ListarAnosLetivosAcademiaResponse>(
-      '/academia/anos-letivos-lista',
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  /**
+   * GET /academia/anos-letivos-lista
+   *
+   * Retorna a lista histórica de anos letivos definidos pela academia alvo.
+   *
+   * - Para `academia`: o backend ignora `codigo_academia` e retorna a própria lista.
+   * - Para `admin`: `codigo_academia` é **obrigatório**; a busca é feita pelo código informado.
+   *
+   * @param params - string (token legado) ou objeto com `{ codigo_academia?, token? }`
+   */
+  listarAnosLetivosLista: (params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok      = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo   = isLegacy ? undefined : params?.codigo_academia;
+    const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<ListarAnosLetivosAcademiaResponse>(`/academia/anos-letivos-lista${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
 
   // ── Categorias de nota ────────────────────────────────────────────
 
@@ -592,7 +573,6 @@ export const academiaService = {
    * - codigo_academia: obrigatório
    */
   listarCursos: (params?: { codigo_academia?: string; token?: string } | string) => {
-    // Suporte a chamada legada: listarCursos(token?)
     const isLegacy = typeof params === 'string' || params === undefined;
     const tok      = isLegacy ? (params as string | undefined) : params?.token;
     const codigo   = isLegacy ? undefined : params?.codigo_academia;
@@ -670,7 +650,6 @@ export const academiaService = {
    * - codigo_academia: obrigatório
    */
   listarMaterias: (params?: { codigo_academia?: string; token?: string } | string) => {
-    // Suporte a chamada legada: listarMaterias(token?)
     const isLegacy = typeof params === 'string' || params === undefined;
     const tok      = isLegacy ? (params as string | undefined) : params?.token;
     const codigo   = isLegacy ? undefined : params?.codigo_academia;
@@ -750,7 +729,6 @@ export const academiaService = {
    * - codigo_academia: obrigatório
    */
   listarTurmas: (params?: { codigo_academia?: string; token?: string } | string) => {
-    // Suporte a chamada legada: listarTurmas(token?)
     const isLegacy = typeof params === 'string' || params === undefined;
     const tok      = isLegacy ? (params as string | undefined) : params?.token;
     const codigo   = isLegacy ? undefined : params?.codigo_academia;
