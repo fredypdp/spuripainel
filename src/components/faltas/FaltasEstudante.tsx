@@ -17,9 +17,9 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano — Fund.`;
-  if (tipo === "medio")       return `${n}º Ano — Médio`;
-  return `${n}º Ano — Superior`;
+  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
+  return `${n}º Ano Superior`;
 }
 
 function corQuantidade(q: number) {
@@ -74,21 +74,31 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-300 hover:shadow-sm transition-all text-left"
+      className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group"
     >
-      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
+      <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
         <Icon icon={icon} width={22} className="text-brand-500" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{title}</p>
+        <p className="font-medium text-gray-900 dark:text-white truncate">{title}</p>
         {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
       {badge && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0">
+        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize flex-shrink-0">
           {badge}
         </span>
       )}
+      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0" />
     </button>
+  );
+}
+
+function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
+    </div>
   );
 }
 
@@ -97,6 +107,7 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
 export default function FaltasEstudante() {
   const [user] = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const [layer, setLayer] = useState<Layer>({ type: "academias" });
+  const [loadingLayer, setLoadingLayer] = useState(false);
 
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
   const token = tokenStorage.get() ?? undefined;
@@ -208,6 +219,13 @@ export default function FaltasEstudante() {
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }
 
+  const navegar = async (novaLayer: Layer) => {
+    setLoadingLayer(true);
+    await new Promise(r => setTimeout(r, 80));
+    setLayer(novaLayer);
+    setLoadingLayer(false);
+  };
+
   // Breadcrumbs
   const crumbs = useMemo(() => {
     const goAcademias = () => setLayer({ type: "academias" });
@@ -240,11 +258,7 @@ export default function FaltasEstudante() {
     return [{ label: "Academias" }];
   }, [layer]);
 
-  if (loadingFaltas || loadingTurmas) return (
-    <div className="flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-500" />
-    </div>
-  );
+  if (loadingFaltas || loadingTurmas) return <LoadingSpinner message="Carregando faltas..." />;
 
   // ── Academias ──────────────────────────────────────────────────────────────
   if (layer.type === "academias") {
@@ -272,7 +286,7 @@ export default function FaltasEstudante() {
                   icon="mdi:school"
                   title={a.nome}
                   subtitle={`${anos.length} ano(s) letivo(s) · ${total} falta(s)`}
-                  onClick={() => setLayer({ type: "anos_letivos", a })}
+                  onClick={() => navegar({ type: "anos_letivos", a })}
                 />
               );
             })}
@@ -298,7 +312,7 @@ export default function FaltasEstudante() {
               key={ano}
               icon="mdi:calendar-school"
               title={ano.replace("_", "/")}
-              onClick={() => setLayer({ type: "turmas", a: layer.a, anoLetivo: ano })}
+              onClick={() => navegar({ type: "turmas", a: layer.a, anoLetivo: ano })}
             />
           ))}
         </div>
@@ -333,7 +347,7 @@ export default function FaltasEstudante() {
                   title={`Turma ${t.codigo_turma}`}
                   subtitle={`${labelNivel(t.nivel)} · ${total} falta(s)`}
                   badge={t.turno}
-                  onClick={() => setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: t })}
+                  onClick={() => navegar({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: t })}
                 />
               );
             })}
@@ -371,7 +385,7 @@ export default function FaltasEstudante() {
                 title={m.nome}
                 subtitle={`${m.totalFaltas} falta(s) · ${m.registros} registro(s)`}
                 badge={m.totalFaltas >= 5 ? "atenção" : undefined}
-                onClick={() => setLayer({
+                onClick={() => navegar({
                   type: "faltas",
                   a: layer.a,
                   anoLetivo: layer.anoLetivo,
@@ -422,7 +436,9 @@ export default function FaltasEstudante() {
           </div>
         )}
 
-        {faltas.length === 0 ? (
+        {loadingLayer ? (
+          <LoadingSpinner message="Carregando faltas..." />
+        ) : faltas.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Icon icon="mdi:check-circle" width={48} className="mx-auto mb-3 text-green-400 opacity-80" />
             <p className="text-sm">Nenhuma falta nesta matéria.</p>

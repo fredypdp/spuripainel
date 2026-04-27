@@ -118,6 +118,7 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
           {badge}
         </span>
       )}
+      <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0" />
     </button>
   );
 }
