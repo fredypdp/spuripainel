@@ -364,6 +364,8 @@ function ModalEditarFalta({
     setError(null);
     const qtd = parseInt(quantidade);
     if (isNaN(qtd) || qtd < 1) { setError("Quantidade deve ser no mínimo 1"); return; }
+    const observacaoNormalizada = observacao.trim();
+    if (!observacaoNormalizada) { setError("Observação é obrigatória para editar falta"); return; }
     setLoading(true);
     try {
       await onConfirm({
@@ -371,7 +373,7 @@ function ModalEditarFalta({
         data: dataFalta || undefined,
         // materia_disciplinar_id não é alterado — mantém a matéria original da falta
         quantidade: qtd,
-        observacao: observacao || undefined,
+        observacao: observacaoNormalizada,
       });
       onClose();
     } catch (err: any) {
@@ -423,10 +425,10 @@ function ModalEditarFalta({
           />
         </div>
         <div>
-          <Label>Observação</Label>
+          <Label>Observação *</Label>
           <Input
             type="text"
-            placeholder="Opcional"
+            placeholder="Justifique a correção"
             defaultValue={observacao}
             onChange={e => setObservacao(e.target.value)}
           />
