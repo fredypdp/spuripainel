@@ -600,6 +600,10 @@ export default function FaltasAcademia() {
   const { execute: executarDeletar }                                                        = useApi(academiaService.deletarFalta);
 
   const { isOpen, openModal, closeModal } = useModal();
+  const materias = useMemo(
+    () => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"),
+    [dataMaterias]
+  );
 
   // ─── carga inicial ──────────────────────────────────────────────────────────
 
@@ -653,7 +657,6 @@ export default function FaltasAcademia() {
   const turmas: Turma[]                  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => ((dataCursos as any)?.cursos ?? []).filter((c: any) => c.status === "ativo"), [dataCursos]);
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
-  const materias                         = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
   const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
   const anosLetivosDisponiveis           = useMemo(() => (
     ((dataAnosLetivosLista as any)?.anos_letivos_lista ?? [])
