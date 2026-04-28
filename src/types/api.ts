@@ -448,7 +448,7 @@ export interface AtualizarFaltaRequest {
   data?: ApiDate;
   materia_disciplinar_id?: string;
   quantidade?: number;
-  observacao?: string;
+  observacao: string;
 }
 
 export interface CriarCategoriaNotaRequest {

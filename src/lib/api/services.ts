@@ -78,6 +78,12 @@ export interface ErrorResponse {
   request_id?: string;
 }
 
+function prepararAtualizacaoFalta(data: AtualizarFaltaRequest): AtualizarFaltaRequest {
+  const observacao = data.observacao?.trim();
+  if (!observacao) throw new Error('Observação é obrigatória para corrigir falta');
+  return { ...data, observacao };
+}
+
 function appendMultiValueParam(qs: URLSearchParams, key: string, value?: string | string[]) {
   if (!value) return;
   if (Array.isArray(value)) {
@@ -433,7 +439,7 @@ export const academiaService = {
   atualizarFalta: (data: AtualizarFaltaRequest, token?: string) =>
     api.put<{ message: string; id: string; codigo_estudante: string }>(
       '/academia/atualizar-falta',
-      data,
+      prepararAtualizacaoFalta(data),
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -849,7 +855,7 @@ export const academiaService = {
   atualizarFaltaBatchAsync: (data: AtualizarFaltaRequest[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/academia/atualizar-falta/async',
-      data,
+      data.map(prepararAtualizacaoFalta),
       { token: token || tokenStorage.get() || undefined }
     ),
 
