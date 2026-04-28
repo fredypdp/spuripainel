@@ -47,6 +47,13 @@ function formatarData(data: ApiDate): string {
   } catch { return data; }
 }
 
+function toApiDateFromLocalDate(date: Date): ApiDate {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}` as ApiDate;
+}
+
 function turmaAtiva(t: Turma): boolean {
   return t.status !== "inativo" && t.status !== "deletado";
 }
@@ -420,7 +427,7 @@ function ModalEditarFalta({
             placeholder="Selecione"
             defaultDate={dataFalta}
             onChange={dates => {
-              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0] as ApiDate);
+              if (dates?.length) setDataFalta(toApiDateFromLocalDate(dates[0]));
             }}
           />
         </div>
@@ -458,7 +465,7 @@ function ModalRegistrarFalta({
   onClose: () => void;
 }) {
   const [codigoEstudante, setCodigoEstudante] = useState("");
-  const [dataFalta, setDataFalta]             = useState<ApiDate>(new Date().toISOString().split("T")[0] as ApiDate);
+  const [dataFalta, setDataFalta]             = useState<ApiDate>(toApiDateFromLocalDate(new Date()));
   const [materiaId, setMateriaId]             = useState("");
   const [quantidade, setQuantidade]           = useState("");
   const [observacao, setObservacao]           = useState("");
@@ -483,7 +490,7 @@ function ModalRegistrarFalta({
         observacao: observacao || undefined,
       });
       setCodigoEstudante(""); setMateriaId(""); setQuantidade(""); setObservacao("");
-      setDataFalta(new Date().toISOString().split("T")[0] as ApiDate);
+      setDataFalta(toApiDateFromLocalDate(new Date()));
       onClose();
     } catch (err: any) {
       setError(err?.message ?? "Erro ao registrar falta");
@@ -534,7 +541,7 @@ function ModalRegistrarFalta({
             placeholder="Selecione"
             defaultDate={dataFalta}
             onChange={dates => {
-              if (dates?.length) setDataFalta(dates[0].toISOString().split("T")[0] as ApiDate);
+              if (dates?.length) setDataFalta(toApiDateFromLocalDate(dates[0]));
             }}
           />
         </div>

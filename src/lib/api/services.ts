@@ -78,10 +78,64 @@ export interface ErrorResponse {
   request_id?: string;
 }
 
+const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function ensureApiDate(value: string | undefined, fieldName: string): string | undefined {
+  if (!value) return value;
+  const normalized = value.trim();
+  if (!API_DATE_REGEX.test(normalized)) {
+    throw new Error(`${fieldName} deve estar no formato AAAA-MM-DD`);
+  }
+  return normalized;
+}
+
+function ensureQuantidadePositiva(value: number | undefined, fieldName: string): number | undefined {
+  if (value === undefined) return value;
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error(`${fieldName} deve ser maior ou igual a 1`);
+  }
+  return value;
+}
+
+function prepareRegistrarFalta(data: RegistrarFaltasRequest): RegistrarFaltasRequest {
+  return {
+    ...data,
+    codigo_estudante: data.codigo_estudante?.trim(),
+    materia_disciplinar_id: data.materia_disciplinar_id?.trim(),
+    data: ensureApiDate(data.data, 'Data da falta')!,
+    quantidade: ensureQuantidadePositiva(data.quantidade, 'Quantidade')!,
+    observacao: data.observacao?.trim() || undefined,
+  };
+}
+
 function prepararAtualizacaoFalta(data: AtualizarFaltaRequest): AtualizarFaltaRequest {
   const observacao = data.observacao?.trim();
   if (!observacao) throw new Error('Observação é obrigatória para corrigir falta');
-  return { ...data, observacao };
+  const payload: AtualizarFaltaRequest = {
+    ...data,
+    id: data.id?.trim(),
+    observacao,
+    data: ensureApiDate(data.data, 'Data da falta'),
+    quantidade: ensureQuantidadePositiva(data.quantidade, 'Quantidade'),
+    materia_disciplinar_id: data.materia_disciplinar_id?.trim(),
+  };
+
+  const possuiAlteracao =
+    payload.data !== undefined ||
+    payload.quantidade !== undefined ||
+    payload.materia_disciplinar_id !== undefined;
+
+  if (!possuiAlteracao) {
+    throw new Error('Informe pelo menos um campo para atualizar (data, matéria ou quantidade)');
+  }
+
+  return payload;
+}
+
+function prepararMotivoExclusao(motivo: string): string {
+  const motivoNormalizado = motivo?.trim();
+  if (!motivoNormalizado) throw new Error('Motivo é obrigatório para excluir falta');
+  return motivoNormalizado;
 }
 
 function appendMultiValueParam(qs: URLSearchParams, key: string, value?: string | string[]) {
@@ -432,7 +486,7 @@ export const academiaService = {
   registrarFaltas: (data: RegistrarFaltasRequest, token?: string) =>
     api.post<{ message: string; estudante: string; materia: string; quantidade: number; ano_academico: string }>(
       '/academia/faltas-aluno',
-      data,
+      prepareRegistrarFalta(data),
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -449,7 +503,7 @@ export const academiaService = {
       {
         token: token || tokenStorage.get() || undefined,
         method: 'DELETE',
-        body: JSON.stringify({ motivo }),
+        body: JSON.stringify({ motivo: prepararMotivoExclusao(motivo) }),
         headers: { 'Content-Type': 'application/json' },
       } as any
     ),
@@ -848,7 +902,7 @@ export const academiaService = {
   registrarFaltasBatchAsync: (data: RegistrarFaltasRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/faltas-aluno/async',
-      data,
+      data.map(prepareRegistrarFalta),
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -865,7 +919,13 @@ export const academiaService = {
       {
         token: token || tokenStorage.get() || undefined,
         method: 'DELETE',
-        body: JSON.stringify(data),
+        body: JSON.stringify(
+          data.map((item) => ({
+            ...item,
+            id: item.id?.trim(),
+            motivo: prepararMotivoExclusao(item.motivo),
+          }))
+        ),
         headers: { 'Content-Type': 'application/json' },
       } as any
     ),
