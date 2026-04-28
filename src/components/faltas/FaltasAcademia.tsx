@@ -613,11 +613,40 @@ export default function FaltasAcademia() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── reset seleção de matéria ao mudar de layer ──────────────────────────────
+  // ─── auto-selecionar primeira matéria ao entrar na camada faltas ────────────
+  // Quando o layer muda para "faltas" e as matérias já estão carregadas,
+  // pré-seleciona a primeira matéria alfabeticamente para evitar tela vazia.
+  // Quando sai da camada "faltas", limpa a seleção.
 
   useEffect(() => {
-    setMateriaSelecionada(null);
-  }, [layer]);
+    if (layer.type !== "faltas") {
+      setMateriaSelecionada(null);
+      return;
+    }
+
+    const l = layer as any;
+    const tipo = l.nivel?.includes("fundamental") ? "fundamental"
+               : l.nivel?.includes("medio")       ? "medio"
+               : "superior";
+
+    const materiasConfig = (materias as any[]).filter((m: any) => {
+      if (m.type !== tipo) return false;
+      if (tipo === "fundamental") return m.anos_academicos?.includes(l.nivel);
+      if (tipo === "medio")       return l.turma?.curso_id ? m.curso_id === l.turma.curso_id : m.anos_academicos?.includes(l.nivel);
+      return l.curso ? m.curso_id === l.curso.id : false;
+    });
+
+    const sorted = [...materiasConfig].sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" })
+    );
+
+    if (sorted.length > 0) {
+      setMateriaSelecionada({ id: sorted[0].id, nome: sorted[0].nome });
+    } else {
+      setMateriaSelecionada(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layer, materias]);
 
   // ─── dados derivados ────────────────────────────────────────────────────────
 
@@ -894,13 +923,8 @@ export default function FaltasAcademia() {
           <div className="space-y-3">
             <div>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                {materiaSelecionada ? `Faltas de ${materiaSelecionada.nome}` : "Selecione uma matéria:"}
+                {materiaSelecionada ? `Faltas de ${materiaSelecionada.nome}` : "Matérias"}
               </p>
-              {!materiaSelecionada && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Clique numa matéria abaixo para ver as faltas
-                </p>
-              )}
             </div>
             <div className="flex flex-wrap gap-2">
               {materiasDisponiveis.map(m => (
@@ -962,13 +986,7 @@ export default function FaltasAcademia() {
             onEditar={setEditingFalta}
             onDeletar={setDeletingFalta}
           />
-        ) : (
-          materiasDisponiveis.length > 0 && (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic text-center py-4">
-              Selecione uma matéria acima para ver as faltas.
-            </p>
-          )
-        )}
+        ) : null}
       </div>
     );
   }
