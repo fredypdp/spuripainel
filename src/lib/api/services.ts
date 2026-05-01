@@ -147,6 +147,20 @@ function appendMultiValueParam(qs: URLSearchParams, key: string, value?: string 
   qs.append(key, value);
 }
 
+function ensureAnoLetivoFormato(anoLetivo: string): string {
+  const normalized = anoLetivo?.trim();
+  const match = normalized?.match(/^(\d{4})_(\d{4})$/);
+  if (!match) {
+    throw new Error('Ano letivo deve estar no formato AAAA_AAAA');
+  }
+  const anoInicio = Number(match[1]);
+  const anoFim = Number(match[2]);
+  if (anoFim !== anoInicio + 1) {
+    throw new Error('Ano letivo inválido: o segundo ano deve ser exatamente o primeiro + 1');
+  }
+  return normalized;
+}
+
 // =====================
 // AUTH (rotas públicas)
 // =====================
@@ -524,12 +538,24 @@ export const academiaService = {
 
   // ── Ano letivo ────────────────────────────────────────────────────
 
-  definirAnoLetivo: (data: DefinirAnoLetivoAcademiaRequest, token?: string) =>
-    api.post<DefinirAnoLetivoResponse>(
+  definirAnoLetivo: (
+    data: DefinirAnoLetivoAcademiaRequest,
+    token?: string,
+    anoLetivoOficial?: string
+  ) => {
+    const anoLetivoNormalizado = ensureAnoLetivoFormato(data.ano_letivo);
+    const anoOficialNormalizado = anoLetivoOficial ? ensureAnoLetivoFormato(anoLetivoOficial) : undefined;
+
+    if (anoOficialNormalizado && anoLetivoNormalizado !== anoOficialNormalizado) {
+      throw new Error(`O ano letivo da academia deve ser igual ao ano letivo oficial do sistema (${anoOficialNormalizado}).`);
+    }
+
+    return api.post<DefinirAnoLetivoResponse>(
       '/academia/ano-letivo',
-      data,
+      { ...data, ano_letivo: anoLetivoNormalizado },
       { token: token || tokenStorage.get() || undefined }
-    ),
+    );
+  },
 
   /**
    * GET /academia/ano-letivo

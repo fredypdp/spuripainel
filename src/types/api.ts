@@ -840,6 +840,8 @@ export interface AnoLetivoAcademiaResponse {
   ano_letivo: string;
   tipo?: 'escola' | 'superior';
   ativado_em?: string;
+  /** Ano letivo oficial global definido pelo sistema (admin FPP). */
+  ano_letivo_oficial?: string;
 }
 
 /**
@@ -853,6 +855,8 @@ export interface DefinirAnoLetivoResponse {
   message: string;
   ano_letivo: string;
   tipo?: string;
+  /** Ano letivo oficial global definido pelo sistema (admin FPP). */
+  ano_letivo_oficial?: string;
 }
 
 /** GET /academia/anos-letivos-lista */
