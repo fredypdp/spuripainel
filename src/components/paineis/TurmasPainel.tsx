@@ -159,7 +159,6 @@ function ModalConfirmarDeleteTurma({ turma, onConfirm, onClose }: { turma: Turma
 
 export default function TurmasPainel() {
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-  const [expandedTurma, setExpandedTurma] = useState<string | null>(null);
   const [expandedNivel, setExpandedNivel] = useState<string | null>(null);
   const [expandedCurso, setExpandedCurso] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -170,6 +169,7 @@ export default function TurmasPainel() {
   const [codigoAdd, setCodigoAdd] = useState("");
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [viewNivelTurmas, setViewNivelTurmas] = useState<"fundamental" | "cursos">("fundamental");
+  const [turmaEmFoco, setTurmaEmFoco] = useState<Turma | null>(null);
 
   // Lote
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -242,6 +242,17 @@ export default function TurmasPainel() {
 
   const turmasFundamental = turmas.filter(t => t.nivel.includes("fundamental"));
   const turmasCursos = turmas.filter(t => !t.nivel.includes("fundamental"));
+
+  const calcularIdade = (dataNascimento?: string) => {
+    if (!dataNascimento) return "—";
+    const nascimento = new Date(dataNascimento);
+    if (Number.isNaN(nascimento.getTime())) return "—";
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const mesDiff = hoje.getMonth() - nascimento.getMonth();
+    if (mesDiff < 0 || (mesDiff === 0 && hoje.getDate() < nascimento.getDate())) idade--;
+    return `${idade} anos`;
+  };
 
   // Seleção handlers
   const handleToggleSelecao = (codigo: string) => {
@@ -346,12 +357,10 @@ export default function TurmasPainel() {
   // ── TurmaCard ───────────────────────────────────────────────────────────
 
   const TurmaCard = ({ turma, mostrarCheckbox }: { turma: Turma; mostrarCheckbox?: boolean }) => {
-    const isOpen = expandedTurma === turma.codigo_turma;
-    const isAdding = addingTo === turma.codigo_turma;
     const isSelecionada = selecionadas.has(turma.codigo_turma);
     return (
       <div className={`border rounded-xl overflow-hidden transition-colors ${isSelecionada ? 'border-brand-300 dark:border-brand-700 bg-brand-50/30 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
-        <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => setExpandedTurma(isOpen ? null : turma.codigo_turma)}>
+        <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => setTurmaEmFoco(turma)}>
           <div className="flex items-center gap-3">
             {mostrarCheckbox && (
               <div onClick={e => { e.stopPropagation(); handleToggleSelecao(turma.codigo_turma); }}>
@@ -376,43 +385,9 @@ export default function TurmasPainel() {
             {turma.status === "inativo" && turma.estudantes.length === 0 && (
               <button onClick={() => setTurmaParaDelete(turma)} className="p-1.5 text-red-400 hover:text-red-600 transition-colors" title="Deletar turma"><Icon icon="mdi:delete-outline" className="w-4 h-4" /></button>
             )}
-            <Icon icon={isOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
+            <Icon icon="mdi:chevron-right" className="w-5 h-5 text-gray-400" />
           </div>
         </div>
-        {isOpen && (
-          <div className="px-4 pb-4 pt-2 border-t border-gray-100 dark:border-gray-700/50 space-y-3">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Estudantes ({turma.estudantes.length})</p>
-            {turma.estudantes.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500 italic">Nenhum estudante nesta turma</p> : (
-              <div className="flex flex-wrap gap-2">
-                {turma.estudantes.map(codigo => {
-                  const est = estudantes.find(e => e.codigo_estudante === codigo);
-                  return (
-                    <div key={codigo} className="flex items-center gap-1.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-lg px-2.5 py-1.5">
-                      <Icon icon="mdi:account" className="w-3.5 h-3.5 text-brand-500" />
-                      <span className="text-gray-700 dark:text-gray-300 font-medium">{est ? est.nome : codigo}</span>
-                      <span className="text-gray-400 dark:text-gray-500">({codigo})</span>
-                      <button onClick={() => handleRemove(turma.codigo_turma, codigo)} disabled={removendo} className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover da turma">
-                        <Icon icon="mdi:close-circle" className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {turma.status !== "deletado" && (
-              isAdding ? (
-                <div className="flex gap-2 items-center">
-                  <input type="text" value={codigoAdd} onChange={e => setCodigoAdd(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(turma.codigo_turma); } }} placeholder="Código do estudante" list="estudantes-list-dp" className="flex-1 text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white" />
-                  <datalist id="estudantes-list-dp">{estudantes.map(e => <option key={e.codigo_estudante} value={e.codigo_estudante}>{e.nome}</option>)}</datalist>
-                  <button onClick={() => handleAdd(turma.codigo_turma)} disabled={adicionando || !codigoAdd.trim()} className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors">{adicionando ? "…" : "Adicionar"}</button>
-                  <button onClick={() => { setAddingTo(null); setCodigoAdd(""); }} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
-                </div>
-              ) : (
-                <button onClick={() => setAddingTo(turma.codigo_turma)} className="flex items-center gap-1.5 text-sm text-brand-500 hover:text-brand-600 transition-colors"><Icon icon="mdi:account-plus" className="w-4 h-4" />Adicionar estudante</button>
-              )
-            )}
-          </div>
-        )}
       </div>
     );
   };
@@ -563,6 +538,74 @@ export default function TurmasPainel() {
 
   return (
     <div className="space-y-5">
+      {turmaEmFoco ? (
+        <div className="space-y-4">
+          <button onClick={() => setTurmaEmFoco(null)} className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
+            <Icon icon="mdi:arrow-left" width={18} />
+            Voltar para turmas
+          </button>
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{turmaEmFoco.codigo_turma}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{labelNivel(turmaEmFoco.nivel)} · {labelTurno(turmaEmFoco.turno)} · {turmaEmFoco.estudantes.length} estudante(s)</p>
+            </div>
+            {turmaEmFoco.status !== "deletado" && (
+              addingTo === turmaEmFoco.codigo_turma ? (
+                <div className="flex gap-2 items-center">
+                  <input type="text" value={codigoAdd} onChange={e => setCodigoAdd(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(turmaEmFoco.codigo_turma); } }} placeholder="Código do estudante" list="estudantes-list-dp" className="flex-1 text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white" />
+                  <datalist id="estudantes-list-dp">{estudantes.map(e => <option key={e.codigo_estudante} value={e.codigo_estudante}>{e.nome}</option>)}</datalist>
+                  <button onClick={() => handleAdd(turmaEmFoco.codigo_turma)} disabled={adicionando || !codigoAdd.trim()} className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors">{adicionando ? "…" : "Adicionar"}</button>
+                  <button onClick={() => { setAddingTo(null); setCodigoAdd(""); }} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
+                </div>
+              ) : (
+                <button onClick={() => setAddingTo(turmaEmFoco.codigo_turma)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-brand-500 border border-brand-300 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"><Icon icon="mdi:account-plus" className="w-4 h-4" />Adicionar estudante</button>
+              )
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm min-w-[800px]">
+              <thead className="bg-gray-50 dark:bg-gray-800/70">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Idade</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Gênero</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Email</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Telefone</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {turmaEmFoco.estudantes.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500 italic">Nenhum estudante nesta turma</td></tr>
+                ) : (
+                  turmaEmFoco.estudantes.map(codigo => {
+                    const est = estudantes.find(e => e.codigo_estudante === codigo);
+                    return (
+                      <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{calcularIdade(est?.data_nascimento)}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{est?.genero ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{est?.email ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{est?.telefone ?? "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => handleRemove(turmaEmFoco.codigo_turma, codigo)} disabled={removendo} className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover da turma">
+                            <Icon icon="mdi:close-circle" className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+      <>
       {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : alert.variant === "error" ? "Erro" : "Aviso"} message={alert.message} />}
 
       {turmaParaDelete && <ModalConfirmarDeleteTurma turma={turmaParaDelete} onConfirm={async () => { await handleDeletarTurma(turmaParaDelete.codigo_turma); }} onClose={() => setTurmaParaDelete(null)} />}
@@ -614,6 +657,8 @@ export default function TurmasPainel() {
             <ViewCursos />
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );
