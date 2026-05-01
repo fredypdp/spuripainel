@@ -39,11 +39,15 @@ export default function AcademiaSection() {
 
   // Valores derivados
   const anoDeFromApi = anoLetivoData?.ano_letivo?.split("_")[0] ?? "";
+  const anoLetivoOficial = anoLetivoData?.ano_letivo_oficial ?? "";
+  const anoDeOficial = anoLetivoOficial?.split("_")[0] ?? "";
   const anoDe = anoDeOverride ?? anoDeFromApi;
 
   // ── Dropdown "De" + campo "Até" calculado automaticamente ─────────────────
   const anoAtual = new Date().getFullYear();
-  const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 10 + i);
+  const opcoesAnoDe = anoDeOficial
+    ? [Number(anoDeOficial)]
+    : Array.from({ length: 11 }, (_, i) => anoAtual - 10 + i);
 
   const anoAteCalculado = anoDe ? String(parseInt(anoDe) + 1) : "";
   const valorFormatado = anoDe ? `${anoDe}_${anoAteCalculado}` : "";
@@ -67,7 +71,7 @@ export default function AcademiaSection() {
       await definirAnoLetivo({
         ano_letivo: valorFormatado,
         tipo: tipoAcademia,
-      });
+      }, undefined, anoLetivoOficial || undefined);
       setSucesso(true);
       setAnoDeOverride(null);
       setTimeout(() => buscarAnoLetivo(), 3000);
@@ -190,6 +194,13 @@ export default function AcademiaSection() {
             </code>{" "}
             (ex: 2025_2026).
           </p>
+          {anoLetivoOficial && (
+            <p className="mb-4 text-xs text-brand-600 dark:text-brand-300">
+              Ano letivo oficial do sistema:{" "}
+              <strong>{formatAnoLetivo(anoLetivoOficial)}</strong>. A academia
+              só pode definir este mesmo valor.
+            </p>
+          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Linha: De + Até + Tipo (read-only) */}
@@ -206,12 +217,14 @@ export default function AcademiaSection() {
                   id="al-de"
                   value={anoDe}
                   onChange={(e) => setAnoDeOverride(e.target.value)}
+                  disabled={!!anoDeOficial}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
                 >
                   <option value="">Selecione</option>
                   {opcoesAnoDe.map((ano) => (
                     <option key={ano} value={String(ano)}>
                       {ano}
+                      {anoDeOficial && String(ano) === anoDeOficial ? " (oficial do sistema)" : ""}
                       {valorAtual.startsWith(`${ano}_`) ? " (actual)" : ""}
                     </option>
                   ))}
