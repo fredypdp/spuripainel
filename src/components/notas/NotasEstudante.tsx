@@ -452,7 +452,7 @@ export default function NotasEstudante() {
           ? <LoadingSpinner message="Carregando notas..." />
           : isSup
             ? <TabelaNotasSuperiorEstudante notas={notas} />
-            : <TabelaNotasEscolarEstudante notas={notas} />
+            : <TabelaNotasEscolarEstudante notas={notas} categoriasMap={categoriasMap} />
         }
       </div>
     );
