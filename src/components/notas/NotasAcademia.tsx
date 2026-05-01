@@ -440,8 +440,15 @@ function ModalGestao({
   async function handleCriarCategoria(e: React.FormEvent) {
     e.preventDefault(); setError(null);
     if (!nomeCateg) { setError("Nome é obrigatório."); return; }
-    const nome = nomeCateg.startsWith("nota_") ? nomeCateg : `nota_${nomeCateg}`;
-    try { await onCriarCategoria({ nome, descricao: descCateg || undefined }); onClose(); }
+    const codigoBase = nomeCateg
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const codigo = codigoBase.startsWith("nota_") ? codigoBase : `nota_${codigoBase}`;
+    try { await onCriarCategoria({ codigo, nome: nomeCateg.trim(), descricao: descCateg || undefined }); onClose(); }
     catch (err: any) { setError(err?.message ?? "Erro ao criar categoria."); }
   }
 
