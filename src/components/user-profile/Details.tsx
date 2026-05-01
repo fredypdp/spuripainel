@@ -207,15 +207,15 @@ export default function Details() {
       return formatarAnoAcademico(e.ano_superior);
     if (e.status_escolar_medio === 'em_andamento' && e.ano_escolar_medio)
       return formatarAnoAcademico(e.ano_escolar_medio);
-    if (e.status_escolar_fundamental === 'em_andamento' && e.ano_escolar)
-      return formatarAnoAcademico(e.ano_escolar);
+    if (e.status_escolar_fundamental === 'em_andamento' && e.ano_escolar_fundamental)
+      return formatarAnoAcademico(e.ano_escolar_fundamental);
     // Fallback: último finalizado
     if (e.status_superior === 'finalizado' && e.ano_superior)
       return formatarAnoAcademico(e.ano_superior);
     if (e.status_escolar_medio === 'finalizado' && e.ano_escolar_medio)
       return formatarAnoAcademico(e.ano_escolar_medio);
-    if (e.status_escolar_fundamental === 'finalizado' && e.ano_escolar)
-      return formatarAnoAcademico(e.ano_escolar);
+    if (e.status_escolar_fundamental === 'finalizado' && e.ano_escolar_fundamental)
+      return formatarAnoAcademico(e.ano_escolar_fundamental);
     return '';
   }, [user]);
 

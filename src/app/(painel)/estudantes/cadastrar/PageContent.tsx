@@ -251,7 +251,7 @@ export default function CadastrarEstudantePageContent() {
       telefone: telefone.trim() || undefined,
       bilhete_identidade: bilheteIdentidade.trim() || undefined,
       bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
-      ano_escolar:
+      ano_escolar_fundamental:
         isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)
           ? undefined
           : (anoEscolarSelecionado || undefined),

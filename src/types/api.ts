@@ -125,7 +125,7 @@ export interface CriarEstudanteRequest {
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  ano_escolar?: string;
+  ano_escolar_fundamental?: string;
   status_escolar_fundamental?: StatusEscolarFundamental;
   ano_escolar_medio?: string;
   status_escolar_medio?: StatusEscolarMedio;
@@ -198,7 +198,7 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
 }
 
 export interface AtualizarDadosAcademicosEstudanteRequest {
-  ano_escolar?: string;
+  ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
   curso_medio_id?: string;
@@ -682,7 +682,7 @@ export interface EstudanteDetalhado {
   status_escolar_fundamental: StatusEscolar;
   status_escolar_medio: StatusEscolar;
   status_superior: StatusSuperior;
-  ano_escolar?: string;
+  ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
   curso_medio_id?: string;

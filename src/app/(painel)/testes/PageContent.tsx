@@ -31,7 +31,7 @@ interface Materia {
 interface Estudante {
   codigo_estudante: string;
   nome: string;
-  ano_escolar?: string;
+  ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
   curso_medio_id?: string;
@@ -186,8 +186,8 @@ function estudanteCompatívelComTurma(
 
   if (tipo === "fundamental") {
     if (!academiaAnosAcademicos.includes(turma.nivel)) return false;
-    if (!estudante.ano_escolar) return false;
-    return estudante.ano_escolar === turma.nivel;
+    if (!estudante.ano_escolar_fundamental) return false;
+    return estudante.ano_escolar_fundamental === turma.nivel;
   }
 
   if (tipo === "medio") {
@@ -211,9 +211,9 @@ function estudanteCompatívelComTurma(
 
 function getAnoAcademicoEstudante(estudante: Estudante, academia: AcademiaInfo): string | null {
   if (academia.tipo === "superior") return estudante.ano_superior ?? null;
-  if (academia.nivel === "fundamental") return estudante.ano_escolar ?? null;
+  if (academia.nivel === "fundamental") return estudante.ano_escolar_fundamental ?? null;
   if (academia.nivel === "medio") return estudante.ano_escolar_medio ?? null;
-  return estudante.ano_escolar_medio || estudante.ano_escolar || null;
+  return estudante.ano_escolar_medio || estudante.ano_escolar_fundamental || null;
 }
 
 // ─── NumberStepper Component ───────────────────────────────────────────────────
@@ -919,7 +919,7 @@ export default function PageContent() {
           const ano = cfg.anoFundamental === "random"
             ? pick(anosF)
             : cfg.anoFundamental;
-          payload.ano_escolar = ano;
+          payload.ano_escolar_fundamental = ano;
           payload.status_escolar_fundamental = cfg.statusFundamental;
         }
       } else if (modo === "misto") {
@@ -927,7 +927,7 @@ export default function PageContent() {
         if (isFund) {
           if (anosF.length > 0) {
             const ano = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
-            payload.ano_escolar = ano;
+            payload.ano_escolar_fundamental = ano;
             payload.status_escolar_fundamental = cfg.statusFundamental;
           }
         } else {
@@ -1012,7 +1012,7 @@ export default function PageContent() {
       if (turmasCompativeis.length === 0) {
         addLog(
           `  ! ${est.codigo_estudante}: nenhuma turma compatível encontrada` +
-          ` (ano_escolar=${est.ano_escolar || est.ano_escolar_medio || est.ano_superior || "?"}` +
+          ` (ano_escolar_fundamental=${est.ano_escolar_fundamental || est.ano_escolar_medio || est.ano_superior || "?"}` +
           ` curso=${est.curso_medio_id || est.curso_superior_id || "—"})`,
           "warn"
         );
@@ -1533,7 +1533,7 @@ export default function PageContent() {
 
       if (tipoEnsino === "fundamental") {
         const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental")).sort();
-        nivelAtual = est.ano_escolar || (anosF.length > 0 ? pick(anosF) : "1_ano_fundamental");
+        nivelAtual = est.ano_escolar_fundamental || (anosF.length > 0 ? pick(anosF) : "1_ano_fundamental");
       } else if (tipoEnsino === "medio") {
         const c = cursos.find(x => x.type === "medio" && x.status === "ativo");
         const anos = c?.anos_academicos?.sort() || [];

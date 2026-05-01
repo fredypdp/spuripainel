@@ -676,7 +676,7 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
     estudante.status_superior === "em_andamento";
 
   const anoActual =
-    estudante.ano_escolar ?? estudante.ano_escolar_medio ?? estudante.ano_superior ?? null;
+    estudante.ano_escolar_fundamental ?? estudante.ano_escolar_medio ?? estudante.ano_superior ?? null;
 
   const loading = loadingNotas || loadingFaltas || loadingAval;
 
