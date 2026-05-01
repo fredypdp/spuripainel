@@ -525,6 +525,7 @@ export const academiaService = {
   // ── Ano letivo ────────────────────────────────────────────────────
 
   definirAnoLetivo: (data: DefinirAnoLetivoAcademiaRequest, token?: string) =>
+    // Backend (2026) valida se o ano letivo definido pela academia coincide com o ano letivo do sistema.
     api.post<DefinirAnoLetivoResponse>(
       '/academia/ano-letivo',
       data,

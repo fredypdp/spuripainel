@@ -39,14 +39,17 @@ export default function AcademiaSection() {
 
   // Valores derivados
   const anoDeFromApi = anoLetivoData?.ano_letivo?.split("_")[0] ?? "";
+  const anoDeSistema = anoLetivoData?.ano_letivo_sistema?.split("_")[0] ?? "";
+  const anoLetivoSistema = anoLetivoData?.ano_letivo_sistema ?? "";
   const anoDe = anoDeOverride ?? anoDeFromApi;
 
   // ── Dropdown "De" + campo "Até" calculado automaticamente ─────────────────
   const anoAtual = new Date().getFullYear();
   const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 10 + i);
 
-  const anoAteCalculado = anoDe ? String(parseInt(anoDe) + 1) : "";
-  const valorFormatado = anoDe ? `${anoDe}_${anoAteCalculado}` : "";
+  const anoDeEfetivo = anoDeSistema || anoDe;
+  const anoAteCalculado = anoDeEfetivo ? String(parseInt(anoDeEfetivo) + 1) : "";
+  const valorFormatado = anoDeEfetivo ? `${anoDeEfetivo}_${anoAteCalculado}` : "";
   const valorAtual = anoLetivoData?.ano_letivo ?? "";
   const tipoAtual = anoLetivoData?.tipo ?? "";
 
@@ -184,7 +187,8 @@ export default function AcademiaSection() {
             {valorAtual ? "Actualizar Ano Letivo" : "Definir Ano Letivo"}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Selecione o intervalo. O formato enviado ao sistema é{" "}
+            O ano letivo da academia deve coincidir com o ano letivo definido
+            pelo sistema. O formato enviado é{" "}
             <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
               AAAA_AAAA
             </code>{" "}
@@ -204,18 +208,25 @@ export default function AcademiaSection() {
                 </label>
                 <select
                   id="al-de"
-                  value={anoDe}
+                  value={anoDeEfetivo}
                   onChange={(e) => setAnoDeOverride(e.target.value)}
+                  disabled={!!anoDeSistema}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
                 >
                   <option value="">Selecione</option>
-                  {opcoesAnoDe.map((ano) => (
+                  {(anoDeSistema ? [Number(anoDeSistema)] : opcoesAnoDe).map((ano) => (
                     <option key={ano} value={String(ano)}>
                       {ano}
+                      {anoDeSistema ? " (sistema)" : ""}
                       {valorAtual.startsWith(`${ano}_`) ? " (actual)" : ""}
                     </option>
                   ))}
                 </select>
+                {anoDeSistema && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Ano bloqueado pelo sistema: <strong>{formatAnoLetivo(anoLetivoSistema)}</strong>.
+                  </p>
+                )}
               </div>
 
               {/* Até — calculado automaticamente */}

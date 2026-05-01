@@ -838,6 +838,7 @@ export interface VerificarIntegridadeResponse {
 /** GET /academia/ano-letivo */
 export interface AnoLetivoAcademiaResponse {
   ano_letivo: string;
+  ano_letivo_sistema?: string;
   tipo?: 'escola' | 'superior';
   ativado_em?: string;
 }
@@ -852,6 +853,7 @@ export interface AnoLetivoResponse {
 export interface DefinirAnoLetivoResponse {
   message: string;
   ano_letivo: string;
+  ano_letivo_sistema?: string;
   tipo?: string;
 }
 
