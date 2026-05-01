@@ -190,6 +190,8 @@ function TabelaNotasEscolar({
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
 }) {
+  const categoriasOrdem = Array.from(new Set(["nota_professor", "nota_escola", ...notas.map(n => n.categoria)]));
+
   if (codigosTurma.length === 0) {
     return (
       <div className="text-center py-10 text-gray-400">
@@ -213,8 +215,9 @@ function TabelaNotasEscolar({
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
+            {categoriasOrdem.map((cat) => (
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{formatCategoria(cat)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -225,12 +228,11 @@ function TabelaNotasEscolar({
               return {
                 codigo,
                 nome: est?.nome ?? "-",
-                notaProf: notasEst.find(n => n.categoria === "nota_professor"),
-                notaEsc:  notasEst.find(n => n.categoria === "nota_escola"),
+                notasEst,
               };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
-            .map(({ codigo, nome, notaProf, notaEsc }) => (
+            .map(({ codigo, nome, notasEst }) => (
               <tr
                 key={codigo}
                 className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors"
@@ -241,12 +243,14 @@ function TabelaNotasEscolar({
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">
                   {exibirCodigoEstudante(codigo)}
                 </td>
-                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-300 dark:text-gray-600"}`}>
-                  {notaProf != null ? notaProf.nota : "—"}
-                </td>
-                <td className={`px-4 py-3 text-right font-bold ${notaEsc ? corNota(notaEsc.nota) : "text-gray-300 dark:text-gray-600"}`}>
-                  {notaEsc != null ? notaEsc.nota : "—"}
-                </td>
+                {categoriasOrdem.map((cat) => {
+                  const notaCat = notasEst.find(n => n.categoria === cat);
+                  return (
+                    <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>
+                      {notaCat != null ? notaCat.nota : "—"}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
         </tbody>
@@ -377,7 +381,7 @@ function ModalGestao({
   const CATS_FIXAS = isSuperior ? CATEGORIAS_FIXAS_SUPERIOR : CATEGORIAS_ESCOLAR;
   const todasCats  = [
     ...CATS_FIXAS,
-    ...categorias.map((c: any) => ({ label: c.nome, value: c.nome })),
+    ...categorias.map((c: any) => ({ label: c.nome, value: c.codigo })),
   ];
 
   function notasDoEstudante(codigo: string): Nota[] {
@@ -436,8 +440,15 @@ function ModalGestao({
   async function handleCriarCategoria(e: React.FormEvent) {
     e.preventDefault(); setError(null);
     if (!nomeCateg) { setError("Nome é obrigatório."); return; }
-    const nome = nomeCateg.startsWith("nota_") ? nomeCateg : `nota_${nomeCateg}`;
-    try { await onCriarCategoria({ nome, descricao: descCateg || undefined }); onClose(); }
+    const codigoBase = nomeCateg
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const codigo = codigoBase.startsWith("nota_") ? codigoBase : `nota_${codigoBase}`;
+    try { await onCriarCategoria({ codigo, nome: nomeCateg.trim(), descricao: descCateg || undefined }); onClose(); }
     catch (err: any) { setError(err?.message ?? "Erro ao criar categoria."); }
   }
 

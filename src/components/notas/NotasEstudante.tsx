@@ -1,7 +1,7 @@
 // src/components/notas/NotasEstudante.tsx
 "use client"
 import { useState, useEffect, useMemo } from "react";
-import { consultasService, tokenStorage, useApi } from "@/lib/api";
+import { consultasService, estudanteService, tokenStorage, useApi } from "@/lib/api";
 import type { MeuPerfilResponse, Nota } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import { getCookie } from "@/lib/utils/cookies";
@@ -124,7 +124,7 @@ function StatsNotas({ notas }: { notas: Nota[] }) {
   );
 }
 
-function TabelaNotasEscolarEstudante({ notas }: { notas: Nota[] }) {
+function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; categoriasMap: Record<string, string> }) {
   if (!notas.length) return (
     <div className="text-center py-12 text-gray-400">
       <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
@@ -139,14 +139,18 @@ function TabelaNotasEscolarEstudante({ notas }: { notas: Nota[] }) {
     porMateria.get(id)!.notas.push(n);
   });
 
+
+  const categoriasOrdem = Array.from(new Set(["nota_professor", "nota_escola", ...notas.map(n => n.categoria)]));
+
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria Disciplinar</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota do Professor</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota Escola</th>
+            {categoriasOrdem.map((cat) => (
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{categoriasMap[cat] ?? formatCategoria(cat)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -165,8 +169,10 @@ function TabelaNotasEscolarEstudante({ notas }: { notas: Nota[] }) {
             return (
               <tr key={nome} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
-                <td className={`px-4 py-3 text-right font-bold ${notaProf ? corNota(notaProf.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaProf?.nota ?? "—"}</td>
-                <td className={`px-4 py-3 text-right font-bold ${notaFinal ? corNota(notaFinal.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaFinal?.nota ?? "—"}</td>
+                {categoriasOrdem.map((cat) => {
+                  const notaCat = nm.find(n => n.categoria === cat);
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaCat?.nota ?? "—"}</td>;
+                })}
               </tr>
             );
           })}
@@ -228,16 +234,19 @@ export default function NotasEstudante() {
 
   const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
   const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
+  const { data: dataCategorias, execute: carregarCategorias } = useApi(estudanteService.listarCategoriasNota);
 
   useEffect(() => {
     if (codigoEstudante) {
       carregarNotas(codigoEstudante, token);
       carregarAcademias({ token });
+      carregarCategorias(token);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoEstudante]);
 
   const todasNotas: Nota[] = historico?.notas ?? [];
+  const categoriasMap = useMemo(() => Object.fromEntries((((dataCategorias as any)?.categorias) ?? []).map((c: any) => [c.codigo, c.nome])), [dataCategorias]);
 
   // Académias únicas nas notas
   const academias = useMemo((): AcadInfo[] => {
@@ -443,7 +452,7 @@ export default function NotasEstudante() {
           ? <LoadingSpinner message="Carregando notas..." />
           : isSup
             ? <TabelaNotasSuperiorEstudante notas={notas} />
-            : <TabelaNotasEscolarEstudante notas={notas} />
+            : <TabelaNotasEscolarEstudante notas={notas} categoriasMap={categoriasMap} />
         }
       </div>
     );
