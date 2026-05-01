@@ -452,6 +452,7 @@ export interface AtualizarFaltaRequest {
 }
 
 export interface CriarCategoriaNotaRequest {
+  codigo: string;
   nome: string;
   descricao?: string;
 }
@@ -641,6 +642,7 @@ export interface Turma {
 export interface CategoriaNotaItem {
   id: string;
   codigo_academia: string;
+  codigo: string;
   nome: string;
   descricao?: string;
   adicionado_por?: string;

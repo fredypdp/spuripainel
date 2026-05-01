@@ -447,6 +447,11 @@ export const estudanteService = {
     api.get<ListarAvaliacoesResponse>('/estudante/minhas-avaliacoes', {
       token: token || tokenStorage.get() || undefined,
     }),
+
+  listarCategoriasNota: (token?: string) =>
+    api.get<ListarCategoriasNotaResponse>('/estudante/categorias-nota', {
+      token: token || tokenStorage.get() || undefined,
+    }),
 };
 
 // =====================
@@ -600,7 +605,7 @@ export const academiaService = {
   // ── Categorias de nota ────────────────────────────────────────────
 
   criarCategoriaNota: (data: CriarCategoriaNotaRequest, token?: string) =>
-    api.post<{ message: string; categoria: string }>(
+    api.post<{ message: string; categoria: { codigo: string; nome: string } }>(
       '/academia/categorias-nota',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -612,9 +617,9 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  deletarCategoriaNota: (nome: string, token?: string) =>
-    api.delete<{ message: string; categoria: string }>(
-      `/academia/categorias-nota/${encodeURIComponent(nome)}`,
+  deletarCategoriaNota: (codigo: string, token?: string) =>
+    api.delete<{ message: string; categoria: { codigo: string; nome?: string } }>(
+      `/academia/categorias-nota/${encodeURIComponent(codigo)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -1149,7 +1154,7 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  deletarCategoriasNotaBatchAsync: (data: { nome: string }[], token?: string) =>
+  deletarCategoriasNotaBatchAsync: (data: { codigo: string }[], token?: string) =>
     api.delete<AsyncBatchResponse>(
       '/academia/categorias-nota/async',
       {
