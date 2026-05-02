@@ -131,6 +131,7 @@ export interface CriarEstudanteRequest {
   status_escolar_medio?: StatusEscolarMedio;
   curso_medio_id?: string;
   ano_superior?: string;
+  semestre_atual?: number;
   status_superior?: StatusSuperior;
   curso_superior_id?: string;
 }
@@ -174,7 +175,11 @@ export interface AtualizarCursoRequest {
 
 export interface CriarMateriaRequest {
   nome: string;
-  type: MateriaType;
+  /**
+   * Opcional: no backend atual o tipo é preenchido automaticamente,
+   * exceto em academias escolares de nível misto.
+   */
+  type?: MateriaType;
   anos_academicos?: string[];
   curso_id?: string;
 }
@@ -201,6 +206,7 @@ export interface AtualizarDadosAcademicosEstudanteRequest {
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
+  semestre_atual?: number;
   curso_medio_id?: string;
   curso_superior_id?: string;
 }
@@ -687,6 +693,7 @@ export interface EstudanteDetalhado {
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
+  semestre_atual?: number;
   curso_medio_id?: string;
   curso_superior_id?: string;
   total_notas?: number;
