@@ -41,12 +41,6 @@ function labelNivel(v: string, withSuffix = false): string {
   return base;
 }
 
-function getTipoEnsino(nivel: string): TipoEnsino {
-  if (nivel.includes("fundamental")) return "fundamental";
-  if (nivel.includes("medio")) return "medio";
-  return "superior";
-}
-
 function getUserFromCookie(): MeuPerfilResponse | null {
   if (typeof window === "undefined") return null;
   try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
@@ -182,7 +176,6 @@ function RegistrarModal({ student, turma, token, onClose, onSuccess }: {
   student: EstudanteDetalhado; turma: Turma; token?: string;
   onClose: () => void; onSuccess: () => void;
 }) {
-  const tipoEnsino = getTipoEnsino(turma.nivel);
   const [aprovado, setAprovado] = useState(true);
   const [observacao, setObservacao] = useState("");
   const [loading, setLoading] = useState(false);
@@ -194,7 +187,6 @@ function RegistrarModal({ student, turma, token, onClose, onSuccess }: {
     try {
       const payload: RegistrarAvaliacaoFinalRequest = {
         codigo_estudante: student.codigo_estudante,
-        tipo_ensino: tipoEnsino,
         nivel_ano_academico_atual: turma.nivel,
         aprovado,
         observacao: observacao.trim() || undefined,

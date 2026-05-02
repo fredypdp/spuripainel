@@ -131,6 +131,7 @@ export interface CriarEstudanteRequest {
   status_escolar_medio?: StatusEscolarMedio;
   curso_medio_id?: string;
   ano_superior?: string;
+  semestre_atual?: number;
   status_superior?: StatusSuperior;
   curso_superior_id?: string;
 }
@@ -174,7 +175,11 @@ export interface AtualizarCursoRequest {
 
 export interface CriarMateriaRequest {
   nome: string;
-  type: MateriaType;
+  /**
+   * Opcional: no backend atual o tipo é preenchido automaticamente,
+   * exceto em academias escolares de nível misto.
+   */
+  type?: MateriaType;
   anos_academicos?: string[];
   curso_id?: string;
 }
@@ -201,6 +206,7 @@ export interface AtualizarDadosAcademicosEstudanteRequest {
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
+  semestre_atual?: number;
   curso_medio_id?: string;
   curso_superior_id?: string;
 }
@@ -247,9 +253,10 @@ export interface AlterarCursoRequest {
 
 /**
  * POST /academia/avaliacao-final
- * Campos alinhados com a API v1.1.9:
+ * Campos alinhados com a API v1.5.5:
  *   - nivel_ano_academico_atual: nível académico atual
  *   - aprovado: resultado da avaliação
+ *   - tipo_ensino é inferido automaticamente pelo backend
  *   - observacao: opcional — substitui validação automática de notas
  *
  * IMPORTANTE: proximo_ano_academico NÃO deve ser enviado.
@@ -257,8 +264,7 @@ export interface AlterarCursoRequest {
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
-  tipo_ensino: TipoEnsino;
-  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio') */
+  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio', '1_ano_superior') */
   nivel_ano_academico_atual: string;
   aprovado: boolean;
   observacao?: string;
@@ -687,6 +693,7 @@ export interface EstudanteDetalhado {
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   ano_superior?: string;
+  semestre_atual?: number;
   curso_medio_id?: string;
   curso_superior_id?: string;
   total_notas?: number;

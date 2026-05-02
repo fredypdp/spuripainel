@@ -490,7 +490,13 @@ export default function MateriaPainel() {
     try {
       if (editingMateria) { await executarAtualizarMateria(editingMateria.id, { nome: formData.nome }); showMsg("success", "Matéria atualizada com sucesso"); }
       else {
-        const res = await executarCriarMateria({ nome: formData.nome, type: formData.type, anos_academicos: formData.anos_academicos, ...(formData.curso_id && { curso_id: formData.curso_id }) });
+        const payload = {
+          nome: formData.nome,
+          ...(isAcademiaMista() ? { type: formData.type } : {}),
+          anos_academicos: formData.anos_academicos,
+          ...(formData.curso_id && { curso_id: formData.curso_id }),
+        };
+        const res = await executarCriarMateria(payload);
         if ((res as any)?.data?.status === "inativo") { showMsg("info", `Matéria "${formData.nome}" criada como inativa. Defina o período antes de ativar.`); }
         else { showMsg("success", "Matéria criada com sucesso"); }
       }
