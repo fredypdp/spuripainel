@@ -247,9 +247,10 @@ export interface AlterarCursoRequest {
 
 /**
  * POST /academia/avaliacao-final
- * Campos alinhados com a API v1.1.9:
+ * Campos alinhados com a API v1.5.5:
  *   - nivel_ano_academico_atual: nível académico atual
  *   - aprovado: resultado da avaliação
+ *   - tipo_ensino é inferido automaticamente pelo backend
  *   - observacao: opcional — substitui validação automática de notas
  *
  * IMPORTANTE: proximo_ano_academico NÃO deve ser enviado.
@@ -257,8 +258,7 @@ export interface AlterarCursoRequest {
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
-  tipo_ensino: TipoEnsino;
-  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio') */
+  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio', '1_ano_superior') */
   nivel_ano_academico_atual: string;
   aprovado: boolean;
   observacao?: string;
