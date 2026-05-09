@@ -269,19 +269,20 @@ export default function TurmasPainel() {
   const limparSelecao = () => setSelecionadas(new Set());
 
   // Batch via async
-  const executarBatchAsync = async (endpoint: string, method: string, payload: any, titulo: string, itemsParaLabel: { codigo: string; nome: string }[]) => {
+  const executarBatchAsync = async (
+    submitBatch: () => Promise<{ job_id?: string; message?: string }>,
+    titulo: string,
+    itemsParaLabel: { codigo: string; nome: string }[]
+  ) => {
     setLoteTitulo(titulo);
     setLoteProgresso(0);
     setLoteCarregando(true);
     const items: BatchResultItem[] = itemsParaLabel.map(i => ({ ...i, status: 'pending' }));
     setLoteItems(items);
     setLoteModalOpen(true);
-    const token = tokenStorage.get();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
     try {
-      const r = await fetch(`${apiUrl}${endpoint}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
-      const data = await r.json();
-      if (!r.ok || !data.job_id) { setLoteItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || 'Erro' }))); setLoteCarregando(false); return; }
+      const data = await submitBatch();
+      if (!data?.job_id) { setLoteItems(prev => prev.map(i => ({ ...i, status: 'error', message: data?.message || 'Erro' }))); setLoteCarregando(false); return; }
       const result = await pollJobUntilDone(data.job_id, pct => {
         setLoteProgresso(pct);
         setLoteItems(prev => prev.map((item, idx) => { const done = Math.floor(pct / 100 * prev.length); return idx < done ? { ...item, status: 'success' } : item; }));
@@ -295,19 +296,22 @@ export default function TurmasPainel() {
   const handleAtivarLote = () => {
     const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'inativo');
     if (!sel.length) return;
-    executarBatchAsync('/academia/turma/ativar/async', 'PUT', sel.map(t => ({ codigo_turma: t.codigo_turma })), `Ativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+    const payload = sel.map(t => ({ codigo_turma: t.codigo_turma }));
+    executarBatchAsync(() => academiaService.ativarTurmaBatchAsync(payload), `Ativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
   const handleDesativarLote = () => {
     const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'ativo');
     if (!sel.length) return;
-    executarBatchAsync('/academia/turma/desativar/async', 'PUT', sel.map(t => ({ codigo_turma: t.codigo_turma })), `Desativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+    const payload = sel.map(t => ({ codigo_turma: t.codigo_turma }));
+    executarBatchAsync(() => academiaService.desativarTurmaBatchAsync(payload), `Desativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
   const handleDeletarLote = () => {
     const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'inativo' && t.estudantes.length === 0);
     if (!sel.length) return;
-    executarBatchAsync('/academia/turma/async', 'DELETE', sel.map(t => ({ codigo_turma: t.codigo_turma })), `Deletar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+    const payload = sel.map(t => ({ codigo_turma: t.codigo_turma }));
+    executarBatchAsync(() => academiaService.deletarTurmaBatchAsync(payload), `Deletar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
   const resetForm = () => { setFormData({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined }); setEditingTurma(null); setShowForm(false); };
