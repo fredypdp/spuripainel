@@ -7,6 +7,8 @@ import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService } from "@/lib/api/services";
 import { formatAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
+import PasswordSettingsCard from "./PasswordSettingsCard";
+import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
 
 export default function AcademiaSection() {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
@@ -344,6 +346,11 @@ export default function AcademiaSection() {
             </div>
           </form>
         </div>
+      </div>
+
+      <div className="mt-6 space-y-6">
+        <AcademiaCategoriesSection />
+        <PasswordSettingsCard />
       </div>
 
       {/* Nota informativa */}

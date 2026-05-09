@@ -40,9 +40,11 @@ import type {
   AtualizarRoleAdminRequest,
   ListarAdminsResponse,
   DefinirAnoLetivoAcademiaRequest,
+  DefinirAnoLetivoGlobalRequest,
   AnoLetivoAcademiaResponse,
   ListarAnosLetivosAcademiaResponse,
   DefinirAnoLetivoResponse,
+  DefinirAnoLetivoGlobalResponse,
   AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   ListarCategoriasNotaResponse,
@@ -1171,6 +1173,14 @@ export const academiaService = {
 // =====================
 
 export const adminService = {
+
+  definirAnoLetivoGlobal: (data: DefinirAnoLetivoGlobalRequest, token?: string) =>
+    api.post<DefinirAnoLetivoGlobalResponse>(
+      '/admin/sistema/ano-letivo',
+      { ...data, ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   criarAdmin: (data: CriarAdminRequest, token?: string) =>
     api.post<{ message: string; data: AdminDetalhado; aviso?: string }>(
       '/dominis/register',

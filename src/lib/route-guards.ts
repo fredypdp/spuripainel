@@ -56,7 +56,7 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
   {
     path: '/configuracoes',
-    allowedTypes: ['admin', 'academia'],
+    allowedTypes: ['admin', 'academia', 'estudante'],
     redirectIfUnauthorized: '/',
   },
 
