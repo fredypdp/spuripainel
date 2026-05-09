@@ -494,6 +494,14 @@ export interface DefinirAnoLetivoAcademiaRequest {
 }
 
 /**
+ * POST /admin/sistema/ano-letivo
+ * Define o ano letivo oficial global do sistema (apenas admin FPP).
+ */
+export interface DefinirAnoLetivoGlobalRequest {
+  ano_letivo: string; // formato: YYYY_YYYY  ex: "2026_2027"
+}
+
+/**
  * @deprecated Substituído por DefinirAnoLetivoAcademiaRequest.
  */
 export interface DefinirAnoLetivoRequest {
@@ -866,6 +874,11 @@ export interface DefinirAnoLetivoResponse {
   tipo?: string;
   /** Ano letivo oficial global definido pelo sistema (admin FPP). */
   ano_letivo_oficial?: string;
+}
+
+export interface DefinirAnoLetivoGlobalResponse {
+  message: string;
+  ano_letivo: string;
 }
 
 /** GET /academia/anos-letivos-lista */

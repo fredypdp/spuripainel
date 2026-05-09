@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useCallback, useRef, useState } from "react";
+import { useUserType } from "@/hooks/useRoutePermission";
+import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
 import { pollJob } from "@/lib/api/job-service";
 import Icon from "@/components/ui/Icon";
+import { formatAnoLetivo } from "@/types/api";
+import PasswordSettingsCard from "./PasswordSettingsCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -510,9 +514,133 @@ function RebuildAllResultsPanel({
   );
 }
 
+function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
+  const anoAtual = new Date().getFullYear();
+  const [anoDe, setAnoDe] = useState(String(anoAtual));
+  const [anoDefinido, setAnoDefinido] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState(false);
+
+  const {
+    loading,
+    error,
+    execute: definirAnoLetivoGlobal,
+  } = useApi(adminService.definirAnoLetivoGlobal);
+
+  const anoAte = anoDe ? String(Number(anoDe) + 1) : "";
+  const valorFormatado = anoDe && anoAte ? `${anoDe}_${anoAte}` : "";
+  const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 5 + i);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSucesso(false);
+    if (!isFPP || !valorFormatado) return;
+
+    try {
+      const response = await definirAnoLetivoGlobal({ ano_letivo: valorFormatado });
+      const novoAno = response?.ano_letivo ?? valorFormatado;
+      setAnoDefinido(novoAno);
+      setSucesso(true);
+      setTimeout(() => setSucesso(false), 5000);
+    } catch {
+      // erro disponível via hook
+    }
+  }
+
+  return (
+    <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+              <Icon icon="mdi:calendar-star-outline" width="16px" className="text-brand-500" />
+            </span>
+            Ano letivo oficial global
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+            Responsabilidade do admin FPP: define a referência obrigatória para todas as academias. As academias só podem ativar o próprio ano letivo com este mesmo valor.
+          </p>
+        </div>
+        <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
+          <Icon icon={isFPP ? "mdi:shield-check-outline" : "mdi:shield-lock-outline"} width="14px" />
+          {isFPP ? "FPP habilitado" : "Apenas FPP altera"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
+          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Último valor definido nesta sessão</p>
+          <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white">
+            {anoDefinido ? formatAnoLetivo(anoDefinido) : "—"}
+          </p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            A API documenta a definição global via POST; após guardar, este cartão mostra o retorno recebido.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div>
+              <label htmlFor="admin-ano-de" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">De</label>
+              <select
+                id="admin-ano-de"
+                value={anoDe}
+                onChange={(e) => setAnoDe(e.target.value)}
+                disabled={!isFPP || loading}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                {opcoesAnoDe.map((ano) => (
+                  <option key={ano} value={String(ano)}>{ano}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Até <span className="text-xs font-normal text-gray-400">(automático)</span></label>
+              <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-400">{anoAte}</div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Formato</label>
+              <code className="flex w-full items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">{valorFormatado}</code>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
+              <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
+          {sucesso && anoDefinido && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
+              <Icon icon="mdi:check-circle-outline" width="18px" className="shrink-0 text-green-500" />
+              <p className="text-sm text-green-700 dark:text-green-400">Ano letivo oficial {formatAnoLetivo(anoDefinido)} definido com sucesso.</p>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={!isFPP || loading || !valorFormatado}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? (
+                <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A definir...</>
+              ) : (
+                <><Icon icon="mdi:content-save-outline" width="18px" />Definir ano global</>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function AdminSection() {
+  const { user } = useUserType();
+  const isFPP = user?.admin?.role === "fpp";
   const { statuses, errors, timestamps, rebuild, rebuildRaw } =
     useProjectionRebuild();
 
@@ -557,6 +685,13 @@ export default function AdminSection() {
 
   return (
     <div>
+      <GlobalAcademicYearCard isFPP={isFPP} />
+      <div className="mb-6">
+        <PasswordSettingsCard />
+      </div>
+
+      {isFPP ? (
+      <>
       {/* ── Cabeçalho ──────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
@@ -688,6 +823,18 @@ export default function AdminSection() {
           onCancel={() => setShowRebuildAllModal(false)}
           loading={rebuildAllLoading}
         />
+      )}
+      </>
+      ) : (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-gray-900/40">
+          <p className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Icon icon="mdi:information-outline" width="18px" className="text-brand-500" />
+            Sem configurações administrativas críticas para este role
+          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            A documentação reserva o ano letivo global e o rebuild de projeções para FPP. Operações de ativação/desativação ficam nas páginas de gerenciamento.
+          </p>
+        </div>
       )}
     </div>
   );

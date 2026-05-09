@@ -6,11 +6,10 @@ import { useUserType } from "@/hooks/useRoutePermission";
 import Icon from "@/components/ui/Icon";
 import AcademiaSection from "./AcademiaSection";
 import AdminSection from "./AdminSection";
+import EstudanteSection from "./EstudanteSection";
 
 export default function PageContent() {
-  const { isAcademia, user } = useUserType();
-
-  const isFPP = user?.admin?.role === "fpp";
+  const { isAcademia, isAdmin, isEstudante } = useUserType();
 
   // ── Academia ────────────────────────────────────────────────────────────
   if (isAcademia) {
@@ -22,8 +21,8 @@ export default function PageContent() {
     );
   }
 
-  // ── Admin FPP ────────────────────────────────────────────────────────────
-  if (isFPP) {
+  // ── Admin ───────────────────────────────────────────────────────────────
+  if (isAdmin) {
     return (
       <div>
         <PageBreadcrumb pageTitle="Configurações do Sistema" />
@@ -32,7 +31,17 @@ export default function PageContent() {
     );
   }
 
-  // ── Acesso restrito (admin não-FPP, estudante, ou não autenticado) ────────
+  // ── Estudante ────────────────────────────────────────────────────────────
+  if (isEstudante) {
+    return (
+      <div>
+        <PageBreadcrumb pageTitle="Configurações" />
+        <EstudanteSection />
+      </div>
+    );
+  }
+
+  // ── Acesso restrito (não autenticado) ────────────────────────────────────
   return (
     <div>
       <PageBreadcrumb pageTitle="Configurações" />
@@ -45,9 +54,8 @@ export default function PageContent() {
             Acesso restrito
           </p>
           <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-            Esta página está disponível para{" "}
-            <strong>academias</strong> (definição do ano letivo) e{" "}
-            <strong>administradores FPP</strong> (reconstrução de projeções).
+            Esta página está disponível para <strong>admins</strong>,{" "}
+            <strong>academias</strong> e <strong>estudantes</strong>, com ações conforme as permissões documentadas.
           </p>
         </div>
       </div>
