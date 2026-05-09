@@ -881,6 +881,22 @@ export interface DefinirAnoLetivoGlobalResponse {
   ano_letivo: string;
 }
 
+/** GET /admin/sistema/ano-letivo */
+export interface AnoLetivoGlobalResponse {
+  ano_letivo: string;
+  definido_em?: string;
+  definido_por?: string;
+}
+
+/** GET /admin/sistema/anos-letivos-lista */
+export interface ListarAnosLetivosGlobalResponse {
+  anos_letivos_lista: Array<{
+    ano_letivo: string;
+    definido_por?: string;
+    definido_em?: string;
+  }>;
+}
+
 /** GET /academia/anos-letivos-lista */
 export interface ListarAnosLetivosAcademiaResponse {
   anos_letivos_lista: Array<{
