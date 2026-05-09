@@ -104,6 +104,9 @@ const TIER_LABELS: Record<number, string> = {
   4: "Nível 4 — Avaliações Finais",
 };
 
+const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = "/admin/sistema/ano-letivo";
+const LEGACY_SISTEMA_ANO_LETIVO_ENDPOINT = "/dominis/sistema/ano-letivo";
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -557,7 +560,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             Ano letivo oficial global
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Responsabilidade do admin FPP: define a referência obrigatória para todas as academias. As academias só podem ativar o próprio ano letivo com este mesmo valor.
+            Responsabilidade do admin FPP: define a referência obrigatória para todas as academias usando a rota vigente da API. As academias só podem ativar o próprio ano letivo com este mesmo valor.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
@@ -575,6 +578,13 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             A API documenta a definição global via POST; após guardar, este cartão mostra o retorno recebido.
           </p>
+          <div className="mt-4 rounded-lg border border-brand-100 bg-brand-50/70 p-3 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
+            <p className="font-semibold">Endpoint em uso</p>
+            <code className="mt-1 block break-all">POST {ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT}</code>
+            <p className="mt-2 text-brand-600/80 dark:text-brand-200/80">
+              A rota legada <code>POST {LEGACY_SISTEMA_ANO_LETIVO_ENDPOINT}</code> não é mais chamada pelo painel e deve retornar 404 no backend atualizado.
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-4">
