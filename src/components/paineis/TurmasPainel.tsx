@@ -295,19 +295,19 @@ export default function TurmasPainel() {
   const handleAtivarLote = () => {
     const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'inativo');
     if (!sel.length) return;
-    executarBatchAsync('/academia/turma/ativar/batch', 'PUT', sel.map(t => ({ codigo: t.codigo_turma })), `Ativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+    executarBatchAsync('/academia/turma/ativar/async', 'PUT', sel.map(t => ({ codigo_turma: t.codigo_turma })), `Ativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
   const handleDesativarLote = () => {
     const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'ativo');
     if (!sel.length) return;
-    executarBatchAsync('/academia/turma/desativar/batch', 'PUT', sel.map(t => ({ codigo: t.codigo_turma })), `Desativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+    executarBatchAsync('/academia/turma/desativar/async', 'PUT', sel.map(t => ({ codigo_turma: t.codigo_turma })), `Desativar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
   const handleDeletarLote = () => {
     const sel = turmas.filter(t => selecionadas.has(t.codigo_turma) && t.status === 'inativo' && t.estudantes.length === 0);
     if (!sel.length) return;
-    executarBatchAsync('/academia/turma/batch', 'DELETE', sel.map(t => ({ codigo: t.codigo_turma })), `Deletar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
+    executarBatchAsync('/academia/turma/async', 'DELETE', sel.map(t => ({ codigo_turma: t.codigo_turma })), `Deletar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
   const resetForm = () => { setFormData({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined }); setEditingTurma(null); setShowForm(false); };
