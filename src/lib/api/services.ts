@@ -82,6 +82,9 @@ export interface ErrorResponse {
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
+const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/sistema/ano-letivo';
+
 function ensureApiDate(value: string | undefined, fieldName: string): string | undefined {
   if (!value) return value;
   const normalized = value.trim();
@@ -558,7 +561,7 @@ export const academiaService = {
     }
 
     return api.post<DefinirAnoLetivoResponse>(
-      '/academia/ano-letivo',
+      ACADEMIA_ANO_LETIVO_ENDPOINT,
       { ...data, ano_letivo: anoLetivoNormalizado },
       { token: token || tokenStorage.get() || undefined }
     );
@@ -579,7 +582,7 @@ export const academiaService = {
     const tok      = isLegacy ? (params as string | undefined) : params?.token;
     const codigo   = isLegacy ? undefined : params?.codigo_academia;
     const qs       = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
-    return api.get<AnoLetivoAcademiaResponse>(`/academia/ano-letivo${qs}`, {
+    return api.get<AnoLetivoAcademiaResponse>(`${ACADEMIA_ANO_LETIVO_ENDPOINT}${qs}`, {
       token: tok || tokenStorage.get() || undefined,
     });
   },
@@ -1174,9 +1177,14 @@ export const academiaService = {
 
 export const adminService = {
 
+  /**
+   * POST /admin/sistema/ano-letivo
+   * Única rota vigente para definir o ano letivo oficial global;
+   * a rota legada POST /dominis/sistema/ano-letivo foi removida no backend.
+   */
   definirAnoLetivoGlobal: (data: DefinirAnoLetivoGlobalRequest, token?: string) =>
     api.post<DefinirAnoLetivoGlobalResponse>(
-      '/admin/sistema/ano-letivo',
+      ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
       { ...data, ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) },
       { token: token || tokenStorage.get() || undefined }
     ),
