@@ -45,6 +45,8 @@ import type {
   ListarAnosLetivosAcademiaResponse,
   DefinirAnoLetivoResponse,
   DefinirAnoLetivoGlobalResponse,
+  AnoLetivoGlobalResponse,
+  ListarAnosLetivosGlobalResponse,
   AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   ListarCategoriasNotaResponse,
@@ -1186,6 +1188,18 @@ export const adminService = {
     api.post<DefinirAnoLetivoGlobalResponse>(
       ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
       { ...data, ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  obterAnoLetivoGlobal: (token?: string) =>
+    api.get<AnoLetivoGlobalResponse>(
+      ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarAnosLetivosGlobais: (token?: string) =>
+    api.get<ListarAnosLetivosGlobalResponse>(
+      '/admin/sistema/anos-letivos-lista',
       { token: token || tokenStorage.get() || undefined }
     ),
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useUserType } from "@/hooks/useRoutePermission";
 import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
@@ -103,9 +103,6 @@ const TIER_LABELS: Record<number, string> = {
   3: "Nível 3 — Dependem de Estudantes",
   4: "Nível 4 — Avaliações Finais",
 };
-
-const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = "/admin/sistema/ano-letivo";
-const LEGACY_SISTEMA_ANO_LETIVO_ENDPOINT = "/dominis/sistema/ano-letivo";
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -521,6 +518,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   const anoAtual = new Date().getFullYear();
   const [anoDe, setAnoDe] = useState(String(anoAtual));
   const [anoDefinido, setAnoDefinido] = useState<string | null>(null);
+  const [anoLetivoAtual, setAnoLetivoAtual] = useState<string | null>(null);
+  const [historicoAnosLetivos, setHistoricoAnosLetivos] = useState<string[]>([]);
+  const [carregandoDados, setCarregandoDados] = useState(true);
+  const [erroDados, setErroDados] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
 
   const {
@@ -533,6 +534,33 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   const valorFormatado = anoDe && anoAte ? `${anoDe}_${anoAte}` : "";
   const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 5 + i);
 
+  const carregarDadosAnoLetivo = useCallback(async () => {
+    setCarregandoDados(true);
+    setErroDados(null);
+    try {
+      const [anoAtualResp, historicoResp] = await Promise.all([
+        adminService.obterAnoLetivoGlobal(),
+        adminService.listarAnosLetivosGlobais(),
+      ]);
+      const anoAtualApi = anoAtualResp?.ano_letivo ?? null;
+      setAnoLetivoAtual(anoAtualApi);
+      setAnoDefinido(anoAtualApi);
+      setHistoricoAnosLetivos(
+        (historicoResp?.anos_letivos_lista ?? []).map((item) => item.ano_letivo)
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Erro ao carregar ano letivo global.";
+      setErroDados(message);
+    } finally {
+      setCarregandoDados(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarDadosAnoLetivo();
+  }, [carregarDadosAnoLetivo]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSucesso(false);
@@ -542,6 +570,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
       const response = await definirAnoLetivoGlobal({ ano_letivo: valorFormatado });
       const novoAno = response?.ano_letivo ?? valorFormatado;
       setAnoDefinido(novoAno);
+      setAnoLetivoAtual(novoAno);
+      setHistoricoAnosLetivos((prev) =>
+        prev.includes(novoAno) ? prev : [novoAno, ...prev]
+      );
       setSucesso(true);
       setTimeout(() => setSucesso(false), 5000);
     } catch {
@@ -573,17 +605,24 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
           <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Último valor definido nesta sessão</p>
           <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white">
-            {anoDefinido ? formatAnoLetivo(anoDefinido) : "—"}
+            {carregandoDados ? "A carregar..." : anoDefinido ? formatAnoLetivo(anoDefinido) : "—"}
           </p>
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            A API documenta a definição global via POST; após guardar, este cartão mostra o retorno recebido.
+            Mostra o ano retornado pela API ao consultar e ao definir o valor global.
           </p>
-          <div className="mt-4 rounded-lg border border-brand-100 bg-brand-50/70 p-3 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
-            <p className="font-semibold">Endpoint em uso</p>
-            <code className="mt-1 block break-all">POST {ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT}</code>
-            <p className="mt-2 text-brand-600/80 dark:text-brand-200/80">
-              A rota legada <code>POST {LEGACY_SISTEMA_ANO_LETIVO_ENDPOINT}</code> não é mais chamada pelo painel e deve retornar 404 no backend atualizado.
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900/60">
+            <p className="font-semibold text-gray-700 dark:text-gray-200">Ano letivo global atual</p>
+            <p className="mt-1 text-sm font-bold text-brand-600 dark:text-brand-400">
+              {anoLetivoAtual ? formatAnoLetivo(anoLetivoAtual) : "Não definido"}
             </p>
+            <p className="mt-2 text-gray-500 dark:text-gray-400">
+              Histórico global: {historicoAnosLetivos.length} ano(s) letivo(s) registado(s).
+            </p>
+            {historicoAnosLetivos.length > 0 && (
+              <p className="mt-1 text-gray-500 dark:text-gray-400">
+                {historicoAnosLetivos.map((item) => formatAnoLetivo(item)).join(", ")}
+              </p>
+            )}
           </div>
         </div>
 
@@ -617,6 +656,12 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
               <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
               <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+          {erroDados && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+              <Icon icon="mdi:alert-outline" width="18px" className="shrink-0 text-amber-500" />
+              <p className="text-sm text-amber-700 dark:text-amber-400">{erroDados}</p>
             </div>
           )}
 
