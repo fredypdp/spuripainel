@@ -93,6 +93,25 @@ function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes):
   });
 }
 
+function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): EstudanteDetalhado[] {
+  const idadeMin = filtros.idadeMin ? Number(filtros.idadeMin) : null;
+  const idadeMax = filtros.idadeMax ? Number(filtros.idadeMax) : null;
+
+  return lista.filter(estudante => {
+    const idade = calcularIdade(estudante.data_nascimento);
+
+    if (filtros.genero && estudante.genero !== filtros.genero) return false;
+    if (filtros.status && estudante.status !== filtros.status) return false;
+    if (filtros.statusFundamental && estudante.status_escolar_fundamental !== filtros.statusFundamental) return false;
+    if (filtros.statusMedio && estudante.status_escolar_medio !== filtros.statusMedio) return false;
+    if (filtros.statusSuperior && estudante.status_superior !== filtros.statusSuperior) return false;
+    if (idadeMin !== null && (idade === null || idade < idadeMin)) return false;
+    if (idadeMax !== null && (idade === null || idade > idadeMax)) return false;
+
+    return true;
+  });
+}
+
 const OPCOES_ORDEM: { key: OrdemEstudantes; label: string; icon: string }[] = [
   { key: 'nome_asc',      label: 'Nome A → Z',         icon: 'mdi:sort-alphabetical-ascending'  },
   { key: 'nome_desc',     label: 'Nome Z → A',         icon: 'mdi:sort-alphabetical-descending' },
@@ -810,8 +829,8 @@ export default function Estudantes() {
   useEffect(() => { setSelecionadas(new Set()); }, [paginaAtual]);
 
   const estudantesFiltradosOrdenados = useMemo(
-    () => ordenarEstudantes(dataEstudantes?.estudantes ?? [], ordem),
-    [dataEstudantes, ordem]
+    () => ordenarEstudantes(aplicarFiltros(dataEstudantes?.estudantes ?? [], filtros), ordem),
+    [dataEstudantes, filtros, ordem]
   );
   const totalPaginas = Math.ceil(estudantesFiltradosOrdenados.length / ITEMS_POR_PAGINA);
   const estudantesPaginados = useMemo(
