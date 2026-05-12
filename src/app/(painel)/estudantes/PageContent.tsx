@@ -34,6 +34,7 @@ type OrdemEstudantes = 'nome_asc' | 'nome_desc' | 'idade_asc' | 'idade_desc' | '
 interface FiltrosState {
   genero: string; idadeMin: string; idadeMax: string;
   status: string; statusFundamental: string; statusMedio: string; statusSuperior: string;
+  turno: string; codigoTurma: string; comTurma: string;
 }
 interface BatchJobItem { codigo: string; nome: string; status: 'pending' | 'success' | 'error'; message?: string; }
 
@@ -76,23 +77,6 @@ function labelNivel(v: string): string {
   const m = v.match(/^(\d+)_ano_(medio|superior)$/);
   if (m) return `${m[1]}º ${m[2] === 'medio' ? 'Médio' : 'Superior'}`;
   return v.replace(/_/g, ' ');
-}
-
-function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): EstudanteDetalhado[] {
-  return lista.filter(e => {
-    if (filtros.genero && e.genero !== filtros.genero) return false;
-    if (filtros.idadeMin || filtros.idadeMax) {
-      const idade = calcularIdade(e.data_nascimento);
-      if (idade === null) return false;
-      if (filtros.idadeMin && idade < Number(filtros.idadeMin)) return false;
-      if (filtros.idadeMax && idade > Number(filtros.idadeMax)) return false;
-    }
-    if (filtros.status && e.status !== filtros.status) return false;
-    if (filtros.statusFundamental && e.status_escolar_fundamental !== filtros.statusFundamental) return false;
-    if (filtros.statusMedio && e.status_escolar_medio !== filtros.statusMedio) return false;
-    if (filtros.statusSuperior && e.status_superior !== filtros.statusSuperior) return false;
-    return true;
-  });
 }
 
 function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes): EstudanteDetalhado[] {
@@ -216,12 +200,12 @@ function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, onChange 
 
 // ─── FiltrosPanel ─────────────────────────────────────────────────────────────
 
-function FiltrosPanel({ filtros, setFiltros, isAdmin }: {
-  filtros: FiltrosState; setFiltros: (f: FiltrosState) => void; isAdmin: boolean;
+function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar }: {
+  filtros: FiltrosState; setFiltros: (f: FiltrosState) => void; isAdmin: boolean; onAplicar: () => void;
 }) {
   const [aberto, setAberto] = useState(false);
   const temFiltro = Object.values(filtros).some(v => v !== '');
-  const limpar = () => setFiltros({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
+  const limpar = () => setFiltros({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '', turno: '', codigoTurma: '', comTurma: '' });
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <button onClick={() => setAberto(p => !p)}
@@ -255,6 +239,26 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: {
                 onChange={e => setFiltros({ ...filtros, idadeMax: e.target.value })} placeholder="Ex: 18"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Turno</label>
+              <select value={filtros.turno} onChange={e => setFiltros({ ...filtros, turno: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option><option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="noite">Noite</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Código da turma</label>
+              <input value={filtros.codigoTurma} onChange={e => setFiltros({ ...filtros, codigoTurma: e.target.value })}
+                placeholder="Ex: TURMA-10A"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Vínculo de turma</label>
+              <select value={filtros.comTurma} onChange={e => setFiltros({ ...filtros, comTurma: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option><option value="true">Com turma</option><option value="false">Sem turma</option>
+              </select>
+            </div>
             {isAdmin && (
               <>
                 <div>
@@ -281,13 +285,14 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin }: {
               </>
             )}
           </div>
-          {temFiltro && (
-            <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex justify-end gap-2">
+            <Button size="sm" variant="primary" onClick={onAplicar}>Aplicar filtros</Button>
+            {temFiltro && (
               <button onClick={limpar} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors">
                 <Icon icon="mdi:close-circle" width={14} /> Limpar filtros
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -740,7 +745,7 @@ export default function Estudantes() {
   const [vistaEscala,          setVistaEscala]          = useState(false);
   const [paginaAtual,          setPaginaAtual]          = useState(1);
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
-  const [filtros,              setFiltros]              = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '' });
+  const [filtros,              setFiltros]              = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '', turno: '', codigoTurma: '', comTurma: '' });
 
   const [selecionadas,         setSelecionadas]         = useState<Set<string>>(new Set());
   const [batchItems,           setBatchItems]           = useState<BatchJobItem[]>([]);
@@ -766,15 +771,26 @@ export default function Estudantes() {
 
   const carregarLista = useCallback(async () => {
     const token = tokenStorage.get();
-    await carregarEstudantesRef.current(token || undefined);
+    await carregarEstudantesRef.current({
+      token: token || undefined,
+      genero: filtros.genero || undefined,
+      idade_min: filtros.idadeMin ? Number(filtros.idadeMin) : undefined,
+      idade_max: filtros.idadeMax ? Number(filtros.idadeMax) : undefined,
+      status_escolar_fundamental: filtros.statusFundamental || undefined,
+      status_escolar_medio: filtros.statusMedio || undefined,
+      status_superior: filtros.statusSuperior || undefined,
+      turno: filtros.turno || undefined,
+      codigo_turma: filtros.codigoTurma.trim() || undefined,
+      com_turma: filtros.comTurma === '' ? undefined : filtros.comTurma === 'true',
+    });
     setCarregado(true);
-  }, []);
+  }, [filtros]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const token = tokenStorage.get();
-      await carregarEstudantesRef.current(token || undefined);
+      await carregarEstudantesRef.current({ token: token || undefined });
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };
@@ -789,13 +805,13 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
-  useEffect(() => { setPaginaAtual(1); setSelecionadas(new Set()); }, [filtros, ordem]);
+  useEffect(() => { setPaginaAtual(1); setSelecionadas(new Set()); }, [ordem]);
   useEffect(() => { setPaginaAtual(1); }, [dataEstudantes]);
   useEffect(() => { setSelecionadas(new Set()); }, [paginaAtual]);
 
   const estudantesFiltradosOrdenados = useMemo(
-    () => ordenarEstudantes(aplicarFiltros(dataEstudantes?.estudantes ?? [], filtros), ordem),
-    [dataEstudantes, filtros, ordem]
+    () => ordenarEstudantes(dataEstudantes?.estudantes ?? [], ordem),
+    [dataEstudantes, ordem]
   );
   const totalPaginas = Math.ceil(estudantesFiltradosOrdenados.length / ITEMS_POR_PAGINA);
   const estudantesPaginados = useMemo(
@@ -931,7 +947,7 @@ export default function Estudantes() {
           )}
         </div>
 
-        {!vistaEscala && carregado && <FiltrosPanel filtros={filtros} setFiltros={setFiltros} isAdmin={!!isAdmin} />}
+        {!vistaEscala && carregado && <FiltrosPanel filtros={filtros} setFiltros={setFiltros} isAdmin={!!isAdmin} onAplicar={carregarLista} />}
 
         {isAcademia && !vistaEscala && selecionadas.size > 0 && (
           <BarraLote selecionadas={selecionadas} onLimpar={handleLimparSelecao} onAtualizarStatus={handleAtualizarStatusLote} carregando={batchCarregando} />
