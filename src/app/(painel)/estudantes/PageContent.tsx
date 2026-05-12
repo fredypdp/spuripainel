@@ -33,10 +33,18 @@ const ANOS_FUNDAMENTAL_LIST = [
 type OrdemEstudantes = 'nome_asc' | 'nome_desc' | 'idade_asc' | 'idade_desc' | 'cadastro_desc' | 'cadastro_asc';
 interface FiltrosState {
   genero: string; idadeMin: string; idadeMax: string;
+  anoFundamental: string; anoMedio: string; anoSuperior: string;
   status: string; statusFundamental: string; statusMedio: string; statusSuperior: string;
   turno: string; codigoTurma: string; comTurma: string;
 }
 interface BatchJobItem { codigo: string; nome: string; status: 'pending' | 'success' | 'error'; message?: string; }
+
+const FILTROS_INICIAIS: FiltrosState = {
+  genero: '', idadeMin: '', idadeMax: '',
+  anoFundamental: '', anoMedio: '', anoSuperior: '',
+  status: '', statusFundamental: '', statusMedio: '', statusSuperior: '',
+  turno: '', codigoTurma: '', comTurma: '',
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -93,6 +101,12 @@ function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes):
   });
 }
 
+function filtroAceitaValor(filtro: string, valor?: string): boolean {
+  if (!filtro) return true;
+  const valores = filtro.split(',').map(item => item.trim()).filter(Boolean);
+  return valores.length === 0 || (valor ? valores.includes(valor) : false);
+}
+
 function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): EstudanteDetalhado[] {
   const idadeMin = filtros.idadeMin ? Number(filtros.idadeMin) : null;
   const idadeMax = filtros.idadeMax ? Number(filtros.idadeMax) : null;
@@ -100,11 +114,14 @@ function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): Est
   return lista.filter(estudante => {
     const idade = calcularIdade(estudante.data_nascimento);
 
-    if (filtros.genero && estudante.genero !== filtros.genero) return false;
-    if (filtros.status && estudante.status !== filtros.status) return false;
-    if (filtros.statusFundamental && estudante.status_escolar_fundamental !== filtros.statusFundamental) return false;
-    if (filtros.statusMedio && estudante.status_escolar_medio !== filtros.statusMedio) return false;
-    if (filtros.statusSuperior && estudante.status_superior !== filtros.statusSuperior) return false;
+    if (!filtroAceitaValor(filtros.genero, estudante.genero)) return false;
+    if (!filtroAceitaValor(filtros.status, estudante.status)) return false;
+    if (!filtroAceitaValor(filtros.anoFundamental, estudante.ano_escolar_fundamental)) return false;
+    if (!filtroAceitaValor(filtros.anoMedio, estudante.ano_escolar_medio)) return false;
+    if (!filtroAceitaValor(filtros.anoSuperior, estudante.ano_superior)) return false;
+    if (!filtroAceitaValor(filtros.statusFundamental, estudante.status_escolar_fundamental)) return false;
+    if (!filtroAceitaValor(filtros.statusMedio, estudante.status_escolar_medio)) return false;
+    if (!filtroAceitaValor(filtros.statusSuperior, estudante.status_superior)) return false;
     if (idadeMin !== null && (idade === null || idade < idadeMin)) return false;
     if (idadeMax !== null && (idade === null || idade > idadeMax)) return false;
 
@@ -224,7 +241,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar }: {
 }) {
   const [aberto, setAberto] = useState(false);
   const temFiltro = Object.values(filtros).some(v => v !== '');
-  const limpar = () => setFiltros({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '', turno: '', codigoTurma: '', comTurma: '' });
+  const limpar = () => setFiltros({ ...FILTROS_INICIAIS });
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <button onClick={() => setAberto(p => !p)}
@@ -266,9 +283,29 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar }: {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano fundamental</label>
+              <select value={filtros.anoFundamental} onChange={e => setFiltros({ ...filtros, anoFundamental: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option>
+                {ANOS_FUNDAMENTAL_LIST.map(ano => <option key={ano.value} value={ano.value}>{ano.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano médio</label>
+              <input value={filtros.anoMedio} onChange={e => setFiltros({ ...filtros, anoMedio: e.target.value })}
+                placeholder="Ex: 2_ano_medio ou CSV"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano superior</label>
+              <input value={filtros.anoSuperior} onChange={e => setFiltros({ ...filtros, anoSuperior: e.target.value })}
+                placeholder="Ex: 1_ano_superior ou CSV"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Código da turma</label>
               <input value={filtros.codigoTurma} onChange={e => setFiltros({ ...filtros, codigoTurma: e.target.value })}
-                placeholder="Ex: TURMA-10A"
+                placeholder="Ex: TURMA-10A ou CSV"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
             </div>
             <div>
@@ -279,30 +316,35 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar }: {
               </select>
             </div>
             {isAdmin && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
-                  <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
-                  <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
-                  <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
-                  </select>
-                </div>
-              </>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
+                <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                  <option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
+                </select>
+              </div>
             )}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
+              <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
+              <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Superior</label>
+              <select value={filtros.statusSuperior} onChange={e => setFiltros({ ...filtros, statusSuperior: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
+              </select>
+            </div>
           </div>
           <div className="mt-3 flex justify-end gap-2">
             <Button size="sm" variant="primary" onClick={onAplicar}>Aplicar filtros</Button>
@@ -764,7 +806,7 @@ export default function Estudantes() {
   const [vistaEscala,          setVistaEscala]          = useState(false);
   const [paginaAtual,          setPaginaAtual]          = useState(1);
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
-  const [filtros,              setFiltros]              = useState<FiltrosState>({ genero: '', idadeMin: '', idadeMax: '', status: '', statusFundamental: '', statusMedio: '', statusSuperior: '', turno: '', codigoTurma: '', comTurma: '' });
+  const [filtros,              setFiltros]              = useState<FiltrosState>({ ...FILTROS_INICIAIS });
 
   const [selecionadas,         setSelecionadas]         = useState<Set<string>>(new Set());
   const [batchItems,           setBatchItems]           = useState<BatchJobItem[]>([]);
@@ -795,6 +837,9 @@ export default function Estudantes() {
       genero: filtros.genero || undefined,
       idade_min: filtros.idadeMin ? Number(filtros.idadeMin) : undefined,
       idade_max: filtros.idadeMax ? Number(filtros.idadeMax) : undefined,
+      ano_escolar_fundamental: filtros.anoFundamental.trim() || undefined,
+      ano_escolar_medio: filtros.anoMedio.trim() || undefined,
+      ano_superior: filtros.anoSuperior.trim() || undefined,
       status_escolar_fundamental: filtros.statusFundamental || undefined,
       status_escolar_medio: filtros.statusMedio || undefined,
       status_superior: filtros.statusSuperior || undefined,

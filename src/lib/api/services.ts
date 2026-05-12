@@ -277,31 +277,31 @@ export const consultasService = {
 
   listarEstudantes: (params?: {
     token?: string;
-    genero?: string;
+    genero?: string | string[];
     idade_min?: number;
     idade_max?: number;
-    ano_escolar_fundamental?: string;
-    ano_escolar_medio?: string;
-    ano_superior?: string;
-    status_escolar_fundamental?: string;
-    status_escolar_medio?: string;
-    status_superior?: string;
-    turno?: string;
-    codigo_turma?: string;
+    ano_escolar_fundamental?: string | string[];
+    ano_escolar_medio?: string | string[];
+    ano_superior?: string | string[];
+    status_escolar_fundamental?: string | string[];
+    status_escolar_medio?: string | string[];
+    status_superior?: string | string[];
+    turno?: string | string[];
+    codigo_turma?: string | string[];
     com_turma?: boolean;
   }) => {
     const qs = new URLSearchParams();
-    if (params?.genero) qs.append('genero', params.genero);
+    appendMultiValueParam(qs, 'genero', params?.genero);
     if (params?.idade_min !== undefined) qs.append('idade_min', String(params.idade_min));
     if (params?.idade_max !== undefined) qs.append('idade_max', String(params.idade_max));
-    if (params?.ano_escolar_fundamental) qs.append('ano_escolar_fundamental', params.ano_escolar_fundamental);
-    if (params?.ano_escolar_medio) qs.append('ano_escolar_medio', params.ano_escolar_medio);
-    if (params?.ano_superior) qs.append('ano_superior', params.ano_superior);
-    if (params?.status_escolar_fundamental) qs.append('status_escolar_fundamental', params.status_escolar_fundamental);
-    if (params?.status_escolar_medio) qs.append('status_escolar_medio', params.status_escolar_medio);
-    if (params?.status_superior) qs.append('status_superior', params.status_superior);
-    if (params?.turno) qs.append('turno', params.turno);
-    if (params?.codigo_turma) qs.append('codigo_turma', params.codigo_turma);
+    appendMultiValueParam(qs, 'ano_escolar_fundamental', params?.ano_escolar_fundamental);
+    appendMultiValueParam(qs, 'ano_escolar_medio', params?.ano_escolar_medio);
+    appendMultiValueParam(qs, 'ano_superior', params?.ano_superior);
+    appendMultiValueParam(qs, 'status_escolar_fundamental', params?.status_escolar_fundamental);
+    appendMultiValueParam(qs, 'status_escolar_medio', params?.status_escolar_medio);
+    appendMultiValueParam(qs, 'status_superior', params?.status_superior);
+    appendMultiValueParam(qs, 'turno', params?.turno);
+    appendMultiValueParam(qs, 'codigo_turma', params?.codigo_turma);
     if (params?.com_turma !== undefined) qs.append('com_turma', String(params.com_turma));
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ConsultarEstudantesResponse>(`/estudantes${query}`, {
