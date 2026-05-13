@@ -283,6 +283,10 @@ export const consultasService = {
     ano_escolar_fundamental?: string | string[];
     ano_escolar_medio?: string | string[];
     ano_superior?: string | string[];
+    semestre_atual?: number | string | Array<number | string>;
+    curso_id?: string | string[];
+    curso?: string | string[];
+    codigo_academia?: string | string[];
     status_escolar_fundamental?: string | string[];
     status_escolar_medio?: string | string[];
     status_superior?: string | string[];
@@ -297,6 +301,11 @@ export const consultasService = {
     appendMultiValueParam(qs, 'ano_escolar_fundamental', params?.ano_escolar_fundamental);
     appendMultiValueParam(qs, 'ano_escolar_medio', params?.ano_escolar_medio);
     appendMultiValueParam(qs, 'ano_superior', params?.ano_superior);
+    if (Array.isArray(params?.semestre_atual)) appendMultiValueParam(qs, 'semestre_atual', params.semestre_atual.map(String));
+    else if (params?.semestre_atual !== undefined) qs.append('semestre_atual', String(params.semestre_atual));
+    appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+    appendMultiValueParam(qs, 'curso', params?.curso);
+    appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
     appendMultiValueParam(qs, 'status_escolar_fundamental', params?.status_escolar_fundamental);
     appendMultiValueParam(qs, 'status_escolar_medio', params?.status_escolar_medio);
     appendMultiValueParam(qs, 'status_superior', params?.status_superior);
