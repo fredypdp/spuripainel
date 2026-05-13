@@ -160,6 +160,21 @@ function labelNivel(v: string): string {
   return v.replace(/_/g, ' ');
 }
 
+
+function estudantePertenceAoAno(estudante: EstudanteDetalhado, ano: string): boolean {
+  if (ano.includes('fundamental')) return estudante.ano_escolar_fundamental === ano;
+  if (ano.includes('medio')) return estudante.ano_escolar_medio === ano;
+  if (ano.includes('superior')) return estudante.ano_superior === ano;
+  return false;
+}
+
+function estudantePertenceAoCurso(estudante: EstudanteDetalhado, ano: string, cursoId?: string): boolean {
+  if (!cursoId) return true;
+  if (ano.includes('medio')) return estudante.curso_medio_id === cursoId;
+  if (ano.includes('superior')) return estudante.curso_superior_id === cursoId;
+  return true;
+}
+
 function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes): EstudanteDetalhado[] {
   return [...lista].sort((a, b) => {
     switch (ordem) {
@@ -706,13 +721,48 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
 
 // ─── AnoColapsavel ────────────────────────────────────────────────────────────
 
-function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onVerDetalhes }: {
+function EstudantesSemTurmaColapsavel({ estudantes, onVerDetalhes }: {
+  estudantes: EstudanteDetalhado[];
+  onVerDetalhes: (e: EstudanteDetalhado) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="border border-amber-200 dark:border-amber-800/60 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 cursor-pointer bg-amber-50/70 dark:bg-amber-900/10 hover:bg-amber-100/80 dark:hover:bg-amber-900/20 transition-colors"
+        onClick={() => setAberto(p => !p)}>
+        <div className="flex items-center gap-3">
+          <Icon icon="mdi:account-alert-outline" className="text-amber-500 w-5 h-5" />
+          <span className="font-semibold text-sm text-gray-900 dark:text-white">Estudantes sem turma</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sem vínculo</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantes.length}</span>
+          <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} className="w-5 h-5 text-gray-400" />
+        </div>
+      </div>
+      {aberto && <div className="border-t border-amber-100 dark:border-amber-800/40 p-3"><TabelaEstudantes estudantes={estudantes} isAdmin={false} onVerDetalhes={onVerDetalhes} /></div>}
+    </div>
+  );
+}
+
+function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onVerDetalhes, cursoId }: {
   ano: string; label: string; turmas: Turma[]; estudantesMapa: Map<string, EstudanteDetalhado>;
-  filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void;
+  filtros: FiltrosState; ordem: OrdemEstudantes; onVerDetalhes: (e: EstudanteDetalhado) => void; cursoId?: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const turmasDoAno = turmas.filter(t => t.nivel === ano);
-  const totalEst    = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
+  const codigosComTurma = useMemo(() => new Set(turmas.flatMap(t => t.estudantes)), [turmas]);
+  const estudantesSemTurma = useMemo(() => {
+    const lista = Array.from(estudantesMapa.values()).filter(estudante =>
+      estudantePertenceAoAno(estudante, ano) &&
+      estudantePertenceAoCurso(estudante, ano, cursoId) &&
+      !codigosComTurma.has(estudante.codigo_estudante)
+    );
+    return ordenarEstudantes(aplicarFiltros(lista, filtros), ordem);
+  }, [ano, codigosComTurma, cursoId, estudantesMapa, filtros, ordem]);
+  const totalEstTurmas = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
+  const totalEst = totalEstTurmas + estudantesSemTurma.length;
+  const temTurmasOuSemTurma = turmasDoAno.length > 0 || estudantesSemTurma.length > 0;
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <button onClick={() => setAberto(p => !p)}
@@ -721,15 +771,16 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
           <Icon icon="mdi:school-outline" width={18} className="text-brand-500" />
           <span className="font-semibold text-gray-800 dark:text-white">{label}</span>
           <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{turmasDoAno.length} turma{turmasDoAno.length !== 1 ? 's' : ''}</span>
+          {estudantesSemTurma.length > 0 && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{estudantesSemTurma.length} sem turma</span>}
           <span className="text-xs text-gray-400">{totalEst} estudantes</span>
         </div>
         <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={18} className="text-gray-400" />
       </button>
       {aberto && (
         <div className="p-3 space-y-2 border-t border-gray-100 dark:border-gray-700/50">
-          {turmasDoAno.length === 0
-            ? <p className="text-sm text-gray-400 text-center py-4">Nenhuma turma para este ano.</p>
-            : turmasDoAno.map(t => <TurmaColapsavel key={t.id} turma={t} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />)}
+          {!temTurmasOuSemTurma && <p className="text-sm text-gray-400 text-center py-4">Nenhuma turma ou estudante sem turma para este ano.</p>}
+          {turmasDoAno.map(t => <TurmaColapsavel key={t.id} turma={t} estudantesMapa={estudantesMapa} filtros={filtros} ordem={ordem} onVerDetalhes={onVerDetalhes} />)}
+          {estudantesSemTurma.length > 0 && <EstudantesSemTurmaColapsavel estudantes={estudantesSemTurma} onVerDetalhes={onVerDetalhes} />}
         </div>
       )}
     </div>
@@ -747,10 +798,16 @@ function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhe
   anosDisponiveis?: string[];
 }) {
   const anosComTurmas = ANOS_FUNDAMENTAL_LIST.filter(a =>
-    turmas.some(t => t.nivel === a.value) &&
-    (anosDisponiveis ? anosDisponiveis.includes(a.value) : true)
+    (anosDisponiveis ? anosDisponiveis.includes(a.value) : true) &&
+    (
+      turmas.some(t => t.nivel === a.value) ||
+      Array.from(estudantesMapa.values()).some(estudante =>
+        estudantePertenceAoAno(estudante, a.value) &&
+        !turmas.some(t => t.estudantes.includes(estudante.codigo_estudante))
+      )
+    )
   );
-  if (anosComTurmas.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma cadastrada.</p>;
+  if (anosComTurmas.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Nenhuma turma ou estudante sem turma cadastrado.</p>;
   return (
     <div className="space-y-2">
       {anosComTurmas.map(ano => (
@@ -802,6 +859,7 @@ function SecaoCursos({ tipo, cursosAtivos, turmas, estudantesMapa, filtros, orde
                 filtros={filtros}
                 ordem={ordem}
                 onVerDetalhes={onVerDetalhes}
+                cursoId={curso.id}
               />
             ))}
           </div>
