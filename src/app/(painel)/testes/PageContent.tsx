@@ -104,6 +104,13 @@ const rnd = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const pickN = <T,>(arr: T[], n: number): T[] => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const ordenarAnosAcademicos = (anos: string[]) =>
+  [...anos].sort((a, b) => {
+    const na = parseInt(a, 10);
+    const nb = parseInt(b, 10);
+    if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
+    return a.localeCompare(b, "pt-PT");
+  });
 const gerarNome = () => {
   const m = Math.random() < 0.51;
   return { nome: `${pick(m ? NOMES_M : NOMES_F)} ${pick(SOBRENOMES)} ${pick(SOBRENOMES)}`, genero: m ? "masculino" as const : "feminino" as const };
@@ -404,7 +411,7 @@ export default function PageContent() {
   const [cursoConfig, setCursoConfig] = useState({ tipo: "medio" as "medio"|"superior", qtd: 2 });
   const [materiaConfig, setMateriaConfig] = useState({ tipo: "fundamental" as "fundamental"|"medio"|"superior", qtd: 5, cursoId: "" });
 
-  const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random" });
+  const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random", niveisSelecionados: [] as string[] });
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
 
   const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_escola", "nota_professor"]);
@@ -417,11 +424,14 @@ export default function PageContent() {
   const [estudanteConfig, setEstudanteConfig] = useState({
     qtd: 20,
     anoFundamental: "random",
+    anosFundamentalSelecionados: [] as string[],
     statusFundamental: "em_andamento",
     anoMedio: "random",
+    anosMedioSelecionados: [] as string[],
     statusMedio: "em_andamento",
     cursoMedioId: "random",
     anoSuperior: "random",
+    anosSuperiorSelecionados: [] as string[],
     statusSuperior: "em_andamento",
     cursoSuperiorId: "random",
     modoPrincipal: "fundamental" as "fundamental" | "medio",
@@ -788,7 +798,6 @@ export default function PageContent() {
   const gerarTurmas = async () => {
     if (!academia) return;
     const { qtd } = turmaConfig;
-    addLog(`Gerando ${qtd} turma(s)...`, "step");
     let criadas = 0;
 
     const niveisDisponiveis: string[] = [];
@@ -805,7 +814,11 @@ export default function PageContent() {
       for (const curso of cursosSup) niveisDisponiveis.push(...curso.anos_academicos);
     }
 
-    if (niveisDisponiveis.length === 0) {
+    const niveisFiltrados = turmaConfig.niveisSelecionados.length > 0
+      ? niveisDisponiveis.filter(nivel => turmaConfig.niveisSelecionados.includes(nivel))
+      : niveisDisponiveis;
+
+    if (niveisFiltrados.length === 0) {
       addLog("  ✗ Nenhum nível disponível para criar turmas.", "err");
       return;
     }
@@ -822,10 +835,20 @@ export default function PageContent() {
       return;
     }
 
-    for (let i = 0; i < qtd; i++) {
+    const niveisParaGerar = turmaConfig.nivel === "random" && turmaConfig.niveisSelecionados.length > 0
+      ? turmaConfig.niveisSelecionados.filter(nivel => niveisFiltrados.includes(nivel))
+      : [];
+    const totalTurmas = niveisParaGerar.length > 0 ? qtd * niveisParaGerar.length : qtd;
+    addLog(`Gerando ${totalTurmas} turma(s)...`, "step");
+
+    const planoGeracaoNiveis = niveisParaGerar.length > 0
+      ? niveisParaGerar.flatMap(nivel => Array.from({ length: qtd }, () => nivel))
+      : Array.from({ length: qtd }, () => turmaConfig.nivel === "random" ? pick(niveisFiltrados) : turmaConfig.nivel);
+
+    for (let i = 0; i < planoGeracaoNiveis.length; i++) {
       if (cancelRef.current) break;
 
-      const nivel = turmaConfig.nivel === "random" ? pick(niveisDisponiveis) : turmaConfig.nivel;
+      const nivel = planoGeracaoNiveis[i];
       const turno = turmaConfig.turno === "random" ? pick([...TURNOS]) : turmaConfig.turno as typeof TURNOS[number];
       const letra = String.fromCharCode(65 + (i % 26));
       const payload: any = { codigo_turma: `T${rnd(1, 9)}${letra}${rnd(10, 99)}`, nivel, turno };
@@ -869,8 +892,6 @@ export default function PageContent() {
     const cfg = estudanteConfig;
     const modo = getEscolaMode(academia);
 
-    addLog(`Gerando ${cfg.qtd} estudante(s) via async (modo: ${modo})...`, "step");
-
     const cursoMedioAlvo = cfg.cursoMedioId === "random"
       ? cursos.find(c => c.type === "medio" && c.status === "ativo")
       : cursos.find(c => c.id === cfg.cursoMedioId && c.status === "ativo");
@@ -880,10 +901,37 @@ export default function PageContent() {
       : cursos.find(c => c.id === cfg.cursoSuperiorId && c.status === "ativo");
 
     const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental"));
+    const anosFSelecionados = cfg.anosFundamentalSelecionados.length > 0
+      ? anosF.filter(a => cfg.anosFundamentalSelecionados.includes(a))
+      : anosF;
     const anosMedio = cursoMedioAlvo?.anos_academicos || [];
+    const anosMedioSelecionados = cfg.anosMedioSelecionados.length > 0
+      ? anosMedio.filter(a => cfg.anosMedioSelecionados.includes(a))
+      : anosMedio;
     const anosSuperior = cursoSuperiorAlvo?.anos_academicos || [];
+    const anosSuperiorSelecionados = cfg.anosSuperiorSelecionados.length > 0
+      ? anosSuperior.filter(a => cfg.anosSuperiorSelecionados.includes(a))
+      : anosSuperior;
 
-    const items: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
+    const anosFundamentaisGeracao = cfg.anoFundamental === "random" && cfg.anosFundamentalSelecionados.length > 0
+      ? ordenarAnosAcademicos(anosFSelecionados)
+      : [];
+    const anosMedioGeracao = cfg.anoMedio === "random" && cfg.anosMedioSelecionados.length > 0
+      ? ordenarAnosAcademicos(anosMedioSelecionados)
+      : [];
+    const anosSuperiorGeracao = cfg.anoSuperior === "random" && cfg.anosSuperiorSelecionados.length > 0
+      ? ordenarAnosAcademicos(anosSuperiorSelecionados)
+      : [];
+
+    const fatorMultiplicador =
+      modo === "superior" ? (anosSuperiorGeracao.length || 1)
+      : modo === "medio" ? (anosMedioGeracao.length || 1)
+      : modo === "fundamental" ? (anosFundamentaisGeracao.length || 1)
+      : 1;
+    const totalEstudantes = cfg.qtd * fatorMultiplicador;
+    addLog(`Gerando ${totalEstudantes} estudante(s) via async (modo: ${modo})...`, "step");
+
+    const items: any[] = Array.from({ length: totalEstudantes }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
         nome,
@@ -894,8 +942,11 @@ export default function PageContent() {
 
       if (modo === "superior") {
         if (cursoSuperiorAlvo) {
+          const anoSuperiorDoItem = anosSuperiorGeracao.length > 0
+            ? anosSuperiorGeracao[Math.floor(idx / cfg.qtd) % anosSuperiorGeracao.length]
+            : null;
           const ano = cfg.anoSuperior === "random"
-            ? (anosSuperior.length > 0 ? pick(anosSuperior) : "1_ano_superior")
+            ? (anoSuperiorDoItem || (anosSuperiorSelecionados.length > 0 ? pick(anosSuperiorSelecionados) : "1_ano_superior"))
             : cfg.anoSuperior;
           payload.ano_superior = ano;
           payload.status_superior = cfg.statusSuperior;
@@ -904,9 +955,12 @@ export default function PageContent() {
           addLog(`  ! Est. #${idx + 1}: nenhum curso superior ativo — criado sem vínculo de curso`, "warn");
         }
       } else if (modo === "medio") {
-        if (cursoMedioAlvo && anosMedio.length > 0) {
+        if (cursoMedioAlvo && anosMedioSelecionados.length > 0) {
+          const anoMedioDoItem = anosMedioGeracao.length > 0
+            ? anosMedioGeracao[Math.floor(idx / cfg.qtd) % anosMedioGeracao.length]
+            : null;
           const ano = cfg.anoMedio === "random"
-            ? pick(anosMedio)
+            ? (anoMedioDoItem || pick(anosMedioSelecionados))
             : cfg.anoMedio;
           payload.ano_escolar_medio = ano;
           payload.status_escolar_medio = cfg.statusMedio;
@@ -915,9 +969,12 @@ export default function PageContent() {
           addLog(`  ! Est. #${idx + 1}: nenhum curso médio ativo — criado sem vínculo de curso`, "warn");
         }
       } else if (modo === "fundamental") {
-        if (anosF.length > 0) {
+        if (anosFSelecionados.length > 0) {
+          const anoFundamentalDoItem = anosFundamentaisGeracao.length > 0
+            ? anosFundamentaisGeracao[Math.floor(idx / cfg.qtd) % anosFundamentaisGeracao.length]
+            : null;
           const ano = cfg.anoFundamental === "random"
-            ? pick(anosF)
+            ? (anoFundamentalDoItem || pick(anosFSelecionados))
             : cfg.anoFundamental;
           payload.ano_escolar_fundamental = ano;
           payload.status_escolar_fundamental = cfg.statusFundamental;
@@ -925,14 +982,14 @@ export default function PageContent() {
       } else if (modo === "misto") {
         const isFund = idx < Math.floor(cfg.qtd * cfg.pctFundamental / 100);
         if (isFund) {
-          if (anosF.length > 0) {
-            const ano = cfg.anoFundamental === "random" ? pick(anosF) : cfg.anoFundamental;
+          if (anosFSelecionados.length > 0) {
+            const ano = cfg.anoFundamental === "random" ? pick(anosFSelecionados) : cfg.anoFundamental;
             payload.ano_escolar_fundamental = ano;
             payload.status_escolar_fundamental = cfg.statusFundamental;
           }
         } else {
-          if (cursoMedioAlvo && anosMedio.length > 0) {
-            const ano = cfg.anoMedio === "random" ? pick(anosMedio) : cfg.anoMedio;
+          if (cursoMedioAlvo && anosMedioSelecionados.length > 0) {
+            const ano = cfg.anoMedio === "random" ? pick(anosMedioSelecionados) : cfg.anoMedio;
             payload.ano_escolar_medio = ano;
             payload.status_escolar_medio = cfg.statusMedio;
             payload.curso_medio_id = cursoMedioAlvo.id;
@@ -943,19 +1000,38 @@ export default function PageContent() {
       return payload;
     });
 
-    const { ok, data } = await callApi("POST", "/academia/estudante/register/async", items, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
-      return;
-    }
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+    const BATCH_MAX = 1000;
+    const lotes = Array.from({ length: Math.ceil(items.length / BATCH_MAX) }, (_, i) =>
+      items.slice(i * BATCH_MAX, (i + 1) * BATCH_MAX)
+    );
 
-    const result = await acompanharJob(jobId, "Estudantes");
-    if (!result.timedOut) {
-      addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    let okTotal = 0;
+    let errTotal = 0;
+
+    for (let i = 0; i < lotes.length; i++) {
+      if (cancelRef.current) break;
+      const lote = lotes[i];
+      addLog(`  Enviando lote ${i + 1}/${lotes.length} (${lote.length} estudante(s))...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/estudante/register/async", lote, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no lote ${i + 1}: ${errMsg}`, "err");
+        return;
+      }
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err"); return; }
+      addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+
+      const result = await acompanharJob(jobId, `Estudantes [lote ${i + 1}]`);
+      if (!result.timedOut) {
+        okTotal += result.ok;
+        errTotal += result.err;
+      }
+    }
+
+    if (okTotal > 0 || errTotal > 0) {
+      addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 ? "ok" : "err");
     }
     await sleep(3000);
     await refreshData();
@@ -1052,19 +1128,38 @@ export default function PageContent() {
       addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
     });
 
-    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
-      return;
-    }
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${items.length} vínculo(s) na fila`, "info");
+    const BATCH_MAX_VINCULO = 1000;
+    const lotesVinculo = Array.from({ length: Math.ceil(items.length / BATCH_MAX_VINCULO) }, (_, i) =>
+      items.slice(i * BATCH_MAX_VINCULO, (i + 1) * BATCH_MAX_VINCULO)
+    );
 
-    const result = await acompanharJob(jobId, "Vínculos");
-    if (!result.timedOut) {
-      addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    let okTotal = 0;
+    let errTotal = 0;
+
+    for (let i = 0; i < lotesVinculo.length; i++) {
+      if (cancelRef.current) break;
+      const lote = lotesVinculo[i];
+      addLog(`  Enviando lote ${i + 1}/${lotesVinculo.length} (${lote.length} vínculo(s))...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", lote, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no lote ${i + 1}: ${errMsg}`, "err");
+        return;
+      }
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err"); return; }
+      addLog(`  Job ${jobId} criado — ${lote.length} vínculo(s) na fila`, "info");
+
+      const result = await acompanharJob(jobId, `Vínculos [lote ${i + 1}]`);
+      if (!result.timedOut) {
+        okTotal += result.ok;
+        errTotal += result.err;
+      }
+    }
+
+    if (okTotal > 0 || errTotal > 0) {
+      addLog(`Vínculos (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 ? "ok" : "err");
     }
     await sleep(2000);
     await refreshData();
@@ -1977,6 +2072,33 @@ export default function PageContent() {
                     </Field>
                     <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
                   </Row>
+                  {turmaConfig.nivel === "random" && (
+                    <div style={{ marginTop: 8 }}>
+                      <p style={{ margin: "0 0 6px", fontSize: 11, color: "#94a3b8" }}>
+                        Anos académicos (múltipla escolha) — vazio = todos
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {ordenarAnosAcademicos(Array.from(new Set(niveisParaTurma))).map(nivel => (
+                          <button
+                            key={nivel}
+                            type="button"
+                            onClick={() => setTurmaConfig(p => ({ ...p, niveisSelecionados: toggleSelecionado(p.niveisSelecionados, nivel) }))}
+                            style={{
+                              border: "1px solid #334155",
+                              background: turmaConfig.niveisSelecionados.includes(nivel) ? "#0f766e" : "#1e293b",
+                              color: "#e2e8f0",
+                              borderRadius: 999,
+                              padding: "4px 10px",
+                              fontSize: 11,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {nivel.replace(/_ano_fundamental$/, "º Fundamental").replace(/_ano_medio$/, "º Médio").replace(/_ano_superior$/, "º Superior")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
                     ✦ Para vincular estudantes, as turmas devem ter o <strong style={{ color: "#64748b" }}>mesmo nível e curso</strong> dos estudantes
                   </p>
@@ -1991,10 +2113,8 @@ export default function PageContent() {
                   label="Quantidade"
                   value={estudanteConfig.qtd}
                   min={1}
-                  max={1000}
                   step={10}
                   onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))}
-                  hint={`máx. 1000 por job`}
                 />
               </Row>
 
@@ -2010,6 +2130,22 @@ export default function PageContent() {
                         ))}
                       </Sel>
                     </Field>
+                    {estudanteConfig.anoFundamental === "random" && (
+                      <Field label="Anos (multi)">
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {ordenarAnosAcademicos(anosDispFundamental).map(a => (
+                            <button
+                              key={a}
+                              type="button"
+                              onClick={() => setEstudanteConfig(p => ({ ...p, anosFundamentalSelecionados: toggleSelecionado(p.anosFundamentalSelecionados, a) }))}
+                              style={{ border: "1px solid #334155", background: estudanteConfig.anosFundamentalSelecionados.includes(a) ? "#0f766e" : "#1e293b", color: "#e2e8f0", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+                            >
+                              {a.replace(/_ano_fundamental$/, "º Fundamental")}
+                            </button>
+                          ))}
+                        </div>
+                      </Field>
+                    )}
                     <Field label="Status fundamental">
                       <Sel value={estudanteConfig.statusFundamental}
                         onChange={e => setEstudanteConfig(p => ({ ...p, statusFundamental: e.target.value }))}>
@@ -2030,7 +2166,7 @@ export default function PageContent() {
                     <Row>
                       <Field label="Curso médio">
                         <Sel value={estudanteConfig.cursoMedioId}
-                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoMedioId: e.target.value, anoMedio: "random" }))}>
+                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoMedioId: e.target.value, anoMedio: "random", anosMedioSelecionados: [] }))}>
                           <option value="random">Primeiro ativo</option>
                           {cursosMedioAtivos.map(c => (
                             <option key={c.id} value={c.id}>{c.nome}</option>
@@ -2046,6 +2182,22 @@ export default function PageContent() {
                           ))}
                         </Sel>
                       </Field>
+                      {estudanteConfig.anoMedio === "random" && (
+                        <Field label="Anos (multi)">
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {ordenarAnosAcademicos(anosMedioParaConfig).map(a => (
+                              <button
+                                key={a}
+                                type="button"
+                                onClick={() => setEstudanteConfig(p => ({ ...p, anosMedioSelecionados: toggleSelecionado(p.anosMedioSelecionados, a) }))}
+                                style={{ border: "1px solid #334155", background: estudanteConfig.anosMedioSelecionados.includes(a) ? "#0f766e" : "#1e293b", color: "#e2e8f0", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+                              >
+                                {a.replace(/_ano_medio$/, "º Médio")}
+                              </button>
+                            ))}
+                          </div>
+                        </Field>
+                      )}
                       <Field label="Status médio">
                         <Sel value={estudanteConfig.statusMedio}
                           onChange={e => setEstudanteConfig(p => ({ ...p, statusMedio: e.target.value }))}>
@@ -2067,7 +2219,7 @@ export default function PageContent() {
                     <Row>
                       <Field label="Curso superior">
                         <Sel value={estudanteConfig.cursoSuperiorId}
-                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoSuperiorId: e.target.value, anoSuperior: "random" }))}>
+                          onChange={e => setEstudanteConfig(p => ({ ...p, cursoSuperiorId: e.target.value, anoSuperior: "random", anosSuperiorSelecionados: [] }))}>
                           <option value="random">Primeiro ativo</option>
                           {cursosSuperiorAtivos.map(c => (
                             <option key={c.id} value={c.id}>{c.nome}</option>
@@ -2083,6 +2235,22 @@ export default function PageContent() {
                           ))}
                         </Sel>
                       </Field>
+                      {estudanteConfig.anoSuperior === "random" && (
+                        <Field label="Anos (multi)">
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {ordenarAnosAcademicos(anosSuperiorParaConfig).map(a => (
+                              <button
+                                key={a}
+                                type="button"
+                                onClick={() => setEstudanteConfig(p => ({ ...p, anosSuperiorSelecionados: toggleSelecionado(p.anosSuperiorSelecionados, a) }))}
+                                style={{ border: "1px solid #334155", background: estudanteConfig.anosSuperiorSelecionados.includes(a) ? "#0f766e" : "#1e293b", color: "#e2e8f0", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+                              >
+                                {a.replace(/_ano_superior$/, "º Superior")}
+                              </button>
+                            ))}
+                          </div>
+                        </Field>
+                      )}
                       <Field label="Status superior">
                         <Sel value={estudanteConfig.statusSuperior}
                           onChange={e => setEstudanteConfig(p => ({ ...p, statusSuperior: e.target.value }))}>
@@ -2322,3 +2490,5 @@ export default function PageContent() {
     </div>
   );
 }
+  const toggleSelecionado = (lista: string[], valor: string) =>
+    lista.includes(valor) ? lista.filter(item => item !== valor) : [...lista, valor];
