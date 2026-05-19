@@ -791,7 +791,6 @@ export default function PageContent() {
   const gerarTurmas = async () => {
     if (!academia) return;
     const { qtd } = turmaConfig;
-    addLog(`Gerando ${qtd} turma(s)...`, "step");
     let criadas = 0;
 
     const niveisDisponiveis: string[] = [];
@@ -829,10 +828,20 @@ export default function PageContent() {
       return;
     }
 
-    for (let i = 0; i < qtd; i++) {
+    const niveisParaGerar = turmaConfig.nivel === "random" && turmaConfig.niveisSelecionados.length > 0
+      ? turmaConfig.niveisSelecionados.filter(nivel => niveisFiltrados.includes(nivel))
+      : [];
+    const totalTurmas = niveisParaGerar.length > 0 ? qtd * niveisParaGerar.length : qtd;
+    addLog(`Gerando ${totalTurmas} turma(s)...`, "step");
+
+    const planoGeracaoNiveis = niveisParaGerar.length > 0
+      ? niveisParaGerar.flatMap(nivel => Array.from({ length: qtd }, () => nivel))
+      : Array.from({ length: qtd }, () => turmaConfig.nivel === "random" ? pick(niveisFiltrados) : turmaConfig.nivel);
+
+    for (let i = 0; i < planoGeracaoNiveis.length; i++) {
       if (cancelRef.current) break;
 
-      const nivel = turmaConfig.nivel === "random" ? pick(niveisFiltrados) : turmaConfig.nivel;
+      const nivel = planoGeracaoNiveis[i];
       const turno = turmaConfig.turno === "random" ? pick([...TURNOS]) : turmaConfig.turno as typeof TURNOS[number];
       const letra = String.fromCharCode(65 + (i % 26));
       const payload: any = { codigo_turma: `T${rnd(1, 9)}${letra}${rnd(10, 99)}`, nivel, turno };
@@ -876,8 +885,6 @@ export default function PageContent() {
     const cfg = estudanteConfig;
     const modo = getEscolaMode(academia);
 
-    addLog(`Gerando ${cfg.qtd} estudante(s) via async (modo: ${modo})...`, "step");
-
     const cursoMedioAlvo = cfg.cursoMedioId === "random"
       ? cursos.find(c => c.type === "medio" && c.status === "ativo")
       : cursos.find(c => c.id === cfg.cursoMedioId && c.status === "ativo");
@@ -899,7 +906,25 @@ export default function PageContent() {
       ? anosSuperior.filter(a => cfg.anosSuperiorSelecionados.includes(a))
       : anosSuperior;
 
-    const items: any[] = Array.from({ length: cfg.qtd }, (_, idx) => {
+    const anosFundamentaisGeracao = cfg.anoFundamental === "random" && cfg.anosFundamentalSelecionados.length > 0
+      ? anosFSelecionados
+      : [];
+    const anosMedioGeracao = cfg.anoMedio === "random" && cfg.anosMedioSelecionados.length > 0
+      ? anosMedioSelecionados
+      : [];
+    const anosSuperiorGeracao = cfg.anoSuperior === "random" && cfg.anosSuperiorSelecionados.length > 0
+      ? anosSuperiorSelecionados
+      : [];
+
+    const fatorMultiplicador =
+      modo === "superior" ? (anosSuperiorGeracao.length || 1)
+      : modo === "medio" ? (anosMedioGeracao.length || 1)
+      : modo === "fundamental" ? (anosFundamentaisGeracao.length || 1)
+      : 1;
+    const totalEstudantes = cfg.qtd * fatorMultiplicador;
+    addLog(`Gerando ${totalEstudantes} estudante(s) via async (modo: ${modo})...`, "step");
+
+    const items: any[] = Array.from({ length: totalEstudantes }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
         nome,
@@ -910,8 +935,11 @@ export default function PageContent() {
 
       if (modo === "superior") {
         if (cursoSuperiorAlvo) {
+          const anoSuperiorDoItem = anosSuperiorGeracao.length > 0
+            ? anosSuperiorGeracao[Math.floor(idx / cfg.qtd) % anosSuperiorGeracao.length]
+            : null;
           const ano = cfg.anoSuperior === "random"
-            ? (anosSuperiorSelecionados.length > 0 ? pick(anosSuperiorSelecionados) : "1_ano_superior")
+            ? (anoSuperiorDoItem || (anosSuperiorSelecionados.length > 0 ? pick(anosSuperiorSelecionados) : "1_ano_superior"))
             : cfg.anoSuperior;
           payload.ano_superior = ano;
           payload.status_superior = cfg.statusSuperior;
@@ -921,8 +949,11 @@ export default function PageContent() {
         }
       } else if (modo === "medio") {
         if (cursoMedioAlvo && anosMedioSelecionados.length > 0) {
+          const anoMedioDoItem = anosMedioGeracao.length > 0
+            ? anosMedioGeracao[Math.floor(idx / cfg.qtd) % anosMedioGeracao.length]
+            : null;
           const ano = cfg.anoMedio === "random"
-            ? pick(anosMedioSelecionados)
+            ? (anoMedioDoItem || pick(anosMedioSelecionados))
             : cfg.anoMedio;
           payload.ano_escolar_medio = ano;
           payload.status_escolar_medio = cfg.statusMedio;
@@ -932,8 +963,11 @@ export default function PageContent() {
         }
       } else if (modo === "fundamental") {
         if (anosFSelecionados.length > 0) {
+          const anoFundamentalDoItem = anosFundamentaisGeracao.length > 0
+            ? anosFundamentaisGeracao[Math.floor(idx / cfg.qtd) % anosFundamentaisGeracao.length]
+            : null;
           const ano = cfg.anoFundamental === "random"
-            ? pick(anosFSelecionados)
+            ? (anoFundamentalDoItem || pick(anosFSelecionados))
             : cfg.anoFundamental;
           payload.ano_escolar_fundamental = ano;
           payload.status_escolar_fundamental = cfg.statusFundamental;
@@ -2034,10 +2068,8 @@ export default function PageContent() {
                   label="Quantidade"
                   value={estudanteConfig.qtd}
                   min={1}
-                  max={1000}
                   step={10}
                   onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))}
-                  hint={`máx. 1000 por job`}
                 />
               </Row>
 
