@@ -104,6 +104,13 @@ const rnd = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const pickN = <T,>(arr: T[], n: number): T[] => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const ordenarAnosAcademicos = (anos: string[]) =>
+  [...anos].sort((a, b) => {
+    const na = parseInt(a, 10);
+    const nb = parseInt(b, 10);
+    if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
+    return a.localeCompare(b, "pt-PT");
+  });
 const gerarNome = () => {
   const m = Math.random() < 0.51;
   return { nome: `${pick(m ? NOMES_M : NOMES_F)} ${pick(SOBRENOMES)} ${pick(SOBRENOMES)}`, genero: m ? "masculino" as const : "feminino" as const };
@@ -907,13 +914,13 @@ export default function PageContent() {
       : anosSuperior;
 
     const anosFundamentaisGeracao = cfg.anoFundamental === "random" && cfg.anosFundamentalSelecionados.length > 0
-      ? anosFSelecionados
+      ? ordenarAnosAcademicos(anosFSelecionados)
       : [];
     const anosMedioGeracao = cfg.anoMedio === "random" && cfg.anosMedioSelecionados.length > 0
-      ? anosMedioSelecionados
+      ? ordenarAnosAcademicos(anosMedioSelecionados)
       : [];
     const anosSuperiorGeracao = cfg.anoSuperior === "random" && cfg.anosSuperiorSelecionados.length > 0
-      ? anosSuperiorSelecionados
+      ? ordenarAnosAcademicos(anosSuperiorSelecionados)
       : [];
 
     const fatorMultiplicador =
@@ -993,19 +1000,38 @@ export default function PageContent() {
       return payload;
     });
 
-    const { ok, data } = await callApi("POST", "/academia/estudante/register/async", items, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
-      return;
-    }
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+    const BATCH_MAX = 1000;
+    const lotes = Array.from({ length: Math.ceil(items.length / BATCH_MAX) }, (_, i) =>
+      items.slice(i * BATCH_MAX, (i + 1) * BATCH_MAX)
+    );
 
-    const result = await acompanharJob(jobId, "Estudantes");
-    if (!result.timedOut) {
-      addLog(`Estudantes: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    let okTotal = 0;
+    let errTotal = 0;
+
+    for (let i = 0; i < lotes.length; i++) {
+      if (cancelRef.current) break;
+      const lote = lotes[i];
+      addLog(`  Enviando lote ${i + 1}/${lotes.length} (${lote.length} estudante(s))...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/estudante/register/async", lote, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no lote ${i + 1}: ${errMsg}`, "err");
+        return;
+      }
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err"); return; }
+      addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
+
+      const result = await acompanharJob(jobId, `Estudantes [lote ${i + 1}]`);
+      if (!result.timedOut) {
+        okTotal += result.ok;
+        errTotal += result.err;
+      }
+    }
+
+    if (okTotal > 0 || errTotal > 0) {
+      addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 ? "ok" : "err");
     }
     await sleep(3000);
     await refreshData();
@@ -2033,7 +2059,7 @@ export default function PageContent() {
                         Anos académicos (múltipla escolha) — vazio = todos
                       </p>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {Array.from(new Set(niveisParaTurma)).map(nivel => (
+                        {ordenarAnosAcademicos(Array.from(new Set(niveisParaTurma))).map(nivel => (
                           <button
                             key={nivel}
                             type="button"
@@ -2088,7 +2114,7 @@ export default function PageContent() {
                     {estudanteConfig.anoFundamental === "random" && (
                       <Field label="Anos (multi)">
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {anosDispFundamental.map(a => (
+                          {ordenarAnosAcademicos(anosDispFundamental).map(a => (
                             <button
                               key={a}
                               type="button"
@@ -2140,7 +2166,7 @@ export default function PageContent() {
                       {estudanteConfig.anoMedio === "random" && (
                         <Field label="Anos (multi)">
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {anosMedioParaConfig.map(a => (
+                            {ordenarAnosAcademicos(anosMedioParaConfig).map(a => (
                               <button
                                 key={a}
                                 type="button"
@@ -2193,7 +2219,7 @@ export default function PageContent() {
                       {estudanteConfig.anoSuperior === "random" && (
                         <Field label="Anos (multi)">
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {anosSuperiorParaConfig.map(a => (
+                            {ordenarAnosAcademicos(anosSuperiorParaConfig).map(a => (
                               <button
                                 key={a}
                                 type="button"
