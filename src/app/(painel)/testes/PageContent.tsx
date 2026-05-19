@@ -1128,19 +1128,38 @@ export default function PageContent() {
       addLog(`    • ${turma}: ${qtd} estudante(s)`, "dim");
     });
 
-    const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", items, academia.token);
-    if (!ok) {
-      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-      addLog(`  ✗ Erro ao submeter: ${errMsg}`, "err");
-      return;
-    }
-    const jobId = (data as any)?.job_id;
-    if (!jobId) { addLog(`  ✗ Job ID não retornado`, "err"); return; }
-    addLog(`  Job ${jobId} criado — ${items.length} vínculo(s) na fila`, "info");
+    const BATCH_MAX_VINCULO = 1000;
+    const lotesVinculo = Array.from({ length: Math.ceil(items.length / BATCH_MAX_VINCULO) }, (_, i) =>
+      items.slice(i * BATCH_MAX_VINCULO, (i + 1) * BATCH_MAX_VINCULO)
+    );
 
-    const result = await acompanharJob(jobId, "Vínculos");
-    if (!result.timedOut) {
-      addLog(`Vínculos: ${result.ok} ✓  ${result.err} ✗`, result.ok > 0 ? "ok" : "err");
+    let okTotal = 0;
+    let errTotal = 0;
+
+    for (let i = 0; i < lotesVinculo.length; i++) {
+      if (cancelRef.current) break;
+      const lote = lotesVinculo[i];
+      addLog(`  Enviando lote ${i + 1}/${lotesVinculo.length} (${lote.length} vínculo(s))...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/turma/estudante/async", lote, academia.token);
+      if (!ok) {
+        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
+        addLog(`  ✗ Erro no lote ${i + 1}: ${errMsg}`, "err");
+        return;
+      }
+      const jobId = (data as any)?.job_id;
+      if (!jobId) { addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err"); return; }
+      addLog(`  Job ${jobId} criado — ${lote.length} vínculo(s) na fila`, "info");
+
+      const result = await acompanharJob(jobId, `Vínculos [lote ${i + 1}]`);
+      if (!result.timedOut) {
+        okTotal += result.ok;
+        errTotal += result.err;
+      }
+    }
+
+    if (okTotal > 0 || errTotal > 0) {
+      addLog(`Vínculos (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 ? "ok" : "err");
     }
     await sleep(2000);
     await refreshData();
