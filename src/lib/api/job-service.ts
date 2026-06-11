@@ -20,8 +20,6 @@ export type JobType =
   | 'deletar_falta_batch'
   // Academia — avaliações
   | 'registrar_avaliacao_final_batch'
-  // Academia — status escolar
-  | 'atualizar_status_escolar_batch'
   // Academia — cursos
   | 'criar_curso_batch'
   | 'ativar_curso_batch'

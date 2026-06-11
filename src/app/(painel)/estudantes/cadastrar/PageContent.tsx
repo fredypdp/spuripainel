@@ -241,7 +241,7 @@ export default function CadastrarEstudantePageContent() {
     e.preventDefault();
     if (!validarFormulario()) return;
 
-    const dataNascimentoISO = dataNascimento ? dataNascimento.toISOString() : '';
+    const dataNascimentoISO = dataNascimento ? dataNascimento.toISOString().slice(0, 10) : '';
 
     const payload = {
       nome: nome.trim(),
@@ -267,7 +267,6 @@ export default function CadastrarEstudantePageContent() {
           : undefined,
       curso_superior_id:
         isSuperior && cursoSelecionado ? cursoSelecionado.id : undefined,
-      status_escolar_fundamental: 'em_andamento' as const,
     };
 
     try {

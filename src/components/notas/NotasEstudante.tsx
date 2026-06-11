@@ -1,7 +1,7 @@
 // src/components/notas/NotasEstudante.tsx
 "use client"
 import { useState, useEffect, useMemo } from "react";
-import { consultasService, estudanteService, tokenStorage, useApi } from "@/lib/api";
+import { consultasService, tokenStorage, useApi } from "@/lib/api";
 import type { MeuPerfilResponse, Nota } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import { getCookie } from "@/lib/utils/cookies";
@@ -234,19 +234,17 @@ export default function NotasEstudante() {
 
   const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
   const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
-  const { data: dataCategorias, execute: carregarCategorias } = useApi(estudanteService.listarCategoriasNota);
 
   useEffect(() => {
     if (codigoEstudante) {
       carregarNotas(codigoEstudante, token);
       carregarAcademias({ token });
-      carregarCategorias(token);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoEstudante]);
 
   const todasNotas: Nota[] = historico?.notas ?? [];
-  const categoriasMap = useMemo(() => Object.fromEntries((((dataCategorias as any)?.categorias) ?? []).map((c: any) => [c.codigo, c.nome])), [dataCategorias]);
+  const categoriasMap = useMemo<Record<string, string>>(() => ({}), []);
 
   // Académias únicas nas notas
   const academias = useMemo((): AcadInfo[] => {

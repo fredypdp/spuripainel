@@ -55,7 +55,6 @@ function jobTypeLabel(type?: string): string {
     atualizar_falta_batch:           "Atualização faltas",
     deletar_falta_batch:             "Exclusão faltas",
     registrar_avaliacao_final_batch: "Avaliações finais",
-    atualizar_status_escolar_batch:  "Status escolar",
     criar_curso_batch:               "Cursos",
     criar_materia_batch:             "Matérias",
     criar_turma_batch:               "Turmas",

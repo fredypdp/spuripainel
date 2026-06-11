@@ -51,7 +51,8 @@ export type StatusEscolar            = 'inativo' | 'em_andamento' | 'finalizado'
 export type StatusEscolarFundamental = StatusEscolar;
 export type StatusEscolarMedio       = StatusEscolar;
 export type StatusSuperior           = 'inativo' | 'em_andamento' | 'finalizado';
-export type StatusGeral              = 'inativo' | 'ativo' | 'finalizado';
+export type StatusGeralEstudante     = 'inativo' | 'ativo' | 'arquivado';
+export type StatusGeral              = StatusGeralEstudante;
 
 /**
  * Períodos letivos.
@@ -125,15 +126,38 @@ export interface CriarEstudanteRequest {
   telefone?: string;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  ano_escolar_fundamental?: string;
-  status_escolar_fundamental?: StatusEscolarFundamental;
-  ano_escolar_medio?: string;
-  status_escolar_medio?: StatusEscolarMedio;
-  curso_medio_id?: string;
-  ano_superior?: string;
-  semestre_atual?: number;
-  status_superior?: StatusSuperior;
-  curso_superior_id?: string;
+  ano_escolar_fundamental?: string | null;
+  ano_escolar_medio?: string | null;
+  curso_medio_id?: string | null;
+  ano_superior?: string | null;
+  curso_superior_id?: string | null;
+}
+
+
+export interface MatricularFundamentalRequest {
+  ano_escolar_fundamental: string;
+}
+
+export interface MatricularMedioRequest {
+  ano_escolar_medio: string;
+  curso_id: string;
+}
+
+export interface MatricularSuperiorRequest {
+  curso_id: string;
+}
+
+export interface MotivoEstudanteRequest {
+  motivo: string;
+}
+
+export type RevincularEstudanteRequest =
+  | { tipo_ensino: 'fundamental'; ano_escolar_fundamental: string }
+  | { tipo_ensino: 'medio'; ano_escolar_medio: string; curso_medio_id: string }
+  | { tipo_ensino: 'superior'; curso_superior_id: string };
+
+export interface MensagemResponse {
+  message: string;
 }
 
 export interface RegistrarFaltasRequest {
@@ -153,10 +177,6 @@ export interface CriarAdminRequest {
 
 export interface DesativarRequest {
   motivo: string;
-}
-
-export interface AtualizarStatusRequest {
-  novo_status: StatusEscolar | StatusSuperior;
 }
 
 export interface CriarCursoRequest {
@@ -913,12 +933,6 @@ export interface AlterarCursoResponse {
   tipo_ensino: string;
   curso_id: string;
   curso_nome: string;
-}
-
-export interface AtualizarStatusResponse {
-  message: string;
-  estudante: string;
-  novo_status: string;
 }
 
 export interface DeletarTurmaResponse {
