@@ -949,7 +949,6 @@ export default function PageContent() {
             ? (anoSuperiorDoItem || (anosSuperiorSelecionados.length > 0 ? pick(anosSuperiorSelecionados) : "1_ano_superior"))
             : cfg.anoSuperior;
           payload.ano_superior = ano;
-          payload.status_superior = cfg.statusSuperior;
           payload.curso_superior_id = cursoSuperiorAlvo.id;
         } else {
           addLog(`  ! Est. #${idx + 1}: nenhum curso superior ativo — criado sem vínculo de curso`, "warn");
@@ -963,7 +962,6 @@ export default function PageContent() {
             ? (anoMedioDoItem || pick(anosMedioSelecionados))
             : cfg.anoMedio;
           payload.ano_escolar_medio = ano;
-          payload.status_escolar_medio = cfg.statusMedio;
           payload.curso_medio_id = cursoMedioAlvo.id;
         } else {
           addLog(`  ! Est. #${idx + 1}: nenhum curso médio ativo — criado sem vínculo de curso`, "warn");
@@ -977,7 +975,6 @@ export default function PageContent() {
             ? (anoFundamentalDoItem || pick(anosFSelecionados))
             : cfg.anoFundamental;
           payload.ano_escolar_fundamental = ano;
-          payload.status_escolar_fundamental = cfg.statusFundamental;
         }
       } else if (modo === "misto") {
         const isFund = idx < Math.floor(cfg.qtd * cfg.pctFundamental / 100);
@@ -985,13 +982,11 @@ export default function PageContent() {
           if (anosFSelecionados.length > 0) {
             const ano = cfg.anoFundamental === "random" ? pick(anosFSelecionados) : cfg.anoFundamental;
             payload.ano_escolar_fundamental = ano;
-            payload.status_escolar_fundamental = cfg.statusFundamental;
           }
         } else {
           if (cursoMedioAlvo && anosMedioSelecionados.length > 0) {
             const ano = cfg.anoMedio === "random" ? pick(anosMedioSelecionados) : cfg.anoMedio;
             payload.ano_escolar_medio = ano;
-            payload.status_escolar_medio = cfg.statusMedio;
             payload.curso_medio_id = cursoMedioAlvo.id;
           }
         }

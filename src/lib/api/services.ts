@@ -15,7 +15,6 @@ import type {
   RegistrarAvaliacaoFinalRequest,
   CriarAdminRequest,
   DesativarRequest,
-  AtualizarStatusRequest,
   AlterarSenhaRequest,
   SolicitarRecuperacaoRequest,
   MeuPerfilResponse,
@@ -27,7 +26,6 @@ import type {
   FaltasEstudanteResponse,
   EventosEstudanteResponse,
   VerificarIntegridadeResponse,
-  AtualizarStatusResponse,
   CriarCursoRequest,
   AtualizarCursoRequest,
   CriarMateriaRequest,
@@ -74,6 +72,12 @@ import type {
   ListarAvaliacoesParams,
   ListarAprovacoesParams,
   ListarReprovacoesParams,
+  MatricularFundamentalRequest,
+  MatricularMedioRequest,
+  MatricularSuperiorRequest,
+  MotivoEstudanteRequest,
+  RevincularEstudanteRequest,
+  MensagemResponse,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -166,6 +170,31 @@ function ensureAnoLetivoFormato(anoLetivo: string): string {
     throw new Error('Ano letivo inválido: o segundo ano deve ser exatamente o primeiro + 1');
   }
   return normalized;
+}
+
+function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteRequest {
+  const payload: CriarEstudanteRequest = {
+    nome: data.nome?.trim(),
+    genero: data.genero,
+    data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento')!,
+    email: data.email?.trim() || undefined,
+    telefone: data.telefone?.trim() || undefined,
+    bilhete_identidade: data.bilhete_identidade?.trim() || undefined,
+    bilhete_identidade_responsavel: data.bilhete_identidade_responsavel?.trim() || undefined,
+    ano_escolar_fundamental: data.ano_escolar_fundamental ?? null,
+    ano_escolar_medio: data.ano_escolar_medio ?? null,
+    curso_medio_id: data.curso_medio_id ?? null,
+    ano_superior: data.ano_superior ?? null,
+    curso_superior_id: data.curso_superior_id ?? null,
+  };
+
+  return payload;
+}
+
+function prepareMotivoEstudante(data: MotivoEstudanteRequest): MotivoEstudanteRequest {
+  const motivo = data.motivo?.trim();
+  if (!motivo) throw new Error('Motivo é obrigatório');
+  return { motivo };
 }
 
 // =====================
@@ -493,10 +522,6 @@ export const estudanteService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  listarCategoriasNota: (token?: string) =>
-    api.get<ListarCategoriasNotaResponse>('/estudante/categorias-nota', {
-      token: token || tokenStorage.get() || undefined,
-    }),
 };
 
 // =====================
@@ -512,9 +537,9 @@ export const academiaService = {
     ),
 
   cadastrarEstudante: (data: CriarEstudanteRequest, token?: string) =>
-    api.post<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string; status: string } }>(
+    api.post<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string } }>(
       '/academia/estudante/register',
-      data,
+      prepareCriarEstudante(data),
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -668,25 +693,60 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Status escolar ────────────────────────────────────────────────
+  // ── Acontecimentos do estudante ───────────────────────────────────
 
-  atualizarStatusEscolarFundamental: (codigoEstudante: string, data: AtualizarStatusRequest, token?: string) =>
-    api.put<AtualizarStatusResponse>(
-      `/academia/estudante/${codigoEstudante}/status-escolar-fundamental`,
+  matricularFundamental: (codigoEstudante: string, data: MatricularFundamentalRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/matricula/fundamental`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  atualizarStatusEscolarMedio: (codigoEstudante: string, data: AtualizarStatusRequest, token?: string) =>
-    api.put<AtualizarStatusResponse>(
-      `/academia/estudante/${codigoEstudante}/status-escolar-medio`,
+  matricularMedio: (codigoEstudante: string, data: MatricularMedioRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/matricula/medio`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  atualizarStatusSuperior: (codigoEstudante: string, data: AtualizarStatusRequest, token?: string) =>
-    api.put<AtualizarStatusResponse>(
-      `/academia/estudante/${codigoEstudante}/status-superior`,
+  matricularSuperior: (codigoEstudante: string, data: MatricularSuperiorRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/matricula/superior`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  interromperFundamental: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/interrupcao/fundamental`,
+      prepareMotivoEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  interromperMedio: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/interrupcao/medio`,
+      prepareMotivoEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  trancarSuperior: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/trancamento/superior`,
+      prepareMotivoEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  desvincularEstudante: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/desvincular`,
+      prepareMotivoEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  revincularEstudante: (codigoEstudante: string, data: RevincularEstudanteRequest, token?: string) =>
+    api.post<MensagemResponse>(
+      `/academia/estudante/${codigoEstudante}/revincular`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -942,7 +1002,7 @@ export const academiaService = {
   cadastrarEstudanteBatchAsync: (data: CriarEstudanteRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/estudante/register/async',
-      data,
+      data.map(prepareCriarEstudante),
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -1011,18 +1071,6 @@ export const academiaService = {
   registrarAvaliacaoFinalBatchAsync: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/avaliacao-final/async',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  // ── Async — status escolar ────────────────────────────────────────
-
-  atualizarStatusEscolarBatchAsync: (
-    data: { codigo_estudante: string; tipo: 'fundamental' | 'medio' | 'superior'; novo_status: string }[],
-    token?: string
-  ) =>
-    api.put<AsyncBatchResponse>(
-      '/academia/estudante/status-escolar/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),

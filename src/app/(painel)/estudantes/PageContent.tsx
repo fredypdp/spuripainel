@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, tokenStorage, academiaService, pollJob, jobApiService } from '@/lib/api';
-import { resolveJobItemError } from '@/lib/api/job-service';
+import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { useModal } from "@/hooks/useModal";
@@ -566,9 +565,11 @@ function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: {
 
 // ─── BarraLote ────────────────────────────────────────────────────────────────
 
-function BarraLote({ selecionadas, onLimpar, onAtualizarStatus, carregando }: {
+type AcaoEstudanteLote = 'matricular_fundamental' | 'interromper_fundamental';
+
+function BarraLote({ selecionadas, onLimpar, onExecutarAcao, carregando }: {
   selecionadas: Set<string>; onLimpar: () => void;
-  onAtualizarStatus: (novoStatus: string) => void; carregando: boolean;
+  onExecutarAcao: (acao: AcaoEstudanteLote) => void; carregando: boolean;
 }) {
   if (selecionadas.size === 0) return null;
   const count = selecionadas.size;
@@ -582,15 +583,12 @@ function BarraLote({ selecionadas, onLimpar, onAtualizarStatus, carregando }: {
       </div>
       <div className="hidden sm:block w-px h-5 bg-brand-200 dark:bg-brand-700 flex-shrink-0" />
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-shrink-0">Status Fundamental:</span>
-        <Button size="sm" variant="success" disabled={carregando} onClick={() => onAtualizarStatus('em_andamento')} startIcon={<Icon icon="mdi:play-circle-outline" width={15} />}>
-          {carregando ? '...' : 'Em Andamento'}
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-shrink-0">Acontecimentos:</span>
+        <Button size="sm" variant="success" disabled={carregando} onClick={() => onExecutarAcao('matricular_fundamental')} startIcon={<Icon icon="mdi:school-outline" width={15} />}>
+          {carregando ? '...' : 'Matricular no fundamental'}
         </Button>
-        <Button size="sm" variant="primary" disabled={carregando} onClick={() => onAtualizarStatus('finalizado')} startIcon={<Icon icon="mdi:check-circle-outline" width={15} />}>
-          {carregando ? '...' : 'Finalizado'}
-        </Button>
-        <Button size="sm" variant="warning" disabled={carregando} onClick={() => onAtualizarStatus('inativo')} startIcon={<Icon icon="mdi:pause-circle-outline" width={15} />}>
-          {carregando ? '...' : 'Inativo'}
+        <Button size="sm" variant="warning" disabled={carregando} onClick={() => onExecutarAcao('interromper_fundamental')} startIcon={<Icon icon="mdi:pause-circle-outline" width={15} />}>
+          {carregando ? '...' : 'Interromper fundamental'}
         </Button>
       </div>
       <button onClick={onLimpar}
@@ -1116,63 +1114,64 @@ export default function Estudantes() {
 
   const handleLimparSelecao = () => setSelecionadas(new Set());
 
-  const handleAtualizarStatusLote = async (novoStatus: string) => {
+  const handleExecutarAcaoLote = async (acao: AcaoEstudanteLote) => {
     const selecionadasList = (dataEstudantes?.estudantes ?? []).filter(
       e => selecionadas.has(e.codigo_estudante)
     );
     if (selecionadasList.length === 0) return;
 
-    setBatchTitulo(`Atualizar Status Fundamental → ${novoStatus} (${selecionadasList.length} estudantes)`);
+    const tituloAcao = acao === 'matricular_fundamental'
+      ? 'Matricular no fundamental'
+      : 'Interromper fundamental';
+
+    setBatchTitulo(`${tituloAcao} (${selecionadasList.length} estudantes)`);
     setBatchProgresso(0);
     setBatchCarregando(true);
     setBatchItems(selecionadasList.map(e => ({ codigo: e.codigo_estudante, nome: e.nome, status: 'pending' })));
     openLoteModal();
 
-    const token  = tokenStorage.get();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const items = selecionadasList.map(e => ({
-      codigo_estudante: e.codigo_estudante,
-      tipo: 'fundamental' as const,
-      novo_status: novoStatus,
-    }));
+    const token = tokenStorage.get() || undefined;
+    const motivo = 'Atualização de acontecimento em lote pelo painel';
 
     try {
-      const r    = await fetch(`${apiUrl}/academia/estudante/status-escolar/async`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ items }),
-      });
-      const data = await r.json();
-      if (!r.ok || !data.job_id) {
-        setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: data.message || data.error || 'Erro ao submeter job' })));
-        setBatchCarregando(false); return;
+      for (let index = 0; index < selecionadasList.length; index += 1) {
+        const estudante = selecionadasList[index];
+        try {
+          if (acao === 'matricular_fundamental') {
+            const ano = estudante.ano_escolar_fundamental;
+            if (!ano) throw new Error('Estudante sem ano fundamental definido');
+            await academiaService.matricularFundamental(
+              estudante.codigo_estudante,
+              { ano_escolar_fundamental: ano },
+              token
+            );
+          } else {
+            await academiaService.interromperFundamental(
+              estudante.codigo_estudante,
+              { motivo },
+              token
+            );
+          }
+
+          setBatchItems(prev => prev.map(item =>
+            item.codigo === estudante.codigo_estudante
+              ? { ...item, status: 'success' }
+              : item
+          ));
+        } catch (err: any) {
+          setBatchItems(prev => prev.map(item =>
+            item.codigo === estudante.codigo_estudante
+              ? { ...item, status: 'error', message: err?.message || 'Falha no processamento' }
+              : item
+          ));
+        } finally {
+          setBatchProgresso(Math.round(((index + 1) / selecionadasList.length) * 100));
+        }
       }
-      const detail = await pollJob(data.job_id, {
-        timeoutMs: 5 * 60 * 1000,
-        onProgress: (summary) => {
-          const pct = summary.progress ?? 0;
-          setBatchProgresso(pct);
-          setBatchItems(prev => prev.map((item, idx) => idx < Math.floor(pct / 100 * prev.length) ? { ...item, status: 'success' } : item));
-        },
-      });
-      const detailResponse  = await jobApiService.getDetail(data.job_id, token ?? undefined);
-      const failureByCodigo = new Map<string, string>();
-      for (const failure of (detailResponse.results ?? []).filter(x => !x.sucesso)) {
-        const cod = (failure.payload as { codigo_estudante?: string } | undefined)?.codigo_estudante;
-        if (cod) failureByCodigo.set(cod, resolveJobItemError(failure) || detail.error || 'Falha no processamento');
-      }
-      setBatchItems(prev => prev.map(item => {
-        const r = failureByCodigo.get(item.codigo);
-        return r ? { ...item, status: 'error', message: r } : { ...item, status: 'success' };
-      }));
-      setBatchProgresso(100);
-      if (detail.status === 'failed' && detail.error) setBatchTitulo(`Falha no job: ${detail.error}`);
-    } catch (err: any) {
-      setBatchItems(prev => prev.map(i => ({ ...i, status: 'error', message: err?.message || 'Erro de rede' })));
     } finally {
       setBatchCarregando(false);
       setSelecionadas(new Set());
-      setTimeout(() => carregarLista(), 2000);
+      setTimeout(() => carregarLista(), 800);
     }
   };
 
@@ -1224,7 +1223,7 @@ export default function Estudantes() {
         )}
 
         {isAcademia && !vistaEscala && selecionadas.size > 0 && (
-          <BarraLote selecionadas={selecionadas} onLimpar={handleLimparSelecao} onAtualizarStatus={handleAtualizarStatusLote} carregando={batchCarregando} />
+          <BarraLote selecionadas={selecionadas} onLimpar={handleLimparSelecao} onExecutarAcao={handleExecutarAcaoLote} carregando={batchCarregando} />
         )}
 
         <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
