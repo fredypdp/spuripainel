@@ -272,6 +272,13 @@ export interface ReprovarSolicitacaoMatriculaRequest {
   motivo_reprovacao: string;
 }
 
+export interface AcademiaStorageUsage {
+  codigo_academia: string;
+  nome?: string;
+  used_bytes: number;
+  used_human: string;
+}
+
 export interface StorageQuotaResponse {
   provider: string;
   total_bytes: number;
@@ -280,6 +287,7 @@ export interface StorageQuotaResponse {
   total_human: string;
   used_human: string;
   available_human: string;
+  academias?: AcademiaStorageUsage[];
 }
 
 export interface RegistrarFaltasRequest {
