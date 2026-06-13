@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { adminService } from "@/lib/api/services";
 import { SpuriApiError } from "@/lib/api/client";
-import type { StorageQuotaResponse } from "@/types/api";
+import type { AccountFileUsage, StorageQuotaResponse } from "@/types/api";
 
 const formatBytes = (bytes?: number) => {
   if (!Number.isFinite(bytes) || (bytes ?? 0) <= 0) return "0 B";
@@ -40,6 +40,8 @@ const getQuotaErrorState = (e: unknown): QuotaErrorState => {
     message: e instanceof Error ? e.message : "Erro ao consultar quota",
   };
 };
+
+const getFileSize = (file: AccountFileUsage) => file.size_human || formatBytes(file.size_bytes);
 
 export default function PageContent() {
   const [quota, setQuota] = useState<StorageQuotaResponse | null>(null);
@@ -79,6 +81,13 @@ export default function PageContent() {
     [quota?.academias]
   );
 
+  const accountFiles = useMemo(
+    () => [...(quota?.account_files ?? [])].sort((a, b) => b.size_bytes - a.size_bytes),
+    [quota?.account_files]
+  );
+
+  const managedFilesCount = useMemo(() => accountFiles.filter((file) => file.managed).length, [accountFiles]);
+  const unmanagedFilesCount = accountFiles.length - managedFilesCount;
   const maiorUso = academias[0]?.used_bytes ?? 0;
 
   return (
@@ -86,7 +95,7 @@ export default function PageContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Armazenamento</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Quota do provider externo usado pelos documentos de matrícula, com uso separado por academia quando disponível.
+          Quota do Mega usada pelos documentos de matrícula, agora com separação entre ficheiros geridos pelas academias e ficheiros externos encontrados na conta.
         </p>
       </div>
 
@@ -136,6 +145,66 @@ export default function PageContent() {
                 </div>
               ))}
             </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {[
+                ["Gerido por academias", quota.managed_human || formatBytes(quota.managed_bytes)],
+                ["Fora das academias", quota.unmanaged_human || formatBytes(quota.unmanaged_bytes)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+                  <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ficheiros da conta Mega</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Lista de todos os ficheiros retornados pelo Cloud Drive, incluindo itens fora dos diretórios geridos.
+                </p>
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {accountFiles.length} ficheiro(s) · {managedFilesCount} gerido(s) · {unmanagedFilesCount} externo(s)
+              </span>
+            </div>
+
+            {accountFiles.length > 0 ? (
+              <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+                <div className="max-h-96 overflow-auto">
+                  <table className="min-w-full divide-y divide-gray-100 text-sm dark:divide-gray-800">
+                    <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Ficheiro</th>
+                        <th className="px-4 py-3 font-medium">Caminho</th>
+                        <th className="px-4 py-3 font-medium">Origem</th>
+                        <th className="px-4 py-3 text-right font-medium">Tamanho</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {accountFiles.map((file, index) => (
+                        <tr key={`${file.path}-${file.name}-${index}`} className="bg-white dark:bg-gray-900">
+                          <td className="max-w-xs px-4 py-3 font-medium text-gray-900 dark:text-white">{file.name || "Sem nome"}</td>
+                          <td className="max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400" title={file.path}>{file.path || "/"}</td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${file.managed ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300" : "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"}`}>
+                              {file.managed ? "Academia" : "Externo"}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">{getFileSize(file)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                Nenhum ficheiro da conta foi retornado pelo backend. Em ambientes sem sessão Mega, apenas a estimativa local pode estar disponível.
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">

@@ -279,15 +279,28 @@ export interface AcademiaStorageUsage {
   used_human: string;
 }
 
+export interface AccountFileUsage {
+  path: string;
+  name: string;
+  size_bytes: number;
+  size_human?: string;
+  managed: boolean;
+}
+
 export interface StorageQuotaResponse {
   provider: string;
   total_bytes: number;
   used_bytes: number;
   available_bytes: number;
+  managed_bytes?: number;
+  unmanaged_bytes?: number;
   total_human: string;
   used_human: string;
   available_human: string;
+  managed_human?: string;
+  unmanaged_human?: string;
   academias?: AcademiaStorageUsage[];
+  account_files?: AccountFileUsage[];
 }
 
 export interface RegistrarFaltasRequest {
