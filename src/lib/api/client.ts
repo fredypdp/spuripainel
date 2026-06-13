@@ -63,8 +63,9 @@ async function fetchApi<T>(
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
 
+  const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(fetchOptions.headers as Record<string, string>),
   };
 
@@ -127,6 +128,13 @@ export const api = {
       ...options,
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  postForm: <T>(endpoint: string, data: FormData, options?: FetchOptions) =>
+    fetchApi<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body: data,
     }),
 
   put: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
