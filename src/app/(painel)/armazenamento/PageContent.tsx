@@ -87,7 +87,7 @@ export default function PageContent() {
   );
 
   const managedFilesCount = useMemo(() => accountFiles.filter((file) => file.managed).length, [accountFiles]);
-  const unmanagedFilesCount = accountFiles.length - managedFilesCount;
+  const outsideFilesCount = accountFiles.length - managedFilesCount;
   const maiorUso = academias[0]?.used_bytes ?? 0;
 
   return (
@@ -95,7 +95,7 @@ export default function PageContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Armazenamento</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Quota do Mega usada pelos documentos de matrícula, agora com separação entre ficheiros geridos pelas academias e ficheiros externos encontrados na conta.
+          Quota do Google Drive usada pela pasta raiz gerenciada pelo Spuri, com separação entre ficheiros de academias e ficheiros fora dos diretórios de academia.
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export default function PageContent() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-semibold">
               {erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE"
-                ? "Quota do Mega indisponível"
+                ? "Quota do Google Drive indisponível"
                 : "Erro ao consultar quota"}
             </p>
             {(erro.status || erro.code) && (
@@ -116,8 +116,7 @@ export default function PageContent() {
           <p className="mt-2 leading-relaxed">{erro.message}</p>
           {(erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE") && (
             <p className="mt-2 text-xs text-red-600 dark:text-red-300">
-              Verifique as variáveis MEGA_AUTH_MODE, MEGA_SESSION_ID, MEGA_MASTER_KEY, MEGA_QUOTA_LOCAL_ESTIMATE,
-              MEGA_QUOTA_TOTAL_BYTES ou MEGA_QUOTA_TOTAL_GB no backend.
+              Verifique GOOGLE_DRIVE_CREDENTIALS_PATH ou GOOGLE_DRIVE_CREDENTIALS_JSON, GOOGLE_DRIVE_ROOT_FOLDER_ID e, em ambiente local, GOOGLE_DRIVE_QUOTA_LOCAL_ESTIMATE no backend.
             </p>
           )}
         </div>
@@ -148,7 +147,7 @@ export default function PageContent() {
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {[
                 ["Gerido por academias", quota.managed_human || formatBytes(quota.managed_bytes)],
-                ["Fora das academias", quota.unmanaged_human || formatBytes(quota.unmanaged_bytes)],
+                ["Fora das academias", quota.outside_academias_human || formatBytes(quota.outside_academias_bytes)],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800">
                   <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
@@ -161,13 +160,13 @@ export default function PageContent() {
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ficheiros da conta Mega</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ficheiros da pasta raiz Google Drive</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Lista de todos os ficheiros retornados pelo Cloud Drive, incluindo itens fora dos diretórios geridos.
+                  Lista dos ficheiros retornados dentro da pasta raiz configurada no Google Drive, incluindo itens fora dos diretórios de academia.
                 </p>
               </div>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {accountFiles.length} ficheiro(s) · {managedFilesCount} gerido(s) · {unmanagedFilesCount} externo(s)
+                {accountFiles.length} ficheiro(s) · {managedFilesCount} de academia(s) · {outsideFilesCount} fora das academias
               </span>
             </div>
 
@@ -190,7 +189,7 @@ export default function PageContent() {
                           <td className="max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400" title={file.path}>{file.path || "/"}</td>
                           <td className="px-4 py-3">
                             <span className={`rounded-full px-2 py-1 text-xs font-semibold ${file.managed ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300" : "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"}`}>
-                              {file.managed ? "Academia" : "Externo"}
+                              {file.managed ? "Academia" : "Fora da academia"}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">{getFileSize(file)}</td>
@@ -202,7 +201,7 @@ export default function PageContent() {
               </div>
             ) : (
               <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                Nenhum ficheiro da conta foi retornado pelo backend. Em ambientes sem sessão Mega, apenas a estimativa local pode estar disponível.
+                Nenhum ficheiro da pasta raiz foi retornado pelo backend. Sem credenciais de produção, a estimativa local só aparece quando GOOGLE_DRIVE_QUOTA_LOCAL_ESTIMATE=true.
               </div>
             )}
           </div>
@@ -243,7 +242,7 @@ export default function PageContent() {
               </div>
             ) : (
               <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                Nenhum uso por academia foi retornado pelo backend. Em ambientes sem sessão Mega, confirme se a estimativa local está ativada no servidor.
+                Nenhum uso por academia foi retornado pelo backend. Em ambiente local, confirme se GOOGLE_DRIVE_QUOTA_LOCAL_ESTIMATE está ativado no servidor.
               </div>
             )}
           </div>
