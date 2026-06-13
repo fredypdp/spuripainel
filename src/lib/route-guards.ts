@@ -23,6 +23,11 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
+    path: '/matricula',
+    allowedTypes: 'public',
+    redirectIfUnauthorized: '/',
+  },
+  {
     path: '/dominis/esqueci-senha',
     allowedTypes: 'public',
     redirectIfUnauthorized: '/',
@@ -52,6 +57,16 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   {
     path: '/estudantes',
     allowedTypes: ['admin', 'academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/solicitacoes-matricula',
+    allowedTypes: ['admin', 'academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/armazenamento',
+    allowedTypes: ['admin'],
     redirectIfUnauthorized: '/',
   },
   {
