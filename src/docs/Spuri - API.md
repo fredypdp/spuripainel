@@ -1,8 +1,8 @@
 ---
-modificado: 10-06-2026 23:55
+modificado: 13-06-2026 00:00
 criado: 05-04-2026 13:01
 ---
-Versão atual: 1.6.4
+Versão atual: 1.6.5
 ## Índice
 
 1. [[#1. Convenções Globais]]
@@ -3128,7 +3128,11 @@ Use este endpoint quando o rebuild puder demorar vários minutos.
 
 Lista todas as academias com paginação e filtro de status.
 
-**Proteção**: autenticado (qualquer tipo)
+**Proteção**: pública com autenticação opcional.
+
+- Sem `Authorization`, a rota retorna apenas dados públicos de cada academia.
+- Com `Authorization: Bearer <jwt_token>` válido, a rota mantém o contrato autenticado anterior.
+- Se um header `Authorization` for enviado, ele deve ser um Bearer token válido; tokens inválidos/expirados retornam `401`.
 
 **Query Params:**
 
@@ -3136,7 +3140,30 @@ Lista todas as academias com paginação e filtro de status.
 - `offset` — deslocamento (padrão: 0)
 - `status` — `ativo` ou `inativo` (omitir = retorna ambos)
 
-**Response 200:**
+**Response 200 — usuário não autenticado:**
+
+```json
+{
+  "academias": [
+    {
+      "nivel": "escola",
+      "type": "public",
+      "nome": "Escola Exemplo",
+      "codigo_academia": "LUA20261",
+      "provincia": "Luanda",
+      "endereco": "Rua Exemplo, 123",
+      "nivel_escolar": "fundamental"
+    }
+  ],
+  "total": 1,
+  "limit": 1000,
+  "offset": 0
+}
+```
+
+**Campos públicos por academia:** `nivel`, `type`, `nome`, `codigo_academia`, `provincia`, `endereco`, `nivel_escolar`.
+
+**Response 200 — usuário autenticado:**
 
 ```json
 {
@@ -3147,7 +3174,7 @@ Lista todas as academias com paginação e filtro de status.
 }
 ```
 
-**Nota**: admins veem campos extras (`email`, `total_estudantes`, `version`).
+**Nota**: usuários autenticados veem os campos operacionais do `AcademiaDTO`; admins veem campos extras (`email`, `total_estudantes`, `version`).
 
 ---
 
@@ -3599,7 +3626,7 @@ Lista todas as solicitações do sistema para admin. Query params: `status`, `co
 
 ### GET /dominis/storage/quota
 
-Retorna quota do provider de armazenamento externo.
+Retorna quota real da conta Mega quando o backend está configurado com sessão (`MEGA_AUTH_MODE=session`, `MEGA_SESSION_ID` e `MEGA_MASTER_KEY`). Nessa configuração, `total_bytes` e `used_bytes` vêm da API do Mega e `academias` soma os arquivos por diretório de academia no Cloud Drive. Sem sessão, o backend só permite a estimativa local se `MEGA_QUOTA_LOCAL_ESTIMATE=true`, contabilizando apenas `MEGA_LOCAL_ROOT` (padrão `data/mega_storage`).
 
 **Proteção**: autenticado + admin
 
@@ -3608,11 +3635,18 @@ Retorna quota do provider de armazenamento externo.
 ```json
 {
   "provider": "mega",
-  "total_bytes": 53687091200,
+  "total_bytes": 21474836480,
   "used_bytes": 1073741824,
-  "available_bytes": 52613349376,
-  "total_human": "50.00 GB",
+  "available_bytes": 20401094656,
+  "total_human": "20.00 GB",
   "used_human": "1.00 GB",
-  "available_human": "49.00 GB"
+  "available_human": "19.00 GB",
+  "academias": [
+    {
+      "codigo_academia": "ACA001",
+      "used_bytes": 524288000,
+      "used_human": "500.00 MB"
+    }
+  ]
 }
 ```
