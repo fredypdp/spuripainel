@@ -603,6 +603,8 @@ export interface CriarCategoriaNotaRequest {
   codigo: string;
   nome: string;
   descricao?: string;
+  /** Anos acadêmicos nos quais a categoria pode ser usada. */
+  anos_academicos: string[];
 }
 
 // ── Turmas ───────────────────────────────────────────────────────────────────
@@ -801,6 +803,8 @@ export interface CategoriaNotaItem {
   codigo: string;
   nome: string;
   descricao?: string;
+  /** Anos acadêmicos nos quais a categoria pode receber notas. */
+  anos_academicos: string[];
   adicionado_por?: string;
   status: 'ativo' | 'inativo';
   created_at: string;

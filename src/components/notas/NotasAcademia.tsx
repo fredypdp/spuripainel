@@ -23,6 +23,34 @@ function getUserFromCookie(): MeuPerfilResponse | null {
   try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
 }
 
+
+const ORDEM_ANOS_ACADEMICOS = [
+  ...Array.from({ length: 9 }, (_, i) => `${i + 1}_ano_fundamental`),
+  ...Array.from({ length: 4 }, (_, i) => `${i + 1}_ano_medio`),
+  ...Array.from({ length: 6 }, (_, i) => `${i + 1}_ano_superior`),
+];
+
+function labelAnoAcademico(ano: string) {
+  const [numero, , nivel] = ano.split("_");
+  return `${numero}.º ${nivel === "fundamental" ? "Fundamental" : nivel === "medio" ? "Médio" : "Superior"}`;
+}
+
+function sortAnosAcademicos(anos: string[]) {
+  return [...new Set(anos)].sort((a, b) => ORDEM_ANOS_ACADEMICOS.indexOf(a) - ORDEM_ANOS_ACADEMICOS.indexOf(b));
+}
+
+function sequenciaAnos(anos: string[], sufixo: string) {
+  const nums = anos.map((ano) => Number(ano.split("_")[0])).filter(Boolean);
+  if (!nums.length) return [];
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  return Array.from({ length: max - min + 1 }, (_, i) => `${min + i}_ano_${sufixo}`);
+}
+
+function anoAcademicoDoEstudante(estudante?: EstudanteDetalhado) {
+  return estudante?.ano_superior || estudante?.ano_escolar_medio || estudante?.ano_escolar_fundamental || (estudante as any)?.ano_academico;
+}
+
 const PERIODOS_LABEL: Record<string, string> = {
   "1_trimestre": "1º Trimestre", "2_trimestre": "2º Trimestre", "3_trimestre": "3º Trimestre",
   "1_semestre":  "1º Semestre",  "2_semestre":  "2º Semestre",
@@ -336,7 +364,7 @@ type ModalMode = "registrar" | "atualizar" | "deletar" | "categoria";
 
 function ModalGestao({
   isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLectivo,
-  estudantes, materias, categorias, onRegistrar, onAtualizar, onDeletar, onCriarCategoria,
+  estudantes, materias, categorias, anosAcademicosDisponiveis, onRegistrar, onAtualizar, onDeletar, onCriarCategoria,
   todasNotas,
 }: {
   isOpen: boolean;
@@ -348,6 +376,7 @@ function ModalGestao({
   estudantes: EstudanteDetalhado[];
   materias: any[];
   categorias: any[];
+  anosAcademicosDisponiveis: string[];
   onRegistrar: (d: RegistrarNotasRequest) => Promise<void>;
   onAtualizar: (d: AtualizarNotaRequest) => Promise<void>;
   onDeletar: (notaId: string, motivo: string) => Promise<void>;
@@ -377,12 +406,15 @@ function ModalGestao({
 
   const [nomeCateg, setNomeCateg] = useState("");
   const [descCateg, setDescCateg] = useState("");
+  const [anosCateg, setAnosCateg] = useState<Set<string>>(new Set());
 
   const CATS_FIXAS = isSuperior ? CATEGORIAS_FIXAS_SUPERIOR : CATEGORIAS_ESCOLAR;
-  const todasCats  = [
+  const anoSelecionado = anoAcademicoDoEstudante(estudantes.find((estudante) => estudante.codigo_estudante === codigoEst));
+  const todasCatsBase  = [
     ...CATS_FIXAS,
-    ...categorias.map((c: any) => ({ label: c.nome, value: c.codigo })),
+    ...categorias.map((c: any) => ({ label: c.nome, value: c.codigo, anos_academicos: c.anos_academicos ?? [] })),
   ];
+  const todasCats = todasCatsBase.filter((cat: any) => !cat.anos_academicos?.length || !anoSelecionado || cat.anos_academicos.includes(anoSelecionado));
 
   function notasDoEstudante(codigo: string): Nota[] {
     return todasNotas.filter(n => n.codigo_estudante === codigo);
@@ -440,6 +472,7 @@ function ModalGestao({
   async function handleCriarCategoria(e: React.FormEvent) {
     e.preventDefault(); setError(null);
     if (!nomeCateg) { setError("Nome é obrigatório."); return; }
+    if (anosCateg.size === 0) { setError("Selecione ao menos um ano acadêmico."); return; }
     const codigoBase = nomeCateg
       .trim()
       .toLowerCase()
@@ -448,8 +481,16 @@ function ModalGestao({
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "");
     const codigo = codigoBase.startsWith("nota_") ? codigoBase : `nota_${codigoBase}`;
-    try { await onCriarCategoria({ codigo, nome: nomeCateg.trim(), descricao: descCateg || undefined }); onClose(); }
+    try { await onCriarCategoria({ codigo, nome: nomeCateg.trim(), descricao: descCateg || undefined, anos_academicos: sortAnosAcademicos([...anosCateg]) }); onClose(); }
     catch (err: any) { setError(err?.message ?? "Erro ao criar categoria."); }
+  }
+
+  function toggleAnoCategoria(ano: string) {
+    setAnosCateg((prev) => {
+      const next = new Set(prev);
+      next.has(ano) ? next.delete(ano) : next.add(ano);
+      return next;
+    });
   }
 
   if (!isOpen) return null;
@@ -532,6 +573,7 @@ function ModalGestao({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Categoria *</Label>
+              {anoSelecionado && <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Categorias filtradas para {labelAnoAcademico(anoSelecionado)}.</p>}
               <Dropdown
                 value={categoria}
                 options={todasCats}
@@ -689,6 +731,17 @@ function ModalGestao({
             <Label>Descrição</Label>
             <Input onChange={e => setDescCateg(e.target.value)} placeholder="Opcional" />
           </div>
+          <div>
+            <Label>Anos acadêmicos *</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {anosAcademicosDisponiveis.map((ano) => (
+                <button key={ano} type="button" onClick={() => toggleAnoCategoria(ano)} className={`rounded-full border px-3 py-1.5 text-xs transition ${anosCateg.has(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"}`}>
+                  {labelAnoAcademico(ano)}
+                </button>
+              ))}
+              {anosAcademicosDisponiveis.length === 0 && <p className="text-xs text-gray-500">Nenhum ano acadêmico ativo encontrado.</p>}
+            </div>
+          </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
             <button
@@ -766,6 +819,15 @@ export default function NotasAcademia() {
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
   const materias                         = useMemo(() => (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [], [dataMaterias]);
   const categorias                       = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
+  const anosAcademicosDisponiveis         = useMemo(() => {
+    const academia = user?.academia;
+    const fundamental = academia?.nivel === "escola" && (academia.nivel_escolar === "fundamental" || academia.nivel_escolar === "misto")
+      ? (academia.anos_academicos?.length ? academia.anos_academicos : ORDEM_ANOS_ACADEMICOS.slice(0, 9))
+      : [];
+    const medio = cursos.filter((curso) => curso.type === "medio").flatMap((curso) => curso.anos_academicos ?? []);
+    const superior = cursos.filter((curso) => curso.type === "superior").flatMap((curso) => curso.anos_academicos ?? []);
+    return sortAnosAcademicos([...fundamental, ...sequenciaAnos(medio, "medio"), ...sequenciaAnos(superior, "superior")]);
+  }, [cursos, user]);
   const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
   const anosLetivosDisponiveis           = useMemo(() => (
     ((dataAnosLetivosLista as any)?.anos_letivos_lista ?? [])
@@ -1534,6 +1596,7 @@ export default function NotasAcademia() {
         estudantes={estudantes}
         materias={materias}
         categorias={categorias}
+        anosAcademicosDisponiveis={anosAcademicosDisponiveis}
         onRegistrar={handleRegistrar}
         onAtualizar={handleAtualizar}
         onDeletar={handleDeletar}

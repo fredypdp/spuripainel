@@ -1,32 +1,61 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { academiaService } from "@/lib/api/services";
 import { useApi } from "@/hooks/useApi";
+import { useUserType } from "@/hooks/useRoutePermission";
 import Icon from "@/components/ui/Icon";
+
+const ORDEM_ANOS = [
+  ...Array.from({ length: 9 }, (_, i) => `${i + 1}_ano_fundamental`),
+  ...Array.from({ length: 4 }, (_, i) => `${i + 1}_ano_medio`),
+  ...Array.from({ length: 6 }, (_, i) => `${i + 1}_ano_superior`),
+];
+
+function labelAno(ano: string) {
+  const [numero, , nivel] = ano.split("_");
+  return `${numero}.º ${nivel === "fundamental" ? "Fundamental" : nivel === "medio" ? "Médio" : "Superior"}`;
+}
+
+function sortAnos(anos: string[]) {
+  return [...new Set(anos)].sort((a, b) => ORDEM_ANOS.indexOf(a) - ORDEM_ANOS.indexOf(b));
+}
+
+function sequenciaPorExtremos(anos: string[], sufixo: string) {
+  const nums = anos.map((ano) => Number(ano.split("_")[0])).filter(Boolean);
+  if (!nums.length) return [];
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  return Array.from({ length: max - min + 1 }, (_, i) => `${min + i}_ano_${sufixo}`);
+}
 
 export default function AcademiaCategoriesSection() {
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [anosAcademicos, setAnosAcademicos] = useState<Set<string>>(new Set());
   const [sucesso, setSucesso] = useState<string | null>(null);
 
+  const { user } = useUserType();
   const { data, loading: carregando, execute: carregarCategorias } = useApi(academiaService.listarCategoriasNota);
+  const { data: cursosData, execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { loading: criando, error: erroCriar, execute: criarCategoria } = useApi(academiaService.criarCategoriaNota);
   const { loading: deletando, error: erroDeletar, execute: deletarCategoria } = useApi(academiaService.deletarCategoriaNota);
 
   useEffect(() => {
     carregarCategorias().catch(() => undefined);
-  }, [carregarCategorias]);
+    carregarCursos().catch(() => undefined);
+  }, [carregarCategorias, carregarCursos]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSucesso(null);
     try {
-      await criarCategoria({ codigo, nome, descricao: descricao || undefined });
+      await criarCategoria({ codigo, nome, descricao: descricao || undefined, anos_academicos: sortAnos([...anosAcademicos]) });
       setCodigo("");
       setNome("");
       setDescricao("");
+      setAnosAcademicos(new Set());
       setSucesso("Categoria criada com sucesso.");
       await carregarCategorias();
     } catch {
@@ -46,6 +75,24 @@ export default function AcademiaCategoriesSection() {
   }
 
   const categorias = data?.categorias ?? [];
+  const opcoesAnos = useMemo(() => {
+    const academia = user?.academia;
+    const cursos = (cursosData?.cursos ?? []).filter((curso) => curso.status === "ativo");
+    const fundamental = academia?.nivel === "escola" && (academia.nivel_escolar === "fundamental" || academia.nivel_escolar === "misto")
+      ? (academia.anos_academicos?.length ? academia.anos_academicos : ORDEM_ANOS.slice(0, 9))
+      : [];
+    const medio = cursos.filter((curso) => curso.type === "medio").flatMap((curso) => curso.anos_academicos ?? []);
+    const superior = cursos.filter((curso) => curso.type === "superior").flatMap((curso) => curso.anos_academicos ?? []);
+    return sortAnos([...fundamental, ...sequenciaPorExtremos(medio, "medio"), ...sequenciaPorExtremos(superior, "superior")]);
+  }, [cursosData, user]);
+
+  function toggleAno(ano: string) {
+    setAnosAcademicos((prev) => {
+      const next = new Set(prev);
+      next.has(ano) ? next.delete(ano) : next.add(ano);
+      return next;
+    });
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
@@ -57,7 +104,7 @@ export default function AcademiaCategoriesSection() {
           Categorias de nota
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-          A academia pode criar categorias personalizadas além das categorias fixas documentadas para notas escolares e superiores.
+          A academia pode criar categorias personalizadas e definir exatamente em quais anos acadêmicos elas aceitam registro de notas.
         </p>
       </div>
 
@@ -77,6 +124,7 @@ export default function AcademiaCategoriesSection() {
                   <div>
                     <p className="text-sm font-semibold text-gray-800 dark:text-white">{categoria.nome}</p>
                     <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{categoria.codigo}</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{categoria.anos_academicos?.length ? sortAnos(categoria.anos_academicos).map(labelAno).join(", ") : "Sem anos configurados"}</p>
                   </div>
                   <button
                     type="button"
@@ -98,7 +146,18 @@ export default function AcademiaCategoriesSection() {
           <input value={codigo} onChange={(e) => setCodigo(e.target.value)} disabled={criando} placeholder="codigo_sem_espacos" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
           <input value={nome} onChange={(e) => setNome(e.target.value)} disabled={criando} placeholder="Nome exibido" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
           <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={criando} placeholder="Descrição opcional" rows={3} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
-          <button type="submit" disabled={criando || !codigo || !nome} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
+          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Anos acadêmicos *</p>
+            <div className="flex flex-wrap gap-2">
+              {opcoesAnos.map((ano) => (
+                <button key={ano} type="button" onClick={() => toggleAno(ano)} disabled={criando} className={`rounded-full border px-3 py-1.5 text-xs transition ${anosAcademicos.has(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"}`}>
+                  {labelAno(ano)}
+                </button>
+              ))}
+              {opcoesAnos.length === 0 && <p className="text-xs text-gray-500">Nenhum ano acadêmico ativo encontrado.</p>}
+            </div>
+          </div>
+          <button type="submit" disabled={criando || !codigo || !nome || anosAcademicos.size === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
             {criando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A criar...</> : <><Icon icon="mdi:plus" width="18px" />Criar categoria</>}
           </button>
         </form>
