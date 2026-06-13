@@ -9,6 +9,7 @@ import { formatAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
+import DocumentosObrigatoriosSection from "./DocumentosObrigatoriosSection";
 
 export default function AcademiaSection() {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
@@ -349,6 +350,7 @@ export default function AcademiaSection() {
       </div>
 
       <div className="mt-6 space-y-6">
+        <DocumentosObrigatoriosSection />
         <AcademiaCategoriesSection />
         <PasswordSettingsCard />
       </div>

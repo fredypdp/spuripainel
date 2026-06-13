@@ -14,6 +14,7 @@ export {
   estudanteService,
   academiaService,
   adminService,
+  solicitacaoMatriculaService,
 } from './services';
 
 // Hooks
@@ -129,6 +130,16 @@ export type {
   StatusEscolarMedio,
   AtualizarFaltaRequest,
   TipoEnsino,
+  SolicitacaoMatriculaStatus,
+  DocumentosObrigatorios,
+  AtualizarDocumentosObrigatoriosRequest,
+  DocumentosObrigatoriosResponse,
+  CriarSolicitacaoMatriculaRequest,
+  CriarSolicitacaoMatriculaResponse,
+  SolicitacaoMatricula,
+  ListarSolicitacoesMatriculaParams,
+  ListarSolicitacoesMatriculaResponse,
+  StorageQuotaResponse,
 } from '@/types/api';
 
 // Jobs

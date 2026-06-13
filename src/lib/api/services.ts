@@ -78,6 +78,17 @@ import type {
   MotivoEstudanteRequest,
   RevincularEstudanteRequest,
   MensagemResponse,
+  AtualizarDocumentosObrigatoriosRequest,
+  AtualizarDocumentosObrigatoriosResponse,
+  DocumentosObrigatoriosResponse,
+  CriarSolicitacaoMatriculaRequest,
+  CriarSolicitacaoMatriculaResponse,
+  ListarSolicitacoesMatriculaParams,
+  ListarSolicitacoesMatriculaResponse,
+  SolicitacaoMatricula,
+  AprovarSolicitacaoMatriculaResponse,
+  ReprovarSolicitacaoMatriculaRequest,
+  StorageQuotaResponse,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -196,6 +207,42 @@ function prepareMotivoEstudante(data: MotivoEstudanteRequest): MotivoEstudanteRe
   if (!motivo) throw new Error('Motivo é obrigatório');
   return { motivo };
 }
+
+function buildSolicitacoesMatriculaQuery(params?: ListarSolicitacoesMatriculaParams): string {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia.trim());
+  if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+  if (params?.offset !== undefined) qs.set('offset', String(params.offset));
+  const query = qs.toString();
+  return query ? `?${query}` : '';
+}
+
+function prepareSolicitacaoMatriculaForm(data: CriarSolicitacaoMatriculaRequest): FormData {
+  const form = new FormData();
+  const entries: Array<[keyof CriarSolicitacaoMatriculaRequest, unknown]> = Object.entries(data) as any;
+  entries.forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (value instanceof File) {
+      form.append(key, value);
+    } else {
+      form.append(key, String(value).trim());
+    }
+  });
+  return form;
+}
+
+// =====================
+// SOLICITAÇÃO DE MATRÍCULA (pública)
+// =====================
+
+export const solicitacaoMatriculaService = {
+  criar: (data: CriarSolicitacaoMatriculaRequest) =>
+    api.postForm<CriarSolicitacaoMatriculaResponse>(
+      '/solicitacao-matricula',
+      prepareSolicitacaoMatriculaForm(data)
+    ),
+};
 
 // =====================
 // AUTH (rotas públicas)
@@ -540,6 +587,54 @@ export const academiaService = {
     api.post<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string } }>(
       '/academia/estudante/register',
       prepareCriarEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // ── Solicitações de matrícula ────────────────────────────────────
+
+  listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string) => {
+    const isLegacy = typeof params === 'string';
+    const tok = isLegacy ? params : params?.token;
+    const qs = isLegacy ? '' : buildSolicitacoesMatriculaQuery(params);
+    return api.get<ListarSolicitacoesMatriculaResponse>(`/academia/solicitacoes-matricula${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
+
+  consultarSolicitacaoMatricula: (codigo: string, token?: string) =>
+    api.get<{ solicitacao: SolicitacaoMatricula }>(
+      `/academia/solicitacao-matricula/${encodeURIComponent(codigo)}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  aprovarSolicitacaoMatricula: (codigo: string, token?: string) =>
+    api.put<AprovarSolicitacaoMatriculaResponse>(
+      `/academia/solicitacao-matricula/${encodeURIComponent(codigo)}/aprovar`,
+      undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  reprovarSolicitacaoMatricula: (codigo: string, data: ReprovarSolicitacaoMatriculaRequest, token?: string) =>
+    api.put<MensagemResponse>(
+      `/academia/solicitacao-matricula/${encodeURIComponent(codigo)}/reprovar`,
+      { motivo_reprovacao: data.motivo_reprovacao?.trim() },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  getDocumentosObrigatorios: (params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo = isLegacy ? undefined : params?.codigo_academia;
+    const qs = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<DocumentosObrigatoriosResponse>(`/academia/documentos-obrigatorios${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
+
+  atualizarDocumentosObrigatorios: (data: AtualizarDocumentosObrigatoriosRequest, token?: string) =>
+    api.put<AtualizarDocumentosObrigatoriosResponse>(
+      '/academia/documentos-obrigatorios',
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -1340,6 +1435,20 @@ export const adminService = {
     api.get<{ metrics: Record<string, unknown> }>('/dominis/metrics', {
       token: token || tokenStorage.get() || undefined,
     }),
+
+  getStorageQuota: (token?: string) =>
+    api.get<StorageQuotaResponse>('/dominis/storage/quota', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string) => {
+    const isLegacy = typeof params === 'string';
+    const tok = isLegacy ? params : params?.token;
+    const qs = isLegacy ? '' : buildSolicitacoesMatriculaQuery(params);
+    return api.get<ListarSolicitacoesMatriculaResponse>(`/solicitacoes-matricula${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
 
   rebuildProjection: (name: string, token?: string) =>
     api.post<{ message: string; projection: string }>(

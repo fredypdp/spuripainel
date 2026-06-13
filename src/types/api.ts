@@ -68,6 +68,7 @@ export type MateriaType = 'fundamental' | 'medio' | 'superior';
 export type Genero      = 'masculino' | 'feminino';
 
 export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
+export type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada';
 /** Date-only ISO string (YYYY-MM-DD), correspondente ao tipo `date` na documentação da API. */
 export type ApiDate = string;
 
@@ -158,6 +159,127 @@ export type RevincularEstudanteRequest =
 
 export interface MensagemResponse {
   message: string;
+}
+
+export interface DocumentosObrigatorios {
+  declaracao: string[];
+  certificado: string[];
+}
+
+export interface AtualizarDocumentosObrigatoriosRequest {
+  declaracao?: string[];
+  certificado?: string[];
+}
+
+export interface DocumentosObrigatoriosResponse {
+  codigo_academia: string;
+  documentos_obrigatorios: DocumentosObrigatorios;
+}
+
+export interface AtualizarDocumentosObrigatoriosResponse {
+  message: string;
+  documentos_obrigatorios: DocumentosObrigatorios;
+}
+
+export interface CriarSolicitacaoMatriculaRequest {
+  codigo_academia: string;
+  nome: string;
+  genero: Genero;
+  data_nascimento: string;
+  email?: string;
+  telefone?: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
+  ano_escolar_fundamental?: string;
+  ano_escolar_medio?: string;
+  curso_medio_id?: string;
+  ano_superior?: string;
+  curso_superior_id?: string;
+  bi_estudante?: File;
+  bi_responsavel?: File;
+  cedula?: File;
+  declaracao?: File;
+  certificado?: File;
+}
+
+export interface CriarSolicitacaoMatriculaResponse {
+  message: string;
+  codigo_solicitacao: string;
+  codigo_academia: string;
+  status: SolicitacaoMatriculaStatus;
+}
+
+export interface SolicitacaoMatriculaDocumento {
+  nome?: string;
+  path?: string;
+  url?: string;
+  content_type?: string;
+  tamanho_bytes?: number;
+}
+
+export interface SolicitacaoMatricula {
+  id?: string;
+  codigo_solicitacao: string;
+  codigo_academia: string;
+  academia_nome?: string;
+  nome: string;
+  genero: Genero;
+  data_nascimento: string;
+  email?: string;
+  telefone?: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
+  ano_escolar_fundamental?: string;
+  ano_escolar_medio?: string;
+  curso_medio_id?: string;
+  curso_medio_nome?: string;
+  ano_superior?: string;
+  curso_superior_id?: string;
+  curso_superior_nome?: string;
+  documentos?: Record<string, SolicitacaoMatriculaDocumento | string>;
+  status: SolicitacaoMatriculaStatus;
+  codigo_estudante_gerado?: string;
+  motivo_reprovacao?: string;
+  aprovada_por?: string;
+  reprovada_por?: string;
+  created_at: string;
+  updated_at?: string;
+  version?: number;
+}
+
+export interface ListarSolicitacoesMatriculaParams {
+  status?: SolicitacaoMatriculaStatus;
+  codigo_academia?: string;
+  limit?: number;
+  offset?: number;
+  token?: string;
+}
+
+export interface ListarSolicitacoesMatriculaResponse {
+  solicitacoes: SolicitacaoMatricula[];
+  total: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AprovarSolicitacaoMatriculaResponse {
+  message: string;
+  codigo_solicitacao: string;
+  codigo_estudante_gerado: string;
+}
+
+export interface ReprovarSolicitacaoMatriculaRequest {
+  motivo_reprovacao: string;
+}
+
+export interface StorageQuotaResponse {
+  provider: string;
+  total_bytes: number;
+  used_bytes: number;
+  available_bytes: number;
+  total_human: string;
+  used_human: string;
+  available_human: string;
 }
 
 export interface RegistrarFaltasRequest {
@@ -761,6 +883,8 @@ export interface AcademiaDetalhada {
   ano_letivo?: string;
   tipo_ano_letivo?: 'escola' | 'superior';
   ano_letivo_ativado_em?: string;
+  anos_letivos_lista?: Array<{ ano_letivo: string; tipo: 'escola' | 'superior'; definido_por: string; definido_em: string }>;
+  documentos_obrigatorios: DocumentosObrigatorios;
 }
 
 export interface AdminDetalhado {
