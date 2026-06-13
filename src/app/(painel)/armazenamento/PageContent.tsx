@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { adminService } from "@/lib/api/services";
+import { SpuriApiError } from "@/lib/api/client";
 import type { StorageQuotaResponse } from "@/types/api";
 
 const formatBytes = (bytes?: number) => {
@@ -20,18 +21,53 @@ const formatBytes = (bytes?: number) => {
   })} ${units[unitIndex]}`;
 };
 
+type QuotaErrorState = {
+  message: string;
+  status?: number;
+  code?: string;
+};
+
+const getQuotaErrorState = (e: unknown): QuotaErrorState => {
+  if (e instanceof SpuriApiError) {
+    return {
+      message: e.message || "Erro ao consultar quota",
+      status: e.status,
+      code: typeof e.data?.error === "string" ? e.data.error : undefined,
+    };
+  }
+
+  return {
+    message: e instanceof Error ? e.message : "Erro ao consultar quota",
+  };
+};
+
 export default function PageContent() {
   const [quota, setQuota] = useState<StorageQuotaResponse | null>(null);
-  const [erro, setErro] = useState("");
+  const [erro, setErro] = useState<QuotaErrorState | null>(null);
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
+    let ativo = true;
+
     adminService
       .getStorageQuota()
-      .then(setQuota)
+      .then((data) => {
+        if (!ativo) return;
+        setQuota(data);
+        setErro(null);
+      })
       .catch((e: unknown) => {
-        const message = e instanceof Error ? e.message : "Erro ao consultar quota";
-        setErro(message);
+        if (!ativo) return;
+        setQuota(null);
+        setErro(getQuotaErrorState(e));
+      })
+      .finally(() => {
+        if (ativo) setCarregando(false);
       });
+
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   const percentualUsado = quota?.total_bytes
@@ -54,9 +90,31 @@ export default function PageContent() {
         </p>
       </div>
 
-      {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-300">{erro}</p>}
+      {erro && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-500/10 dark:text-red-200">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-semibold">
+              {erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE"
+                ? "Quota do Mega indisponível"
+                : "Erro ao consultar quota"}
+            </p>
+            {(erro.status || erro.code) && (
+              <span className="text-xs uppercase tracking-wide text-red-500 dark:text-red-300">
+                {[erro.status && `HTTP ${erro.status}`, erro.code].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </div>
+          <p className="mt-2 leading-relaxed">{erro.message}</p>
+          {(erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE") && (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-300">
+              Verifique as variáveis MEGA_AUTH_MODE, MEGA_SESSION_ID, MEGA_MASTER_KEY, MEGA_QUOTA_LOCAL_ESTIMATE,
+              MEGA_QUOTA_TOTAL_BYTES ou MEGA_QUOTA_TOTAL_GB no backend.
+            </p>
+          )}
+        </div>
+      )}
 
-      {quota ? (
+      {!carregando && quota ? (
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -121,9 +179,9 @@ export default function PageContent() {
             )}
           </div>
         </div>
-      ) : (
+      ) : carregando ? (
         <div className="h-44 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />
-      )}
+      ) : null}
     </div>
   );
 }
