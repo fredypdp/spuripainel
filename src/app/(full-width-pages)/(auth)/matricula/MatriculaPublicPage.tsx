@@ -13,7 +13,7 @@ import { academiaService, consultasService, solicitacaoMatriculaService } from "
 import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, Genero } from "@/types/api";
 
 type StepId = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-type FileKey = "bi_estudante" | "bi_responsavel" | "cedula" | "declaracao" | "certificado";
+type FileKey = "bi_estudante" | "bi_responsavel" | "cedula" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
 type MatriculaForm = Partial<CriarSolicitacaoMatriculaRequest> & { genero: Genero };
 
 interface AnoOpcao { label: string; value: string }
@@ -117,8 +117,14 @@ export default function MatriculaPublicPage() {
     if (anoSelecionado && obrigatorios?.declaracao?.includes(anoSelecionado)) {
       docs.push({ key: "declaracao", label: "Declaração", obrigatorio: true });
     }
-    if (anoSelecionado && obrigatorios?.certificado?.includes(anoSelecionado)) {
-      docs.push({ key: "certificado", label: "Certificado", obrigatorio: true });
+    if (anoSelecionado && obrigatorios?.certificado_6_ano_fundamental?.includes(anoSelecionado)) {
+      docs.push({ key: "certificado_6_ano_fundamental", label: "Certificado do 6.º ano fundamental", obrigatorio: true });
+    }
+    if (anoSelecionado && obrigatorios?.certificado_9_ano_fundamental?.includes(anoSelecionado)) {
+      docs.push({ key: "certificado_9_ano_fundamental", label: "Certificado do 9.º ano fundamental", obrigatorio: true });
+    }
+    if (anoSelecionado && obrigatorios?.certificado_ensino_medio?.includes(anoSelecionado)) {
+      docs.push({ key: "certificado_ensino_medio", label: "Certificado do ensino médio", obrigatorio: true });
     }
     return docs;
   }, [academia, anoSelecionado]);
@@ -267,8 +273,8 @@ export default function MatriculaPublicPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-6 dark:bg-gray-950">
-      <div className="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
+    <div className="flex min-h-screen w-full flex-1 justify-center overflow-y-auto bg-gray-50 px-4 py-6 dark:bg-gray-950 lg:w-1/2 lg:px-8">
+      <div className="w-full max-w-4xl rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Fazer matrícula</h1>

@@ -163,12 +163,16 @@ export interface MensagemResponse {
 
 export interface DocumentosObrigatorios {
   declaracao: string[];
-  certificado: string[];
+  certificado_6_ano_fundamental: string[];
+  certificado_9_ano_fundamental: string[];
+  certificado_ensino_medio: string[];
 }
 
 export interface AtualizarDocumentosObrigatoriosRequest {
   declaracao?: string[];
-  certificado?: string[];
+  certificado_6_ano_fundamental?: string[];
+  certificado_9_ano_fundamental?: string[];
+  certificado_ensino_medio?: string[];
 }
 
 export interface DocumentosObrigatoriosResponse {
@@ -199,7 +203,9 @@ export interface CriarSolicitacaoMatriculaRequest {
   bi_responsavel?: File;
   cedula?: File;
   declaracao?: File;
-  certificado?: File;
+  certificado_6_ano_fundamental?: File;
+  certificado_9_ano_fundamental?: File;
+  certificado_ensino_medio?: File;
 }
 
 export interface CriarSolicitacaoMatriculaResponse {
@@ -293,11 +299,13 @@ export interface StorageQuotaResponse {
   used_bytes: number;
   available_bytes: number;
   managed_bytes?: number;
+  outside_academias_bytes?: number;
   unmanaged_bytes?: number;
   total_human: string;
   used_human: string;
   available_human: string;
   managed_human?: string;
+  outside_academias_human?: string;
   unmanaged_human?: string;
   academias?: AcademiaStorageUsage[];
   account_files?: AccountFileUsage[];
