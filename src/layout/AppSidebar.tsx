@@ -70,7 +70,13 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Listar",    path: "/estudantes"           },
       { name: "Cadastrar", path: "/estudantes/cadastrar" },
+      { name: "Solicitações", path: "/solicitacoes-matricula" },
     ],
+  },
+  {
+    icon: <Icon width="24px" icon="mdi:cloud-outline" />,
+    name: "Armazenamento",
+    path: "/armazenamento",
   },
   {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
@@ -91,6 +97,8 @@ export default function AppSidebar() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Hydrates sidebar permissions from the user cookie on the client.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const userCookie = getCookie("user");
     if (userCookie) {
@@ -133,6 +141,10 @@ export default function AppSidebar() {
           // Configurações: admin FPP ou academia
           if (item.path === "/configuracoes") {
             return isFpp || user.tipo === "academia";
+          }
+          // Armazenamento: apenas admin
+          if (item.path === "/armazenamento") {
+            return user.tipo === "admin";
           }
           // Testes: apenas academia
           if (item.path === "/testes") {

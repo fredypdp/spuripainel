@@ -151,7 +151,7 @@ export default function LoginForm() {
 
           <div className="mt-5">
             <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-              Esqueceu a senha?{" "}
+              Quer estudar? <Link href="/matricula" className="text-brand-500 hover:text-brand-600 dark:text-brand-400">Fazer matrícula</Link><br />Esqueceu a senha?{" "}
               <Link
                 href="/esqueci-senha"
                 className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
