@@ -138,6 +138,14 @@ export default function MatriculaPublicPage() {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
   }
 
+  function setTelefone(value: string) {
+    setField("telefone", onlyDigits(value).slice(0, 9));
+  }
+
+  function setBilheteIdentidade(key: "bilhete_identidade" | "bilhete_identidade_responsavel", value: string) {
+    setField(key, maskBilheteIdentidade(value));
+  }
+
   function resetAcademico() {
     setCurso(null);
     setAnoSelecionado(null);
@@ -205,8 +213,10 @@ export default function MatriculaPublicPage() {
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Informe um email válido.";
     }
     if (current === 4) {
+      if (form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
       if (!form.bilhete_identidade?.trim() && !files.cedula_estudante) return "Informe o BI do estudante ou anexe a cédula do estudante no passo de documentos.";
       if (!form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
+      if (!isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
     }
     if (current === 5) {
       const faltando = documentos.find((doc) => doc.obrigatorio && !files[doc.key]);
@@ -253,6 +263,9 @@ export default function MatriculaPublicPage() {
         ano_superior: isSuperior(anoSelecionado) ? anoSelecionado : undefined,
         curso_medio_id: isMedio(anoSelecionado) ? curso?.id : undefined,
         curso_superior_id: isSuperior(anoSelecionado) ? curso?.id : undefined,
+        telefone: onlyDigits(form.telefone ?? "") || undefined,
+        bilhete_identidade: form.bilhete_identidade?.toUpperCase(),
+        bilhete_identidade_responsavel: form.bilhete_identidade_responsavel?.toUpperCase(),
         ...files,
       };
       const res = await solicitacaoMatriculaService.criar(payload);
@@ -380,7 +393,7 @@ export default function MatriculaPublicPage() {
             <section className="space-y-4">
               <StepTitle title="4. Telefone e email" description="Estes contactos ajudam a instituição a responder à solicitação." />
               <div className="grid gap-4 sm:grid-cols-2">
-                <div><Label>Telefone</Label><Input type="tel" placeholder="923 456 789" defaultValue={form.telefone} onChange={(e) => setField("telefone", maskTelefoneAngola(e.target.value))} /></div>
+                <div><Label>Telefone</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone ?? "")} onChange={(e) => setTelefone(e.target.value)} /></div>
                 <div><Label>Email</Label><Input type="email" placeholder="email@exemplo.com" defaultValue={form.email} onChange={(e) => setField("email", e.target.value)} /></div>
               </div>
             </section>
@@ -390,8 +403,8 @@ export default function MatriculaPublicPage() {
             <section className="space-y-4">
               <StepTitle title="5. Bilhetes de Identidade" description="Informe o BI do estudante e o BI do responsável." />
               <div className="grid gap-4 sm:grid-cols-2">
-                <div><Label>Bilhete de Identidade do estudante *</Label><Input placeholder="Ex: 123456789LA041" defaultValue={form.bilhete_identidade} onChange={(e) => setField("bilhete_identidade", e.target.value)} /></div>
-                <div><Label>Bilhete de Identidade do responsável *</Label><Input placeholder="Ex: 123456789LA041" defaultValue={form.bilhete_identidade_responsavel} onChange={(e) => setField("bilhete_identidade_responsavel", e.target.value)} /></div>
+                <div><Label>Bilhete de Identidade do estudante *</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade", e.target.value)} hint="Use 9 números, 2 letras e 3 números. Ex.: 123456789LA041" /></div>
+                <div><Label>Bilhete de Identidade do responsável *</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório no formato 123456789LA041." /></div>
               </div>
             </section>
           )}
@@ -425,9 +438,36 @@ export default function MatriculaPublicPage() {
   );
 }
 
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 function maskTelefoneAngola(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
+  const digits = onlyDigits(value).slice(0, 9);
   return digits.replace(/(\d{3})(?=\d)/g, "$1 ").trim();
+}
+
+function maskBilheteIdentidade(value: string) {
+  const chars = value.replace(/[^0-9a-z]/gi, "").toUpperCase().split("");
+  let firstDigits = "";
+  let letters = "";
+  let tail = "";
+
+  for (const char of chars) {
+    if (firstDigits.length < 9) {
+      if (/\d/.test(char)) firstDigits += char;
+    } else if (letters.length < 2) {
+      if (/[A-Z]/.test(char)) letters += char;
+    } else if (tail.length < 3 && /\d/.test(char)) {
+      tail += char;
+    }
+  }
+
+  return `${firstDigits}${letters}${tail}`;
+}
+
+function isBilheteIdentidadeValido(value?: string) {
+  return !!value && /^\d{9}[A-Z]{2}\d{3}$/.test(value);
 }
 
 function StepTitle({ title, description }: { title: string; description: string }) {
