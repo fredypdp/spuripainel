@@ -448,22 +448,7 @@ function maskTelefoneAngola(value: string) {
 }
 
 function maskBilheteIdentidade(value: string) {
-  const chars = value.replace(/[^0-9a-z]/gi, "").toUpperCase().split("");
-  let firstDigits = "";
-  let letters = "";
-  let tail = "";
-
-  for (const char of chars) {
-    if (firstDigits.length < 9) {
-      if (/\d/.test(char)) firstDigits += char;
-    } else if (letters.length < 2) {
-      if (/[A-Z]/.test(char)) letters += char;
-    } else if (tail.length < 3 && /\d/.test(char)) {
-      tail += char;
-    }
-  }
-
-  return `${firstDigits}${letters}${tail}`;
+  return value.replace(/[^0-9a-z]/gi, "").toUpperCase().slice(0, 14);
 }
 
 function isBilheteIdentidadeValido(value?: string) {
