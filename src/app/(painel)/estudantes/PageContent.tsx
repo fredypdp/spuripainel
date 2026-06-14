@@ -954,29 +954,70 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
 // ─── ModalDetalhes ────────────────────────────────────────────────────────────
 
 function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; onClose: () => void }) {
+  const anoAtual = estudante.ano_escolar_fundamental || estudante.ano_escolar_medio || estudante.ano_superior;
+  const cursoAtual = estudante.curso_medio_id || estudante.curso_superior_id || "-";
+
   return (
-    <div>
-      <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Detalhes do Estudante</h4>
-      <div className="grid grid-cols-2 gap-4">
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.nome}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p><p className="text-sm text-gray-900 dark:text-white font-mono">{estudante.codigo_estudante}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Género</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.genero || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Nascimento</p><p className="text-sm text-gray-900 dark:text-white">{formatarDataNasc(estudante.data_nascimento)}{estudante.data_nascimento && <span className="text-xs text-gray-400 ml-2">({calcularIdade(estudante.data_nascimento)} anos)</span>}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p><p className="text-sm text-gray-900 dark:text-white">{estudante.email || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Telefone</p><p className="text-sm text-gray-900 dark:text-white">{estudante.telefone || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Academia</p><p className="text-sm text-gray-900 dark:text-white">{estudante.codigo_academia || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ano Escolar</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.ano_escolar_fundamental ? formatAnoAcademico(estudante.ano_escolar_fundamental) : '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Notas</p><p className="text-sm text-gray-900 dark:text-white">{estudante.total_notas ?? '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Faltas</p><p className="text-sm text-gray-900 dark:text-white">{estudante.total_faltas ?? '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Fundamental</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status_escolar_fundamental)}`}>{estudante.status_escolar_fundamental?.replace('_', ' ') || '-'}</span></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Médio</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status_escolar_medio)}`}>{estudante.status_escolar_medio?.replace('_', ' ') || '-'}</span></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Superior</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status_superior)}`}>{estudante.status_superior?.replace('_', ' ') || '-'}</span></div>
-        <div className="col-span-2"><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p><p className="text-sm text-gray-900 dark:text-white">{formatarDataISO(estudante.created_at)}</p></div>
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">Detalhes do Estudante</h4>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Dados pessoais, identificação, matrícula e indicadores acadêmicos.</p>
+        </div>
+        <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span>
       </div>
-      <div className="flex justify-end mt-6"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>
+
+      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação</h5>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DetailItem label="Nome" value={estudante.nome} className="capitalize" />
+          <DetailItem label="Código do estudante" value={estudante.codigo_estudante} className="font-mono" />
+          <DetailItem label="Género" value={estudante.genero || "-"} className="capitalize" />
+          <DetailItem label="Data de nascimento" value={<>{formatarDataNasc(estudante.data_nascimento)}{estudante.data_nascimento && <span className="ml-2 text-xs text-gray-400">({calcularIdade(estudante.data_nascimento)} anos)</span>}</>} />
+          <DetailItem label="Bilhete de identidade" value={estudante.bilhete_identidade || "-"} />
+          <DetailItem label="BI do responsável" value={estudante.bilhete_identidade_responsavel || "-"} />
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Contactos e academia</h5>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DetailItem label="E-mail" value={estudante.email || "-"} />
+          <DetailItem label="E-mail verificado" value={estudante.email_verificado ? "Sim" : "Não"} />
+          <DetailItem label="Telefone" value={estudante.telefone || "-"} />
+          <DetailItem label="Academia" value={estudante.codigo_academia || "-"} />
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Matrícula atual</h5>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DetailItem label="Ano acadêmico" value={anoAtual ? formatAnoAcademico(anoAtual) : "-"} />
+          <DetailItem label="Curso/Código do curso" value={cursoAtual} />
+          <DetailItem label="Semestre atual" value={estudante.semestre_atual ?? "-"} />
+          <DetailItem label="Status fundamental" value={estudante.status_escolar_fundamental?.replace(/_/g, " ") || "-"} className="capitalize" />
+          <DetailItem label="Status médio" value={estudante.status_escolar_medio?.replace(/_/g, " ") || "-"} className="capitalize" />
+          <DetailItem label="Status superior" value={estudante.status_superior?.replace(/_/g, " ") || "-"} className="capitalize" />
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Resumo acadêmico</h5>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DetailItem label="Total de notas" value={estudante.total_notas ?? "-"} />
+          <DetailItem label="Total de faltas" value={estudante.total_faltas ?? "-"} />
+          <DetailItem label="Criado em" value={formatarDataISO(estudante.created_at)} />
+          <DetailItem label="Atualizado em" value={formatarDataISO(estudante.updated_at)} />
+        </div>
+      </section>
+
+      <div className="flex justify-end"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>
     </div>
   );
+}
+
+function DetailItem({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) {
+  return <div><p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p><p className={`mt-1 text-sm text-gray-900 dark:text-white ${className}`}>{value}</p></div>;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────

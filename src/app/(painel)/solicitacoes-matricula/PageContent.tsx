@@ -18,9 +18,25 @@ const docLabels: Record<string, string> = {
   certificado_ensino_medio: "Certificado do ensino médio",
 };
 
-function anoLabel(s: SolicitacaoMatricula) {
-  return s.ano_escolar_fundamental || s.ano_escolar_medio || s.ano_superior || "Ano não informado";
+function anoValue(s: SolicitacaoMatricula) {
+  return s.ano_escolar_fundamental || s.ano_escolar_medio || s.ano_superior || "sem_ano";
 }
+
+function anoLabel(value?: string) {
+  if (!value || value === "sem_ano") return "Ano não informado";
+  const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return value.replace(/_/g, " ");
+  const nivel = match[2] === "medio" ? "Médio" : match[2] === "superior" ? "Superior" : "Fundamental";
+  return `${match[1]}º Ano ${nivel}`;
+}
+
+function anoOrder(value: string) {
+  const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return 9999;
+  const nivelOrder = match[2] === "fundamental" ? 0 : match[2] === "medio" ? 1 : 2;
+  return nivelOrder * 100 + Number(match[1]);
+}
+
 function documentoUrl(value: SolicitacaoMatriculaDocumento | string) {
   if (typeof value === "string") return value;
   return value.file_url || value.download_url || value.url || value.path;
@@ -28,6 +44,10 @@ function documentoUrl(value: SolicitacaoMatriculaDocumento | string) {
 function formatDate(value?: string) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("pt-PT");
+}
+function formatDateTime(value?: string) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" });
 }
 
 export default function PageContent() {
@@ -39,6 +59,8 @@ export default function PageContent() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [motivo, setMotivo] = useState<Record<string, string>>({});
+  const [anoSelecionado, setAnoSelecionado] = useState<string | null>(null);
+  const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -55,18 +77,28 @@ export default function PageContent() {
   }, [isAdmin, status]);
 
   useEffect(() => { if (user?.tipo) carregar(); }, [user?.tipo, carregar]);
+  useEffect(() => { setAnoSelecionado(null); setSolicitacaoSelecionada(null); }, [status]);
 
-  const grupos = useMemo(() => {
-    const ordenadas = [...items].sort((a, b) => {
-      const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      return ordem === "recentes" ? -diff : diff;
-    });
-    return ordenadas.reduce<Record<string, SolicitacaoMatricula[]>>((acc, item) => {
-      const key = anoLabel(item);
-      acc[key] = acc[key] ? [...acc[key], item] : [item];
-      return acc;
-    }, {});
-  }, [items, ordem]);
+  const anos = useMemo(() => {
+    const values = new Set<string>(items.map(anoValue));
+    if (!isAdmin) (user?.academia?.anos_academicos ?? []).forEach((ano) => values.add(ano));
+    return Array.from(values).sort((a, b) => anoOrder(a) - anoOrder(b));
+  }, [items, isAdmin, user?.academia?.anos_academicos]);
+
+  const solicitacoesDoAno = useMemo(() => {
+    if (!anoSelecionado) return [];
+    return items
+      .filter((item) => anoValue(item) === anoSelecionado)
+      .sort((a, b) => {
+        const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return ordem === "recentes" ? -diff : diff;
+      });
+  }, [items, anoSelecionado, ordem]);
+
+  const solicitacao = useMemo(
+    () => solicitacoesDoAno.find((item) => item.codigo_solicitacao === solicitacaoSelecionada) ?? null,
+    [solicitacoesDoAno, solicitacaoSelecionada]
+  );
 
   async function aprovar(codigo: string) { await academiaService.aprovarSolicitacaoMatricula(codigo); await carregar(); }
   async function reprovar(codigo: string) {
@@ -76,35 +108,82 @@ export default function PageContent() {
     await carregar();
   }
 
+  if (loading) return <div className="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Solicitações de matrícula</h1>
-          <p className="text-sm text-gray-500">Pedidos agrupados por ano acadêmico, com dados pessoais, decisão e documentos anexados.</p>
+          <p className="text-sm text-gray-500">Entre em cada ano acadêmico para ver as solicitações e abrir os detalhes completos.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">{statusOptions.map((s) => <option key={s || "todas"} value={s}>{s || "todas"}</option>)}</select>
-          <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option></select>
-        </div>
+        <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
+          {statusOptions.map((s) => <option key={s || "todas"} value={s}>{s || "todas"}</option>)}
+        </select>
       </div>
 
       {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{erro}</p>}
-      {loading ? <div className="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" /> : Object.entries(grupos).length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhuma solicitação encontrada.</p> : Object.entries(grupos).map(([ano, solicitacoes]) => (
-        <section key={ano} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white"><Icon icon="mdi:calendar-blank-outline" /> {ano}</h2>
-          <div className="grid gap-4">
-            {solicitacoes.map((s) => (
-              <article key={s.codigo_solicitacao} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800">
-                <div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{s.nome}</h3><p className="text-sm text-gray-500">{s.codigo_solicitacao} · {s.codigo_academia}{s.academia_nome ? ` · ${s.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{s.status}</span></div>
-                <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-gray-600 dark:text-gray-300 md:grid-cols-4"><span>Nascimento: {formatDate(s.data_nascimento)}</span><span>Género: {s.genero}</span><span>Telefone: {s.telefone || "-"}</span><span>Email: {s.email || "-"}</span><span>BI estudante: {s.bilhete_identidade || "-"}</span><span>BI responsável: {s.bilhete_identidade_responsavel || "-"}</span><span>Curso: {s.curso_medio_nome || s.curso_superior_nome || "Não se aplica"}</span><span>Criada em: {formatDate(s.created_at)}</span></div>
-                {!!s.documentos && <div className="mt-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><div className="flex flex-wrap gap-2">{Object.entries(s.documentos).map(([key, value]) => { const url = documentoUrl(value); return <a key={key} href={url} target="_blank" rel="noreferrer" className="rounded-full border border-gray-200 px-3 py-1 text-xs text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300">{docLabels[key] || key}</a>; })}</div></div>}
-                {!isAdmin && s.status === "pendente" && <div className="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button onClick={() => aprovar(s.codigo_solicitacao)} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white">Aprovar e criar estudante</button><input placeholder="Motivo da reprovação" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onChange={(e) => setMotivo((p) => ({ ...p, [s.codigo_solicitacao]: e.target.value }))} /><button onClick={() => reprovar(s.codigo_solicitacao)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white">Reprovar</button></div>}
-              </article>
-            ))}
+
+      {!anoSelecionado && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {anos.length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhum ano acadêmico encontrado.</p> : anos.map((ano) => {
+            const total = items.filter((item) => anoValue(item) === ano).length;
+            return (
+              <button key={ano} type="button" onClick={() => setAnoSelecionado(ano)} className="rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-brand-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <Icon icon="mdi:calendar-blank-outline" className="mb-3 text-brand-500" width={24} />
+                <h2 className="font-semibold text-gray-900 dark:text-white">{anoLabel(ano)}</h2>
+                <p className="mt-1 text-sm text-gray-500">{total} solicitação(ões)</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {anoSelecionado && !solicitacao && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button type="button" onClick={() => setAnoSelecionado(null)} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400"><Icon icon="mdi:arrow-left" />Anos acadêmicos</button>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{anoLabel(anoSelecionado)}</h2>
+              <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option></select>
+            </div>
           </div>
+          {solicitacoesDoAno.length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhuma solicitação neste ano acadêmico.</p> : (
+            <div className="grid gap-3">
+              {solicitacoesDoAno.map((s) => (
+                <button key={s.codigo_solicitacao} type="button" onClick={() => setSolicitacaoSelecionada(s.codigo_solicitacao)} className="rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-brand-300 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{s.nome}</h3><p className="text-sm text-gray-500">{s.codigo_solicitacao} · {s.codigo_academia}{s.academia_nome ? ` · ${s.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{s.status}</span></div>
+                  <p className="mt-3 text-sm text-gray-500">Criada em {formatDateTime(s.created_at)} · {s.curso_medio_nome || s.curso_superior_nome || anoLabel(anoValue(s))}</p>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
-      ))}
+      )}
+
+      {solicitacao && (
+        <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <button type="button" onClick={() => setSolicitacaoSelecionada(null)} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400"><Icon icon="mdi:arrow-left" />Solicitações de {anoLabel(anoSelecionado ?? undefined)}</button>
+          <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{solicitacao.nome}</h2><p className="text-sm text-gray-500">{solicitacao.codigo_solicitacao} · {solicitacao.codigo_academia}{solicitacao.academia_nome ? ` · ${solicitacao.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{solicitacao.status}</span></div>
+          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+            <Info label="Ano acadêmico" value={anoLabel(anoValue(solicitacao))} />
+            <Info label="Curso" value={solicitacao.curso_medio_nome || solicitacao.curso_superior_nome || "Não se aplica"} />
+            <Info label="Data de nascimento" value={formatDate(solicitacao.data_nascimento)} />
+            <Info label="Género" value={solicitacao.genero} />
+            <Info label="Telefone" value={solicitacao.telefone || "-"} />
+            <Info label="Email" value={solicitacao.email || "-"} />
+            <Info label="BI estudante" value={solicitacao.bilhete_identidade || "-"} />
+            <Info label="BI responsável" value={solicitacao.bilhete_identidade_responsavel || "-"} />
+            <Info label="Criada em" value={formatDateTime(solicitacao.created_at)} />
+          </div>
+          {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const url = documentoUrl(value); return url ? <a key={key} href={url} target="_blank" rel="noreferrer" className="rounded-full border border-gray-200 px-3 py-1 text-xs text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300">{docLabels[key] || key}</a> : <span key={key} className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-500 dark:border-gray-700">{docLabels[key] || key}</span>; })}</div></div>}
+          {!isAdmin && solicitacao.status === "pendente" && <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button onClick={() => aprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white">Aprovar e criar estudante</button><input placeholder="Motivo da reprovação" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onChange={(e) => setMotivo((p) => ({ ...p, [solicitacao.codigo_solicitacao]: e.target.value }))} /><button onClick={() => reprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white">Reprovar</button></div>}
+        </section>
+      )}
     </div>
   );
+}
+
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>;
 }
