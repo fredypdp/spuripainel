@@ -25,6 +25,7 @@ export default function EstudanteSection() {
 
   const [form, setForm] = useState(initial);
   const [sucesso, setSucesso] = useState(false);
+  const [erroValidacao, setErroValidacao] = useState("");
 
   const {
     loading,
@@ -39,14 +40,22 @@ export default function EstudanteSection() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSucesso(false);
+    setErroValidacao("");
+
+    const biEstudante = form.bilhete_identidade.trim();
+    const biResponsavel = form.bilhete_identidade_responsavel.trim();
+    if (biEstudante && biResponsavel && biEstudante.toLowerCase() === biResponsavel.toLowerCase()) {
+      setErroValidacao("O BI do estudante não pode ser igual ao BI do responsável.");
+      return;
+    }
 
     try {
       await atualizarDados({
         nome: form.nome || undefined,
         email: form.email || undefined,
         telefone: form.telefone || undefined,
-        bilhete_identidade: form.bilhete_identidade || undefined,
-        bilhete_identidade_responsavel: form.bilhete_identidade_responsavel || undefined,
+        bilhete_identidade: biEstudante || undefined,
+        bilhete_identidade_responsavel: biResponsavel || undefined,
         data_nascimento: form.data_nascimento || undefined,
       });
       setSucesso(true);
@@ -97,10 +106,10 @@ export default function EstudanteSection() {
             ))}
           </div>
 
-          {error && (
+          {(erroValidacao || error) && (
             <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
               <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400">{erroValidacao || error}</p>
             </div>
           )}
 

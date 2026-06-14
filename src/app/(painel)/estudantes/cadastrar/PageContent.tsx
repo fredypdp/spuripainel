@@ -193,6 +193,14 @@ export default function CadastrarEstudantePageContent() {
     return ANOS_FUNDAMENTAL_LIST;
   };
 
+  const bilhetesIdentidadeIguais = (): boolean => {
+    return (
+      !!bilheteIdentidade.trim() &&
+      !!bilheteResponsavel.trim() &&
+      bilheteIdentidade.trim().toLowerCase() === bilheteResponsavel.trim().toLowerCase()
+    );
+  };
+
   const deveMostrarCurso = (): boolean => {
     if (isSuperior) return true;
     if (nivelEscolar === 'medio') return true;
@@ -209,6 +217,9 @@ export default function CadastrarEstudantePageContent() {
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
     if (!bilheteIdentidade.trim() && !bilheteResponsavel.trim()) {
       erros.push('Pelo menos um bilhete (estudante ou responsável) deve ser preenchido');
+    }
+    if (bilhetesIdentidadeIguais()) {
+      erros.push('O BI do estudante não pode ser igual ao BI do responsável');
     }
     if (deveMostrarCurso() && !cursoSelecionado) {
       erros.push('Para este nível, o curso é obrigatório');
@@ -436,7 +447,7 @@ export default function CadastrarEstudantePageContent() {
                   type="text"
                   placeholder="Ex: 123456789012AB"
                   defaultValue={bilheteIdentidade}
-                  onChange={e => setBilheteIdentidade(e.target.value)}
+                  onChange={e => setBilheteIdentidade(e.target.value.trimStart())}
                   disabled={carregandoCadastro}
                 />
               </div>
@@ -446,7 +457,7 @@ export default function CadastrarEstudantePageContent() {
                   type="text"
                   placeholder="Ex: 123456789012AB"
                   defaultValue={bilheteResponsavel}
-                  onChange={e => setBilheteResponsavel(e.target.value)}
+                  onChange={e => setBilheteResponsavel(e.target.value.trimStart())}
                   disabled={carregandoCadastro}
                 />
               </div>

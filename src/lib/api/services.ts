@@ -180,15 +180,36 @@ function ensureAnoLetivoFormato(anoLetivo: string): string {
   return normalized;
 }
 
+function normalizarBilheteIdentidade(value?: string): string | undefined {
+  return value?.trim() || undefined;
+}
+
+function ensureBilhetesDiferentes(
+  bilheteIdentidade?: string,
+  bilheteIdentidadeResponsavel?: string
+): void {
+  if (
+    bilheteIdentidade &&
+    bilheteIdentidadeResponsavel &&
+    bilheteIdentidade.trim().toLowerCase() === bilheteIdentidadeResponsavel.trim().toLowerCase()
+  ) {
+    throw new Error('O BI do estudante não pode ser igual ao BI do responsável');
+  }
+}
+
 function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteRequest {
+  const bilheteIdentidade = normalizarBilheteIdentidade(data.bilhete_identidade);
+  const bilheteIdentidadeResponsavel = normalizarBilheteIdentidade(data.bilhete_identidade_responsavel);
+  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeResponsavel);
+
   const payload: CriarEstudanteRequest = {
     nome: data.nome?.trim(),
     genero: data.genero,
     data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento')!,
     email: data.email?.trim() || undefined,
     telefone: data.telefone?.trim() || undefined,
-    bilhete_identidade: data.bilhete_identidade?.trim() || undefined,
-    bilhete_identidade_responsavel: data.bilhete_identidade_responsavel?.trim() || undefined,
+    bilhete_identidade: bilheteIdentidade,
+    bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
     ano_escolar_fundamental: data.ano_escolar_fundamental ?? null,
     ano_escolar_medio: data.ano_escolar_medio ?? null,
     curso_medio_id: data.curso_medio_id ?? null,
@@ -215,9 +236,35 @@ function buildSolicitacoesMatriculaQuery(params?: ListarSolicitacoesMatriculaPar
   return query ? `?${query}` : '';
 }
 
+function prepareAtualizarDadosPessoaisEstudante(
+  data: AtualizarDadosPessoaisEstudanteRequest
+): AtualizarDadosPessoaisEstudanteRequest {
+  const bilheteIdentidade = normalizarBilheteIdentidade(data.bilhete_identidade);
+  const bilheteIdentidadeResponsavel = normalizarBilheteIdentidade(data.bilhete_identidade_responsavel);
+  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeResponsavel);
+
+  return {
+    ...data,
+    nome: data.nome?.trim() || undefined,
+    email: data.email?.trim() || undefined,
+    telefone: data.telefone?.trim() || undefined,
+    bilhete_identidade: bilheteIdentidade,
+    bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
+    data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento'),
+  };
+}
+
 function prepareSolicitacaoMatriculaForm(data: CriarSolicitacaoMatriculaRequest): FormData {
+  const bilheteIdentidade = normalizarBilheteIdentidade(data.bilhete_identidade);
+  const bilheteIdentidadeResponsavel = normalizarBilheteIdentidade(data.bilhete_identidade_responsavel);
+  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeResponsavel);
+
   const form = new FormData();
-  const entries: Array<[keyof CriarSolicitacaoMatriculaRequest, unknown]> = Object.entries(data) as any;
+  const entries: Array<[keyof CriarSolicitacaoMatriculaRequest, unknown]> = Object.entries({
+    ...data,
+    bilhete_identidade: bilheteIdentidade,
+    bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
+  }) as any;
   entries.forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
     if (value instanceof File) {
@@ -557,7 +604,7 @@ export const estudanteService = {
   atualizarDadosPessoais: (data: AtualizarDadosPessoaisEstudanteRequest, token?: string) =>
     api.put<{ message: string }>(
       '/estudante/dados-pessoais',
-      data,
+      prepareAtualizarDadosPessoaisEstudante(data),
       { token: token || tokenStorage.get() || undefined }
     ),
 

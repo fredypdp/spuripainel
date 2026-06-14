@@ -217,6 +217,7 @@ export default function MatriculaPublicPage() {
       if (!form.bilhete_identidade?.trim() && !files.cedula_estudante) return "Informe o BI do estudante ou anexe a cédula do estudante no passo de documentos.";
       if (!form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
       if (!isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
+      if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_responsavel)) return "O BI do estudante não pode ser igual ao BI do responsável.";
     }
     if (current === 5) {
       const faltando = documentos.find((doc) => doc.obrigatorio && !files[doc.key]);
@@ -453,6 +454,10 @@ function maskBilheteIdentidade(value: string) {
 
 function isBilheteIdentidadeValido(value?: string) {
   return !!value && /^\d{9}[A-Z]{2}\d{3}$/.test(value);
+}
+
+function bilhetesIdentidadeIguais(estudante?: string, responsavel?: string) {
+  return !!estudante && !!responsavel && estudante.trim().toLowerCase() === responsavel.trim().toLowerCase();
 }
 
 function StepTitle({ title, description }: { title: string; description: string }) {
