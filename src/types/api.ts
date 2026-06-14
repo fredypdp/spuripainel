@@ -202,6 +202,7 @@ export interface CriarSolicitacaoMatriculaRequest {
   bi_estudante?: File;
   bi_responsavel?: File;
   cedula?: File;
+  cedula_estudante?: File;
   declaracao?: File;
   certificado_6_ano_fundamental?: File;
   certificado_9_ano_fundamental?: File;
@@ -216,8 +217,10 @@ export interface CriarSolicitacaoMatriculaResponse {
 }
 
 export interface SolicitacaoMatriculaDocumento {
-  nome?: string;
   path?: string;
+  file_url?: string;
+  download_url?: string;
+  nome?: string;
   url?: string;
   content_type?: string;
   tamanho_bytes?: number;
@@ -917,7 +920,7 @@ export interface AcademiaDetalhada {
   tipo_ano_letivo?: 'escola' | 'superior';
   ano_letivo_ativado_em?: string;
   anos_letivos_lista?: Array<{ ano_letivo: string; tipo: 'escola' | 'superior'; definido_por: string; definido_em: string }>;
-  documentos_obrigatorios: DocumentosObrigatorios;
+  documentos_obrigatorios?: DocumentosObrigatorios;
 }
 
 export interface AdminDetalhado {
