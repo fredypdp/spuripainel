@@ -125,7 +125,9 @@ export interface CriarEstudanteRequest {
   data_nascimento: string;
   email?: string;
   telefone?: string;
+  /** Não pode ser igual ao BI do responsável (trim + case-insensitive). */
   bilhete_identidade?: string;
+  /** Não pode ser igual ao BI do estudante (trim + case-insensitive). */
   bilhete_identidade_responsavel?: string;
   ano_escolar_fundamental?: string | null;
   ano_escolar_medio?: string | null;
@@ -192,6 +194,7 @@ export interface CriarSolicitacaoMatriculaRequest {
   data_nascimento: string;
   email?: string;
   telefone?: string;
+  /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
   ano_escolar_fundamental?: string;
@@ -371,6 +374,7 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
   telefone?: string;
+  /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
   data_nascimento?: string;
