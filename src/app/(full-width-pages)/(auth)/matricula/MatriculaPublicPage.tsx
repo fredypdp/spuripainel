@@ -6,14 +6,13 @@ import { Dropdown } from "primereact/dropdown";
 import Input from "@/components/form/input/InputField";
 import FileInput from "@/components/form/input/FileInput";
 import DatePicker from "@/components/form/date-picker";
-import PhoneInput from "@/components/form/group-input/PhoneInput";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { academiaService, consultasService, solicitacaoMatriculaService } from "@/lib/api/services";
 import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, Genero } from "@/types/api";
 
 type StepId = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-type FileKey = "bi_estudante" | "bi_responsavel" | "cedula" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
+type FileKey = "bi_estudante" | "bi_responsavel" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
 type MatriculaForm = Partial<CriarSolicitacaoMatriculaRequest> & { genero: Genero };
 
 interface AnoOpcao { label: string; value: string }
@@ -21,7 +20,6 @@ interface DocumentoOpcao { key: FileKey; label: string; obrigatorio: boolean }
 
 const steps = ["1º Passo", "2º Passo", "3º Passo", "4º Passo", "5º Passo", "6º Passo", "7º Passo"];
 const emptyForm: MatriculaForm = { genero: "masculino" };
-const phoneCountries = [{ code: "AO", label: "+244" }];
 
 function normalizarAcademia(response: unknown): AcademiaDetalhada {
   const data = response as { academia?: AcademiaDetalhada; data?: AcademiaDetalhada } & AcademiaDetalhada;
@@ -36,14 +34,30 @@ function getAnoLabel(value?: string) {
   return `${match[1]}º Ano ${nivel}`;
 }
 
+function anoOrder(value: string) {
+  const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  const nivel = match?.[2] === "fundamental" ? 0 : match?.[2] === "medio" ? 1 : 2;
+  return nivel * 100 + Number(match?.[1] ?? 0);
+}
+
 function toAnoOptions(anos?: string[]): AnoOpcao[] {
-  return (anos ?? []).map((value) => ({ value, label: getAnoLabel(value) }));
+  return [...(anos ?? [])]
+    .sort((a, b) => anoOrder(a) - anoOrder(b))
+    .map((value) => ({ value, label: getAnoLabel(value) }));
 }
 
 function isFundamental(ano?: string) { return !!ano && ano.includes("fundamental"); }
 function isMedio(ano?: string) { return !!ano && ano.includes("medio"); }
 function isSuperior(ano?: string) { return !!ano && ano.includes("superior"); }
 function fileName(file?: File) { return file ? `${file.name} (${Math.ceil(file.size / 1024)} KB)` : "Não anexado"; }
+
+function certificadoFieldForAno(ano?: string | null): FileKey | null {
+  if (!ano) return null;
+  if (["7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental"].includes(ano)) return "certificado_6_ano_fundamental";
+  if (isMedio(ano)) return "certificado_9_ano_fundamental";
+  if (isSuperior(ano)) return "certificado_ensino_medio";
+  return null;
+}
 
 export default function MatriculaPublicPage() {
   const [step, setStep] = useState<StepId>(0);
@@ -107,27 +121,27 @@ export default function MatriculaPublicPage() {
   }, [academiaFundamental, academiaMedia, academiaMista, academiaSuperior, anosFundamental, curso, cursosMedio]);
 
   const documentos = useMemo<DocumentoOpcao[]>(() => {
-    const obrigatorios = academia?.documentos_obrigatorios;
     const docs: DocumentoOpcao[] = [
-      { key: "bi_estudante", label: "Bilhete de Identidade do estudante", obrigatorio: true },
+      { key: "bi_estudante", label: "Bilhete de Identidade do estudante", obrigatorio: false },
       { key: "bi_responsavel", label: "Bilhete de Identidade do responsável", obrigatorio: true },
-      { key: "cedula", label: "Cédula", obrigatorio: true },
+      { key: "cedula_estudante", label: "Cédula do estudante (se não anexar o BI do estudante)", obrigatorio: !files.bi_estudante },
     ];
 
-    if (anoSelecionado && obrigatorios?.declaracao?.includes(anoSelecionado)) {
-      docs.push({ key: "declaracao", label: "Declaração", obrigatorio: true });
+    const certificado = certificadoFieldForAno(anoSelecionado);
+    if (certificado) {
+      docs.push({ key: "declaracao", label: "Declaração escolar (alternativa ao certificado)", obrigatorio: !files[certificado] });
     }
-    if (anoSelecionado && obrigatorios?.certificado_6_ano_fundamental?.includes(anoSelecionado)) {
-      docs.push({ key: "certificado_6_ano_fundamental", label: "Certificado do 6.º ano fundamental", obrigatorio: true });
+    if (certificado === "certificado_6_ano_fundamental") {
+      docs.push({ key: certificado, label: "Certificado do 6.º ano fundamental", obrigatorio: !files.declaracao });
     }
-    if (anoSelecionado && obrigatorios?.certificado_9_ano_fundamental?.includes(anoSelecionado)) {
-      docs.push({ key: "certificado_9_ano_fundamental", label: "Certificado do 9.º ano fundamental", obrigatorio: true });
+    if (certificado === "certificado_9_ano_fundamental") {
+      docs.push({ key: certificado, label: "Certificado do 9.º ano fundamental", obrigatorio: !files.declaracao });
     }
-    if (anoSelecionado && obrigatorios?.certificado_ensino_medio?.includes(anoSelecionado)) {
-      docs.push({ key: "certificado_ensino_medio", label: "Certificado do ensino médio", obrigatorio: true });
+    if (certificado === "certificado_ensino_medio") {
+      docs.push({ key: certificado, label: "Certificado do ensino médio", obrigatorio: !files.declaracao });
     }
     return docs;
-  }, [academia, anoSelecionado]);
+  }, [anoSelecionado, files]);
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
@@ -200,7 +214,6 @@ export default function MatriculaPublicPage() {
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Informe um email válido.";
     }
     if (current === 4) {
-      if (!form.bilhete_identidade?.trim()) return "Informe o Bilhete de Identidade do estudante.";
       if (!form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
     }
     if (current === 5) {
@@ -249,6 +262,7 @@ export default function MatriculaPublicPage() {
         curso_medio_id: isMedio(anoSelecionado) ? curso?.id : undefined,
         curso_superior_id: isSuperior(anoSelecionado) ? curso?.id : undefined,
         ...files,
+        cedula: files.cedula_estudante,
       };
       const res = await solicitacaoMatriculaService.criar(payload);
       setSucesso(`Solicitação enviada com sucesso. Código: ${res.codigo_solicitacao}`);
@@ -326,7 +340,7 @@ export default function MatriculaPublicPage() {
 
           {step === 1 && (
             <section className="space-y-4">
-              <StepTitle title="2. Selecionar o ano acadêmico e curso" description="O curso aparece apenas quando a instituição precisa dele para este tipo de matrícula." />
+              <StepTitle title={academiaSuperior || academiaMedia ? "2. Selecionar curso e ano acadêmico" : "2. Selecionar ano acadêmico"} description={academiaSuperior || academiaMedia ? "Escolha primeiro um curso ativo e depois o ano acadêmico." : "Escolha um dos anos acadêmicos ativos da instituição."} />
               {loadingCursos && <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-800">Carregando cursos...</p>}
               <div className="grid gap-4 sm:grid-cols-2">
                 {(academiaSuperior || academiaMedia) && (
@@ -375,7 +389,7 @@ export default function MatriculaPublicPage() {
             <section className="space-y-4">
               <StepTitle title="4. Telefone e email" description="Estes contactos ajudam a instituição a responder à solicitação." />
               <div className="grid gap-4 sm:grid-cols-2">
-                <div><Label>Telefone</Label><PhoneInput countries={phoneCountries} placeholder="923 456 789" onChange={(value) => setField("telefone", value)} /></div>
+                <div><Label>Telefone</Label><Input type="tel" placeholder="923 456 789" defaultValue={form.telefone} onChange={(e) => setField("telefone", maskTelefoneAngola(e.target.value))} /></div>
                 <div><Label>Email</Label><Input type="email" placeholder="email@exemplo.com" defaultValue={form.email} onChange={(e) => setField("email", e.target.value)} /></div>
               </div>
             </section>
@@ -418,6 +432,11 @@ export default function MatriculaPublicPage() {
       </div>
     </div>
   );
+}
+
+function maskTelefoneAngola(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 9);
+  return digits.replace(/(\d{3})(?=\d)/g, "$1 ").trim();
 }
 
 function StepTitle({ title, description }: { title: string; description: string }) {

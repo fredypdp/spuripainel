@@ -78,9 +78,6 @@ import type {
   MotivoEstudanteRequest,
   RevincularEstudanteRequest,
   MensagemResponse,
-  AtualizarDocumentosObrigatoriosRequest,
-  AtualizarDocumentosObrigatoriosResponse,
-  DocumentosObrigatoriosResponse,
   CriarSolicitacaoMatriculaRequest,
   CriarSolicitacaoMatriculaResponse,
   ListarSolicitacoesMatriculaParams,
@@ -618,23 +615,6 @@ export const academiaService = {
     api.put<MensagemResponse>(
       `/academia/solicitacao-matricula/${encodeURIComponent(codigo)}/reprovar`,
       { motivo_reprovacao: data.motivo_reprovacao?.trim() },
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  getDocumentosObrigatorios: (params?: { codigo_academia?: string; token?: string } | string) => {
-    const isLegacy = typeof params === 'string' || params === undefined;
-    const tok = isLegacy ? (params as string | undefined) : params?.token;
-    const codigo = isLegacy ? undefined : params?.codigo_academia;
-    const qs = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
-    return api.get<DocumentosObrigatoriosResponse>(`/academia/documentos-obrigatorios${qs}`, {
-      token: tok || tokenStorage.get() || undefined,
-    });
-  },
-
-  atualizarDocumentosObrigatorios: (data: AtualizarDocumentosObrigatoriosRequest, token?: string) =>
-    api.put<AtualizarDocumentosObrigatoriosResponse>(
-      '/academia/documentos-obrigatorios',
-      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 

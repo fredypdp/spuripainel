@@ -953,28 +953,76 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
 
 // ─── ModalDetalhes ────────────────────────────────────────────────────────────
 
-function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; onClose: () => void }) {
+function DetailItem({ label, value, mono = false }: { label: string; value?: React.ReactNode; mono?: boolean }) {
   return (
-    <div>
-      <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Detalhes do Estudante</h4>
-      <div className="grid grid-cols-2 gap-4">
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.nome}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p><p className="text-sm text-gray-900 dark:text-white font-mono">{estudante.codigo_estudante}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Género</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.genero || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Nascimento</p><p className="text-sm text-gray-900 dark:text-white">{formatarDataNasc(estudante.data_nascimento)}{estudante.data_nascimento && <span className="text-xs text-gray-400 ml-2">({calcularIdade(estudante.data_nascimento)} anos)</span>}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p><p className="text-sm text-gray-900 dark:text-white">{estudante.email || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Telefone</p><p className="text-sm text-gray-900 dark:text-white">{estudante.telefone || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Academia</p><p className="text-sm text-gray-900 dark:text-white">{estudante.codigo_academia || '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ano Escolar</p><p className="text-sm text-gray-900 dark:text-white capitalize">{estudante.ano_escolar_fundamental ? formatAnoAcademico(estudante.ano_escolar_fundamental) : '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Notas</p><p className="text-sm text-gray-900 dark:text-white">{estudante.total_notas ?? '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Faltas</p><p className="text-sm text-gray-900 dark:text-white">{estudante.total_faltas ?? '-'}</p></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Fundamental</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status_escolar_fundamental)}`}>{estudante.status_escolar_fundamental?.replace('_', ' ') || '-'}</span></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Médio</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status_escolar_medio)}`}>{estudante.status_escolar_medio?.replace('_', ' ') || '-'}</span></div>
-        <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status Superior</p><span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status_superior)}`}>{estudante.status_superior?.replace('_', ' ') || '-'}</span></div>
-        <div className="col-span-2"><p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p><p className="text-sm text-gray-900 dark:text-white">{formatarDataISO(estudante.created_at)}</p></div>
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
+      <div className={`mt-1 text-sm text-gray-900 dark:text-white ${mono ? 'font-mono' : ''}`}>{value || '-'}</div>
+    </div>
+  );
+}
+
+function StatusPill({ value }: { value?: string }) {
+  return value ? <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(value)}`}>{value.replace(/_/g, ' ')}</span> : <span>-</span>;
+}
+
+function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; onClose: () => void }) {
+  const idade = estudante.data_nascimento ? calcularIdade(estudante.data_nascimento) : null;
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">Detalhes do Estudante</h4>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Dados pessoais, matrícula, status acadêmico e indicadores.</p>
+        </div>
+        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span>
       </div>
-      <div className="flex justify-end mt-6"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>
+
+      <section>
+        <h5 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Identificação</h5>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <DetailItem label="Nome completo" value={<span className="capitalize">{estudante.nome}</span>} />
+          <DetailItem label="Código do estudante" value={estudante.codigo_estudante} mono />
+          <DetailItem label="Género" value={estudante.genero === 'feminino' ? 'Feminino' : 'Masculino'} />
+          <DetailItem label="Data de nascimento" value={<>{formatarDataNasc(estudante.data_nascimento)}{idade !== null && <span className="ml-2 text-xs text-gray-400">({idade} anos)</span>}</>} />
+          <DetailItem label="Bilhete de Identidade" value={estudante.bilhete_identidade} />
+          <DetailItem label="BI do responsável" value={estudante.bilhete_identidade_responsavel} />
+        </div>
+      </section>
+
+      <section>
+        <h5 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Contactos e academia</h5>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <DetailItem label="E-mail" value={estudante.email} />
+          <DetailItem label="Telefone" value={estudante.telefone} />
+          <DetailItem label="Código da academia" value={estudante.codigo_academia} mono />
+          <DetailItem label="E-mail verificado" value={estudante.email_verificado ? 'Sim' : 'Não'} />
+        </div>
+      </section>
+
+      <section>
+        <h5 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Percurso acadêmico</h5>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <DetailItem label="Fundamental" value={<div className="space-y-1"><p>{estudante.ano_escolar_fundamental ? formatAnoAcademico(estudante.ano_escolar_fundamental) : '-'}</p><StatusPill value={estudante.status_escolar_fundamental} /></div>} />
+          <DetailItem label="Médio" value={<div className="space-y-1"><p>{estudante.ano_escolar_medio ? formatAnoAcademico(estudante.ano_escolar_medio) : '-'}</p><StatusPill value={estudante.status_escolar_medio} /></div>} />
+          <DetailItem label="Superior" value={<div className="space-y-1"><p>{estudante.ano_superior ? formatAnoAcademico(estudante.ano_superior) : '-'}</p>{estudante.semestre_atual && <p className="text-xs text-gray-500">{estudante.semestre_atual}º semestre</p>}<StatusPill value={estudante.status_superior} /></div>} />
+          <DetailItem label="Curso médio" value={estudante.curso_medio_id} mono />
+          <DetailItem label="Curso superior" value={estudante.curso_superior_id} mono />
+          <DetailItem label="Criado em" value={formatarDataISO(estudante.created_at)} />
+        </div>
+      </section>
+
+      <section>
+        <h5 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Indicadores</h5>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <DetailItem label="Total de notas" value={estudante.total_notas ?? 0} />
+          <DetailItem label="Total de faltas" value={estudante.total_faltas ?? 0} />
+          <DetailItem label="Versão" value={estudante.version} />
+          <DetailItem label="Atualizado em" value={formatarDataISO(estudante.updated_at)} />
+        </div>
+      </section>
+
+      <div className="flex justify-end"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>
     </div>
   );
 }

@@ -1,250 +1,166 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
+import React, { useEffect, useMemo, useState } from "react";
 import Alert from "@/components/ui/alert/Alert";
-import { getCookie } from '@/lib/utils/cookies';
-import type { MeuPerfilResponse } from '@/types/api';
-import { VerificarEmailComFrontend } from "@/lib/utils/email"
+import { getCookie } from "@/lib/utils/cookies";
+import type { MeuPerfilResponse } from "@/types/api";
+import { VerificarEmailComFrontend } from "@/lib/utils/email";
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
-  if (typeof window === 'undefined') return null;
-  
+  if (typeof window === "undefined") return null;
   const userCookie = getCookie("user");
-  if (userCookie) {
-    try {
-      return JSON.parse(userCookie);
-    } catch (error) {
-      return null;
-    }
-  }
-  return null;
+  if (!userCookie) return null;
+  try { return JSON.parse(userCookie); } catch { return null; }
 };
 
+function formatAno(ano?: string) {
+  if (!ano) return "Não informado";
+  const m = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!m) return ano.replace(/_/g, " ");
+  const nivel = m[2] === "medio" ? "Médio" : m[2] === "superior" ? "Superior" : "Fundamental";
+  return `${m[1]}º Ano ${nivel}`;
+}
+
+function formatStatus(status?: string) {
+  return status ? status.replace(/_/g, " ") : "Não informado";
+}
+
+function InfoItem({ label, value }: { label: string; value?: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+      <p className="mb-1 text-xs leading-normal text-gray-500 dark:text-gray-400">{label}</p>
+      <div className="text-sm font-medium text-gray-800 dark:text-white/90">{value || "Não informado"}</div>
+    </div>
+  );
+}
+
 export default function UserInfoCard() {
-  const { isOpen, openModal, closeModal } = useModal();
   const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
   const [mounted, setMounted] = useState(false);
-  const [EnviandoEmailVerificacao, setEnviandoEmailVerificacao] = useState(false);
-  const [EmailEnviado, setEmailEnviado] = useState(false);
-  const [EmailErro, setEmailErro] = useState<string | null>(null);
+  const [enviandoEmailVerificacao, setEnviandoEmailVerificacao] = useState(false);
+  const [emailEnviado, setEmailEnviado] = useState(false);
+  const [emailErro, setEmailErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!mounted) return;
-
     const interval = setInterval(() => {
       const updatedUser = getUserFromCookie();
-      setUser(prev => {
-        if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
-          return updatedUser;
-        }
-        return prev;
-      });
+      setUser((prev) => JSON.stringify(prev) !== JSON.stringify(updatedUser) ? updatedUser : prev);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [mounted]);
 
-  const userName = useMemo(() => 
-    user?.estudante?.nome || user?.academia?.nome || user?.admin?.nome || "",
-    [user]
-  );
-
-  const userEmail = useMemo(() => 
-    user?.estudante?.email || user?.academia?.email || user?.admin?.email || "",
-    [user]
-  );
-
-  // ✅ CORREÇÃO: Identificador correto para cada tipo de usuário
-  const userIdentificador = useMemo(() => {
+  const perfil = useMemo(() => {
     if (user?.estudante) {
-      return user.estudante.codigo_estudante;
+      const e = user.estudante;
+      return {
+        titulo: "Informações do Estudante",
+        nome: e.nome,
+        email: e.email,
+        emailVerificado: e.email_verificado,
+        identificador: e.codigo_estudante,
+        itens: [
+          ["Código do estudante", e.codigo_estudante],
+          ["Género", e.genero === "feminino" ? "Feminino" : "Masculino"],
+          ["Data de nascimento", e.data_nascimento],
+          ["Telefone", e.telefone],
+          ["Bilhete de Identidade", e.bilhete_identidade],
+          ["BI do responsável", e.bilhete_identidade_responsavel],
+          ["Academia", e.academia_info?.nome || e.codigo_academia],
+          ["Fundamental", `${formatAno(e.ano_escolar_fundamental)} · ${formatStatus(e.status_escolar_fundamental)}`],
+          ["Médio", `${formatAno(e.ano_escolar_medio)} · ${formatStatus(e.status_escolar_medio)}`],
+          ["Superior", `${formatAno(e.ano_superior)} · ${formatStatus(e.status_superior)}`],
+          ["Curso médio", e.curso_medio?.nome],
+          ["Curso superior", e.curso_superior?.nome],
+        ],
+      };
     }
     if (user?.academia) {
-      return user.academia.codigo_academia;
+      const a = user.academia;
+      return {
+        titulo: "Informações da Academia",
+        nome: a.nome,
+        email: a.email,
+        emailVerificado: a.email_verificado,
+        identificador: a.codigo_academia,
+        itens: [
+          ["Código da academia", a.codigo_academia],
+          ["Nível", a.nivel === "superior" ? "Ensino Superior" : `Escola ${a.nivel_escolar ?? ""}`],
+          ["Natureza", a.type === "private" ? "Privada" : "Pública"],
+          ["Status", formatStatus(a.status)],
+          ["Telefone", a.numero_telefone],
+          ["Província", a.provincia],
+          ["Endereço", a.endereco],
+          ["Website", a.website],
+          ["Ano letivo", a.ano_letivo?.replace("_", "/")],
+          ["Total de estudantes", String(a.total_estudantes ?? 0)],
+        ],
+      };
     }
     if (user?.admin) {
-      return user.admin.email; // Admin usa email como identificador
+      const a = user.admin;
+      return {
+        titulo: "Informações do Administrador",
+        nome: a.nome,
+        email: a.email,
+        emailVerificado: a.email_verificado,
+        identificador: a.email,
+        itens: [
+          ["Função", a.role === "fpp" ? "FPP" : a.role === "adm" ? "Administrador" : "Gerente"],
+          ["Status", formatStatus(a.status)],
+          ["Criado em", a.created_at ? new Date(a.created_at).toLocaleDateString("pt-PT") : undefined],
+        ],
+      };
     }
-    return "";
+    return null;
   }, [user]);
 
-  const userTelefone = useMemo(() => 
-    user?.estudante?.telefone || user?.academia?.numero_telefone || "",
-    [user]
-  );
-
-  const userBI = useMemo(() => 
-    user?.estudante?.bilhete_identidade || "",
-    [user]
-  );
-
-  const userRole = useMemo(() => 
-    user?.admin?.role || "",
-    [user]
-  );
-
-  // ✅ Handler com validação robusta
   const handleVerificarEmail = async () => {
     setEnviandoEmailVerificacao(true);
     setEmailEnviado(false);
     setEmailErro(null);
-    
     try {
-      // ✅ Validações antes de chamar a API
-      if (!user?.tipo) {
-        throw new Error('Tipo de usuário não identificado');
-      }
-
-      if (!userIdentificador || userIdentificador.trim() === '') {
-        throw new Error('Identificador do usuário não disponível');
-      }
-
-      if (!userEmail || userEmail.trim() === '') {
-        throw new Error('Email não cadastrado');
-      }
-      
-      const res = await VerificarEmailComFrontend(userIdentificador, user.tipo);     
+      if (!user?.tipo) throw new Error("Tipo de usuário não identificado");
+      if (!perfil?.identificador) throw new Error("Identificador do usuário não disponível");
+      if (!perfil.email) throw new Error("Email não cadastrado");
+      const res = await VerificarEmailComFrontend(perfil.identificador, user.tipo);
       setEmailEnviado(res.success || true);
-      
     } catch (error: any) {
-      console.error('❌ Erro capturado no handler:', {
-        message: error.message,
-        error
-      });
-      setEmailErro(error.message || 'Erro ao enviar email. Tente novamente.');
+      setEmailErro(error.message || "Erro ao enviar email. Tente novamente.");
     } finally {
       setEnviandoEmailVerificacao(false);
     }
   };
 
-  const handleSave = () => {
-    console.log("Saving changes...");
-    closeModal();
-  };
-
   if (!mounted) {
-    return (
-      <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-4 w-full">
-            <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="space-y-2">
-                  <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                  <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="h-56 animate-pulse rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900" />;
   }
+
+  if (!perfil) return null;
 
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="w-[70%]">
-          <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 lg:mb-6">
-            Informações Pessoais
-          </h4>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
-            <div>
-              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Nome Completo
-              </p>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                {userName || "Não informado"}
-              </p>
-            </div>
-
-            {userBI && (
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  Bilhete de Identidade
-                </p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {userBI}
-                </p>
-              </div>
-            )}
-
-            {userEmail && (
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                  Email
-                </p>
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{userEmail}</p>
-                    {userEmail && (
-                      user?.estudante?.email_verificado || user?.academia?.email_verificado || user?.admin?.email_verificado ? (
-                        <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <button 
-                          onClick={handleVerificarEmail}
-                          disabled={EnviandoEmailVerificacao} 
-                          className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition bg-orange-500 text-white shadow-theme-xs hover:bg-orange-600 disabled:bg-orange-300 disabled:cursor-not-allowed px-2 py-1.5 text-sm"
-                        >
-                          {EnviandoEmailVerificacao ? "Enviando..." : "Verificar e-mail"}
-                        </button>
-                      )
-                    )}
-                  </div>
-                  {EmailEnviado && (
-                    <Alert 
-                      title="E-mail enviado com sucesso!" 
-                      message="Verifique sua caixa de entrada" 
-                      variant="success" 
-                    />
-                  )}
-                  {EmailErro && (
-                    <Alert 
-                      title="Erro ao enviar e-mail" 
-                      message={EmailErro} 
-                      variant="error" 
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Resto do código permanece igual... */}
-            {userTelefone && (
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Telefone</p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {userTelefone}
-                </p>
-              </div>
-            )}
-
-            {userRole && (
-              <div>
-                <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Função</p>
-                <p className="text-sm font-medium text-gray-800 dark:text-white/90 capitalize">
-                  {userRole === 'fpp' ? 'FPP' : 
-                   userRole === 'adm' ? 'Administrador' : 
-                   userRole === 'gerente' ? 'Gerente' : userRole}
-                </p>
-              </div>
-            )}
-          </div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">{perfil.titulo}</h4>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{perfil.nome}</p>
         </div>
+        {perfil.email && !perfil.emailVerificado && (
+          <button onClick={handleVerificarEmail} disabled={enviandoEmailVerificacao} className="rounded-lg bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-60">
+            {enviandoEmailVerificacao ? "Enviando..." : "Verificar e-mail"}
+          </button>
+        )}
       </div>
 
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
-        Modal content - implement edit form here
-      </Modal>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <InfoItem label="Nome" value={perfil.nome} />
+        <InfoItem label="Email" value={<span className="flex items-center gap-2">{perfil.email || "Não informado"}{perfil.emailVerificado && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">verificado</span>}</span>} />
+        {perfil.itens.map(([label, value]) => <InfoItem key={String(label)} label={String(label)} value={value} />)}
+      </div>
+
+      {emailEnviado && <div className="mt-4"><Alert title="E-mail enviado com sucesso!" message="Verifique sua caixa de entrada" variant="success" /></div>}
+      {emailErro && <div className="mt-4"><Alert title="Erro ao enviar e-mail" message={emailErro} variant="error" /></div>}
     </div>
   );
 }

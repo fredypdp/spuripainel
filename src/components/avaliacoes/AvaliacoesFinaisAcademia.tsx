@@ -295,15 +295,17 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo, token, onR
 
   // Avaliações do ano letivo actual para esta turma/nível
   const rows = useMemo(() => {
-    return turma.estudantes.map(cod => {
-      const est = estudantesMap[cod];
-      const av = avaliacoes.find(a =>
-        a.codigo_estudante === cod &&
-        a.ano_lectivo === anoLetivo &&
-        a.ano_academico_atual === turma.nivel
-      );
-      return { cod, est, av };
-    });
+    return turma.estudantes
+      .map(cod => {
+        const est = estudantesMap[cod];
+        const av = avaliacoes.find(a =>
+          a.codigo_estudante === cod &&
+          a.ano_lectivo === anoLetivo &&
+          a.ano_academico_atual === turma.nivel
+        );
+        return { cod, est, av };
+      })
+      .sort((a, b) => (a.est?.nome ?? a.cod).localeCompare(b.est?.nome ?? b.cod, "pt", { sensitivity: "base" }));
   }, [turma, estudantesMap, avaliacoes, anoLetivo]);
 
   const aprovados  = rows.filter(r => r.av?.aprovado).length;
@@ -329,7 +331,7 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo, token, onR
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800/70">
             <tr>
-              {["Estudante", "Código", "Resultado", "Próximo Nível", "Observação", "Data", ""].map(h => (
+              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", ""].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -339,19 +341,14 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo, token, onR
               <tr key={cod} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? cod}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs font-mono">{cod}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-300 capitalize">{est?.genero ?? "—"}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {av ? <BadgeResultado aprovado={av.aprovado} /> : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                       <Icon icon="mdi:clock-outline" width={11} />Pendente
                     </span>
                   )}
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                  {av ? (av.proximo_ano_academico ? labelNivel(av.proximo_ano_academico) : av.aprovado ? "Ciclo finalizado" : "—") : "—"}
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{av?.observacao ?? "—"}</td>
-                <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
-                  {av ? new Date(av.registered_at).toLocaleDateString("pt-AO") : "—"}
+                  {av?.observacao && <p className="mt-1 max-w-[220px] truncate text-xs text-gray-400">{av.observacao}</p>}
                 </td>
                 <td className="px-4 py-3">
                   {!av && est && (

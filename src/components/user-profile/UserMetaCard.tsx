@@ -63,6 +63,22 @@ export default function UserMetaCard() {
 
   const userType = useMemo(() => user?.tipo || "", [user]);
 
+  const userSubtitle = useMemo(() => {
+    if (user?.estudante) {
+      const academia = user.estudante.academia_info?.nome || user.estudante.codigo_academia || "Sem academia";
+      return `Estudante · ${academia}`;
+    }
+    if (user?.academia) {
+      const nivel = user.academia.nivel === "superior" ? "Ensino Superior" : `Escola ${user.academia.nivel_escolar ?? ""}`;
+      return `${nivel} · ${user.academia.provincia}`;
+    }
+    if (user?.admin) {
+      const role = user.admin.role === "fpp" ? "FPP" : user.admin.role === "adm" ? "Administrador" : "Gerente";
+      return `Administração · ${role}`;
+    }
+    return "";
+  }, [user]);
+
   const userInitials = useMemo(() =>
     userName && userName !== "Carregando..."
       ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -117,6 +133,12 @@ export default function UserMetaCard() {
                 <p className="uppercase text-sm text-gray-500 dark:text-gray-400">
                   {userCode}
                 </p>
+                {userType && (
+                  <>
+                    <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block" />
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium uppercase text-brand-600 dark:bg-brand-500/10 dark:text-brand-300">{userType}</span>
+                  </>
+                )}
                 {userEmail && (
                   <>
                     <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block" />
@@ -126,6 +148,7 @@ export default function UserMetaCard() {
                   </>
                 )}
               </div>
+              {userSubtitle && <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{userSubtitle}</p>}
               {userEmail && !emailVerificado && (
                 <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-1">
                   Email não verificado
