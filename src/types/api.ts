@@ -430,20 +430,15 @@ export interface AlterarCursoRequest {
 }
 
 /**
- * POST /academia/avaliacao-final
- * Campos alinhados com a API v1.5.5:
- *   - nivel_ano_academico_atual: nível académico atual
- *   - aprovado: resultado da avaliação
- *   - tipo_ensino é inferido automaticamente pelo backend
- *   - observacao: opcional — substitui validação automática de notas
- *
- * IMPORTANTE: proximo_ano_academico NÃO deve ser enviado.
- * O backend calcula automaticamente o próximo nível e retorna 400 se o campo for incluído.
+ * @deprecated A avaliação final não possui rota pública de execução manual.
+ * Configure regras em /academia/avaliacao-final/regras e registre notas;
+ * o backend calcula automaticamente nota_final, aprovado e progressão.
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
   /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio', '1_ano_superior') */
   nivel_ano_academico_atual: string;
+  /** @deprecated O backend calcula aprovado pela fórmula da regra. */
   aprovado: boolean;
   observacao?: string;
 }
@@ -533,8 +528,10 @@ export interface ListarAvaliacoesParams {
   tipo_ensino?: TipoEnsino;
   /** Ex: '2025_2026' */
   ano_letivo?: string;
-  /** Ano académico em que o estudante foi re/aprovado. Ex: '3_ano_fundamental' */
+  /** Ano académico/semestre em que o estudante foi re/aprovado. Ex: '3_ano_fundamental' ou '2_semestre' */
   ano_academico_atual?: string;
+  /** Etapa pública da regra de avaliação final: normal, recurso, especial, etc. */
+  type?: string;
   /** Código da turma (requer codigo_academia em consultas admin) */
   codigo_turma?: string;
   /**
@@ -556,8 +553,10 @@ export interface ListarAprovacoesParams {
   tipo_ensino?: TipoEnsino;
   /** Ex: '2025_2026' */
   ano_letivo?: string;
-  /** Ano académico em que o estudante foi aprovado. Ex: '3_ano_fundamental' */
+  /** Ano académico/semestre em que o estudante foi aprovado. Ex: '3_ano_fundamental' ou '2_semestre' */
   ano_academico_atual?: string;
+  /** Etapa pública da regra de avaliação final: normal, recurso, especial, etc. */
+  type?: string;
   /** Código da turma (requer codigo_academia em consultas admin) */
   codigo_turma?: string;
   /**
@@ -579,8 +578,10 @@ export interface ListarReprovacoesParams {
   tipo_ensino?: TipoEnsino;
   /** Ex: '2025_2026' */
   ano_letivo?: string;
-  /** Ano académico em que o estudante foi reprovado. Ex: '3_ano_fundamental' */
+  /** Ano académico/semestre em que o estudante foi reprovado. Ex: '3_ano_fundamental' ou '2_semestre' */
   ano_academico_atual?: string;
+  /** Etapa pública da regra de avaliação final: normal, recurso, especial, etc. */
+  type?: string;
   /** Código da turma (requer codigo_academia em consultas admin) */
   codigo_turma?: string;
   /**
@@ -610,6 +611,57 @@ export type CategoriaNota =
   | CategoriaNotaEscolar
   | CategoriaNotaSuperiorFixa
   | string;
+
+
+export type AvaliacaoFinalFormulaNode =
+  | { op: 'sum_periods'; categories: CategoriaNota[]; periods: Periodo[] }
+  | { op: 'category_total'; category: CategoriaNota }
+  | { op: 'add'; items: AvaliacaoFinalFormulaNode[] }
+  | { op: 'div'; left: AvaliacaoFinalFormulaNode; right: number };
+
+export interface CriarRegraAvaliacaoFinalRequest {
+  /** Opcional; vazio vira 'normal' no backend. */
+  type?: string;
+  nome: string;
+  descricao?: string;
+  tipo_ensino: TipoEnsino;
+  /** Superior usa semestres: '1_semestre', '2_semestre', ... */
+  anos_academicos: string[];
+  nota_minima_aprovacao: number;
+  categorias_envolvidas: CategoriaNota[];
+  formula: AvaliacaoFinalFormulaNode;
+  aplica_se_reprovado_em_type?: string | null;
+}
+
+export interface RegraAvaliacaoFinal extends CriarRegraAvaliacaoFinalRequest {
+  id: string;
+  codigo_academia: string;
+  type: string;
+  status: 'ativo' | 'inativo' | 'deletado' | string;
+  version: number;
+}
+
+export interface AvaliacaoFinalAutomaticaResultado {
+  message: string;
+  tipo_ensino: TipoEnsino;
+  type: string;
+  aprovado: boolean;
+  nota_final: number;
+  nota_minima_aprovacao: number;
+  resultado: string;
+  turmas_removidas?: string[];
+}
+
+export interface RegistrarNotaResponse {
+  message: string;
+  estudante: string;
+  materia: string;
+  nota: number;
+  ano_academico: string;
+  periodo: string;
+  periodos_validos: string[];
+  avaliacoes_finais_automaticas?: AvaliacaoFinalAutomaticaResultado[];
+}
 
 export interface RegistrarNotasRequest {
   codigo_estudante: string;
@@ -775,7 +827,14 @@ export interface AvaliacaoFinal {
   /** Campo real da projecção: ano_academico_atual */
   ano_academico_atual: string;
   proximo_ano_academico?: string;
+  /** Etapa pública configurada na regra: normal, recurso, especial, etc. */
+  type?: string;
   aprovado: boolean;
+  nota_final?: number;
+  nota_minima_aprovacao?: number;
+  regra_avaliacao_final_id?: string;
+  formula_snapshot?: AvaliacaoFinalFormulaNode;
+  aplica_se_reprovado_em_type?: string | null;
   observacao?: string;
   registered_at: string;
   version: number;
@@ -955,6 +1014,16 @@ export interface ListarTurmasResponse {
 
 export interface ListarCategoriasNotaResponse {
   categorias: CategoriaNotaItem[];
+  total: number;
+}
+
+export interface CriarRegraAvaliacaoFinalResponse {
+  message: string;
+  id: string;
+}
+
+export interface ListarRegrasAvaliacaoFinalResponse {
+  regras: RegraAvaliacaoFinal[];
   total: number;
 }
 

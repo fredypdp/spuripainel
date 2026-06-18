@@ -1599,107 +1599,16 @@ export default function PageContent() {
     );
   };
 
-  // ─── Gerar Avaliações Finais ───────────────────────────────────────────────────
+  // ─── Avaliações Finais ─────────────────────────────────────────────────────
   //
-  // FIX: proximo_ano_academico NÃO deve ser enviado no payload.
-  // O backend calcula automaticamente e retorna 400 se o campo for incluído.
-  // Ref: documentação § 11 — POST /academia/avaliacao-final
+  // A execução manual/async de avaliação final foi removida do contrato público.
+  // O fluxo válido é: configurar regras e registrar notas; o backend dispara
+  // avaliações automaticamente quando a fórmula da regra estiver completa.
   //
   const gerarAvaliacoes = async () => {
-    if (!academia || estudantes.length === 0) { addLog("Sem estudantes disponíveis", "warn"); return; }
-    if (!academia.ano_letivo) { addLog("Academia sem ano letivo configurado", "err"); return; }
-
-    const { tipoEnsino, aprovPct } = avalConfig;
-    const sample = [...estudantes];
-    const nAprov = Math.floor(sample.length * aprovPct / 100);
-    addLog(`Gerando avaliações finais (${tipoEnsino}) para ${sample.length} estudante(s) via async...`, "step");
-
-    const batch: any[] = [];
-
-    for (let idx = 0; idx < sample.length; idx++) {
-      const est = sample[idx];
-      const aprovado = idx < nAprov;
-      let nivelAtual = "";
-
-      if (tipoEnsino === "fundamental") {
-        const anosF = (academia.anos_academicos || []).filter(a => a.includes("fundamental")).sort();
-        nivelAtual = est.ano_escolar_fundamental || (anosF.length > 0 ? pick(anosF) : "1_ano_fundamental");
-      } else if (tipoEnsino === "medio") {
-        const c = cursos.find(x => x.type === "medio" && x.status === "ativo");
-        const anos = c?.anos_academicos?.sort() || [];
-        if (anos.length === 0) {
-          addLog(`  ! Nenhum curso médio ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
-          continue;
-        }
-        nivelAtual = est.ano_escolar_medio || anos[0];
-      } else if (tipoEnsino === "superior") {
-        const c = cursos.find(x => x.type === "superior" && x.status === "ativo");
-        const anos = c?.anos_academicos?.sort() || [];
-        if (anos.length === 0) {
-          addLog(`  ! Nenhum curso superior ativo para avaliação — ignorando estudante ${est.codigo_estudante}`, "warn");
-          continue;
-        }
-        nivelAtual = est.ano_superior || anos[0];
-      }
-
-      if (!nivelAtual) continue;
-
-      // IMPORTANTE: proximo_ano_academico NÃO é enviado.
-      // O backend calcula automaticamente — enviar o campo causa erro 400.
-      batch.push({
-        codigo_estudante: est.codigo_estudante,
-        tipo_ensino: tipoEnsino,
-        nivel_ano_academico_atual: nivelAtual,
-        aprovado,
-        observacao: "Avaliação gerada pelo painel de testes",
-      });
-    }
-
-    if (batch.length === 0) { addLog("Nenhuma avaliação para enviar", "warn"); return; }
-
-    const CHUNK_SIZE_AVAL = 1000;
-    const chunksAval: any[][] = [];
-    for (let i = 0; i < batch.length; i += CHUNK_SIZE_AVAL) {
-      chunksAval.push(batch.slice(i, i + CHUNK_SIZE_AVAL));
-    }
-
     addLog(
-      `  Submetendo ${batch.length} avaliação(ões) em ${chunksAval.length} job(s) de até ${CHUNK_SIZE_AVAL} itens...`,
-      "info"
-    );
-
-    let totalOkAval = 0;
-    let totalErrAval = 0;
-
-    for (let ci = 0; ci < chunksAval.length; ci++) {
-      if (cancelRef.current) break;
-      const chunk = chunksAval[ci];
-      const label = chunksAval.length > 1 ? `Avaliações ${ci + 1}/${chunksAval.length}` : "Avaliações";
-      addLog(`  📦 Submetendo job ${ci + 1}/${chunksAval.length} — ${chunk.length} avaliação(ões)...`, "info");
-
-      const { ok, data } = await callApi("POST", "/academia/avaliacao-final/async", chunk, academia.token);
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-        addLog(`  ✗ Erro no job ${ci + 1}: ${errMsg}`, "err");
-        break;
-      }
-
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado (chunk ${ci + 1})`, "err"); break; }
-      addLog(`  Job ${jobId} criado — ${chunk.length} avaliação(ões) na fila`, "dim");
-
-      const result = await acompanharJob(jobId, label);
-      if (!result.timedOut) {
-        totalOkAval += result.ok;
-        totalErrAval += result.err;
-      }
-
-      if (ci < chunksAval.length - 1 && !cancelRef.current) await sleep(500);
-    }
-
-    addLog(
-      `Avaliações concluídas: ${totalOkAval} ✓  ${totalErrAval > 0 ? `${totalErrAval} ✗  ` : ""}(≈${nAprov} aprovações de ${sample.length} total)`,
-      totalOkAval > 0 ? "ok" : "err"
+      "Avaliações finais agora são automáticas: configure regras e registre notas para o backend calcular nota final, aprovação/reprovação e progressão.",
+      "warn"
     );
   };
 
