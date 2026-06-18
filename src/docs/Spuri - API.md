@@ -1,8 +1,8 @@
 ---
-modificado: 14-06-2026 00:00
+modificado: 18-06-2026 18:30
 criado: 05-04-2026 13:01
 ---
-Versão atual: 1.7.4
+Versão atual: 1.8.3
 ## Índice
 
 1. [[#1. Convenções Globais]]
@@ -2047,64 +2047,200 @@ Retorna as faltas de um estudante.
 
 ## 11. Avaliações Finais
 
-### POST /academia/avaliacao-final
 
-Registra a avaliação final de ano para um estudante.
+### Progressão semestral do ensino superior na avaliação final
 
-**Proteção**: autenticado + academia ativa (com ano letivo configurado)
+Para `tipo_ensino = "superior"`, a avaliação final automática usa `semestre_atual` como unidade de progressão. O backend converte o inteiro armazenado no estudante para o período `[n]_semestre` (por exemplo, `semestre_atual = 3` vira `3_semestre`) e esse período deve existir em `curso.periodos`.
 
-**Request:**
+Regras superiores devem ser configuradas em `anos_academicos` com valores semestrais (`1_semestre`, `2_semestre`, ...). Fundamental e médio continuam usando anos acadêmicos (`[n]_ano_fundamental` e `[n]_ano_medio`). A unicidade da avaliação final superior considera estudante, academia, ano letivo, `tipo_ensino`, semestre avaliado e `type`, portanto uma avaliação de `1_semestre` não bloqueia a posterior avaliação de `2_semestre` no mesmo ano letivo.
+
+Na aprovação superior, o backend incrementa `semestre_atual` quando ainda existe próximo semestre no curso e recalcula `ano_superior = ceil(semestre_atual / 2)`. Assim, `1_semestre → semestre_atual = 2` mantém `1_ano_superior`, enquanto `2_semestre → semestre_atual = 3` muda para `2_ano_superior`. Na aprovação no último semestre, `status_superior` passa para `finalizado`; na reprovação, `semestre_atual`, `ano_superior` e `status_superior` permanecem inalterados.
+
+O cliente não envia `proximo_ano_academico`, `proximo_semestre_atual` nem resultado de aprovação: a fórmula da regra calcula `nota_final`, compara com `nota_minima_aprovacao` e emite o evento auditável com `semestre_atual`, `proximo_semestre_atual`, `ano_superior_antes` e `ano_superior_depois` para rebuild determinístico.
+
+### Execução automática da avaliação final
+
+Não existe rota pública/registrada para executar avaliação final manualmente. Em `cmd/server/main.go`, a academia só registra notas (`POST /academia/notas-aluno`) e configura/lista regras (`POST /academia/avaliacao-final/regras`, `GET /academia/avaliacao-final/regras`); a avaliação final é disparada automaticamente pelo backend quando uma nota é registrada.
+
+**Por que o cliente não envia `type` para executar avaliação final:**
+
+- O `type` da avaliação final executada (`normal`, `recurso`, `especial`, etc.) vem da regra aplicável, não do payload de uma requisição manual.
+- Ao registrar/atualizar notas, o backend identifica o estudante, infere o `tipo_ensino`, descobre o ano acadêmico atual e busca todas as regras ativas aplicáveis àquele ano.
+- A cadeia precisa ter exatamente uma regra raiz, isto é, a regra sem `aplica_se_reprovado_em_type`. O processamento começa sempre nessa raiz.
+- Cada regra dependente é alcançada pelo campo `aplica_se_reprovado_em_type`: por exemplo, `recurso` pode depender de reprovação em `normal`, e `especial` pode depender de reprovação em `recurso`.
+- O backend só executa uma dependente quando encontra reprovação no `type` pré-requisito. Se o pré-requisito aprovou, a dependente é encerrada e não executa. Se o pré-requisito ainda não existe, a dependente aguarda.
+- Portanto, a ordem correta não é decidida pelo cliente nem pela categoria da nota recém-registrada; ela é calculada a partir da cadeia de regras configurada até a raiz.
+
+**Regras de execução automática:**
+
+- Se não houver regra ativa aplicável, nenhuma avaliação final é registrada.
+- Se a cadeia aplicável não tiver exatamente uma raiz, o backend retorna erro para evitar ambiguidade.
+- O backend evita duplicidade por `codigo_estudante`, `codigo_academia`, `ano_lectivo`, `tipo_ensino`, `ano_academico_atual` e `type`.
+- Se alguma nota exigida pela fórmula ainda estiver ausente, aquela regra é ignorada naquele momento e poderá ser calculada quando novas notas forem registradas.
+- Quando uma regra é executada, o backend calcula `nota_final`, define `aprovado = nota_final >= nota_minima_aprovacao`, calcula o próximo ano acadêmico e persiste o evento com snapshot da regra.
+- O registro de nota retorna o campo `avaliacoes_finais_automaticas` com os resultados automáticos disparados naquele request.
+
+**Exemplo de resposta parcial de `POST /academia/notas-aluno` quando uma avaliação é disparada:**
 
 ```json
 {
-  "codigo_estudante": "ABC1234",
-  "nivel_ano_academico_atual": "3_ano_fundamental",
-  "aprovado": true,
-  "observacao": "string"  // opcional — se fornecido, bypassa validação de notas
+  "message": "nota registrada com sucesso",
+  "estudante": "ABC1234",
+  "categoria": "nota_exame_final",
+  "periodo": "3_trimestre",
+  "avaliacoes_finais_automaticas": [
+    {
+      "message": "avaliação final registrada automaticamente",
+      "tipo_ensino": "fundamental",
+      "type": "normal",
+      "aprovado": true,
+      "nota_final": 12.5,
+      "nota_minima_aprovacao": 10,
+      "resultado": "aprovado → 4_ano_fundamental",
+      "turmas_removidas": ["T1A"]
+    }
+  ]
 }
 ```
 
-**Regras:**
+---
+### POST /academia/avaliacao-final/regras
 
-- `tipo_ensino` não é enviado no payload; o backend infere automaticamente com base no estudante (sessão + código da academia)
-- `nivel_ano_academico_atual` deve seguir o formato canônico do tipo inferido
-- `proximo_ano_academico` é calculado automaticamente pelo backend e não deve ser enviado no payload
-- Se `aprovado = true`:
-  - **escola**: o backend calcula o próximo ano automaticamente e move o estudante da turma atual para uma turma do ano acadêmico seguinte
-    - regra obrigatória: **nenhum aprovado pode ficar sem turma de destino**; em falha de atribuição, a operação é abortada
-    - prioriza turma destino compatível por `turno` e `curso_id` da turma de origem
-    - se não houver compatível, usa fallback para qualquer turma ativa do próximo ano acadêmico com o mesmo `nivel`
-    - a redistribuição busca balancear as turmas de destino usando a quantidade atual de estudantes como critério
-    - para ensino médio, mantém a restrição de não transferir para turma de outro curso (`curso_id` diferente) quando há compatíveis
-  - fundamental: sequência fixa `1_ano_fundamental` até `9_ano_fundamental`
-  - médio: sequência configurada no curso do estudante
-  - superior: avanço sequencial por semestre (`semestre_atual += 1`) até o último semestre configurado do curso
-- Se `aprovado = false`:
-  - **escola**: o backend mantém o estudante no mesmo nível e na mesma turma
-  - demais tipos: sem avanço de nível (sem próximo ano)
-- Sem `observacao`: notas de todas as matérias do período são validadas automaticamente
+Cria uma regra ativa de avaliação final para a academia autenticada.
+
+**Proteção**: academia autenticada.
+
+```json
+{
+  "type": "normal",
+  "nome": "Avaliação normal",
+  "descricao": "Média dos três trimestres",
+  "tipo_ensino": "fundamental",
+  "anos_academicos": ["3_ano_fundamental"],
+  "nota_minima_aprovacao": 10,
+  "categorias_envolvidas": ["nota_escola", "nota_professor"],
+  "formula": {
+    "op": "div",
+    "left": {
+      "op": "sum_periods",
+      "categories": ["nota_escola", "nota_professor"],
+      "periods": ["1_trimestre", "2_trimestre", "3_trimestre"]
+    },
+    "right": 3
+  },
+  "aplica_se_reprovado_em_type": null
+}
+```
+
+**Campos e validações:**
+
+- `type` — opcional; vazio vira `normal`. Identifica a etapa pública (`normal`, `recurso`, `especial`, etc.).
+- `nome` — obrigatório.
+- `descricao` — opcional.
+- `tipo_ensino` — obrigatório; apenas `fundamental`, `medio` ou `superior`.
+- `anos_academicos` — obrigatório e não vazio; não pode conter string vazia.
+- `nota_minima_aprovacao` — obrigatório e maior que zero.
+- `categorias_envolvidas` — obrigatório e não vazio.
+- `formula` — obrigatório; deve usar a DSL aceita.
+- `aplica_se_reprovado_em_type` — opcional; quando informado, deve apontar para regra ativa existente na mesma academia/tipo de ensino, não pode ser igual ao próprio `type` e não pode criar ciclo.
+
+**Unicidade e cadeia:**
+
+- Não pode existir outra regra ativa com o mesmo `type`, `tipo_ensino` e ano acadêmico sobreposto para a mesma academia.
+- Para cada academia, tipo de ensino e ano acadêmico, só pode haver uma regra raiz ativa. Regra raiz é a regra sem `aplica_se_reprovado_em_type`.
+- Regras dependentes formam uma cadeia de novas chances; elas só executam depois de reprovação no `type` apontado.
+- A regra é criada com `status = "ativo"` e `version = 1`.
+
+**DSL da fórmula — como montar:**
+
+A fórmula é uma árvore JSON. Cada nó retorna um número, e o resultado do nó raiz é a `nota_final`. Todas as categorias referenciadas precisam estar em `categorias_envolvidas`; o backend carrega somente notas do ano letivo atual nessas categorias.
+
+- `sum_periods`: soma todas as notas das `categories` em cada período listado em `periods`. Use quando a regra deve exigir períodos específicos (por exemplo, todos os trimestres ou semestres). Se faltar qualquer par categoria/período, a avaliação aguarda novas notas. Exemplo: `{ "op": "sum_periods", "categories": ["nota_escola", "nota_professor"], "periods": ["1_trimestre", "2_trimestre", "3_trimestre"] }`.
+- `category_total`: soma todas as notas existentes de uma categoria, independentemente do período. Use quando a quantidade de lançamentos pode variar ou quando a categoria só aparece uma vez, como exame final. Atenção: esta operação não garante que todos os períodos esperados da academia/curso foram lançados; ela apenas soma o que existe para a categoria. Exemplo: `{ "op": "category_total", "category": "nota_exame_final" }`.
+- `add`: soma os resultados de vários nós. Use para combinar médias, exames e outros componentes. Exemplo: `{ "op": "add", "items": [{ "op": "category_total", "category": "nota_exame_final" }, { "op": "category_total", "category": "nota_recurso" }] }`.
+- `div`: divide o resultado de `left` por uma constante numérica `right` diferente de zero. Use para calcular médias. Exemplo: `{ "op": "div", "left": { "op": "sum_periods", "categories": ["nota_escola"], "periods": ["1_trimestre", "2_trimestre", "3_trimestre"] }, "right": 3 }`.
+
+Para considerar todos os trimestres/semestres, o cliente deve listar explicitamente esses períodos em `sum_periods`. O backend não presume automaticamente “todos os períodos da academia/curso”.
+
+**Exemplo — média dos três trimestres:**
+
+```json
+{
+  "op": "div",
+  "left": {
+    "op": "sum_periods",
+    "categories": ["nota_escola", "nota_professor"],
+    "periods": ["1_trimestre", "2_trimestre", "3_trimestre"]
+  },
+  "right": 3
+}
+```
+
+**Exemplo — média trimestral + exame final:**
+
+```json
+{
+  "op": "div",
+  "left": {
+    "op": "add",
+    "items": [
+      {
+        "op": "div",
+        "left": {
+          "op": "sum_periods",
+          "categories": ["nota_escola", "nota_professor"],
+          "periods": ["1_trimestre", "2_trimestre", "3_trimestre"]
+        },
+        "right": 3
+      },
+      { "op": "category_total", "category": "nota_exame_final" }
+    ]
+  },
+  "right": 2
+}
+```
 
 **Response 201:**
 
 ```json
 {
-  "message": "avaliação final registrada com sucesso",
-  "resultado": "aprovado → 4_ano_fundamental",
-  "turmas_removidas": ["T1A"]
+  "message": "regra de avaliação final criada",
+  "id": "7e5f0b8d-8c7a-4b1a-9f4c-1f4cfd0c2f11"
 }
 ```
 
-**Erros:**
+---
 
-- `400` — formato de ano inválido
-- `400` — notas obrigatórias faltando (sem observacao para override)
-- `400` — `proximo_ano_academico` enviado no payload (campo não permitido)
-- `400` — `nivel_ano_academico_atual` inválido para o ciclo (fundamental fora de 1..9, ou fora do curso em médio/superior)
-- `409` — avaliação já registrada para este tipo/ano/nível
+### GET /academia/avaliacao-final/regras
 
-**Modelos de avaliação final:**
-- **Escolar (fundamental/médio):** mantém o comportamento atual por ano acadêmico.
-- **Superior:** aprovação sempre avança para o próximo semestre; o avanço de `ano_superior` é automático por `ceil(semestre_atual / 2)`.
+Lista todas as regras de avaliação final da academia autenticada, ordenadas por criação decrescente.
+
+**Proteção**: academia autenticada.
+
+**Response 200:**
+
+```json
+{
+  "regras": [
+    {
+      "id": "7e5f0b8d-8c7a-4b1a-9f4c-1f4cfd0c2f11",
+      "codigo_academia": "ACA001",
+      "type": "normal",
+      "nome": "Avaliação normal",
+      "descricao": "Média dos três trimestres",
+      "tipo_ensino": "fundamental",
+      "anos_academicos": ["3_ano_fundamental"],
+      "nota_minima_aprovacao": 10,
+      "categorias_envolvidas": ["nota_escola", "nota_professor"],
+      "formula": { "op": "category_total", "category": "nota_escola" },
+      "aplica_se_reprovado_em_type": null,
+      "status": "ativo",
+      "version": 1
+    }
+  ],
+  "total": 1
+}
+```
 
 ---
 
@@ -2121,6 +2257,7 @@ Lista avaliações finais. Escopo varia por tipo de usuário.
 - `ano_academico_atual` — filtra pelo ano académico em que o estudante foi re/aprovado
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
+- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.)
 
 **Response 200:**
 
@@ -2146,6 +2283,7 @@ Lista apenas avaliações com `aprovado = true`.
 - `ano_academico_atual` — filtra pelo ano académico em que o estudante foi aprovado
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
+- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.)
 
 **Response 200:**
 
@@ -2171,6 +2309,7 @@ Lista apenas avaliações com `aprovado = false`.
 - `ano_academico_atual` — filtra pelo ano académico em que o estudante foi reprovado
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
+- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.)
 
 **Response 200:**
 
@@ -3227,7 +3366,8 @@ Lista registros de notas com escopo por perfil.
 - `periodo` — filtra por período (`1_trimestre`, `2_trimestre`, `3_trimestre`, `1_semestre`, `2_semestre`) (aceita múltiplos valores)
 - `materia_disciplinar_id` — filtra por matéria disciplinar (aceita múltiplos valores)
 - `categoria` — filtra por categoria da nota (aceita múltiplos valores)
-- `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código (aceita múltiplos valores)
+- `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
+- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.) (aceita múltiplos valores)
 
 **Formato de múltiplos valores (todos os filtros acima):**
 
@@ -3276,7 +3416,8 @@ Lista registros de faltas com escopo por perfil.
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin) (aceita múltiplos valores)
 - `periodo` — filtra por período da matéria (`1_trimestre`, `2_trimestre`, `3_trimestre`, `1_semestre`, `2_semestre`) (aceita múltiplos valores)
 - `materia_disciplinar_id` — filtra por matéria disciplinar (aceita múltiplos valores)
-- `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código (aceita múltiplos valores)
+- `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
+- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.) (aceita múltiplos valores)
 
 **Formato de múltiplos valores (todos os filtros acima):**
 
@@ -3469,7 +3610,6 @@ Use `poll_url` (`GET /jobs/:id`) e/ou `sse_url` (`GET /jobs/stream`).
 |`POST /academia/faltas-aluno/async`|igual ao `POST /academia/faltas-aluno`|`202` (job criado)|2000|
 |`PUT /academia/atualizar-falta/async`|igual ao `PUT /academia/atualizar-falta`|`202` (job criado)|2000|
 |`DELETE /academia/falta/async`|igual ao `DELETE /academia/falta/:id` (sem `:id`, enviado no item)|`202` (job criado)|2000|
-|`POST /academia/avaliacao-final/async`|igual ao `POST /academia/avaliacao-final`|`202` (job criado)|1000|
 |`POST /academia/curso/async`|igual ao `POST /academia/curso`|`202` (job criado)|200|
 |`POST /academia/materia/async`|igual ao `POST /academia/materia`|`202` (job criado)|500|
 |`POST /academia/turma/async`|igual ao `POST /academia/turma`|`202` (job criado)|200|
