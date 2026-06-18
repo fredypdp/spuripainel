@@ -8,7 +8,6 @@ import type {
   Turma,
   Curso,
   EstudanteDetalhado,
-  RegistrarAvaliacaoFinalRequest,
   TipoEnsino,
 } from "@/types/api";
 import { getCookie } from "@/lib/utils/cookies";
@@ -170,122 +169,12 @@ function BadgeResultado({ aprovado }: { aprovado: boolean }) {
   );
 }
 
-// ─── RegistrarModal ───────────────────────────────────────────────────────────
-
-function RegistrarModal({ student, turma, token, onClose, onSuccess }: {
-  student: EstudanteDetalhado; turma: Turma; token?: string;
-  onClose: () => void; onSuccess: () => void;
-}) {
-  const [aprovado, setAprovado] = useState(true);
-  const [observacao, setObservacao] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [erro, setErro] = useState("");
-
-  async function handleSubmit() {
-    setLoading(true); setErro("");
-    try {
-      const payload: RegistrarAvaliacaoFinalRequest = {
-        codigo_estudante: student.codigo_estudante,
-        nivel_ano_academico_atual: turma.nivel,
-        aprovado,
-        observacao: observacao.trim() || undefined,
-      };
-      await academiaService.registrarAvaliacaoFinal(payload, token);
-      setSuccess(true);
-      setTimeout(() => { onSuccess(); onClose(); }, 1000);
-    } catch (err: any) {
-      setErro(err?.message ?? "Erro ao registrar avaliação.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Registrar Avaliação Final</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><Icon icon="mdi:close" width={20} /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div className="w-9 h-9 rounded-full bg-brand-500 flex items-center justify-center text-white text-sm font-semibold">
-              {student.nome.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{student.nome}</p>
-              <p className="text-xs text-gray-400 font-mono">{student.codigo_estudante}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <p className="text-xs text-gray-400 mb-0.5">Turma</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{turma.codigo_turma}</p>
-            </div>
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <p className="text-xs text-gray-400 mb-0.5">Nível Atual</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{labelNivel(turma.nivel, true)}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg">
-            <Icon icon="mdi:information-outline" width={16} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-blue-700 dark:text-blue-400">O próximo nível é calculado automaticamente pelo sistema com base no ciclo e no resultado.</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Resultado</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setAprovado(true)} className={`py-3 rounded-xl border-2 text-sm font-medium transition-all flex flex-col items-center gap-1 ${aprovado ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400" : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300"}`}>
-                <Icon icon="mdi:check-circle-outline" width={22} />Aprovado
-              </button>
-              <button onClick={() => setAprovado(false)} className={`py-3 rounded-xl border-2 text-sm font-medium transition-all flex flex-col items-center gap-1 ${!aprovado ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400" : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300"}`}>
-                <Icon icon="mdi:close-circle-outline" width={22} />Reprovado
-              </button>
-            </div>
-          </div>
-          {!aprovado && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg">
-              <Icon icon="mdi:alert-outline" width={16} className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-amber-700 dark:text-amber-400">A reprovação é registada no historial mas <strong>não altera o ano nem o status</strong> do estudante.</p>
-            </div>
-          )}
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-              Observação <span className="text-xs text-gray-400 font-normal">(opcional · substitui validação automática de notas)</span>
-            </label>
-            <textarea value={observacao} onChange={e => setObservacao(e.target.value)} rows={2} placeholder="Ex: Avaliação especial aprovada pela direcção..." className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent text-sm text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/10 focus:border-brand-300 dark:focus:border-brand-800 resize-none" />
-          </div>
-          {erro && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg">
-              <Icon icon="mdi:alert-circle" width={15} className="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-red-700 dark:text-red-400">{erro}</p>
-            </div>
-          )}
-          {success && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-lg">
-              <Icon icon="mdi:check-circle" width={15} className="text-emerald-600 dark:text-emerald-400" />
-              <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Avaliação registada com sucesso!</p>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Cancelar</button>
-          <button onClick={handleSubmit} disabled={loading || success} className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-            {loading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />A registar...</> : "Registrar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── TabelaEstudantes ─────────────────────────────────────────────────────────
 
-function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo, token, onRefresh }: {
+function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo }: {
   turma: Turma; avaliacoes: AvaliacaoFinal[]; estudantes: EstudanteDetalhado[];
-  anoLetivo: string; token?: string; onRefresh: () => void;
+  anoLetivo: string;
 }) {
-  const [modalStudent, setModalStudent] = useState<EstudanteDetalhado | null>(null);
 
   const estudantesMap = useMemo(() => {
     const m: Record<string, EstudanteDetalhado> = {};
@@ -332,7 +221,7 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo, token, onR
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800/70">
             <tr>
-              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", "Próximo Nível", "Observação", "Data", ""].map(h => (
+              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", "Próximo Nível", "Observação", "Data"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -357,21 +246,11 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo, token, onR
                 <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
                   {av ? new Date(av.registered_at).toLocaleDateString("pt-AO") : "—"}
                 </td>
-                <td className="px-4 py-3">
-                  {!av && est && (
-                    <button onClick={() => setModalStudent(est)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800/70 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors whitespace-nowrap">
-                      <Icon icon="mdi:plus" width={13} />Registrar
-                    </button>
-                  )}
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {modalStudent && (
-        <RegistrarModal student={modalStudent} turma={turma} token={token} onClose={() => setModalStudent(null)} onSuccess={() => { setModalStudent(null); onRefresh(); }} />
-      )}
     </div>
   );
 }
@@ -432,7 +311,7 @@ export default function AvaliacoesFinaisAcademia() {
     } else if (anos.length > 0 && !anoLetivoSel) {
       setAnoLetivoSel(anos[0]);
     }
-  }, [dataAvaliacoes, dataAnoLetivo]);
+  }, [dataAvaliacoes, dataAnoLetivo, anoLetivoSel]);
 
   // Quando o ano letivo seleccionado muda, recarrega as avaliações filtradas
   useEffect(() => {
@@ -487,6 +366,12 @@ export default function AvaliacoesFinaisAcademia() {
           {anoSelectorEl}
         </div>
         <StatsBar avaliacoes={todasAvaliacoes} anoLetivo={anoLetivoSel} />
+        <div className="flex items-start gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
+          <Icon icon="mdi:information-outline" width={18} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            As avaliações finais não são registradas manualmente. Configure as regras no backend e lance as notas; o backend calcula automaticamente a nota final, aprovação/reprovação e progressão quando a fórmula estiver completa.
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="1º ao 9º Ano"
             stats={{ approved: fundAvs.filter(a => a.aprovado).length, reprovated: fundAvs.filter(a => !a.aprovado).length, pending: 0 }}
@@ -560,7 +445,7 @@ export default function AvaliacoesFinaisAcademia() {
             </span>
           </div>
         </div>
-        <TabelaEstudantes turma={turma} avaliacoes={todasAvaliacoes} estudantes={estudantes} anoLetivo={anoLetivoSel} token={token} onRefresh={reload} />
+        <TabelaEstudantes turma={turma} avaliacoes={todasAvaliacoes} estudantes={estudantes} anoLetivo={anoLetivoSel} />
       </div>
     );
   }
@@ -673,7 +558,7 @@ export default function AvaliacoesFinaisAcademia() {
             </span>
           </div>
         </div>
-        <TabelaEstudantes turma={turma} avaliacoes={todasAvaliacoes} estudantes={estudantes} anoLetivo={anoLetivoSel} token={token} onRefresh={reload} />
+        <TabelaEstudantes turma={turma} avaliacoes={todasAvaliacoes} estudantes={estudantes} anoLetivo={anoLetivoSel} />
       </div>
     );
   }

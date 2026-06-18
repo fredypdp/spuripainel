@@ -10,9 +10,12 @@ import type {
   LoginRequest,
   CriarEstudanteRequest,
   RegistrarNotasRequest,
+  RegistrarNotaResponse,
+  CriarRegraAvaliacaoFinalRequest,
+  CriarRegraAvaliacaoFinalResponse,
+  ListarRegrasAvaliacaoFinalResponse,
   RegistrarFaltasRequest,
   AtualizarFaltaRequest,
-  RegistrarAvaliacaoFinalRequest,
   CriarAdminRequest,
   DesativarRequest,
   AlterarSenhaRequest,
@@ -668,7 +671,7 @@ export const academiaService = {
   // ── Notas ──────────────────────────────────────────────────────────
 
   registrarNota: (data: RegistrarNotasRequest, token?: string) =>
-    api.post<{ message: string; estudante: string; materia: string; nota: number; ano_academico: string; periodo: string; periodos_validos: string[] }>(
+    api.post<RegistrarNotaResponse>(
       '/academia/notas-aluno',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -721,15 +724,16 @@ export const academiaService = {
 
   // ── Avaliação Final ────────────────────────────────────────────────
 
-  registrarAvaliacaoFinal: (data: RegistrarAvaliacaoFinalRequest, token?: string) =>
-    api.post<{
-      message: string;
-      resultado: string;
-      turmas_removidas: string[];
-      avisos_turmas?: string[];
-    }>(
-      '/academia/avaliacao-final',
+  criarRegraAvaliacaoFinal: (data: CriarRegraAvaliacaoFinalRequest, token?: string) =>
+    api.post<CriarRegraAvaliacaoFinalResponse>(
+      '/academia/avaliacao-final/regras',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarRegrasAvaliacaoFinal: (token?: string) =>
+    api.get<ListarRegrasAvaliacaoFinalResponse>(
+      '/academia/avaliacao-final/regras',
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -1186,15 +1190,6 @@ export const academiaService = {
         ),
         headers: { 'Content-Type': 'application/json' },
       } as any
-    ),
-
-  // ── Async — avaliações ────────────────────────────────────────────
-
-  registrarAvaliacaoFinalBatchAsync: (data: RegistrarAvaliacaoFinalRequest[], token?: string) =>
-    api.post<AsyncBatchResponse>(
-      '/academia/avaliacao-final/async',
-      data,
-      { token: token || tokenStorage.get() || undefined }
     ),
 
   // ── Async — cursos ────────────────────────────────────────────────
