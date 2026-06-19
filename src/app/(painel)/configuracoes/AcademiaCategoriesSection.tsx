@@ -9,11 +9,12 @@ import Icon from "@/components/ui/Icon";
 const ORDEM_ANOS = [
   ...Array.from({ length: 9 }, (_, i) => `${i + 1}_ano_fundamental`),
   ...Array.from({ length: 4 }, (_, i) => `${i + 1}_ano_medio`),
-  ...Array.from({ length: 6 }, (_, i) => `${i + 1}_ano_superior`),
+  ...Array.from({ length: 12 }, (_, i) => `${i + 1}_semestre`),
 ];
 
 function labelAno(ano: string) {
   const [numero, , nivel] = ano.split("_");
+  if (ano.includes("semestre")) return `${numero}.º Semestre`;
   return `${numero}.º ${nivel === "fundamental" ? "Fundamental" : nivel === "medio" ? "Médio" : "Superior"}`;
 }
 
@@ -21,12 +22,12 @@ function sortAnos(anos: string[]) {
   return [...new Set(anos)].sort((a, b) => ORDEM_ANOS.indexOf(a) - ORDEM_ANOS.indexOf(b));
 }
 
-function sequenciaPorExtremos(anos: string[], sufixo: string) {
+function sequenciaPorExtremos(anos: string[], sufixo: "medio" | "semestre") {
   const nums = anos.map((ano) => Number(ano.split("_")[0])).filter(Boolean);
   if (!nums.length) return [];
   const min = Math.min(...nums);
   const max = Math.max(...nums);
-  return Array.from({ length: max - min + 1 }, (_, i) => `${min + i}_ano_${sufixo}`);
+  return Array.from({ length: max - min + 1 }, (_, i) => sufixo === "semestre" ? `${min + i}_semestre` : `${min + i}_ano_medio`);
 }
 
 export default function AcademiaCategoriesSection() {
@@ -82,8 +83,8 @@ export default function AcademiaCategoriesSection() {
       ? (academia.anos_academicos?.length ? academia.anos_academicos : ORDEM_ANOS.slice(0, 9))
       : [];
     const medio = cursos.filter((curso) => curso.type === "medio").flatMap((curso) => curso.anos_academicos ?? []);
-    const superior = cursos.filter((curso) => curso.type === "superior").flatMap((curso) => curso.anos_academicos ?? []);
-    return sortAnos([...fundamental, ...sequenciaPorExtremos(medio, "medio"), ...sequenciaPorExtremos(superior, "superior")]);
+    const superior = cursos.filter((curso) => curso.type === "superior").flatMap((curso) => curso.periodos ?? []);
+    return sortAnos([...fundamental, ...sequenciaPorExtremos(medio, "medio"), ...sequenciaPorExtremos(superior, "semestre")]);
   }, [cursosData, user]);
 
   function toggleAno(ano: string) {
@@ -104,7 +105,7 @@ export default function AcademiaCategoriesSection() {
           Categorias de nota
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-          A academia pode criar categorias personalizadas e definir exatamente em quais anos acadêmicos elas aceitam registro de notas.
+          A academia pode criar/configurar categorias e definir exatamente em quais anos acadêmicos ou semestres elas aceitam registro de notas. Sem anos configurados, a categoria não recebe notas.
         </p>
       </div>
 

@@ -38,11 +38,9 @@ export type AnoMedio =
   | '1_ano_medio' | '2_ano_medio' | '3_ano_medio' | '4_ano_medio';
 
 /**
- * Anos do ensino superior. Formato: [n]_ano_superior
+ * Períodos do ensino superior usados como escopo de avaliação final. Formato: [n]_semestre
  */
-export type AnoSuperior =
-  | '1_ano_superior' | '2_ano_superior' | '3_ano_superior'
-  | '4_ano_superior' | '5_ano_superior' | '6_ano_superior';
+export type AnoSuperior = `${number}_semestre`;
 
 /** @deprecated Use AnoFundamental | AnoMedio | AnoSuperior separadamente. */
 export type AnoEscolar = AnoFundamental | AnoMedio;
@@ -436,7 +434,7 @@ export interface AlterarCursoRequest {
  */
 export interface RegistrarAvaliacaoFinalRequest {
   codigo_estudante: string;
-  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio', '1_ano_superior') */
+  /** Nível académico atual (ex: '3_ano_fundamental', '2_ano_medio', '1_semestre') */
   nivel_ano_academico_atual: string;
   /** @deprecated O backend calcula aprovado pela fórmula da regra. */
   aprovado: boolean;
