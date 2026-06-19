@@ -1607,7 +1607,7 @@ export default function PageContent() {
   //
   const gerarAvaliacoes = async () => {
     addLog(
-      "Avaliações finais agora são automáticas: configure regras e registre notas para o backend calcular nota final, aprovação/reprovação e progressão.",
+      "Avaliações finais são automáticas: crie regras em Configurações > Regras de avaliação final e registre as notas exigidas pela fórmula. Este painel não chama rota manual/async porque ela não faz parte do contrato público.",
       "warn"
     );
   };
@@ -2343,17 +2343,11 @@ export default function PageContent() {
                         {tiposEnsinoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
                       </Sel>
                     </Field>
-                    <NumberStepper
-                      label="% Aprovação"
-                      value={avalConfig.aprovPct}
-                      min={0}
-                      max={100}
-                      step={5}
-                      onChange={v => setAvalConfig(p => ({ ...p, aprovPct: v }))}
-                      hint={`≈${Math.floor(estudantes.length * avalConfig.aprovPct / 100)} aprovados`}
-                    />
+                    <div style={{ flex: 1, minWidth: 240, color: "#475569", fontSize: 12, lineHeight: 1.5 }}>
+                      A aprovação não é sorteada nem enviada pelo cliente. O backend calcula <code>nota_final</code> pelas regras activas, compara com <code>nota_minima_aprovacao</code> e dispara a cadeia <code>normal → recurso → especial</code> quando as notas ficam completas.
+                    </div>
                     <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
-                      Avaliar TODOS ({estudantes.length}) async
+                      Ver fluxo automático
                     </Btn>
                   </Row>
                 </>

@@ -221,7 +221,7 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo }: {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800/70">
             <tr>
-              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", "Próximo Nível", "Observação", "Data"].map(h => (
+              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", "Tipo", "Nota", "Próximo Nível", "Observação", "Data"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -239,8 +239,10 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo }: {
                     </span>
                   )}
                 </td>
+                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{av?.type ?? "—"}</td>
+                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{av?.nota_final ?? "—"}{av?.nota_minima_aprovacao ? ` / min. ${av.nota_minima_aprovacao}` : ""}</td>
                 <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                  {av ? (av.proximo_ano_academico ? labelNivel(av.proximo_ano_academico) : av.aprovado ? "Ciclo finalizado" : "—") : "—"}
+                  {av ? (av.proximo_ano_academico ? labelNivel(av.proximo_ano_academico) : av.aprovado ? "Ciclo finalizado" : "Retido no nível") : "—"}
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{av?.observacao ?? "—"}</td>
                 <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
@@ -369,7 +371,7 @@ export default function AvaliacoesFinaisAcademia() {
         <div className="flex items-start gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
           <Icon icon="mdi:information-outline" width={18} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            As avaliações finais não são registradas manualmente. Configure as regras no backend e lance as notas; o backend calcula automaticamente a nota final, aprovação/reprovação e progressão quando a fórmula estiver completa.
+            As avaliações finais não são registradas manualmente. Configure as regras em Configurações e lance as notas; o backend calcula automaticamente a nota final, aprovação/reprovação e progressão quando a fórmula estiver completa.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -395,7 +397,7 @@ export default function AvaliacoesFinaisAcademia() {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais — Fundamental</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma turma para ver e registar resultados</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma turma para ver resultados calculados automaticamente</p>
           </div>
           {anoSelectorEl}
         </div>
