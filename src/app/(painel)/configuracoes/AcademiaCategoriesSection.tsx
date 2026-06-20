@@ -124,14 +124,14 @@ export default function AcademiaCategoriesSection() {
                 <div key={categoria.codigo} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-800">
                   <div>
                     <p className="text-sm font-semibold text-gray-800 dark:text-white">{categoria.nome}</p>
-                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{categoria.codigo}</p>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{categoria.anos_academicos?.length ? sortAnos(categoria.anos_academicos).map(labelAno).join(", ") : "Sem anos configurados"}</p>
+                    <p className="font-mono text-sm text-gray-500 dark:text-gray-400">{categoria.codigo}</p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{categoria.anos_academicos?.length ? sortAnos(categoria.anos_academicos).map(labelAno).join(", ") : "Sem anos configurados"}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleDelete(categoria.codigo)}
                     disabled={deletando}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
                   >
                     <Icon icon="mdi:trash-can-outline" width="14px" />
                     Remover
@@ -144,18 +144,18 @@ export default function AcademiaCategoriesSection() {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Adicionar nova categoria de nota</p>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">Nome da categoria<input value={nome} onChange={(e) => setNome(e.target.value)} disabled={criando} placeholder="Ex.: Prova do professor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">Código da categoria (sem espaços)<input value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9_]/g, ""))} disabled={criando} placeholder="Ex.: prova_profesor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">Descrição<textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={criando} placeholder="Descrição opcional" rows={3} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
+          <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Nome da categoria<input value={nome} onChange={(e) => setNome(e.target.value)} disabled={criando} placeholder="Ex.: Prova do professor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
+          <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Código da categoria (sem espaços)<input value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9_]/g, ""))} disabled={criando} placeholder="Ex.: prova_profesor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
+          <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Descrição<textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={criando} placeholder="Descrição opcional" rows={3} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
           <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Anos acadêmicos *</p>
+            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Anos acadêmicos *</p>
             <div className="flex flex-wrap gap-2">
               {opcoesAnos.map((ano) => (
-                <button key={ano} type="button" onClick={() => toggleAno(ano)} disabled={criando} className={`rounded-full border px-3 py-1.5 text-xs transition ${anosAcademicos.has(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"}`}>
+                <button key={ano} type="button" onClick={() => toggleAno(ano)} disabled={criando} className={`rounded-full border px-3 py-1.5 text-sm transition ${anosAcademicos.has(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"}`}>
                   {labelAno(ano)}
                 </button>
               ))}
-              {opcoesAnos.length === 0 && <p className="text-xs text-gray-500">Nenhum ano acadêmico ativo encontrado.</p>}
+              {opcoesAnos.length === 0 && <p className="text-sm text-gray-500">Nenhum ano acadêmico ativo encontrado.</p>}
             </div>
           </div>
           <button type="submit" disabled={criando || !codigo || !nome || anosAcademicos.size === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
