@@ -611,11 +611,11 @@ export type CategoriaNota =
   | string;
 
 
-export type AvaliacaoFinalFormulaNode =
-  | { op: 'sum_periods'; categories: CategoriaNota[]; periods: Periodo[] }
-  | { op: 'category_total'; category: CategoriaNota }
-  | { op: 'add'; items: AvaliacaoFinalFormulaNode[] }
-  | { op: 'div'; left: AvaliacaoFinalFormulaNode; right: number };
+/**
+ * Fórmula textual declarativa (`formula_textual_v1`) usada pelo backend para
+ * avaliação final. Ex.: `([nota_escola,1_trimestre]+[nota_escola,2_trimestre])/2`.
+ */
+export type AvaliacaoFinalFormulaTextual = string;
 
 export interface CriarRegraAvaliacaoFinalRequest {
   /** Opcional; vazio vira 'normal' no backend. */
@@ -627,7 +627,7 @@ export interface CriarRegraAvaliacaoFinalRequest {
   anos_academicos: string[];
   nota_minima_aprovacao: number;
   categorias_envolvidas: CategoriaNota[];
-  formula: AvaliacaoFinalFormulaNode;
+  formula: AvaliacaoFinalFormulaTextual;
   aplica_se_reprovado_em_type?: string | null;
 }
 
@@ -831,7 +831,7 @@ export interface AvaliacaoFinal {
   nota_final?: number;
   nota_minima_aprovacao?: number;
   regra_avaliacao_final_id?: string;
-  formula_snapshot?: AvaliacaoFinalFormulaNode;
+  formula_snapshot?: AvaliacaoFinalFormulaTextual;
   aplica_se_reprovado_em_type?: string | null;
   observacao?: string;
   registered_at: string;
