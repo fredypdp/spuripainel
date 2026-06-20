@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useUserType } from "@/hooks/useRoutePermission";
-import { academiaService } from "@/lib/api/services";
+import { academiaService, adminService } from "@/lib/api/services";
 import { formatAnoLetivo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import PasswordSettingsCard from "./PasswordSettingsCard";
@@ -28,6 +28,11 @@ export default function AcademiaSection() {
     _buscarAnoLetivo();
   }, [_buscarAnoLetivo]);
 
+  const {
+    data: anoLetivoGlobalData,
+    execute: buscarAnoLetivoGlobal,
+  } = useApi(adminService.obterAnoLetivoGlobal);
+
   // ── Definir/actualizar ano letivo ─────────────────────────────────────────
   const {
     loading: definindo,
@@ -42,7 +47,7 @@ export default function AcademiaSection() {
 
   // Valores derivados
   const anoDeFromApi = anoLetivoData?.ano_letivo?.split("_")[0] ?? "";
-  const anoLetivoOficial = anoLetivoData?.ano_letivo_oficial ?? "";
+  const anoLetivoOficial = anoLetivoGlobalData?.ano_letivo ?? anoLetivoData?.ano_letivo_oficial ?? "";
   const anoDeOficial = anoLetivoOficial?.split("_")[0] ?? "";
   const anoDe = anoDeOverride ?? anoDeFromApi;
 
@@ -64,7 +69,8 @@ export default function AcademiaSection() {
 
   useEffect(() => {
     buscarAnoLetivo();
-  }, [buscarAnoLetivo]);
+    buscarAnoLetivoGlobal().catch(() => undefined);
+  }, [buscarAnoLetivo, buscarAnoLetivoGlobal]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -200,10 +206,16 @@ export default function AcademiaSection() {
           {anoLetivoOficial && (
             <p className="mb-4 text-xs text-brand-600 dark:text-brand-300">
               Ano letivo oficial do sistema:{" "}
-              <strong>{formatAnoLetivo(anoLetivoOficial)}</strong>. A academia
-              só pode definir este mesmo valor.
+              <strong>{formatAnoLetivo(anoLetivoOficial)}</strong>. Selecione-o abaixo para confirmar explicitamente a configuração da academia.
             </p>
           )}
+
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+            <Icon icon="mdi:alert-outline" width="18px" className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Atenção: depois de definir o ano letivo da academia não há como voltar pela interface. Confirme o intervalo antes de guardar.
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Linha: De + Até + Tipo (read-only) */}
@@ -220,7 +232,7 @@ export default function AcademiaSection() {
                   id="al-de"
                   value={anoDe}
                   onChange={(e) => setAnoDeOverride(e.target.value)}
-                  disabled={!!anoDeOficial}
+                  disabled={false}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
                 >
                   <option value="">Selecione</option>
@@ -340,7 +352,7 @@ export default function AcademiaSection() {
                 ) : (
                   <>
                     <Icon icon="mdi:content-save-outline" width="18px" />
-                    Guardar
+                    Definir ano letivo
                   </>
                 )}
               </button>

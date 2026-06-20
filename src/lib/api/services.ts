@@ -13,6 +13,7 @@ import type {
   RegistrarNotaResponse,
   CriarRegraAvaliacaoFinalRequest,
   CriarRegraAvaliacaoFinalResponse,
+  EditarRegraAvaliacaoFinalRequest,
   ListarRegrasAvaliacaoFinalResponse,
   RegistrarFaltasRequest,
   AtualizarFaltaRequest,
@@ -101,6 +102,8 @@ const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
 const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/sistema/ano-letivo';
+const GLOBAL_ANO_LETIVO_ENDPOINT = '/ano-letivo';
+const GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT = '/anos-letivos-lista';
 
 function ensureApiDate(value: string | undefined, fieldName: string): string | undefined {
   if (!value) return value;
@@ -734,6 +737,19 @@ export const academiaService = {
   listarRegrasAvaliacaoFinal: (token?: string) =>
     api.get<ListarRegrasAvaliacaoFinalResponse>(
       '/academia/avaliacao-final/regras',
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  editarRegraAvaliacaoFinal: (id: string, data: EditarRegraAvaliacaoFinalRequest, token?: string) =>
+    api.put<CriarRegraAvaliacaoFinalResponse>(
+      `/academia/avaliacao-final/regras/${encodeURIComponent(id)}`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  deletarRegraAvaliacaoFinal: (id: string, token?: string) =>
+    api.delete<{ message: string }>(
+      `/academia/avaliacao-final/regras/${encodeURIComponent(id)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -1394,15 +1410,17 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /** GET /ano-letivo - leitura global para qualquer usuário autenticado. */
   obterAnoLetivoGlobal: (token?: string) =>
     api.get<AnoLetivoGlobalResponse>(
-      ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
+      GLOBAL_ANO_LETIVO_ENDPOINT,
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /** GET /anos-letivos-lista - histórico global para qualquer usuário autenticado. */
   listarAnosLetivosGlobais: (token?: string) =>
     api.get<ListarAnosLetivosGlobalResponse>(
-      '/admin/sistema/anos-letivos-lista',
+      GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT,
       { token: token || tokenStorage.get() || undefined }
     ),
 
