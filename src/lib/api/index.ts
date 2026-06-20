@@ -76,7 +76,7 @@ export type {
   MensagemResponse,
   RegistrarNotasRequest,
   RegistrarNotaResponse,
-  AvaliacaoFinalFormulaNode,
+  AvaliacaoFinalFormulaTextual,
   CriarRegraAvaliacaoFinalRequest,
   CriarRegraAvaliacaoFinalResponse,
   RegraAvaliacaoFinal,
