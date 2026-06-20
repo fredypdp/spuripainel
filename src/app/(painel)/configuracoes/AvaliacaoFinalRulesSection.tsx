@@ -8,7 +8,7 @@ import Icon from "@/components/ui/Icon";
 import type { TipoEnsino } from "@/types/api";
 
 const ESCOLAR_PERIODOS = ["1_trimestre", "2_trimestre", "3_trimestre"];
-type FormulaItem = { kind: "ref"; categoria: string; periodo: string } | { kind: "const"; valor: string } | { kind: "op"; op: "+" | "-" | "*" | "/" };
+type FormulaItem = { kind: "ref"; categoria: string; periodo: string } | { kind: "const"; valor: string } | { kind: "op"; op: "+" | "-" | "*" | "/" } | { kind: "paren"; value: "(" | ")" };
 
 function labelNivel(v: string) {
   if (v.includes("semestre")) return `${v.split("_")[0]}.º Semestre`;
@@ -42,6 +42,7 @@ function sortNiveis(niveis: string[]) {
 function itemText(item: FormulaItem) {
   if (item.kind === "op") return item.op;
   if (item.kind === "const") return item.valor;
+  if (item.kind === "paren") return item.value;
   return `[${item.categoria},${item.periodo}]`;
 }
 
@@ -90,7 +91,10 @@ export default function AvaliacaoFinalRulesSection() {
   }, [categoriasData, tipoSelecionado]);
   const categoriasEnvolvidas = useMemo(() => [...new Set(formulaItems.filter((i): i is Extract<FormulaItem, { kind: "ref" }> => i.kind === "ref").map((i) => i.categoria))], [formulaItems]);
   const formula = formulaText(formulaItems);
-  const precisaValor = formulaItems.length === 0 || formulaItems[formulaItems.length - 1]?.kind === "op";
+  const ultimoItem = formulaItems[formulaItems.length - 1];
+  const parentesesAbertos = formulaItems.reduce((total, item) => item.kind === "paren" ? total + (item.value === "(" ? 1 : -1) : total, 0);
+  const precisaValor = formulaItems.length === 0 || ultimoItem?.kind === "op" || (ultimoItem?.kind === "paren" && ultimoItem.value === "(");
+  const podeFecharParenteses = !precisaValor && parentesesAbertos > 0;
 
   function handleTipoEnsinoChange(nextTipo: TipoEnsino) {
     setTipoEnsino(nextTipo); setAnos(new Set()); setFormulaItems([]); setDraftCategoria(""); setDraftPeriodo("");
