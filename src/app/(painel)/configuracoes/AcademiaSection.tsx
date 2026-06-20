@@ -106,7 +106,7 @@ export default function AcademiaSection() {
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
           O ano letivo activo é usado automaticamente em todos os registros da
-          sua academia — notas, faltas, avaliações e aprovações. Sem ele
+          sua academia: notas, faltas, avaliações e aprovações. Sem ele
           configurado, esses registros ficam bloqueados.
         </p>
       </div>
@@ -133,7 +133,7 @@ export default function AcademiaSection() {
               />
             </span>
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 Ano Letivo Activo
               </p>
               {loadingAtual ? (
@@ -153,10 +153,10 @@ export default function AcademiaSection() {
           {/* Tipo */}
           {anoLetivoData?.tipo && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-sm text-gray-400 dark:text-gray-500">
                 Tipo:
               </span>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded capitalize">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded capitalize">
                 {anoLetivoData.tipo}
               </span>
             </div>
@@ -164,7 +164,7 @@ export default function AcademiaSection() {
 
           {/* Data de activação */}
           {anoLetivoData?.ativado_em && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+            <p className="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
               <Icon icon="mdi:clock-outline" width="12px" />
               Definido em{" "}
               {new Date(anoLetivoData.ativado_em).toLocaleDateString("pt-PT", {
@@ -183,7 +183,7 @@ export default function AcademiaSection() {
                 width="14px"
                 className="text-amber-500 shrink-0 mt-0.5"
               />
-              <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+              <p className="text-sm text-amber-700 dark:text-amber-300 leading-relaxed">
                 Registros de notas, faltas e avaliações estão{" "}
                 <strong>bloqueados</strong> até definir um ano letivo.
               </p>
@@ -196,15 +196,8 @@ export default function AcademiaSection() {
           <h3 className="text-base font-semibold text-gray-800 dark:text-white mb-1">
             {valorAtual ? "Actualizar Ano Letivo" : "Definir Ano Letivo"}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Selecione o intervalo. O formato enviado ao sistema é{" "}
-            <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
-              AAAA_AAAA
-            </code>{" "}
-            (ex: 2025_2026).
-          </p>
           {anoLetivoOficial && (
-            <p className="mb-4 text-xs text-brand-600 dark:text-brand-300">
+            <p className="mb-4 text-sm text-brand-600 dark:text-brand-300">
               Ano letivo oficial do sistema:{" "}
               <strong>{formatAnoLetivo(anoLetivoOficial)}</strong>. Selecione-o abaixo para confirmar explicitamente a configuração da academia.
             </p>
@@ -253,7 +246,7 @@ export default function AcademiaSection() {
                   className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
                 >
                   Até
-                  <span className="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
+                  <span className="ml-1.5 text-sm font-normal text-gray-400 dark:text-gray-500">
                     (automático)
                   </span>
                 </label>
@@ -273,7 +266,7 @@ export default function AcademiaSection() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Tipo
-                  <span className="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
+                  <span className="ml-1.5 text-sm font-normal text-gray-400 dark:text-gray-500">
                     (definido pela academia)
                   </span>
                 </label>
@@ -296,7 +289,7 @@ export default function AcademiaSection() {
 
             {/* Preview */}
             {valorFormatado && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+              <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                 <Icon icon="mdi:arrow-right-thin" width="14px" />
                 Será enviado:{" "}
                 <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono">

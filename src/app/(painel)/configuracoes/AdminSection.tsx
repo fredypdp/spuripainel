@@ -245,29 +245,29 @@ function ProjectionCard({
             {projection.label}
           </span>
           {projection.danger && (
-            <span className="flex-shrink-0 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">
+            <span className="flex-shrink-0 text-sm bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">
               ⚠ crítico
             </span>
           )}
         </div>
-        <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 font-mono">
+        <span className="flex-shrink-0 text-sm text-gray-400 dark:text-gray-500 font-mono">
           {projection.name}
         </span>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+      <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
         {projection.description}
       </p>
 
       {lastRebuildAt && !isError && (
-        <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+        <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
           <Icon icon="mdi:check-circle-outline" width="12px" />
           Reconstruída às {lastRebuildAt.toLocaleTimeString("pt-PT")}
         </p>
       )}
 
       {isError && error && (
-        <p className="text-xs text-red-600 dark:text-red-400 break-words leading-relaxed bg-red-100 dark:bg-red-900/30 rounded px-2 py-1.5">
+        <p className="text-sm text-red-600 dark:text-red-400 break-words leading-relaxed bg-red-100 dark:bg-red-900/30 rounded px-2 py-1.5">
           {error}
         </p>
       )}
@@ -278,7 +278,7 @@ function ProjectionCard({
             <button
               onClick={handleClick}
               disabled={isDisabled}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 text-xs font-semibold transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-2 text-sm font-semibold transition-colors"
             >
               <Icon icon="mdi:alert-outline" width="14px" />
               Confirmar rebuild
@@ -286,7 +286,7 @@ function ProjectionCard({
             <button
               onClick={handleCancel}
               disabled={isDisabled}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-xs transition-colors"
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-sm transition-colors"
             >
               Cancelar
             </button>
@@ -295,7 +295,7 @@ function ProjectionCard({
           <button
             onClick={handleClick}
             disabled={isDisabled}
-            className={`w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors
+            className={`w-full inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors
               ${isDisabled && !isLoading ? "opacity-40 cursor-not-allowed" : ""}
               ${isLoading ? "bg-blue-100 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 cursor-not-allowed" : ""}
               ${isSuccess && !isDisabled ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50" : ""}
@@ -365,7 +365,7 @@ function RebuildAllModal({
               ].map((item) => (
                 <li
                   key={item}
-                  className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"
+                  className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400"
                 >
                   <Icon
                     icon="mdi:circle-small"
@@ -474,7 +474,7 @@ function RebuildAllResultsPanel({
           {successList.map((r) => (
             <span
               key={r.name}
-              className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full"
+              className="inline-flex items-center gap-1 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full"
             >
               <Icon icon="mdi:check" width="11px" />
               {r.label}
@@ -490,7 +490,7 @@ function RebuildAllResultsPanel({
               key={r.name}
               className="flex flex-col gap-0.5 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2"
             >
-              <span className="text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
                 <Icon
                   icon="mdi:close-circle-outline"
                   width="13px"
@@ -502,7 +502,7 @@ function RebuildAllResultsPanel({
                 </span>
               </span>
               {r.error && (
-                <span className="text-xs text-red-600 dark:text-red-400 leading-relaxed pl-5 break-words">
+                <span className="text-sm text-red-600 dark:text-red-400 leading-relaxed pl-5 break-words">
                   {r.error}
                 </span>
               )}
@@ -595,7 +595,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             Responsabilidade do admin FPP: define a referência obrigatória para todas as academias usando a rota vigente da API. As academias só podem ativar o próprio ano letivo com este mesmo valor.
           </p>
         </div>
-        <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
+        <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
           <Icon icon={isFPP ? "mdi:shield-check-outline" : "mdi:shield-lock-outline"} width="14px" />
           {isFPP ? "FPP habilitado" : "Apenas FPP altera"}
         </span>
@@ -603,14 +603,14 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
-          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Último valor definido nesta sessão</p>
+          <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Último valor definido nesta sessão</p>
           <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white">
             {carregandoDados ? "A carregar..." : anoDefinido ? formatAnoLetivo(anoDefinido) : "—"}
           </p>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Mostra o ano retornado pela API ao consultar e ao definir o valor global.
           </p>
-          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900/60">
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900/60">
             <p className="font-semibold text-gray-700 dark:text-gray-200">Ano letivo global atual</p>
             <p className="mt-1 text-sm font-bold text-brand-600 dark:text-brand-400">
               {anoLetivoAtual ? formatAnoLetivo(anoLetivoAtual) : "Não definido"}
@@ -643,7 +643,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Até <span className="text-xs font-normal text-gray-400">(automático)</span></label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Até <span className="text-sm font-normal text-gray-400">(automático)</span></label>
               <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-400">{anoAte}</div>
             </div>
             <div>
@@ -768,7 +768,7 @@ export default function AdminSection() {
 
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           {(loadingCount > 0 || successCount > 0 || errorCount > 0) && (
-            <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-3 text-sm">
               {loadingCount > 0 && (
                 <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                   <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
@@ -830,7 +830,7 @@ export default function AdminSection() {
         <div className="text-sm text-orange-700 dark:text-orange-300">
           <strong>Atenção:</strong> O rebuild trunca e reprocessa a tabela do
           zero via job assíncrono. Projeções marcadas como{" "}
-          <span className="inline-flex items-center gap-1 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">
+          <span className="inline-flex items-center gap-1 text-sm bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">
             ⚠ crítico
           </span>{" "}
           causam indisponibilidade temporária de login durante a operação.
@@ -845,10 +845,10 @@ export default function AdminSection() {
           return (
             <div key={tier}>
               <div className="flex items-center gap-3 mb-3">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold flex-shrink-0">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-sm font-bold flex-shrink-0">
                   {tier}
                 </span>
-                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   {TIER_LABELS[tier]}
                 </span>
                 <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800" />
