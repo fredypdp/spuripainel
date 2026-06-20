@@ -2,7 +2,7 @@
 modificado: 20-06-2026 00:00
 criado: 05-04-2026 13:01
 ---
-Versão atual: 1.6.8
+Versão atual: 1.6.9
 ## Índice
 
 1. [[#1. Visão Geral]]
@@ -282,8 +282,8 @@ Representa uma instituição de ensino. Pode ser uma **escola** (ensino fundamen
 
 ### Categorias de nota (código vs rótulo)
 
-- `codigo`: identificador técnico único por academia (sem espaços).
-- `nome`: rótulo descritivo exibido ao usuário (pode conter espaços).
+- `codigo`: identificador técnico único por academia (sem espaços). Exemplo de categoria personalizada: `prova_profesor`.
+- `nome`: rótulo descritivo exibido ao usuário (pode conter espaços). Exemplo de categoria personalizada: `Prova do professor`.
 - Códigos fixos e rótulos padrão:
   - `nota_escola` -> `Nota da escola`
   - `nota_professor` -> `Nota do professor`
@@ -409,7 +409,7 @@ Agrupa estudantes num contexto de nível, turno e curso.
 
 **Campos obrigatórios**: `codigo_turma`, `nivel`, `turno` (`manha`/`tarde`/`noite`)
 
-O código de turma deve ser **único dentro da academia**.
+O código de turma deve ser **único dentro da academia**. Antes da validação de unicidade, `codigo_turma` é normalizado: espaços antes/depois são descartados, somente espaços internos entre textos viram `_` e caracteres especiais diferentes de `_` são rejeitados.
 
 **Estudantes na turma**: guardados como lista de `CodigoEstudante` (strings). Um estudante pode estar em múltiplas turmas simultaneamente.
 
@@ -558,7 +558,7 @@ Sempre que o ano letivo for atualizado, ele é adicionado em `anos_letivos_lista
 |`escolar`|`escola`|`nota_escola`, `nota_professor`|`1_trimestre`, `2_trimestre`, `3_trimestre`|
 |`superior`|`superior`|`nota_pp1`, `nota_pp2`, `nota_exame`|Semestres do curso|
 
-Academias podem criar **categorias adicionais** personalizadas e também configurar as categorias fixas/obrigatórias. Toda categoria de nota possui `anos_academicos`; apenas os anos presentes nessa lista aceitam registros. Se a categoria não tiver anos definidos, nenhuma nota pode ser registrada nela.
+Academias podem criar **categorias adicionais** personalizadas e também configurar as categorias fixas/obrigatórias. Toda categoria de nota possui `anos_academicos`; apenas os anos presentes nessa lista aceitam registros. Se a categoria não tiver anos definidos, nenhuma nota pode ser registrada nela. O `codigo` da categoria é normalizado antes de persistir: espaços antes/depois são descartados, somente espaços internos entre textos viram `_`, letras maiúsculas viram minúsculas e caracteres especiais diferentes de `_` são rejeitados.
 
 **Valor**: entre 0 ou mais (validado no aggregate)
 
@@ -604,7 +604,7 @@ A avaliação final é o mecanismo auditável que decide aprovação, reprovaç�
 
 **Conceitos principais:**
 
-- `type` identifica publicamente a etapa da avaliação final configurada na regra (`normal`, `recurso`, `especial`, etc.). Ele não é enviado pelo cliente para executar a avaliação: na execução automática, o backend descobre o `type` percorrendo a cadeia de regras aplicável, da raiz até as dependentes.
+- `type` identifica publicamente a etapa da avaliação final configurada na regra (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.). Ele não é enviado pelo cliente para executar a avaliação: na execução automática, o backend descobre o `type` percorrendo a cadeia de regras aplicável, da raiz até as dependentes.
 - `tipo_ensino` da avaliação é sempre inferido do estudante: `superior` tem prioridade quando há curso/ano/status superior; depois `medio`; caso contrário, `fundamental`.
 - `nivel_ano_academico_atual` precisa ser o nível atual real do estudante e precisa ser válido para o tipo de ensino inferido.
 - `proximo_ano_academico` é sempre calculado pelo backend. O cliente não pode enviá-lo.
@@ -613,12 +613,12 @@ A avaliação final é o mecanismo auditável que decide aprovação, reprovaç�
 **Configuração de regras:**
 
 - Cada regra pertence à academia autenticada e contém `type`, `nome`, `descricao`, `tipo_ensino`, `anos_academicos`, `nota_minima_aprovacao`, `categorias_envolvidas`, `formula`, `aplica_se_reprovado_em_type`, `status` e `version`.
-- `type` é obrigatório na criação; o cliente deve enviar explicitamente a etapa pública (`normal`, `recurso`, `especial`, etc.). O backend aceita apenas letras, números, espaços e `_`, normaliza espaços para `_` antes de persistir e rejeita outros caracteres.
-- `type`, `nome`, `tipo_ensino`, `anos_academicos`, `categorias_envolvidas`, `formula` e `nota_minima_aprovacao > 0` são obrigatórios na criação; `descricao` é opcional.
+- `type` é obrigatório na criação; o cliente deve enviar explicitamente a etapa pública (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.). O backend aceita apenas letras, números, espaços e `_`, descarta espaços antes/depois, converte apenas espaços internos entre textos para `_` antes de persistir e rejeita outros caracteres.
+- `type`, `nome`, `tipo_ensino`, `anos_academicos`, `categorias_envolvidas`, `formula` e `nota_minima_aprovacao > 0` são obrigatórios na criação; `descricao` é opcional. Exemplos de `nome`: `Avaliação final`, `Avaliação final (com exame)` e `Avaliação final (com recurso)`.
 - `tipo_ensino` deve ser exatamente `fundamental`, `medio` ou `superior`.
 - Não pode haver dois registros ativos com o mesmo `codigo_academia`, `tipo_ensino`, `type` e ano acadêmico sobreposto. Assim, regras do mesmo `type` podem coexistir para anos diferentes, mas não para o mesmo ano.
 - Para cada academia, tipo de ensino e ano acadêmico, deve existir no máximo uma regra raiz ativa. Regra raiz é a regra sem `aplica_se_reprovado_em_type`.
-- `aplica_se_reprovado_em_type` é opcional apenas para a regra raiz; em regra dependente (`recurso`, por exemplo), passa pela mesma normalização de `type`, deve apontar para um `type` ativo existente na mesma academia e tipo de ensino, não pode apontar para o próprio `type` e não pode criar ciclo de dependências.
+- `aplica_se_reprovado_em_type` é opcional apenas para a regra raiz; em regra dependente (`avaliacao_final_com_recurso`, por exemplo), passa pela mesma normalização de `type`, deve apontar para um `type` ativo existente na mesma academia e tipo de ensino, não pode apontar para o próprio `type` e não pode criar ciclo de dependências.
 - A cadeia aplicável a um estudante precisa ter exatamente uma raiz; regras dependentes só participam quando apontam para outro `type` dentro da mesma cadeia aplicável ao ano acadêmico.
 
 **Fórmula textual (`formula_textual_v1`):**
@@ -729,12 +729,12 @@ Não há rota pública registrada para execução manual de avaliação final. A
 - Aprovação em semestre intermediário incrementa `semestre_atual` e recalcula `ano_superior`; aprovação no último semestre marca `status_superior = finalizado`; reprovação mantém semestre, ano superior e status.
 - Eventos `AvaliacaoFinalSuperior` carregam o semestre avaliado, próximo semestre calculado e `ano_superior` antes/depois, permitindo rebuild determinístico das projeções de estudantes e avaliações.
 
-**Cadeias de avaliação final (normal, recurso, especial etc.):**
+**Cadeias de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso` etc.):**
 
 - Para cada academia, tipo de ensino e ano acadêmico deve haver exatamente uma regra raiz aplicável, ou seja, uma regra ativa sem `aplica_se_reprovado_em_type`.
-- Regras dependentes só executam se o estudante foi reprovado no `type` indicado em `aplica_se_reprovado_em_type`. Exemplo: `recurso` pode depender de reprovação em `normal`; `especial` pode depender de reprovação em `recurso`.
+- Regras dependentes só executam se o estudante foi reprovado no `type` indicado em `aplica_se_reprovado_em_type`. Exemplo: `avaliacao_final_com_recurso` pode depender de reprovação em `avaliacao_final`; `avaliacao_final_com_exame` pode depender de reprovação em `avaliacao_final_com_recurso`.
 - Se a regra anterior aprovar, as dependentes são encerradas sem execução, porque não há reprovação a recuperar.
-- Cada `type` tem idempotência própria: o estudante pode ter uma avaliação `normal` e, se reprovado, uma avaliação `recurso`, mas não duas avaliações `normal` para o mesmo ano letivo, nível e tipo de ensino.
+- Cada `type` tem idempotência própria: o estudante pode ter uma avaliação `avaliacao_final` e, se reprovado, uma avaliação `avaliacao_final_com_recurso`, mas não duas avaliações `avaliacao_final` para o mesmo ano letivo, nível e tipo de ensino.
 
 **Consultas:**
 

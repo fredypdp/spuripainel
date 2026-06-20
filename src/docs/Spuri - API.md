@@ -2,7 +2,7 @@
 modificado: 20-06-2026 00:00
 criado: 05-04-2026 13:01
 ---
-Versão atual: 1.8.5
+Versão atual: 1.8.6
 ## Índice
 
 1. [[#1. Convenções Globais]]
@@ -1267,14 +1267,16 @@ Retorna a lista histórica de anos letivos definidos pela academia alvo.
 
 Cria ou configura uma categoria de nota para a academia. O mesmo endpoint é usado para categorias adicionais e para definir os anos acadêmicos das categorias fixas/obrigatórias (`nota_escola`, `nota_professor`, `nota_pp1`, `nota_pp2`, `nota_exame`).
 
+O campo `codigo` é normalizado antes de persistir: espaços antes/depois são descartados, somente espaços internos entre textos viram `_` (ex.: ` Prova profesor ` vira `prova_profesor`) e caracteres especiais diferentes de `_` são rejeitados. O código aceita letras minúsculas, números, espaços e `_`; letras maiúsculas são convertidas para minúsculas.
+
 **Proteção**: autenticado + academia ativa
 
 **Request:**
 
 ```json
 {
-  "codigo": "nota_teste",
-  "nome": "Nota de teste",
+  "codigo": "prova_profesor",
+  "nome": "Prova do professor",
   "descricao": "string",
   "anos_academicos": ["3_ano_fundamental", "4_ano_fundamental"]
 }
@@ -1285,13 +1287,13 @@ Cria ou configura uma categoria de nota para a academia. O mesmo endpoint é usa
 ```json
 {
   "message": "categoria criada com sucesso",
-  "categoria": "nota_teste"
+  "categoria": "prova_profesor"
 }
 ```
 
 **Erros:**
 
-- `400` — codigo, nome ou anos_academicos ausente/vazio
+- `400` — codigo, nome ou anos_academicos ausente/vazio, ou codigo com caracteres especiais inválidos
 - `409` — categoria já existe nesta academia
 
 ---
@@ -1314,8 +1316,8 @@ Lista todas as categorias de nota da academia alvo.
     {
       "id": "uuid",
       "codigo_academia": "ACAD20251",
-      "codigo": "nota_teste",
-      "nome": "Nota de teste",
+      "codigo": "prova_profesor",
+      "nome": "Prova do professor",
       "descricao": "string",
       "anos_academicos": ["3_ano_fundamental"],
       "status": "ativo",
@@ -1350,13 +1352,13 @@ Inativa (remove logicamente) uma categoria de nota adicional da academia.
 ```json
 {
   "message": "categoria removida com sucesso",
-  "categoria": "nota_teste"
+  "categoria": "prova_profesor"
 }
 ```
 
 **Erros:**
 
-- `400` — codigo, nome ou anos_academicos ausente/vazio no path
+- `400` — codigo, nome ou anos_academicos ausente/vazio, ou codigo com caracteres especiais inválidos no path
 - `400` — categoria não existe nesta academia
 
 ---
@@ -2064,10 +2066,10 @@ Não existe rota pública/registrada para executar avaliação final manualmente
 
 **Por que o cliente não envia `type` para executar avaliação final:**
 
-- O `type` da avaliação final executada (`normal`, `recurso`, `especial`, etc.) vem da regra aplicável, não do payload de uma requisição manual.
+- O `type` da avaliação final executada (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.) vem da regra aplicável, não do payload de uma requisição manual.
 - Ao registrar/atualizar notas, o backend identifica o estudante, infere o `tipo_ensino`, descobre o ano acadêmico atual e busca todas as regras ativas aplicáveis àquele ano.
 - A cadeia precisa ter exatamente uma regra raiz, isto é, a regra sem `aplica_se_reprovado_em_type`. O processamento começa sempre nessa raiz.
-- Cada regra dependente é alcançada pelo campo `aplica_se_reprovado_em_type`: por exemplo, `recurso` pode depender de reprovação em `normal`, e `especial` pode depender de reprovação em `recurso`.
+- Cada regra dependente é alcançada pelo campo `aplica_se_reprovado_em_type`: por exemplo, `avaliacao_final_com_recurso` pode depender de reprovação em `avaliacao_final`, e `avaliacao_final_com_exame` pode depender de reprovação em `avaliacao_final_com_recurso`.
 - O backend só executa uma dependente quando encontra reprovação no `type` pré-requisito. Se o pré-requisito aprovou, a dependente é encerrada e não executa. Se o pré-requisito ainda não existe, a dependente aguarda.
 - Portanto, a ordem correta não é decidida pelo cliente nem pela categoria da nota recém-registrada; ela é calculada a partir da cadeia de regras configurada até a raiz.
 
@@ -2092,7 +2094,7 @@ Não existe rota pública/registrada para executar avaliação final manualmente
     {
       "message": "avaliação final registrada automaticamente",
       "tipo_ensino": "fundamental",
-      "type": "normal",
+      "type": "avaliacao_final",
       "aprovado": true,
       "nota_final": 12.5,
       "nota_minima_aprovacao": 10,
@@ -2112,8 +2114,8 @@ Cria uma regra ativa de avaliação final para a academia autenticada.
 
 ```json
 {
-  "type": "normal",
-  "nome": "Avaliação normal",
+  "type": "avaliacao_final",
+  "nome": "Avaliação final",
   "descricao": "Média dos três trimestres",
   "tipo_ensino": "fundamental",
   "anos_academicos": ["3_ano_fundamental"],
@@ -2126,8 +2128,8 @@ Cria uma regra ativa de avaliação final para a academia autenticada.
 
 **Campos e validações:**
 
-- `type` — obrigatório. Identifica a etapa pública (`normal`, `recurso`, `especial`, etc.). Aceita apenas letras, números, espaços e `_`; espaços são normalizados para `_` antes de persistir (ex.: `exame final` vira `exame_final`), e outros caracteres são rejeitados.
-- `nome` — obrigatório.
+- `type` — obrigatório. Identifica a etapa pública (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.). Aceita apenas letras, números, espaços e `_`; espaços são normalizados para `_` antes de persistir (ex.: `exame final` vira `exame_final`), e outros caracteres são rejeitados.
+- `nome` — obrigatório. Exemplos: `Avaliação final`, `Avaliação final (com exame)` ou `Avaliação final (com recurso)`.
 - `descricao` — opcional.
 - `tipo_ensino` — obrigatório; apenas `fundamental`, `medio` ou `superior`.
 - `anos_academicos` — obrigatório e não vazio; não pode conter string vazia.
@@ -2201,8 +2203,8 @@ Lista todas as regras de avaliação final da academia autenticada, ordenadas po
     {
       "id": "7e5f0b8d-8c7a-4b1a-9f4c-1f4cfd0c2f11",
       "codigo_academia": "ACA001",
-      "type": "normal",
-      "nome": "Avaliação normal",
+      "type": "avaliacao_final",
+      "nome": "Avaliação final",
       "descricao": "Média dos três trimestres",
       "tipo_ensino": "fundamental",
       "anos_academicos": ["3_ano_fundamental"],
@@ -2233,7 +2235,7 @@ Lista avaliações finais. Escopo varia por tipo de usuário.
 - `ano_academico_atual` — filtra pelo ano académico em que o estudante foi re/aprovado
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
-- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.)
+- `type` — filtra o tipo de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.)
 
 **Response 200:**
 
@@ -2259,7 +2261,7 @@ Lista apenas avaliações com `aprovado = true`.
 - `ano_academico_atual` — filtra pelo ano académico em que o estudante foi aprovado
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
-- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.)
+- `type` — filtra o tipo de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.)
 
 **Response 200:**
 
@@ -2285,7 +2287,7 @@ Lista apenas avaliações com `aprovado = false`.
 - `ano_academico_atual` — filtra pelo ano académico em que o estudante foi reprovado
 - `codigo_turma` — filtra por turma (requer `codigo_academia` em consultas admin)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
-- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.)
+- `type` — filtra o tipo de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.)
 
 **Response 200:**
 
@@ -2706,6 +2708,8 @@ Deleta uma matéria (soft delete). Deve estar inativa.
 
 Cria uma nova turma.
 
+O campo `codigo_turma` é normalizado antes de persistir e validar duplicidade: espaços antes/depois são descartados, somente espaços internos entre textos viram `_` (ex.: ` Turma 10 A ` vira `Turma_10_A`) e caracteres especiais diferentes de `_` são rejeitados. O código aceita letras, números, espaços e `_`.
+
 **Proteção**: autenticado + academia ativa
 
 **Request:**
@@ -2731,7 +2735,7 @@ Cria uma nova turma.
 
 **Erros:**
 
-- `400` — turno inválido (deve ser `manha`, `tarde` ou `noite`)
+- `400` — turno inválido (deve ser `manha`, `tarde` ou `noite`) ou `codigo_turma` com caracteres especiais inválidos
 - `409` — código de turma já existe nesta academia
 
 ---
@@ -3343,7 +3347,7 @@ Lista registros de notas com escopo por perfil.
 - `materia_disciplinar_id` — filtra por matéria disciplinar (aceita múltiplos valores)
 - `categoria` — filtra por categoria da nota (aceita múltiplos valores)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
-- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.) (aceita múltiplos valores)
+- `type` — filtra o tipo de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.) (aceita múltiplos valores)
 
 **Formato de múltiplos valores (todos os filtros acima):**
 
@@ -3393,7 +3397,7 @@ Lista registros de faltas com escopo por perfil.
 - `periodo` — filtra por período da matéria (`1_trimestre`, `2_trimestre`, `3_trimestre`, `1_semestre`, `2_semestre`) (aceita múltiplos valores)
 - `materia_disciplinar_id` — filtra por matéria disciplinar (aceita múltiplos valores)
 - `codigo_academia` — filtro de academia (admin); para academia autenticada, este filtro é sempre forçado ao seu próprio código
-- `type` — filtra o tipo de avaliação final (`normal`, `recurso`, etc.) (aceita múltiplos valores)
+- `type` — filtra o tipo de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.) (aceita múltiplos valores)
 
 **Formato de múltiplos valores (todos os filtros acima):**
 
