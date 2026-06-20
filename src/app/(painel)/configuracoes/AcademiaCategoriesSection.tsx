@@ -105,7 +105,7 @@ export default function AcademiaCategoriesSection() {
           Categorias de nota
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-          A academia pode criar/configurar categorias e definir exatamente em quais anos acadêmicos ou semestres elas aceitam registro de notas. Sem anos configurados, a categoria não recebe notas.
+          Crie categorias para separar os tipos de nota usados pela academia, como provas, trabalhos, exames ou avaliações do professor. Cada categoria precisa de um código sem espaços e deve ser ligada aos anos ou semestres em que poderá receber notas.
         </p>
       </div>
 
@@ -143,10 +143,10 @@ export default function AcademiaCategoriesSection() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nova categoria</p>
-          <input value={codigo} onChange={(e) => setCodigo(e.target.value)} disabled={criando} placeholder="codigo_sem_espacos" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
-          <input value={nome} onChange={(e) => setNome(e.target.value)} disabled={criando} placeholder="Nome exibido" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
-          <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={criando} placeholder="Descrição opcional" rows={3} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Adicionar nova categoria de nota</p>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">Nome da categoria<input value={nome} onChange={(e) => setNome(e.target.value)} disabled={criando} placeholder="Ex.: Prova do professor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">Código da categoria (sem espaços)<input value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9_]/g, ""))} disabled={criando} placeholder="Ex.: prova_profesor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">Descrição<textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={criando} placeholder="Descrição opcional" rows={3} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
           <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Anos acadêmicos *</p>
             <div className="flex flex-wrap gap-2">
