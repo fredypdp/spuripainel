@@ -626,12 +626,22 @@ export interface CriarRegraAvaliacaoFinalRequest {
   /** Superior usa semestres: '1_semestre', '2_semestre', ... */
   anos_academicos: string[];
   nota_minima_aprovacao: number;
-  categorias_envolvidas: CategoriaNota[];
+  /** Opcional: o backend extrai automaticamente a partir de formula. */
+  categorias_envolvidas?: CategoriaNota[];
   formula: AvaliacaoFinalFormulaTextual;
   aplica_se_reprovado_em_type?: string | null;
 }
 
-export interface RegraAvaliacaoFinal extends CriarRegraAvaliacaoFinalRequest {
+export interface EditarRegraAvaliacaoFinalRequest {
+  nome?: string;
+  descricao?: string;
+  nota_minima_aprovacao?: number;
+  categorias_envolvidas?: CategoriaNota[];
+  formula?: AvaliacaoFinalFormulaTextual;
+}
+
+export interface RegraAvaliacaoFinal extends Omit<CriarRegraAvaliacaoFinalRequest, 'categorias_envolvidas'> {
+  categorias_envolvidas: CategoriaNota[];
   id: string;
   codigo_academia: string;
   type: string;
@@ -1132,14 +1142,14 @@ export interface DefinirAnoLetivoGlobalResponse {
   ano_letivo: string;
 }
 
-/** GET /admin/sistema/ano-letivo */
+/** GET /ano-letivo */
 export interface AnoLetivoGlobalResponse {
   ano_letivo: string;
   definido_em?: string;
   definido_por?: string;
 }
 
-/** GET /admin/sistema/anos-letivos-lista */
+/** GET /anos-letivos-lista */
 export interface ListarAnosLetivosGlobalResponse {
   anos_letivos_lista: Array<{
     ano_letivo: string;
