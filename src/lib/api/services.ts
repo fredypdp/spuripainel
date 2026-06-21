@@ -101,7 +101,8 @@ export interface ErrorResponse {
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
-const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/sistema/ano-letivo';
+const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/definir-ano-letivo-geral';
+const DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT = '/definir-ano-letivo-seguinte';
 const GLOBAL_ANO_LETIVO_ENDPOINT = '/ano-letivo';
 const GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT = '/anos-letivos-lista';
 
@@ -760,19 +761,26 @@ export const academiaService = {
     token?: string,
     anoLetivoOficial?: string
   ) => {
-    const anoLetivoNormalizado = ensureAnoLetivoFormato(data.ano_letivo);
+    const anoLetivoNormalizado = data.ano_letivo ? ensureAnoLetivoFormato(data.ano_letivo) : undefined;
     const anoOficialNormalizado = anoLetivoOficial ? ensureAnoLetivoFormato(anoLetivoOficial) : undefined;
 
-    if (anoOficialNormalizado && anoLetivoNormalizado !== anoOficialNormalizado) {
+    if (anoOficialNormalizado && anoLetivoNormalizado && anoLetivoNormalizado !== anoOficialNormalizado) {
       throw new Error(`O ano letivo da academia deve ser igual ao ano letivo oficial do sistema (${anoOficialNormalizado}).`);
     }
 
     return api.post<DefinirAnoLetivoResponse>(
       ACADEMIA_ANO_LETIVO_ENDPOINT,
-      { ...data, ano_letivo: anoLetivoNormalizado },
+      { ...data, ...(anoLetivoNormalizado ? { ano_letivo: anoLetivoNormalizado } : {}) },
       { token: token || tokenStorage.get() || undefined }
     );
   },
+
+  definirAnoLetivoSeguinte: (token?: string) =>
+    api.post<DefinirAnoLetivoResponse>(
+      DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT,
+      {},
+      { token: token || tokenStorage.get() || undefined }
+    ),
 
   /**
    * GET /academia/ano-letivo
@@ -1399,14 +1407,21 @@ export const academiaService = {
 export const adminService = {
 
   /**
-   * POST /admin/sistema/ano-letivo
-   * Única rota vigente para definir o ano letivo oficial global;
-   * a rota legada POST /dominis/sistema/ano-letivo foi removida no backend.
+   * POST /admin/definir-ano-letivo-geral
+   * Define diretamente uma única vez o ano letivo oficial global.
+   * O backend calcula o ano letivo automaticamente pelo ano civil atual.
    */
-  definirAnoLetivoGlobal: (data: DefinirAnoLetivoGlobalRequest, token?: string) =>
+  definirAnoLetivoGlobal: (data?: DefinirAnoLetivoGlobalRequest, token?: string) =>
     api.post<DefinirAnoLetivoGlobalResponse>(
       ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
-      { ...data, ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) },
+      data?.ano_letivo ? { ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) } : {},
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  definirAnoLetivoSeguinte: (token?: string) =>
+    api.post<DefinirAnoLetivoGlobalResponse>(
+      DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT,
+      {},
       { token: token || tokenStorage.get() || undefined }
     ),
 

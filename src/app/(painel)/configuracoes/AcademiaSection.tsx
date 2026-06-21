@@ -40,6 +40,12 @@ export default function AcademiaSection() {
     execute: definirAnoLetivo,
   } = useApi(academiaService.definirAnoLetivo);
 
+  const {
+    loading: avancando,
+    error: erroAvancar,
+    execute: definirAnoLetivoSeguinte,
+  } = useApi(academiaService.definirAnoLetivoSeguinte);
+
   const [sucesso, setSucesso] = useState(false);
 
   // ── Override state: só guarda o que o utilizador alterou explicitamente ───
@@ -65,7 +71,8 @@ export default function AcademiaSection() {
   // Considera mudança no ano OU se o tipo guardado na API difere do tipo da academia
   const mudou =
     valorFormatado !== valorAtual || tipoAcademia !== tipoAtual;
-  const podeGuardar = !definindo && !!valorFormatado && mudou;
+  const podeGuardar = !definindo && !valorAtual && !!valorFormatado && mudou;
+  const podeAvancar = !avancando && !!valorAtual;
 
   useEffect(() => {
     buscarAnoLetivo();
@@ -87,6 +94,19 @@ export default function AcademiaSection() {
       setTimeout(() => setSucesso(false), 4000);
     } catch {
       // erroDefinir disponível via hook
+    }
+  }
+
+  async function handleAvancarAnoLetivo() {
+    setSucesso(false);
+    try {
+      await definirAnoLetivoSeguinte();
+      setAnoDeOverride(null);
+      setTimeout(() => buscarAnoLetivo(), 1000);
+      setSucesso(true);
+      setTimeout(() => setSucesso(false), 4000);
+    } catch {
+      // erroAvancar disponível via hook
     }
   }
 
@@ -302,7 +322,7 @@ export default function AcademiaSection() {
             )}
 
             {/* Erro */}
-            {erroDefinir && (
+            {(erroDefinir || erroAvancar) && (
               <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
                 <Icon
                   icon="mdi:alert-circle-outline"
@@ -310,7 +330,7 @@ export default function AcademiaSection() {
                   className="text-red-500 shrink-0"
                 />
                 <p className="text-sm text-red-600 dark:text-red-400">
-                  {erroDefinir}
+                  {erroDefinir || erroAvancar}
                 </p>
               </div>
             )}
@@ -332,6 +352,26 @@ export default function AcademiaSection() {
             )}
 
             <div className="flex justify-end pt-1">
+              {valorAtual && (
+                <button
+                  type="button"
+                  disabled={!podeAvancar}
+                  onClick={handleAvancarAnoLetivo}
+                  className="mr-3 inline-flex items-center gap-2 rounded-lg border border-brand-200 px-5 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                >
+                  {avancando ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-500" />
+                      A avançar...
+                    </>
+                  ) : (
+                    <>
+                      <Icon icon="mdi:calendar-arrow-right" width="18px" />
+                      Definir ano letivo seguinte
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={!podeGuardar}

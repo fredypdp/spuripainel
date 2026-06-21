@@ -530,9 +530,15 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     execute: definirAnoLetivoGlobal,
   } = useApi(adminService.definirAnoLetivoGlobal);
 
+  const {
+    loading: avancando,
+    error: erroAvancar,
+    execute: definirAnoLetivoSeguinte,
+  } = useApi(adminService.definirAnoLetivoSeguinte);
+
   const anoAte = anoDe ? String(Number(anoDe) + 1) : "";
   const valorFormatado = anoDe && anoAte ? `${anoDe}_${anoAte}` : "";
-  const opcoesAnoDe = Array.from({ length: 11 }, (_, i) => anoAtual - 5 + i);
+  const opcoesAnoDe = Array.from({ length: anoAtual - 1900 + 1 }, (_, i) => 1900 + i);
 
   const carregarDadosAnoLetivo = useCallback(async () => {
     setCarregandoDados(true);
@@ -564,10 +570,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSucesso(false);
-    if (!isFPP || !valorFormatado) return;
+    if (!isFPP) return;
 
     try {
-      const response = await definirAnoLetivoGlobal({ ano_letivo: valorFormatado });
+      const response = await definirAnoLetivoGlobal();
       const novoAno = response?.ano_letivo ?? valorFormatado;
       setAnoDefinido(novoAno);
       setAnoLetivoAtual(novoAno);
@@ -578,6 +584,24 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
       setTimeout(() => setSucesso(false), 5000);
     } catch {
       // erro disponível via hook
+    }
+  }
+
+  async function handleAvancarAnoLetivo() {
+    setSucesso(false);
+    if (!isFPP) return;
+    try {
+      const response = await definirAnoLetivoSeguinte();
+      const novoAno = response?.ano_letivo ?? null;
+      if (novoAno) {
+        setAnoDefinido(novoAno);
+        setAnoLetivoAtual(novoAno);
+        setHistoricoAnosLetivos((prev) => prev.includes(novoAno) ? prev : [novoAno, ...prev]);
+      }
+      setSucesso(true);
+      setTimeout(() => setSucesso(false), 5000);
+    } catch {
+      // erroAvancar disponível via hook
     }
   }
 
@@ -592,7 +616,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             Ano letivo oficial global
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Responsabilidade do admin FPP: define a referência obrigatória para todas as academias usando a rota vigente da API. As academias só podem ativar o próprio ano letivo com este mesmo valor.
+            Responsabilidade do admin FPP: define uma única vez a referência obrigatória para todas as academias. A API calcula automaticamente pelo ano civil atual; depois, a evolução deve ser feita pela ação de definir o ano letivo seguinte.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
@@ -652,10 +676,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             </div>
           </div>
 
-          {error && (
+          {(error || erroAvancar) && (
             <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
               <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400">{error || erroAvancar}</p>
             </div>
           )}
           {erroDados && (
@@ -672,16 +696,28 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleAvancarAnoLetivo}
+              disabled={!isFPP || avancando || !anoLetivoAtual}
+              className="inline-flex items-center gap-2 rounded-lg border border-brand-200 px-5 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
+            >
+              {avancando ? (
+                <><span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-500" />A avançar...</>
+              ) : (
+                <><Icon icon="mdi:calendar-arrow-right" width="18px" />Definir ano seguinte</>
+              )}
+            </button>
             <button
               type="submit"
-              disabled={!isFPP || loading || !valorFormatado}
+              disabled={!isFPP || loading}
               className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A definir...</>
               ) : (
-                <><Icon icon="mdi:content-save-outline" width="18px" />Definir ano global</>
+                <><Icon icon="mdi:content-save-outline" width="18px" />Definir ano global automaticamente</>
               )}
             </button>
           </div>
