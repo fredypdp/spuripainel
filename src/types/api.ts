@@ -729,16 +729,18 @@ export interface AdicionarEstudanteTurmaRequest {
  * tipo: 'escola' | 'superior'
  */
 export interface DefinirAnoLetivoAcademiaRequest {
-  ano_letivo: string; // formato: YYYY_YYYY  ex: "2025_2026"
+  /** Opcional: quando omitido, o backend usa o ano letivo global atual. */
+  ano_letivo?: string; // formato: YYYY_YYYY  ex: "2025_2026"
   tipo: 'escola' | 'superior';
 }
 
 /**
- * POST /admin/sistema/ano-letivo
- * Define o ano letivo oficial global do sistema (apenas admin FPP).
+ * POST /admin/definir-ano-letivo-geral
+ * O backend calcula automaticamente o ano letivo oficial global pelo ano civil atual.
  */
 export interface DefinirAnoLetivoGlobalRequest {
-  ano_letivo: string; // formato: YYYY_YYYY  ex: "2026_2027"
+  /** Opcional/legado: ignorado pelo backend atual. */
+  ano_letivo?: string; // formato: YYYY_YYYY  ex: "2026_2027"
 }
 
 /**
