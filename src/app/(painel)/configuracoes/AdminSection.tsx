@@ -637,7 +637,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
           <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900/60">
             <p className="font-semibold text-gray-700 dark:text-gray-200">Ano letivo global atual</p>
             <p className="mt-1 text-sm font-bold text-brand-600 dark:text-brand-400">
-              {anoLetivoAtual ? formatAnoLetivo(anoLetivoAtual) : "Não definido"}
+              {carregandoDados ? "A carregar..." : anoLetivoAtual ? formatAnoLetivo(anoLetivoAtual) : "Não definido"}
             </p>
             <p className="mt-2 text-gray-500 dark:text-gray-400">
               Histórico global: {historicoAnosLetivos.length} ano(s) letivo(s) registado(s).
@@ -650,78 +650,91 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div>
-              <label htmlFor="admin-ano-de" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">De</label>
-              <select
-                id="admin-ano-de"
-                value={anoDe}
-                onChange={(e) => setAnoDe(e.target.value)}
-                disabled={!isFPP || loading}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              >
-                {opcoesAnoDe.map((ano) => (
-                  <option key={ano} value={String(ano)}>{ano}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Até <span className="text-sm font-normal text-gray-400">(automático)</span></label>
-              <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-400">{anoAte}</div>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Formato</label>
-              <code className="flex w-full items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">{valorFormatado}</code>
-            </div>
-          </div>
-
-          {(error || erroAvancar) && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
-              <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
-              <p className="text-sm text-red-600 dark:text-red-400">{error || erroAvancar}</p>
-            </div>
-          )}
-          {erroDados && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
-              <Icon icon="mdi:alert-outline" width="18px" className="shrink-0 text-amber-500" />
-              <p className="text-sm text-amber-700 dark:text-amber-400">{erroDados}</p>
-            </div>
-          )}
-
-          {sucesso && anoDefinido && (
-            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
-              <Icon icon="mdi:check-circle-outline" width="18px" className="shrink-0 text-green-500" />
-              <p className="text-sm text-green-700 dark:text-green-400">Ano letivo oficial {formatAnoLetivo(anoDefinido)} definido com sucesso.</p>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={handleAvancarAnoLetivo}
-              disabled={!isFPP || avancando || !anoLetivoAtual}
-              className="inline-flex items-center gap-2 rounded-lg border border-brand-200 px-5 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
-            >
-              {avancando ? (
-                <><span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-500" />A avançar...</>
-              ) : (
-                <><Icon icon="mdi:calendar-arrow-right" width="18px" />Definir ano seguinte</>
+        <div className="lg:col-span-2 space-y-4">
+          {carregandoDados ? (
+            <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+          ) : (
+            <>
+              {(error || erroAvancar) && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
+                  <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
+                  <p className="text-sm text-red-600 dark:text-red-400">{error || erroAvancar}</p>
+                </div>
               )}
-            </button>
-            <button
-              type="submit"
-              disabled={!isFPP || loading}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? (
-                <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A definir...</>
-              ) : (
-                <><Icon icon="mdi:content-save-outline" width="18px" />Definir ano global automaticamente</>
+              {erroDados && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+                  <Icon icon="mdi:alert-outline" width="18px" className="shrink-0 text-amber-500" />
+                  <p className="text-sm text-amber-700 dark:text-amber-400">{erroDados}</p>
+                </div>
               )}
-            </button>
-          </div>
-        </form>
+
+              {sucesso && anoDefinido && (
+                <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
+                  <Icon icon="mdi:check-circle-outline" width="18px" className="shrink-0 text-green-500" />
+                  <p className="text-sm text-green-700 dark:text-green-400">Ano letivo oficial {formatAnoLetivo(anoDefinido)} definido com sucesso.</p>
+                </div>
+              )}
+
+              {anoLetivoAtual ? (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAvancarAnoLetivo}
+                    disabled={!isFPP || avancando}
+                    className="inline-flex items-center gap-2 rounded-lg border border-brand-200 px-5 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                  >
+                    {avancando ? (
+                      <><span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-500" />A avançar...</>
+                    ) : (
+                      <><Icon icon="mdi:calendar-arrow-right" width="18px" />Definir ano letivo seguinte</>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label htmlFor="admin-ano-de" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">De</label>
+                      <select
+                        id="admin-ano-de"
+                        value={anoDe}
+                        onChange={(e) => setAnoDe(e.target.value)}
+                        disabled={!isFPP || loading}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                      >
+                        {opcoesAnoDe.map((ano) => (
+                          <option key={ano} value={String(ano)}>{ano}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Até <span className="text-sm font-normal text-gray-400">(automático)</span></label>
+                      <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-400">{anoAte}</div>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Formato</label>
+                      <code className="flex w-full items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">{valorFormatado}</code>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={!isFPP || loading}
+                      className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A definir...</>
+                      ) : (
+                        <><Icon icon="mdi:content-save-outline" width="18px" />Definir ano global automaticamente</>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
