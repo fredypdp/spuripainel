@@ -214,16 +214,16 @@ export default function AcademiaSection() {
         {/* Card: formulário */}
         <div className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-6">
           <h3 className="text-base font-semibold text-gray-800 dark:text-white mb-1">
-            {valorAtual ? "Definir Ano Letivo Seguinte" : "Definir Ano Letivo"}
+            {loadingAtual ? "A carregar ano letivo" : valorAtual ? "Definir Ano Letivo Seguinte" : "Definir Ano Letivo"}
           </h3>
-          {!valorAtual && anoLetivoOficial && (
+          {!loadingAtual && !valorAtual && anoLetivoOficial && (
             <p className="mb-4 text-sm text-brand-600 dark:text-brand-300">
               Ano letivo oficial do sistema:{" "}
               <strong>{formatAnoLetivo(anoLetivoOficial)}</strong>. Selecione-o abaixo para confirmar explicitamente a configuração da academia.
             </p>
           )}
 
-          {!valorAtual && (
+          {!loadingAtual && !valorAtual && (
             <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
               <Icon icon="mdi:alert-outline" width="18px" className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
               <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -232,7 +232,9 @@ export default function AcademiaSection() {
             </div>
           )}
 
-          {valorAtual ? (
+          {loadingAtual ? (
+            <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+          ) : valorAtual ? (
             <div className="flex flex-col gap-4">
               {(erroDefinir || erroAvancar) && (
                 <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
