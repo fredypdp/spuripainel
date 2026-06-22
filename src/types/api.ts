@@ -731,7 +731,8 @@ export interface AdicionarEstudanteTurmaRequest {
 export interface DefinirAnoLetivoAcademiaRequest {
   /** Opcional: quando omitido, o backend usa o ano letivo global atual. */
   ano_letivo?: string; // formato: YYYY_YYYY  ex: "2025_2026"
-  tipo: 'escola' | 'superior';
+  /** Tipo canônico: `escolar` (fundamental/médio) ou `superior`. `escola` é aceito como alias legado. */
+  tipo?: AnoLetivoType;
 }
 
 /**
@@ -1164,10 +1165,75 @@ export interface ListarAnosLetivosGlobalResponse {
 export interface ListarAnosLetivosAcademiaResponse {
   anos_letivos_lista: Array<{
     ano_letivo: string;
-    tipo?: 'escola' | 'superior';
+    tipo?: AnoLetivoType;
     definido_por?: string;
     definido_em?: string;
   }>;
+}
+
+export type AnoLetivoType = 'escolar' | 'superior' | 'escola';
+
+export interface AnoLetivoConfiguracao {
+  type: Exclude<AnoLetivoType, 'escola'>;
+  periodo: string; // MM_MM
+  atualizado_em?: string;
+  atualizado_por?: string;
+}
+
+export interface ListarAnoLetivoConfiguracoesResponse {
+  configuracoes: AnoLetivoConfiguracao[];
+}
+
+export interface AtualizarAnoLetivoConfiguracaoRequest {
+  periodo: string; // MM_MM
+}
+
+export interface AtualizarAnoLetivoConfiguracaoResponse {
+  message: string;
+  type: Exclude<AnoLetivoType, 'escola'>;
+  periodo: string;
+}
+
+export interface FinalizarAnoLetivoRequest {
+  type: Exclude<AnoLetivoType, 'escola'>;
+  ano_letivo: string;
+  observacao?: string;
+}
+
+export interface AnoLetivoFinalizacao {
+  id?: string;
+  academia_id?: string;
+  codigo_academia?: string;
+  academia_nome?: string;
+  type: Exclude<AnoLetivoType, 'escola'>;
+  ano_letivo: string;
+  finalizado: boolean;
+  observacao?: string;
+  finalizado_por?: string;
+  finalizado_em?: string;
+}
+
+export interface FinalizarAnoLetivoResponse extends AnoLetivoFinalizacao {
+  message: string;
+}
+
+export interface ListarAnoLetivoFinalizacoesParams {
+  type?: Exclude<AnoLetivoType, 'escola'>;
+  ano_letivo?: string;
+}
+
+export interface ListarAnoLetivoFinalizacoesResponse {
+  finalizacoes: AnoLetivoFinalizacao[];
+}
+
+export interface AnoLetivoFinalizacaoLimite {
+  type: Exclude<AnoLetivoType, 'escola'>;
+  maior_ano_letivo_finalizado?: string;
+  minimo_global_permitido?: string;
+}
+
+export interface AnoLetivoFinalizacaoLimitesResponse {
+  limites: AnoLetivoFinalizacaoLimite[];
 }
 
 export interface AlterarCursoResponse {

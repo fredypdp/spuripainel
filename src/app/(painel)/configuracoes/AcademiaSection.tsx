@@ -14,8 +14,10 @@ import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
 export default function AcademiaSection() {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
   const { user } = useUserType();
-  // academia.nivel is 'escola' | 'superior' — NOT academia.type ('public' | 'private')
-  const tipoAcademia = (user?.academia?.nivel ?? "escola") as "escola" | "superior";
+  // academia.nivel is 'escola' | 'superior' — NOT academia.type ('public' | 'private').
+  // A API nova usa o tipo canônico `escolar`; `escola` fica apenas como alias legado.
+  const tipoAcademiaRaw = (user?.academia?.nivel ?? "escola") as "escola" | "superior";
+  const tipoAcademia = tipoAcademiaRaw === "escola" ? "escolar" : tipoAcademiaRaw;
 
   // ── Buscar ano letivo actual da academia ──────────────────────────────────
   const {
@@ -66,7 +68,7 @@ export default function AcademiaSection() {
   const anoAteCalculado = anoDe ? String(parseInt(anoDe) + 1) : "";
   const valorFormatado = anoDe ? `${anoDe}_${anoAteCalculado}` : "";
   const valorAtual = anoLetivoData?.ano_letivo ?? "";
-  const tipoAtual = anoLetivoData?.tipo ?? "";
+  const tipoAtual = anoLetivoData?.tipo === "escola" ? "escolar" : (anoLetivoData?.tipo ?? "");
 
   // Considera mudança no ano OU se o tipo guardado na API difere do tipo da academia
   const mudou =
@@ -355,7 +357,7 @@ export default function AcademiaSection() {
                     className="text-brand-500 shrink-0"
                   />
                   <span className="text-gray-700 dark:text-gray-300 capitalize font-medium">
-                    {tipoAcademia}
+                    {tipoAcademia === "escolar" ? "Escolar" : "Superior"}
                   </span>
                 </div>
               </div>

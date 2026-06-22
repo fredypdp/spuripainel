@@ -49,6 +49,15 @@ import type {
   DefinirAnoLetivoGlobalResponse,
   AnoLetivoGlobalResponse,
   ListarAnosLetivosGlobalResponse,
+  AnoLetivoType,
+  ListarAnoLetivoConfiguracoesResponse,
+  AtualizarAnoLetivoConfiguracaoRequest,
+  AtualizarAnoLetivoConfiguracaoResponse,
+  FinalizarAnoLetivoRequest,
+  FinalizarAnoLetivoResponse,
+  ListarAnoLetivoFinalizacoesParams,
+  ListarAnoLetivoFinalizacoesResponse,
+  AnoLetivoFinalizacaoLimitesResponse,
   AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   ListarCategoriasNotaResponse,
@@ -105,6 +114,8 @@ const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/definir-ano-letivo-geral';
 const DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT = '/definir-ano-letivo-seguinte';
 const GLOBAL_ANO_LETIVO_ENDPOINT = '/ano-letivo';
 const GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT = '/anos-letivos-lista';
+const ANOS_LETIVOS_CONFIGURACOES_ENDPOINT = '/anos-letivos/configuracoes';
+const ADMIN_ANOS_LETIVOS_CONFIGURACOES_ENDPOINT = '/admin/sistema/anos-letivos/configuracoes';
 
 function ensureApiDate(value: string | undefined, fieldName: string): string | undefined {
   if (!value) return value;
@@ -185,6 +196,27 @@ function ensureAnoLetivoFormato(anoLetivo: string): string {
     throw new Error('Ano letivo inválido: o segundo ano deve ser exatamente o primeiro + 1');
   }
   return normalized;
+}
+
+function normalizarAnoLetivoType(type: AnoLetivoType): Exclude<AnoLetivoType, 'escola'> {
+  return type === 'escola' ? 'escolar' : type;
+}
+
+function ensurePeriodoLetivoFormato(periodo: string): string {
+  const normalized = periodo?.trim();
+  const match = normalized?.match(/^(0[1-9]|1[0-2])_(0[1-9]|1[0-2])$/);
+  if (!match) {
+    throw new Error('Período letivo deve estar no formato MM_MM');
+  }
+  return normalized;
+}
+
+function buildAnoLetivoFinalizacoesQs(params?: ListarAnoLetivoFinalizacoesParams): string {
+  const qs = new URLSearchParams();
+  if (params?.type) qs.set('type', normalizarAnoLetivoType(params.type));
+  if (params?.ano_letivo) qs.set('ano_letivo', ensureAnoLetivoFormato(params.ano_letivo));
+  const query = qs.toString();
+  return query ? `?${query}` : '';
 }
 
 function normalizarBilheteIdentidade(value?: string): string | undefined {
@@ -763,6 +795,7 @@ export const academiaService = {
   ) => {
     const anoLetivoNormalizado = data.ano_letivo ? ensureAnoLetivoFormato(data.ano_letivo) : undefined;
     const anoOficialNormalizado = anoLetivoOficial ? ensureAnoLetivoFormato(anoLetivoOficial) : undefined;
+    const tipoNormalizado = data.tipo ? normalizarAnoLetivoType(data.tipo) : undefined;
 
     if (anoOficialNormalizado && anoLetivoNormalizado && anoLetivoNormalizado !== anoOficialNormalizado) {
       throw new Error(`O ano letivo da academia deve ser igual ao ano letivo oficial do sistema (${anoOficialNormalizado}).`);
@@ -770,7 +803,7 @@ export const academiaService = {
 
     return api.post<DefinirAnoLetivoResponse>(
       ACADEMIA_ANO_LETIVO_ENDPOINT,
-      { ...data, ...(anoLetivoNormalizado ? { ano_letivo: anoLetivoNormalizado } : {}) },
+      { ...data, ...(tipoNormalizado ? { tipo: tipoNormalizado } : {}), ...(anoLetivoNormalizado ? { ano_letivo: anoLetivoNormalizado } : {}) },
       { token: token || tokenStorage.get() || undefined }
     );
   },
@@ -820,6 +853,33 @@ export const academiaService = {
     return api.get<ListarAnosLetivosAcademiaResponse>(`/academia/anos-letivos-lista${qs}`, {
       token: tok || tokenStorage.get() || undefined,
     });
+  },
+
+  listarConfiguracoesAnoLetivo: (token?: string) =>
+    api.get<ListarAnoLetivoConfiguracoesResponse>(
+      ANOS_LETIVOS_CONFIGURACOES_ENDPOINT,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  finalizarAnoLetivo: (data: FinalizarAnoLetivoRequest, token?: string) =>
+    api.post<FinalizarAnoLetivoResponse>(
+      '/academia/anos-letivos/finalizar',
+      {
+        ...data,
+        type: normalizarAnoLetivoType(data.type),
+        ano_letivo: ensureAnoLetivoFormato(data.ano_letivo),
+      },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarFinalizacoesAnoLetivo: (params?: ListarAnoLetivoFinalizacoesParams & { token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok = isLegacy ? (params as string | undefined) : params?.token;
+    const qs = isLegacy ? '' : buildAnoLetivoFinalizacoesQs(params);
+    return api.get<ListarAnoLetivoFinalizacoesResponse>(
+      `/academia/anos-letivos/finalizacoes${qs}`,
+      { token: tok || tokenStorage.get() || undefined }
+    );
   },
 
   // ── Categorias de nota ────────────────────────────────────────────
@@ -1436,6 +1496,39 @@ export const adminService = {
   listarAnosLetivosGlobais: (token?: string) =>
     api.get<ListarAnosLetivosGlobalResponse>(
       GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarConfiguracoesAnoLetivo: (token?: string) =>
+    api.get<ListarAnoLetivoConfiguracoesResponse>(
+      ADMIN_ANOS_LETIVOS_CONFIGURACOES_ENDPOINT,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarConfiguracaoAnoLetivo: (
+    type: AnoLetivoType,
+    data: AtualizarAnoLetivoConfiguracaoRequest,
+    token?: string
+  ) =>
+    api.put<AtualizarAnoLetivoConfiguracaoResponse>(
+      `${ADMIN_ANOS_LETIVOS_CONFIGURACOES_ENDPOINT}/${encodeURIComponent(normalizarAnoLetivoType(type))}`,
+      { periodo: ensurePeriodoLetivoFormato(data.periodo) },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarFinalizacoesAnoLetivo: (params?: ListarAnoLetivoFinalizacoesParams & { token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok = isLegacy ? (params as string | undefined) : params?.token;
+    const qs = isLegacy ? '' : buildAnoLetivoFinalizacoesQs(params);
+    return api.get<ListarAnoLetivoFinalizacoesResponse>(
+      `/admin/academias/anos-letivos/finalizacoes${qs}`,
+      { token: tok || tokenStorage.get() || undefined }
+    );
+  },
+
+  obterLimitesFinalizacaoAnoLetivo: (token?: string) =>
+    api.get<AnoLetivoFinalizacaoLimitesResponse>(
+      '/admin/sistema/anos-letivos/finalizacao-limites',
       { token: token || tokenStorage.get() || undefined }
     ),
 
