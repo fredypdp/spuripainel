@@ -96,7 +96,7 @@ const MATERIAS_MEDIO = ["Língua Portuguesa","Matemática","Física","Química",
 const MATERIAS_SUPERIOR = ["Álgebra Linear","Cálculo I","Programação","Estruturas de Dados","Redes","Sistemas Operativos","Base de Dados","Engenharia de Software","Inteligência Artificial","Segurança Informática"];
 
 const TURNOS = ["manha","tarde","noite"] as const;
-const DATAS_FALTA: ApiDate[] = ["2025-03-10","2025-04-07","2025-05-05","2025-06-02","2025-07-07","2025-09-01","2025-10-06","2025-11-03"];
+const DATAS_FALTA: ApiDate[] = ["2026-03-10","2026-04-07","2026-05-05","2026-06-02","2026-07-07","2026-09-01","2026-10-06","2026-11-03"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,8 +117,11 @@ const gerarNome = () => {
 };
 const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
-  return new Date(Date.now() - dias * 86400000).toISOString();
+  return new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
 };
+
+const toggleSelecionado = (lista: string[], valor: string) =>
+  lista.includes(valor) ? lista.filter(item => item !== valor) : [...lista, valor];
 
 function tiposMateriaValidos(academia: AcademiaInfo): { value: "fundamental"|"medio"|"superior"; label: string }[] {
   if (academia.tipo === "superior") {
@@ -640,6 +643,32 @@ export default function PageContent() {
     try { await fn(); } finally { setRunning(false); }
   };
 
+  const submeterJobAsync = async (
+    method: string,
+    path: string,
+    items: unknown[],
+    titulo: string,
+  ) => {
+    if (!academia) return { ok: 0, err: 0, total: 0, timedOut: false };
+    if (items.length === 0) return { ok: 0, err: 0, total: 0, timedOut: false };
+
+    const { ok, data } = await callApi(method, path, items, academia.token);
+    if (!ok) {
+      const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter job";
+      addLog(`  ✗ [${titulo}] ${errMsg}`, "err");
+      return { ok: 0, err: items.length, total: items.length, timedOut: false };
+    }
+
+    const jobId = (data as any)?.job_id;
+    if (!jobId) {
+      addLog(`  ✗ [${titulo}] Job ID não retornado`, "err");
+      return { ok: 0, err: items.length, total: items.length, timedOut: false };
+    }
+
+    addLog(`  Job ${jobId} criado — ${(data as any)?.total_items ?? items.length} item(ns) na fila`, "info");
+    return acompanharJob(jobId, titulo);
+  };
+
   // ─── Gerar Cursos ─────────────────────────────────────────────────────────────
   const gerarCursos = async () => {
     if (!academia) return;
@@ -653,34 +682,18 @@ export default function PageContent() {
       addLog(`  ✗ Tipo de curso "${tipo}" não é válido para esta academia`, "err");
       return;
     }
-    addLog(`Gerando ${qtd} curso(s) do tipo ${tipo}...`, "step");
+
     const templates = tipo === "medio" ? CURSOS_MEDIO : CURSOS_SUPERIOR;
     const picked = pickN(templates, Math.min(qtd, templates.length));
-    for (const t of picked) {
-      if (cancelRef.current) break;
-      const payload: any = {
-        nome: t.nome,
-        type: tipo,
-        anos_academicos: t.anos,
-      };
-      if (tipo === "superior") {
-        payload.periodos = (t as any).periodos;
-      }
-      const { ok, data } = await callApi("POST", "/academia/curso", payload, academia.token);
-      if (ok) {
-        const id = (data as any).data?.id;
-        addLog(`  ✓ Curso "${t.nome}" criado`, "ok");
-        if (id) {
-          await sleep(500);
-          const { ok: okA } = await callApi("PUT", `/academia/curso/${id}/ativar`, {}, academia.token);
-          if (okA) addLog(`    ✓ Curso ativado`, "dim");
-        }
-      } else {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
-        addLog(`  ✗ "${t.nome}": ${errMsg}`, "warn");
-      }
-      await sleep(300);
-    }
+    const payloads = picked.map(t => ({
+      nome: t.nome,
+      type: tipo,
+      anos_academicos: t.anos,
+      ...(tipo === "superior" ? { periodos: (t as any).periodos } : {}),
+    }));
+
+    addLog(`Gerando ${payloads.length} curso(s) do tipo ${tipo} via /academia/curso/async...`, "step");
+    await submeterJobAsync("POST", "/academia/curso/async", payloads, "Cursos");
     await sleep(3000);
     await refreshData();
     addLog("Cursos gerados ✓", "ok");
@@ -839,7 +852,8 @@ export default function PageContent() {
       ? turmaConfig.niveisSelecionados.filter(nivel => niveisFiltrados.includes(nivel))
       : [];
     const totalTurmas = niveisParaGerar.length > 0 ? qtd * niveisParaGerar.length : qtd;
-    addLog(`Gerando ${totalTurmas} turma(s)...`, "step");
+    addLog(`Gerando ${totalTurmas} turma(s) via /academia/turma/async...`, "step");
+    const payloads: any[] = [];
 
     const planoGeracaoNiveis = niveisParaGerar.length > 0
       ? niveisParaGerar.flatMap(nivel => Array.from({ length: qtd }, () => nivel))
@@ -871,19 +885,18 @@ export default function PageContent() {
         }
       }
 
-      const { ok, data } = await callApi("POST", "/academia/turma", payload, academia.token);
-      if (ok) {
-        criadas++;
-        addLog(`  ✓ Turma ${payload.codigo_turma} (${nivel}, ${turno}) criada`, "ok");
-      } else {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
-        addLog(`  ✗ Turma ${payload.codigo_turma}: ${errMsg}`, "warn");
-      }
-      await sleep(200);
+      payloads.push(payload);
+      criadas++;
+    }
+    const CHUNK_SIZE_TURMA = 200;
+    for (let i = 0; i < payloads.length; i += CHUNK_SIZE_TURMA) {
+      if (cancelRef.current) break;
+      const chunk = payloads.slice(i, i + CHUNK_SIZE_TURMA);
+      await submeterJobAsync("POST", "/academia/turma/async", chunk, payloads.length > CHUNK_SIZE_TURMA ? `Turmas ${Math.floor(i / CHUNK_SIZE_TURMA) + 1}` : "Turmas");
     }
     await sleep(2000);
     await refreshData();
-    addLog(`${criadas} turma(s) gerada(s) ✓`, "ok");
+    addLog(`${criadas} turma(s) submetida(s) ✓`, "ok");
   };
 
   // ─── Gerar Estudantes ─────────────────────────────────────────────────────────
@@ -1615,12 +1628,12 @@ export default function PageContent() {
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
   const configurarAnoLetivo = async () => {
     if (!academia) return;
-    const ano = "2025_2026";
     const tipo = academia.tipo === "superior" ? "superior" : "escola";
-    const { ok, data } = await callApi("POST", "/academia/ano-letivo", { ano_letivo: ano, tipo }, academia.token);
+    const { ok, data } = await callApi("POST", "/academia/definir-ano-letivo", {}, academia.token);
     if (ok) {
-      addLog(`Ano letivo ${ano} (tipo: ${tipo}) configurado ✓`, "ok");
-      setAcademia(prev => prev ? { ...prev, ano_letivo: ano } : prev);
+      const ano = (data as any)?.ano_letivo || academia.ano_letivo || "ano global";
+      addLog(`Ano letivo ${String(ano).replace("_", "/")} (tipo inferido: ${tipo}) configurado ✓`, "ok");
+      setAcademia(prev => prev ? { ...prev, ano_letivo: (data as any)?.ano_letivo || prev.ano_letivo } : prev);
     } else {
       const errMsg = (data as any)?.message || (data as any)?.error || "Erro desconhecido";
       addLog(`Ano letivo: ${errMsg}`, "warn");
@@ -1828,9 +1841,8 @@ export default function PageContent() {
             <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
               <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
               <p style={{ margin: 0 }}>
-                Ao submeter um job, o servidor processa em background.
-                Todas as requisições aguardam sem timeout — não há corte automático de conexão.
-                Acompanhe o progresso pelo <strong style={{ color: "#94a3b8" }}>sino 🔔</strong> no canto superior direito.
+                Esta página usa os endpoints batch documentados da API 2.0 (ex.: cursos, estudantes, notas, faltas e vínculos).
+                Ao submeter um job, o servidor processa em background e o progresso também aparece no <strong style={{ color: "#94a3b8" }}>sino 🔔</strong>.
               </p>
             </div>
 
@@ -2388,5 +2400,3 @@ export default function PageContent() {
     </div>
   );
 }
-  const toggleSelecionado = (lista: string[], valor: string) =>
-    lista.includes(valor) ? lista.filter(item => item !== valor) : [...lista, valor];
