@@ -1204,8 +1204,13 @@ export interface FinalizarAnoLetivoResponse {
   message: string;
   academia_id: string;
   type: AnoLetivoTipo;
+  /** Ano encerrado pela operação. */
+  ano_letivo_finalizado: string;
+  /** Novo ano letivo ativo da academia após a finalização. */
   ano_letivo: string;
   finalizado: boolean;
+  /** Indica se o global foi atualizado automaticamente porque todas as academias ficaram alinhadas. */
+  global_atualizado?: boolean;
 }
 
 export interface AnoLetivoFinalizacao {
