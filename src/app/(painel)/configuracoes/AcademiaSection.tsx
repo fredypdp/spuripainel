@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService, adminService } from "@/lib/api/services";
-import { formatAnoLetivo, type AnoLetivoTipo } from "@/types/api";
+import { descreverJanelaFinalizacao, formatAnoLetivo, formatPeriodoAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
@@ -76,10 +76,10 @@ export default function AcademiaSection() {
 
   useEffect(() => {
     buscarAnoLetivo();
-    buscarAnoLetivoGlobal().catch(() => undefined);
+    buscarAnoLetivoGlobal(tipoAcademia).catch(() => undefined);
     buscarConfiguracoes().catch(() => undefined);
     buscarFinalizacoes().catch(() => undefined);
-  }, [buscarAnoLetivo, buscarAnoLetivoGlobal, buscarConfiguracoes, buscarFinalizacoes]);
+  }, [buscarAnoLetivo, buscarAnoLetivoGlobal, buscarConfiguracoes, buscarFinalizacoes, tipoAcademia]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -109,7 +109,7 @@ export default function AcademiaSection() {
         observacao: observacaoFinalizacao.trim() || undefined,
       });
       setObservacaoFinalizacao("");
-      await Promise.all([buscarFinalizacoes(), buscarAnoLetivo(), buscarAnoLetivoGlobal().catch(() => undefined)]);
+      await Promise.all([buscarFinalizacoes(), buscarAnoLetivo(), buscarAnoLetivoGlobal(tipoAcademia).catch(() => undefined)]);
       setSucessoFinalizacao(true);
       setTimeout(() => setSucessoFinalizacao(false), 4000);
     } catch {
@@ -136,9 +136,7 @@ export default function AcademiaSection() {
           Ano Letivo
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
-          O ano letivo activo é usado automaticamente em todos os registros da
-          sua academia: notas, faltas, avaliações e aprovações. Sem ele
-          configurado, esses registros ficam bloqueados.
+          O ano letivo activo é usado automaticamente em notas, faltas, avaliações e aprovações. Primeiro confirme o ano oficial do seu tipo; depois, ao encerrar o ciclo, use a finalização para a API avançar automaticamente para o próximo ano.
         </p>
       </div>
 
@@ -444,7 +442,7 @@ export default function AcademiaSection() {
               </p>
             </div>
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-              Período {configuracaoTipo?.periodo ?? "—"}
+              Período {formatPeriodoAnoLetivo(configuracaoTipo?.periodo)}
             </span>
           </div>
 
@@ -453,6 +451,7 @@ export default function AcademiaSection() {
               <p className="text-sm text-gray-500 dark:text-gray-400">Tipo aplicável</p>
               <p className="mt-1 text-lg font-bold capitalize text-gray-800 dark:text-white">{tipoAcademia}</p>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Ano ativo: {valorAtual ? formatAnoLetivo(valorAtual) : "não definido"}</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{descreverJanelaFinalizacao(configuracaoTipo?.periodo)}</p>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
               <p className="text-sm text-gray-500 dark:text-gray-400">Estado da finalização</p>

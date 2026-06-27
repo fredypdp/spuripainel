@@ -6,7 +6,7 @@ import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
 import { pollJob } from "@/lib/api/job-service";
 import Icon from "@/components/ui/Icon";
-import { formatAnoLetivo, type AnoLetivoTipo } from "@/types/api";
+import { descreverJanelaFinalizacao, formatAnoLetivo, formatPeriodoAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -519,9 +519,8 @@ function RebuildAllResultsPanel({
 function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   const anoAtual = new Date().getFullYear();
   const [anoDe, setAnoDe] = useState(String(anoAtual));
-  const [anoDefinido, setAnoDefinido] = useState<string | null>(null);
-  const [anoLetivoAtual, setAnoLetivoAtual] = useState<string | null>(null);
-  const [historicoAnosLetivos, setHistoricoAnosLetivos] = useState<string[]>([]);
+  const [anosDefinidos, setAnosDefinidos] = useState<Record<AnoLetivoTipo, string | null>>({ escolar: null, superior: null });
+  const [historicoAnosLetivos, setHistoricoAnosLetivos] = useState<Record<AnoLetivoTipo, string[]>>({ escolar: [], superior: [] });
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroDados, setErroDados] = useState<string | null>(null);
   const [periodos, setPeriodos] = useState<Record<AnoLetivoTipo, string>>({ escolar: "", superior: "" });
@@ -546,19 +545,20 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     setCarregandoDados(true);
     setErroDados(null);
     try {
-      const [anoAtualResp, historicoResp, configsResp, finalizacoesResp, limitesResp] = await Promise.all([
-        adminService.obterAnoLetivoGlobal(),
-        adminService.listarAnosLetivosGlobais(),
+      const [anoEscolarResp, anoSuperiorResp, historicoEscolarResp, historicoSuperiorResp, configsResp, finalizacoesResp, limitesResp] = await Promise.all([
+        adminService.obterAnoLetivoGlobal('escolar').catch(() => null),
+        adminService.obterAnoLetivoGlobal('superior').catch(() => null),
+        adminService.listarAnosLetivosGlobais('escolar').catch(() => ({ anos_letivos_lista: [] })),
+        adminService.listarAnosLetivosGlobais('superior').catch(() => ({ anos_letivos_lista: [] })),
         isFPP ? adminService.listarConfiguracoesAnoLetivo() : Promise.resolve({ configuracoes: [] }),
         isFPP ? adminService.listarFinalizacoesAnoLetivo() : Promise.resolve({ finalizacoes: [] }),
         isFPP ? adminService.listarLimitesFinalizacaoAnoLetivo() : Promise.resolve({ limites: [] }),
       ]);
-      const anoAtualApi = anoAtualResp?.ano_letivo ?? null;
-      setAnoLetivoAtual(anoAtualApi);
-      setAnoDefinido(anoAtualApi);
-      setHistoricoAnosLetivos(
-        (historicoResp?.anos_letivos_lista ?? []).map((item) => item.ano_letivo)
-      );
+      setAnosDefinidos({ escolar: anoEscolarResp?.ano_letivo ?? null, superior: anoSuperiorResp?.ano_letivo ?? null });
+      setHistoricoAnosLetivos({
+        escolar: (historicoEscolarResp?.anos_letivos_lista ?? []).map((item) => item.ano_letivo),
+        superior: (historicoSuperiorResp?.anos_letivos_lista ?? []).map((item) => item.ano_letivo),
+      });
       setPeriodos((prev) => ({
         ...prev,
         ...Object.fromEntries((configsResp?.configuracoes ?? []).map((item) => [item.type, item.periodo])),
@@ -578,19 +578,19 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     carregarDadosAnoLetivo();
   }, [carregarDadosAnoLetivo]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent, type: AnoLetivoTipo) {
     e.preventDefault();
     setSucesso(false);
-    if (!isFPP) return;
+    if (!isFPP || !valorFormatado) return;
 
     try {
-      const response = await definirAnoLetivoGlobal();
+      const response = await definirAnoLetivoGlobal({ type, ano_letivo: valorFormatado });
       const novoAno = response?.ano_letivo ?? valorFormatado;
-      setAnoDefinido(novoAno);
-      setAnoLetivoAtual(novoAno);
-      setHistoricoAnosLetivos((prev) =>
-        prev.includes(novoAno) ? prev : [novoAno, ...prev]
-      );
+      setAnosDefinidos((prev) => ({ ...prev, [type]: novoAno }));
+      setHistoricoAnosLetivos((prev) => ({
+        ...prev,
+        [type]: prev[type].includes(novoAno) ? prev[type] : [novoAno, ...prev[type]],
+      }));
       setSucesso(true);
       setTimeout(() => setSucesso(false), 5000);
     } catch {
@@ -605,7 +605,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     try {
       const response = await adminService.atualizarConfiguracaoAnoLetivo(type, { periodo: periodos[type] });
       setPeriodos((prev) => ({ ...prev, [type]: response.periodo }));
-      setMensagemPeriodo(`Período ${type} atualizado para ${response.periodo}.`);
+      setMensagemPeriodo(`Período ${type} atualizado para ${formatPeriodoAnoLetivo(response.periodo)}.`);
       setTimeout(() => setMensagemPeriodo(null), 4000);
     } catch (err: unknown) {
       setMensagemPeriodo(err instanceof Error ? err.message : "Erro ao atualizar período.");
@@ -635,113 +635,60 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
-          <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Último valor definido nesta sessão</p>
-          <p className="mt-2 text-2xl font-bold text-gray-800 dark:text-white">
-            {carregandoDados ? "A carregar..." : anoDefinido ? formatAnoLetivo(anoDefinido) : "—"}
-          </p>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Mostra o ano retornado pela API ao consultar e ao definir o valor global.
-          </p>
-          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900/60">
-            <p className="font-semibold text-gray-700 dark:text-gray-200">Ano letivo global atual</p>
-            <p className="mt-1 text-sm font-bold text-brand-600 dark:text-brand-400">
-              {carregandoDados ? "A carregar..." : anoLetivoAtual ? formatAnoLetivo(anoLetivoAtual) : "Não definido"}
-            </p>
-            <p className="mt-2 text-gray-500 dark:text-gray-400">
-              Histórico global: {historicoAnosLetivos.length} ano(s) letivo(s) registado(s).
-            </p>
-            {historicoAnosLetivos.length > 0 && (
-              <p className="mt-1 text-gray-500 dark:text-gray-400">
-                {historicoAnosLetivos.map((item) => formatAnoLetivo(item)).join(", ")}
-              </p>
-            )}
-          </div>
-        </div>
+      <div className="space-y-4">
+        {carregandoDados ? (
+          <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+        ) : (
+          <>
+            {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{error}</div>}
+            {erroDados && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">{erroDados}</div>}
+            {sucesso && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400">Ano letivo oficial definido com sucesso.</div>}
 
-        <div className="lg:col-span-2 space-y-4">
-          {carregandoDados ? (
-            <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
-          ) : (
-            <>
-              {error && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
-                  <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
-                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                </div>
-              )}
-              {erroDados && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
-                  <Icon icon="mdi:alert-outline" width="18px" className="shrink-0 text-amber-500" />
-                  <p className="text-sm text-amber-700 dark:text-amber-400">{erroDados}</p>
-                </div>
-              )}
-
-              {sucesso && anoDefinido && (
-                <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
-                  <Icon icon="mdi:check-circle-outline" width="18px" className="shrink-0 text-green-500" />
-                  <p className="text-sm text-green-700 dark:text-green-400">Ano letivo oficial {formatAnoLetivo(anoDefinido)} definido com sucesso.</p>
-                </div>
-              )}
-
-              {anoLetivoAtual ? (
-                <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900 dark:bg-brand-900/20">
-                  <div className="flex items-start gap-3">
-                    <Icon icon="mdi:autorenew" width="20px" className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300" />
-                    <div>
-                      <p className="text-sm font-semibold text-brand-700 dark:text-brand-200">Evolução global automática</p>
-                      <p className="mt-1 text-sm text-brand-700/90 dark:text-brand-300">
-                        O admin FPP não avança o ano global manualmente. Acompanhe as finalizações por tipo abaixo: quando todas as academias ativas aplicáveis finalizam e ficam no mesmo próximo ano, o backend atualiza o global automaticamente.
-                      </p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {(["escolar", "superior"] as AnoLetivoTipo[]).map((type) => {
+                const anoTipo = anosDefinidos[type];
+                const historicoTipo = historicoAnosLetivos[type];
+                return (
+                  <div key={type} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Ano global {type}</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-800 dark:text-white">{anoTipo ? formatAnoLetivo(anoTipo) : "Não definido"}</p>
+                      </div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-sm font-medium capitalize text-gray-600 dark:bg-gray-900 dark:text-gray-300">{type}</span>
                     </div>
+                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                      {anoTipo
+                        ? "A evolução deste tipo passa a ser automática quando todas as academias aplicáveis finalizam e ficam alinhadas."
+                        : "Defina a referência inicial deste tipo antes de as academias configurarem seus próprios anos letivos."}
+                    </p>
+                    {historicoTipo.length > 0 && <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Histórico: {historicoTipo.map((item) => formatAnoLetivo(item)).join(", ")}</p>}
+                    {!anoTipo && (
+                      <form onSubmit={(event) => handleSubmit(event, type)} className="mt-4 space-y-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">De
+                            <select value={anoDe} onChange={(e) => setAnoDe(e.target.value)} disabled={!isFPP || loading} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                              {opcoesAnoDe.map((ano) => <option key={ano} value={String(ano)}>{ano}</option>)}
+                            </select>
+                          </label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Até
+                            <div className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">{anoAte}</div>
+                          </label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Formato
+                            <code className="mt-1 flex rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-300">{valorFormatado}</code>
+                          </label>
+                        </div>
+                        <button type="submit" disabled={!isFPP || loading} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">
+                          {loading ? "A definir..." : `Definir ano ${type}`}
+                        </button>
+                      </form>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <div>
-                      <label htmlFor="admin-ano-de" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">De</label>
-                      <select
-                        id="admin-ano-de"
-                        value={anoDe}
-                        onChange={(e) => setAnoDe(e.target.value)}
-                        disabled={!isFPP || loading}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                      >
-                        {opcoesAnoDe.map((ano) => (
-                          <option key={ano} value={String(ano)}>{ano}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Até <span className="text-sm font-normal text-gray-400">(automático)</span></label>
-                      <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-400">{anoAte}</div>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Formato</label>
-                      <code className="flex w-full items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">{valorFormatado}</code>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={!isFPP || loading}
-                      className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A definir...</>
-                      ) : (
-                        <><Icon icon="mdi:content-save-outline" width="18px" />Definir ano global automaticamente</>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </>
-          )}
-        </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
 
@@ -774,9 +721,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
                     <input
                       value={periodos[type]}
                       onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: e.target.value }))}
-                      placeholder="09_07"
+                      placeholder="Outubro a Julho"
                       className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                     />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatPeriodoAnoLetivo(periodos[type])}</p>
                     <button
                       type="button"
                       onClick={() => handleSalvarPeriodo(type)}
@@ -797,6 +745,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
                     </div>
                   </div>
                   <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Academias finalizadas: {limite?.academias_finalizadas ?? 0}/{limite?.academias_total ?? 0}</p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{descreverJanelaFinalizacao(periodos[type])}</p>
                 </div>
               );
             })}
