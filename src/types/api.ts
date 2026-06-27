@@ -739,8 +739,10 @@ export interface DefinirAnoLetivoAcademiaRequest {
  * O backend calcula automaticamente o ano letivo oficial global pelo ano civil atual.
  */
 export interface DefinirAnoLetivoGlobalRequest {
-  /** Opcional/legado: ignorado pelo backend atual. */
-  ano_letivo?: string; // formato: YYYY_YYYY  ex: "2026_2027"
+  /** Tipo de ano letivo oficial global a definir. */
+  type: AnoLetivoTipo;
+  /** Formato: YYYY_YYYY  ex: "2026_2027" */
+  ano_letivo: string;
 }
 
 /**
@@ -1146,6 +1148,7 @@ export interface DefinirAnoLetivoGlobalResponse {
 
 /** GET /ano-letivo */
 export interface AnoLetivoGlobalResponse {
+  type?: AnoLetivoTipo;
   ano_letivo: string;
   definido_em?: string;
   definido_por?: string;
@@ -1155,6 +1158,7 @@ export interface AnoLetivoGlobalResponse {
 export interface ListarAnosLetivosGlobalResponse {
   anos_letivos_lista: Array<{
     ano_letivo: string;
+    type?: AnoLetivoTipo;
     definido_por?: string;
     definido_em?: string;
   }>;
@@ -1164,6 +1168,7 @@ export interface ListarAnosLetivosGlobalResponse {
 export interface ListarAnosLetivosAcademiaResponse {
   anos_letivos_lista: Array<{
     ano_letivo: string;
+    type?: AnoLetivoTipo;
     tipo?: 'escolar' | 'superior';
     definido_por?: string;
     definido_em?: string;
@@ -1446,6 +1451,31 @@ export const Provincias: Provincia[] = [
 
 export function formatAnoLetivo(valor: string): string {
   return valor.replace('_', '/');
+}
+
+export const MESES_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+] as const;
+
+export function formatMesAnoLetivo(mes: string | number): string {
+  const numero = typeof mes === 'number' ? mes : Number(String(mes).trim());
+  return Number.isInteger(numero) && numero >= 1 && numero <= 12
+    ? MESES_PT[numero - 1]
+    : String(mes || '—');
+}
+
+export function formatPeriodoAnoLetivo(periodo?: string): string {
+  if (!periodo) return '—';
+  const [inicio, fim] = periodo.split('_');
+  if (!inicio || !fim) return periodo;
+  return `${formatMesAnoLetivo(inicio)} a ${formatMesAnoLetivo(fim)}`;
+}
+
+export function descreverJanelaFinalizacao(periodo?: string): string {
+  if (!periodo) return 'Configure o período para visualizar a janela de finalização.';
+  const [, fim] = periodo.split('_');
+  return `A finalização pode ser solicitada a partir de ${formatMesAnoLetivo(fim)} e fica disponível até o mês anterior ao novo início letivo.`;
 }
 
 export function gerarOpcoesAnoLetivo(): { valor: string; label: string }[] {

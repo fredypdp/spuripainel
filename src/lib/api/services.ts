@@ -109,6 +109,7 @@ export interface ErrorResponse {
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
+const ACADEMIA_DEFINIR_ANO_LETIVO_ENDPOINT = '/academia/definir-ano-letivo';
 const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/definir-ano-letivo-geral';
 const GLOBAL_ANO_LETIVO_ENDPOINT = '/ano-letivo';
 const GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT = '/anos-letivos-lista';
@@ -778,7 +779,7 @@ export const academiaService = {
     }
 
     return api.post<DefinirAnoLetivoResponse>(
-      ACADEMIA_ANO_LETIVO_ENDPOINT,
+      ACADEMIA_DEFINIR_ANO_LETIVO_ENDPOINT,
       { ...data, ...(anoLetivoNormalizado ? { ano_letivo: anoLetivoNormalizado } : {}) },
       { token: token || tokenStorage.get() || undefined }
     );
@@ -1435,26 +1436,36 @@ export const adminService = {
    * Define diretamente uma única vez o ano letivo oficial global.
    * O backend calcula o ano letivo automaticamente pelo ano civil atual.
    */
-  definirAnoLetivoGlobal: (data?: DefinirAnoLetivoGlobalRequest, token?: string) =>
+  definirAnoLetivoGlobal: (data: DefinirAnoLetivoGlobalRequest, token?: string) =>
     api.post<DefinirAnoLetivoGlobalResponse>(
       ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
-      data?.ano_letivo ? { ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) } : {},
+      { type: data.type, ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) },
       { token: token || tokenStorage.get() || undefined }
     ),
 
   /** GET /ano-letivo - leitura global para qualquer usuário autenticado. */
-  obterAnoLetivoGlobal: (token?: string) =>
-    api.get<AnoLetivoGlobalResponse>(
-      GLOBAL_ANO_LETIVO_ENDPOINT,
+  obterAnoLetivoGlobal: (params?: AnoLetivoTipo | { type?: AnoLetivoTipo; token?: string } | string) => {
+    const legacyToken = typeof params === 'string' && params !== 'escolar' && params !== 'superior' ? params : undefined;
+    const type = typeof params === 'string' ? (params === 'escolar' || params === 'superior' ? params : undefined) : params?.type;
+    const token = typeof params === 'object' ? params.token : legacyToken;
+    const qs = type ? `?type=${encodeURIComponent(type)}` : '';
+    return api.get<AnoLetivoGlobalResponse>(
+      `${GLOBAL_ANO_LETIVO_ENDPOINT}${qs}`,
       { token: token || tokenStorage.get() || undefined }
-    ),
+    );
+  },
 
   /** GET /anos-letivos-lista - histórico global para qualquer usuário autenticado. */
-  listarAnosLetivosGlobais: (token?: string) =>
-    api.get<ListarAnosLetivosGlobalResponse>(
-      GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT,
+  listarAnosLetivosGlobais: (params?: AnoLetivoTipo | { type?: AnoLetivoTipo; token?: string } | string) => {
+    const legacyToken = typeof params === 'string' && params !== 'escolar' && params !== 'superior' ? params : undefined;
+    const type = typeof params === 'string' ? (params === 'escolar' || params === 'superior' ? params : undefined) : params?.type;
+    const token = typeof params === 'object' ? params.token : legacyToken;
+    const qs = type ? `?type=${encodeURIComponent(type)}` : '';
+    return api.get<ListarAnosLetivosGlobalResponse>(
+      `${GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT}${qs}`,
       { token: token || tokenStorage.get() || undefined }
-    ),
+    );
+  },
 
   listarConfiguracoesAnoLetivo: (token?: string) =>
     api.get<ListarConfiguracoesAnoLetivoResponse>(
