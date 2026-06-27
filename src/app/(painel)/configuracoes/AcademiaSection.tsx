@@ -163,7 +163,7 @@ export default function AcademiaSection() {
             </span>
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                Ano Letivo Activo
+                Ano Letivo Cativo
               </p>
               {loadingAtual ? (
                 <div className="h-6 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mt-1" />
@@ -179,17 +179,15 @@ export default function AcademiaSection() {
             </div>
           </div>
 
-          {/* Tipo */}
-          {anoLetivoData?.tipo && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400 dark:text-gray-500">
-                Tipo:
-              </span>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded capitalize">
-                {anoLetivoData.tipo}
-              </span>
-            </div>
-          )}
+          {/* Período */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400 dark:text-gray-500">
+              Período:
+            </span>
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+              {formatPeriodoAnoLetivo(configuracaoTipo?.periodo)}
+            </span>
+          </div>
 
           {/* Data de activação */}
           {anoLetivoData?.ativado_em && (
@@ -453,46 +451,45 @@ export default function AcademiaSection() {
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Ano ativo: {valorAtual ? formatAnoLetivo(valorAtual) : "não definido"}</p>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{descreverJanelaFinalizacao(configuracaoTipo?.periodo)}</p>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Estado da finalização</p>
-              <p className={`mt-1 text-lg font-bold ${finalizacaoAtual?.finalizado ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
-                {finalizacaoAtual?.finalizado ? "Finalizado" : "Pendente"}
-              </p>
-              {finalizacaoAtual?.finalizado_em && (
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  Em {new Date(finalizacaoAtual.finalizado_em).toLocaleDateString("pt-PT")}
-                </p>
-              )}
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Histórico</p>
-              <p className="mt-1 text-lg font-bold text-gray-800 dark:text-white">{finalizacoes.length}</p>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">finalização(ões) registradas</p>
-            </div>
-          </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30 lg:col-span-2">
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Estado da finalização</p>
+                  <p className={`mt-1 text-lg font-bold ${finalizacaoAtual?.finalizado ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
+                    {finalizacaoAtual?.finalizado ? "Finalizado" : "Pendente"}
+                  </p>
+                  {finalizacaoAtual?.finalizado_em && (
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                      Em {new Date(finalizacaoAtual.finalizado_em).toLocaleDateString("pt-PT")}
+                    </p>
+                  )}
+                </div>
 
-          {(erroFinalizar || sucessoFinalizacao) && (
-            <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${erroFinalizar ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400" : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"}`}>
-              {erroFinalizar || "Ano letivo finalizado com sucesso."}
-            </div>
-          )}
+                {(erroFinalizar || sucessoFinalizacao) && (
+                  <div className={`rounded-lg border px-4 py-3 text-sm ${erroFinalizar ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400" : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"}`}>
+                    {erroFinalizar || "Ano letivo finalizado com sucesso."}
+                  </div>
+                )}
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
-            <input
-              value={observacaoFinalizacao}
-              onChange={(e) => setObservacaoFinalizacao(e.target.value)}
-              placeholder="Observação opcional sobre o encerramento"
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            />
-            <button
-              type="button"
-              onClick={handleFinalizarAnoLetivo}
-              disabled={!valorAtual || finalizando}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {finalizando ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Icon icon="mdi:check-decagram-outline" width="18px" />}
-              Finalizar ano letivo
-            </button>
+                <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                  <input
+                    value={observacaoFinalizacao}
+                    onChange={(e) => setObservacaoFinalizacao(e.target.value)}
+                    placeholder="Observação opcional sobre o encerramento"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFinalizarAnoLetivo}
+                    disabled={!valorAtual || finalizando}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {finalizando ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Icon icon="mdi:check-decagram-outline" width="18px" />}
+                    Finalizar ano letivo
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -501,19 +498,6 @@ export default function AcademiaSection() {
         <PasswordSettingsCard />
       </div>
 
-      {/* Nota informativa */}
-      <div className="mt-4 rounded-xl border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/10 px-5 py-3 flex items-start gap-3">
-        <Icon
-          icon="mdi:information-outline"
-          width="18px"
-          className="text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0"
-        />
-        <p className="text-sm text-yellow-700 dark:text-yellow-300">
-          A definição inicial e a finalização do ano letivo são registadas no ledger de eventos e ficam
-          associadas à sua conta. Após finalizar, o próximo ano entra em vigor imediatamente para
-          todos os registros subsequentes da sua academia.
-        </p>
-      </div>
     </div>
   );
 }

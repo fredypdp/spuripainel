@@ -97,6 +97,34 @@ const PROJECTIONS: ProjectionMeta[] = [
   },
 ];
 
+
+const MESES_ANO_LETIVO = [
+  { valor: "01", label: "Janeiro" },
+  { valor: "02", label: "Fevereiro" },
+  { valor: "03", label: "Março" },
+  { valor: "04", label: "Abril" },
+  { valor: "05", label: "Maio" },
+  { valor: "06", label: "Junho" },
+  { valor: "07", label: "Julho" },
+  { valor: "08", label: "Agosto" },
+  { valor: "09", label: "Setembro" },
+  { valor: "10", label: "Outubro" },
+  { valor: "11", label: "Novembro" },
+  { valor: "12", label: "Dezembro" },
+];
+
+function obterMesPeriodo(periodo: string, posicao: 0 | 1): string {
+  const partes = periodo.split("_");
+  return partes[posicao] ?? "";
+}
+
+function atualizarMesPeriodo(periodo: string, posicao: 0 | 1, mes: string): string {
+  const partes = periodo.split("_");
+  const inicio = partes[0] || "01";
+  const fim = partes[1] || "12";
+  return posicao === 0 ? `${mes}_${fim}` : `${inicio}_${mes}`;
+}
+
 const TIER_LABELS: Record<number, string> = {
   1: "Base — Sem dependências",
   2: "Nível 2 — Dependem de Academias",
@@ -697,10 +725,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
           <div className="mb-5">
             <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white">
               <Icon icon="mdi:tune-variant" width="20px" className="text-brand-500" />
-              Períodos e finalizações por tipo
+              Períodos e finalizações de ano letivo por tipo
             </h3>
             <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-              Configure os períodos fixos no formato MM_MM. A API usa estes valores para validar faltas, bloquear finalizações fora da janela permitida e calcular o intervalo real de datas de cada ano letivo.
+              Configure os períodos fixos escolhendo os meses por extenso. A API recebe automaticamente o formato MM_MM e usa estes valores para validar faltas, bloquear finalizações fora da janela permitida e calcular o intervalo real de datas de cada ano letivo.
             </p>
           </div>
           {mensagemPeriodo && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-900 dark:bg-brand-900/20 dark:text-brand-300">{mensagemPeriodo}</div>}
@@ -717,23 +745,37 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
                     </div>
                     <span className="rounded-full bg-white px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-300">{totalFinalizacoes} finalização(ões)</span>
                   </div>
-                  <div className="mt-4 flex gap-2">
-                    <input
-                      value={periodos[type]}
-                      onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: e.target.value }))}
-                      placeholder="Outubro a Julho"
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatPeriodoAnoLetivo(periodos[type])}</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Começa em
+                      <select
+                        value={obterMesPeriodo(periodos[type], 0)}
+                        onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: atualizarMesPeriodo(prev[type], 0, e.target.value) }))}
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                      >
+                        {MESES_ANO_LETIVO.map((mes) => <option key={mes.valor} value={mes.valor}>{mes.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Termina em
+                      <select
+                        value={obterMesPeriodo(periodos[type], 1)}
+                        onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: atualizarMesPeriodo(prev[type], 1, e.target.value) }))}
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                      >
+                        {MESES_ANO_LETIVO.map((mes) => <option key={mes.valor} value={mes.valor}>{mes.label}</option>)}
+                      </select>
+                    </label>
                     <button
                       type="button"
                       onClick={() => handleSalvarPeriodo(type)}
                       disabled={salvandoPeriodo === type}
-                      className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                      className="self-end rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
                     >
                       {salvandoPeriodo === type ? "..." : "Guardar"}
                     </button>
                   </div>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Será enviado para a API como <code className="rounded bg-white px-1 py-0.5 dark:bg-gray-900">{periodos[type] || "MM_MM"}</code> ({formatPeriodoAnoLetivo(periodos[type])}).</p>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg bg-white p-3 dark:bg-gray-900/60">
                       <p className="text-gray-500 dark:text-gray-400">Finalizado por todas</p>
