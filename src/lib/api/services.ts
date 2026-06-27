@@ -110,7 +110,6 @@ const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
 const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/definir-ano-letivo-geral';
-const DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT = '/definir-ano-letivo-seguinte';
 const GLOBAL_ANO_LETIVO_ENDPOINT = '/ano-letivo';
 const GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT = '/anos-letivos-lista';
 const ANOS_LETIVOS_CONFIGURACOES_ENDPOINT = '/anos-letivos/configuracoes';
@@ -785,13 +784,6 @@ export const academiaService = {
     );
   },
 
-  definirAnoLetivoSeguinte: (token?: string) =>
-    api.post<DefinirAnoLetivoResponse>(
-      DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT,
-      {},
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
   /**
    * GET /academia/ano-letivo
    *
@@ -1447,13 +1439,6 @@ export const adminService = {
     api.post<DefinirAnoLetivoGlobalResponse>(
       ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT,
       data?.ano_letivo ? { ano_letivo: ensureAnoLetivoFormato(data.ano_letivo) } : {},
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  definirAnoLetivoSeguinte: (token?: string) =>
-    api.post<DefinirAnoLetivoGlobalResponse>(
-      DEFINIR_ANO_LETIVO_SEGUINTE_ENDPOINT,
-      {},
       { token: token || tokenStorage.get() || undefined }
     ),
 

@@ -40,12 +40,6 @@ export default function AcademiaSection() {
     execute: definirAnoLetivo,
   } = useApi(academiaService.definirAnoLetivo);
 
-  const {
-    loading: avancando,
-    error: erroAvancar,
-    execute: definirAnoLetivoSeguinte,
-  } = useApi(academiaService.definirAnoLetivoSeguinte);
-
   const { data: configuracoesData, execute: buscarConfiguracoes } = useApi(academiaService.listarConfiguracoesAnoLetivo);
   const { data: finalizacoesData, execute: buscarFinalizacoes } = useApi(academiaService.listarFinalizacoesAnoLetivo);
   const { loading: finalizando, error: erroFinalizar, execute: finalizarAnoLetivo } = useApi(academiaService.finalizarAnoLetivo);
@@ -79,7 +73,6 @@ export default function AcademiaSection() {
   const mudou =
     valorFormatado !== valorAtual || tipoAcademia !== tipoAtual;
   const podeGuardar = !definindo && !valorAtual && !!valorFormatado && mudou;
-  const podeAvancar = !avancando && !!valorAtual;
 
   useEffect(() => {
     buscarAnoLetivo();
@@ -106,19 +99,6 @@ export default function AcademiaSection() {
     }
   }
 
-  async function handleAvancarAnoLetivo() {
-    setSucesso(false);
-    try {
-      await definirAnoLetivoSeguinte();
-      setAnoDeOverride(null);
-      setTimeout(() => buscarAnoLetivo(), 1000);
-      setSucesso(true);
-      setTimeout(() => setSucesso(false), 4000);
-    } catch {
-      // erroAvancar disponível via hook
-    }
-  }
-
   async function handleFinalizarAnoLetivo() {
     if (!valorAtual) return;
     setSucessoFinalizacao(false);
@@ -129,7 +109,7 @@ export default function AcademiaSection() {
         observacao: observacaoFinalizacao.trim() || undefined,
       });
       setObservacaoFinalizacao("");
-      await buscarFinalizacoes();
+      await Promise.all([buscarFinalizacoes(), buscarAnoLetivo(), buscarAnoLetivoGlobal().catch(() => undefined)]);
       setSucessoFinalizacao(true);
       setTimeout(() => setSucessoFinalizacao(false), 4000);
     } catch {
@@ -267,7 +247,7 @@ export default function AcademiaSection() {
             <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
           ) : valorAtual ? (
             <div className="flex flex-col gap-4">
-              {(erroDefinir || erroAvancar) && (
+              {erroDefinir && (
                 <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
                   <Icon
                     icon="mdi:alert-circle-outline"
@@ -275,7 +255,7 @@ export default function AcademiaSection() {
                     className="text-red-500 shrink-0"
                   />
                   <p className="text-sm text-red-600 dark:text-red-400">
-                    {erroDefinir || erroAvancar}
+                    {erroDefinir}
                   </p>
                 </div>
               )}
@@ -293,25 +273,16 @@ export default function AcademiaSection() {
                 </div>
               )}
 
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  disabled={!podeAvancar}
-                  onClick={handleAvancarAnoLetivo}
-                  className="inline-flex items-center gap-2 rounded-lg border border-brand-200 px-5 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
-                >
-                  {avancando ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-500" />
-                      A avançar...
-                    </>
-                  ) : (
-                    <>
-                      <Icon icon="mdi:calendar-arrow-right" width="18px" />
-                      Definir ano letivo seguinte
-                    </>
-                  )}
-                </button>
+              <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900 dark:bg-brand-900/20">
+                <div className="flex items-start gap-3">
+                  <Icon icon="mdi:calendar-sync-outline" width="20px" className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300" />
+                  <div>
+                    <p className="text-sm font-semibold text-brand-700 dark:text-brand-200">Como avançar para o próximo ano?</p>
+                    <p className="mt-1 text-sm text-brand-700/90 dark:text-brand-300">
+                      Não existe uma ação manual separada para avançar. Quando todos os lançamentos estiverem fechados, use a seção <strong>Finalização do ano letivo</strong> abaixo: a API finaliza o ano atual e já ativa automaticamente o ano seguinte.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
@@ -407,7 +378,7 @@ export default function AcademiaSection() {
             )}
 
             {/* Erro */}
-            {(erroDefinir || erroAvancar) && (
+            {erroDefinir && (
               <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
                 <Icon
                   icon="mdi:alert-circle-outline"
@@ -415,7 +386,7 @@ export default function AcademiaSection() {
                   className="text-red-500 shrink-0"
                 />
                 <p className="text-sm text-red-600 dark:text-red-400">
-                  {erroDefinir || erroAvancar}
+                  {erroDefinir}
                 </p>
               </div>
             )}
@@ -469,7 +440,7 @@ export default function AcademiaSection() {
                 Finalização do ano letivo
               </h3>
               <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-                Finalize o ano ativo quando notas, faltas e avaliações estiverem encerradas. O avanço para o ano seguinte respeita a mesma janela operacional do período configurado.
+                Finalize somente depois de encerrar notas, faltas e avaliações. Esta é a ação que encerra o ano atual e avança automaticamente a academia para o próximo ano letivo, respeitando a janela operacional do período configurado.
               </p>
             </div>
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -539,8 +510,8 @@ export default function AcademiaSection() {
           className="text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0"
         />
         <p className="text-sm text-yellow-700 dark:text-yellow-300">
-          A alteração do ano letivo é registada no ledger de eventos e fica
-          associada à sua conta. O novo valor entra em vigor imediatamente para
+          A definição inicial e a finalização do ano letivo são registadas no ledger de eventos e ficam
+          associadas à sua conta. Após finalizar, o próximo ano entra em vigor imediatamente para
           todos os registros subsequentes da sua academia.
         </p>
       </div>

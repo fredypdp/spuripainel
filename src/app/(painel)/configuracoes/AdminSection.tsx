@@ -538,12 +538,6 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     execute: definirAnoLetivoGlobal,
   } = useApi(adminService.definirAnoLetivoGlobal);
 
-  const {
-    loading: avancando,
-    error: erroAvancar,
-    execute: definirAnoLetivoSeguinte,
-  } = useApi(adminService.definirAnoLetivoSeguinte);
-
   const anoAte = anoDe ? String(Number(anoDe) + 1) : "";
   const valorFormatado = anoDe && anoAte ? `${anoDe}_${anoAte}` : "";
   const opcoesAnoDe = Array.from({ length: anoAtual - 1900 + 1 }, (_, i) => 1900 + i);
@@ -620,24 +614,6 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     }
   }
 
-  async function handleAvancarAnoLetivo() {
-    setSucesso(false);
-    if (!isFPP) return;
-    try {
-      const response = await definirAnoLetivoSeguinte();
-      const novoAno = response?.ano_letivo ?? null;
-      if (novoAno) {
-        setAnoDefinido(novoAno);
-        setAnoLetivoAtual(novoAno);
-        setHistoricoAnosLetivos((prev) => prev.includes(novoAno) ? prev : [novoAno, ...prev]);
-      }
-      setSucesso(true);
-      setTimeout(() => setSucesso(false), 5000);
-    } catch {
-      // erroAvancar disponível via hook
-    }
-  }
-
   return (
     <>
     <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
@@ -650,7 +626,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             Ano letivo oficial global
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Responsabilidade do admin FPP: define uma única vez a referência obrigatória para todas as academias. A API calcula automaticamente pelo ano civil atual; depois, a evolução deve ser feita pela ação de definir o ano letivo seguinte.
+            Responsabilidade do admin FPP: definir a referência inicial obrigatória para todas as academias e configurar os períodos por tipo. A API calcula o ano inicial pelo ano civil atual; depois disso, o global evolui automaticamente quando as academias finalizam seus anos letivos e ficam alinhadas.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
@@ -689,10 +665,10 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
           ) : (
             <>
-              {(error || erroAvancar) && (
+              {error && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-900/20">
                   <Icon icon="mdi:alert-circle-outline" width="18px" className="shrink-0 text-red-500" />
-                  <p className="text-sm text-red-600 dark:text-red-400">{error || erroAvancar}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                 </div>
               )}
               {erroDados && (
@@ -710,19 +686,16 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
               )}
 
               {anoLetivoAtual ? (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleAvancarAnoLetivo}
-                    disabled={!isFPP || avancando}
-                    className="inline-flex items-center gap-2 rounded-lg border border-brand-200 px-5 py-2.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-900 dark:text-brand-300 dark:hover:bg-brand-900/20"
-                  >
-                    {avancando ? (
-                      <><span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-500" />A avançar...</>
-                    ) : (
-                      <><Icon icon="mdi:calendar-arrow-right" width="18px" />Definir ano letivo seguinte</>
-                    )}
-                  </button>
+                <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900 dark:bg-brand-900/20">
+                  <div className="flex items-start gap-3">
+                    <Icon icon="mdi:autorenew" width="20px" className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-brand-700 dark:text-brand-200">Evolução global automática</p>
+                      <p className="mt-1 text-sm text-brand-700/90 dark:text-brand-300">
+                        O admin FPP não avança o ano global manualmente. Acompanhe as finalizações por tipo abaixo: quando todas as academias ativas aplicáveis finalizam e ficam no mesmo próximo ano, o backend atualiza o global automaticamente.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -780,7 +753,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
               Períodos e finalizações por tipo
             </h3>
             <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-              Configure os períodos fixos no formato MM_MM. A API usa estes valores para validar faltas, finalizações e a definição do próximo ano letivo.
+              Configure os períodos fixos no formato MM_MM. A API usa estes valores para validar faltas, bloquear finalizações fora da janela permitida e calcular o intervalo real de datas de cada ano letivo.
             </p>
           </div>
           {mensagemPeriodo && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-900 dark:bg-brand-900/20 dark:text-brand-300">{mensagemPeriodo}</div>}
