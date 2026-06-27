@@ -726,12 +726,12 @@ export interface AdicionarEstudanteTurmaRequest {
 
 /**
  * POST /academia/ano-letivo
- * tipo: 'escola' | 'superior'
+ * tipo: 'escolar' | 'superior'
  */
 export interface DefinirAnoLetivoAcademiaRequest {
   /** Opcional: quando omitido, o backend usa o ano letivo global atual. */
   ano_letivo?: string; // formato: YYYY_YYYY  ex: "2025_2026"
-  tipo: 'escola' | 'superior';
+  tipo: 'escolar' | 'superior';
 }
 
 /**
@@ -990,9 +990,9 @@ export interface AcademiaDetalhada {
   total_estudantes: number;
   version: number;
   ano_letivo?: string;
-  tipo_ano_letivo?: 'escola' | 'superior';
+  tipo_ano_letivo?: 'escolar' | 'superior';
   ano_letivo_ativado_em?: string;
-  anos_letivos_lista?: Array<{ ano_letivo: string; tipo: 'escola' | 'superior'; definido_por: string; definido_em: string }>;
+  anos_letivos_lista?: Array<{ ano_letivo: string; tipo: 'escolar' | 'superior'; definido_por: string; definido_em: string }>;
   documentos_obrigatorios?: DocumentosObrigatorios;
 }
 
@@ -1118,7 +1118,7 @@ export interface VerificarIntegridadeResponse {
 /** GET /academia/ano-letivo */
 export interface AnoLetivoAcademiaResponse {
   ano_letivo: string;
-  tipo?: 'escola' | 'superior';
+  tipo?: 'escolar' | 'superior';
   ativado_em?: string;
   /** Ano letivo oficial global definido pelo sistema (admin FPP). */
   ano_letivo_oficial?: string;
@@ -1164,10 +1164,74 @@ export interface ListarAnosLetivosGlobalResponse {
 export interface ListarAnosLetivosAcademiaResponse {
   anos_letivos_lista: Array<{
     ano_letivo: string;
-    tipo?: 'escola' | 'superior';
+    tipo?: 'escolar' | 'superior';
     definido_por?: string;
     definido_em?: string;
   }>;
+}
+
+
+export type AnoLetivoTipo = 'escolar' | 'superior';
+
+export interface AnoLetivoConfiguracao {
+  type: AnoLetivoTipo;
+  periodo: string;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface ListarConfiguracoesAnoLetivoResponse {
+  configuracoes: AnoLetivoConfiguracao[];
+}
+
+export interface AtualizarConfiguracaoAnoLetivoRequest {
+  periodo: string;
+}
+
+export interface AtualizarConfiguracaoAnoLetivoResponse {
+  message: string;
+  type: AnoLetivoTipo;
+  periodo: string;
+}
+
+export interface FinalizarAnoLetivoRequest {
+  type: AnoLetivoTipo;
+  ano_letivo: string;
+  observacao?: string;
+}
+
+export interface FinalizarAnoLetivoResponse {
+  message: string;
+  academia_id: string;
+  type: AnoLetivoTipo;
+  ano_letivo: string;
+  finalizado: boolean;
+}
+
+export interface AnoLetivoFinalizacao {
+  academia_id?: string;
+  codigo_academia?: string;
+  type: AnoLetivoTipo;
+  ano_letivo: string;
+  finalizado: boolean;
+  finalizado_em?: string;
+  observacao?: string;
+}
+
+export interface ListarFinalizacoesAnoLetivoResponse {
+  finalizacoes: AnoLetivoFinalizacao[];
+}
+
+export interface AnoLetivoFinalizacaoLimite {
+  type: AnoLetivoTipo;
+  ano_letivo_finalizado_por_todas: string;
+  minimo_global_permitido: string;
+  academias_total: number;
+  academias_finalizadas: number;
+}
+
+export interface ListarLimitesFinalizacaoAnoLetivoResponse {
+  limites: AnoLetivoFinalizacaoLimite[];
 }
 
 export interface AlterarCursoResponse {

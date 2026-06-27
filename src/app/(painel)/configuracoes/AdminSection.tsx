@@ -6,7 +6,7 @@ import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
 import { pollJob } from "@/lib/api/job-service";
 import Icon from "@/components/ui/Icon";
-import { formatAnoLetivo } from "@/types/api";
+import { formatAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -320,6 +320,8 @@ function ProjectionCard({
           </button>
         )}
       </div>
+
+
     </div>
   );
 }
@@ -522,6 +524,12 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   const [historicoAnosLetivos, setHistoricoAnosLetivos] = useState<string[]>([]);
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroDados, setErroDados] = useState<string | null>(null);
+  const [periodos, setPeriodos] = useState<Record<AnoLetivoTipo, string>>({ escolar: "", superior: "" });
+  const [salvandoPeriodo, setSalvandoPeriodo] = useState<AnoLetivoTipo | null>(null);
+  const [mensagemPeriodo, setMensagemPeriodo] = useState<string | null>(null);
+  const [finalizacoes, setFinalizacoes] = useState<import("@/types/api").AnoLetivoFinalizacao[]>([]);
+  const [limites, setLimites] = useState<import("@/types/api").AnoLetivoFinalizacaoLimite[]>([]);
+
   const [sucesso, setSucesso] = useState(false);
 
   const {
@@ -544,9 +552,12 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     setCarregandoDados(true);
     setErroDados(null);
     try {
-      const [anoAtualResp, historicoResp] = await Promise.all([
+      const [anoAtualResp, historicoResp, configsResp, finalizacoesResp, limitesResp] = await Promise.all([
         adminService.obterAnoLetivoGlobal(),
         adminService.listarAnosLetivosGlobais(),
+        isFPP ? adminService.listarConfiguracoesAnoLetivo() : Promise.resolve({ configuracoes: [] }),
+        isFPP ? adminService.listarFinalizacoesAnoLetivo() : Promise.resolve({ finalizacoes: [] }),
+        isFPP ? adminService.listarLimitesFinalizacaoAnoLetivo() : Promise.resolve({ limites: [] }),
       ]);
       const anoAtualApi = anoAtualResp?.ano_letivo ?? null;
       setAnoLetivoAtual(anoAtualApi);
@@ -554,6 +565,12 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
       setHistoricoAnosLetivos(
         (historicoResp?.anos_letivos_lista ?? []).map((item) => item.ano_letivo)
       );
+      setPeriodos((prev) => ({
+        ...prev,
+        ...Object.fromEntries((configsResp?.configuracoes ?? []).map((item) => [item.type, item.periodo])),
+      }));
+      setFinalizacoes(finalizacoesResp?.finalizacoes ?? []);
+      setLimites(limitesResp?.limites ?? []);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Erro ao carregar ano letivo global.";
@@ -561,7 +578,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     } finally {
       setCarregandoDados(false);
     }
-  }, []);
+  }, [isFPP]);
 
   useEffect(() => {
     carregarDadosAnoLetivo();
@@ -587,6 +604,22 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     }
   }
 
+  async function handleSalvarPeriodo(type: AnoLetivoTipo) {
+    if (!isFPP) return;
+    setMensagemPeriodo(null);
+    setSalvandoPeriodo(type);
+    try {
+      const response = await adminService.atualizarConfiguracaoAnoLetivo(type, { periodo: periodos[type] });
+      setPeriodos((prev) => ({ ...prev, [type]: response.periodo }));
+      setMensagemPeriodo(`Período ${type} atualizado para ${response.periodo}.`);
+      setTimeout(() => setMensagemPeriodo(null), 4000);
+    } catch (err: unknown) {
+      setMensagemPeriodo(err instanceof Error ? err.message : "Erro ao atualizar período.");
+    } finally {
+      setSalvandoPeriodo(null);
+    }
+  }
+
   async function handleAvancarAnoLetivo() {
     setSucesso(false);
     if (!isFPP) return;
@@ -606,6 +639,7 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   }
 
   return (
+    <>
     <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -737,6 +771,66 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
         </div>
       </div>
     </div>
+
+      {isFPP && (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-5">
+            <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white">
+              <Icon icon="mdi:tune-variant" width="20px" className="text-brand-500" />
+              Períodos e finalizações por tipo
+            </h3>
+            <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
+              Configure os períodos fixos no formato MM_MM. A API usa estes valores para validar faltas, finalizações e a definição do próximo ano letivo.
+            </p>
+          </div>
+          {mensagemPeriodo && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-900 dark:bg-brand-900/20 dark:text-brand-300">{mensagemPeriodo}</div>}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {(["escolar", "superior"] as AnoLetivoTipo[]).map((type) => {
+              const limite = limites.find((item) => item.type === type);
+              const totalFinalizacoes = finalizacoes.filter((item) => item.type === type).length;
+              return (
+                <div key={type} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Tipo</p>
+                      <p className="text-xl font-bold capitalize text-gray-800 dark:text-white">{type}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-300">{totalFinalizacoes} finalização(ões)</span>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <input
+                      value={periodos[type]}
+                      onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: e.target.value }))}
+                      placeholder="09_07"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSalvarPeriodo(type)}
+                      disabled={salvandoPeriodo === type}
+                      className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                    >
+                      {salvandoPeriodo === type ? "..." : "Guardar"}
+                    </button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg bg-white p-3 dark:bg-gray-900/60">
+                      <p className="text-gray-500 dark:text-gray-400">Finalizado por todas</p>
+                      <p className="font-semibold text-gray-800 dark:text-white">{limite?.ano_letivo_finalizado_por_todas ? formatAnoLetivo(limite.ano_letivo_finalizado_por_todas) : "—"}</p>
+                    </div>
+                    <div className="rounded-lg bg-white p-3 dark:bg-gray-900/60">
+                      <p className="text-gray-500 dark:text-gray-400">Mínimo global</p>
+                      <p className="font-semibold text-gray-800 dark:text-white">{limite?.minimo_global_permitido ? formatAnoLetivo(limite.minimo_global_permitido) : "—"}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Academias finalizadas: {limite?.academias_finalizadas ?? 0}/{limite?.academias_total ?? 0}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService, adminService } from "@/lib/api/services";
-import { formatAnoLetivo } from "@/types/api";
+import { formatAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
@@ -15,7 +15,7 @@ export default function AcademiaSection() {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
   const { user } = useUserType();
   // academia.nivel is 'escola' | 'superior' — NOT academia.type ('public' | 'private')
-  const tipoAcademia = (user?.academia?.nivel ?? "escola") as "escola" | "superior";
+  const tipoAcademia: AnoLetivoTipo = user?.academia?.nivel === "superior" ? "superior" : "escolar";
 
   // ── Buscar ano letivo actual da academia ──────────────────────────────────
   const {
@@ -45,6 +45,13 @@ export default function AcademiaSection() {
     error: erroAvancar,
     execute: definirAnoLetivoSeguinte,
   } = useApi(academiaService.definirAnoLetivoSeguinte);
+
+  const { data: configuracoesData, execute: buscarConfiguracoes } = useApi(academiaService.listarConfiguracoesAnoLetivo);
+  const { data: finalizacoesData, execute: buscarFinalizacoes } = useApi(academiaService.listarFinalizacoesAnoLetivo);
+  const { loading: finalizando, error: erroFinalizar, execute: finalizarAnoLetivo } = useApi(academiaService.finalizarAnoLetivo);
+
+  const [observacaoFinalizacao, setObservacaoFinalizacao] = useState("");
+  const [sucessoFinalizacao, setSucessoFinalizacao] = useState(false);
 
   const [sucesso, setSucesso] = useState(false);
 
@@ -77,7 +84,9 @@ export default function AcademiaSection() {
   useEffect(() => {
     buscarAnoLetivo();
     buscarAnoLetivoGlobal().catch(() => undefined);
-  }, [buscarAnoLetivo, buscarAnoLetivoGlobal]);
+    buscarConfiguracoes().catch(() => undefined);
+    buscarFinalizacoes().catch(() => undefined);
+  }, [buscarAnoLetivo, buscarAnoLetivoGlobal, buscarConfiguracoes, buscarFinalizacoes]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -109,6 +118,28 @@ export default function AcademiaSection() {
       // erroAvancar disponível via hook
     }
   }
+
+  async function handleFinalizarAnoLetivo() {
+    if (!valorAtual) return;
+    setSucessoFinalizacao(false);
+    try {
+      await finalizarAnoLetivo({
+        type: tipoAcademia,
+        ano_letivo: valorAtual,
+        observacao: observacaoFinalizacao.trim() || undefined,
+      });
+      setObservacaoFinalizacao("");
+      await buscarFinalizacoes();
+      setSucessoFinalizacao(true);
+      setTimeout(() => setSucessoFinalizacao(false), 4000);
+    } catch {
+      // erroFinalizar disponível via hook
+    }
+  }
+
+  const configuracaoTipo = configuracoesData?.configuracoes?.find((item) => item.type === tipoAcademia);
+  const finalizacoes = finalizacoesData?.finalizacoes ?? [];
+  const finalizacaoAtual = finalizacoes.find((item) => item.type === tipoAcademia && item.ano_letivo === valorAtual);
 
   return (
     <div>
@@ -430,6 +461,71 @@ export default function AcademiaSection() {
       </div>
 
       <div className="mt-6 space-y-6">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-white">
+                <Icon icon="mdi:flag-checkered" width="18px" className="text-brand-500" />
+                Finalização do ano letivo
+              </h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                Finalize o ano ativo quando notas, faltas e avaliações estiverem encerradas. O avanço para o ano seguinte respeita a mesma janela operacional do período configurado.
+              </p>
+            </div>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              Período {configuracaoTipo?.periodo ?? "—"}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Tipo aplicável</p>
+              <p className="mt-1 text-lg font-bold capitalize text-gray-800 dark:text-white">{tipoAcademia}</p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Ano ativo: {valorAtual ? formatAnoLetivo(valorAtual) : "não definido"}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Estado da finalização</p>
+              <p className={`mt-1 text-lg font-bold ${finalizacaoAtual?.finalizado ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
+                {finalizacaoAtual?.finalizado ? "Finalizado" : "Pendente"}
+              </p>
+              {finalizacaoAtual?.finalizado_em && (
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  Em {new Date(finalizacaoAtual.finalizado_em).toLocaleDateString("pt-PT")}
+                </p>
+              )}
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/30">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Histórico</p>
+              <p className="mt-1 text-lg font-bold text-gray-800 dark:text-white">{finalizacoes.length}</p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">finalização(ões) registradas</p>
+            </div>
+          </div>
+
+          {(erroFinalizar || sucessoFinalizacao) && (
+            <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${erroFinalizar ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400" : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"}`}>
+              {erroFinalizar || "Ano letivo finalizado com sucesso."}
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+            <input
+              value={observacaoFinalizacao}
+              onChange={(e) => setObservacaoFinalizacao(e.target.value)}
+              placeholder="Observação opcional sobre o encerramento"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+            <button
+              type="button"
+              onClick={handleFinalizarAnoLetivo}
+              disabled={!valorAtual || finalizando}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {finalizando ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Icon icon="mdi:check-decagram-outline" width="18px" />}
+              Finalizar ano letivo
+            </button>
+          </div>
+        </div>
+
         <AcademiaCategoriesSection />
         <AvaliacaoFinalRulesSection />
         <PasswordSettingsCard />
