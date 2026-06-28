@@ -74,7 +74,7 @@ export default function UserInfoCard() {
   }, [user]);
 
   const userTelefone = useMemo(() => 
-    user?.estudante?.telefone || user?.academia?.numero_telefone || "",
+    user?.estudante?.telefone || user?.academia?.telefone || "",
     [user]
   );
 

@@ -451,9 +451,9 @@ export default function Details() {
                 </InfoItem>
               )}
 
-              {ac.numero_telefone && (
+              {ac.telefone && (
                 <InfoItem label="Telefone">
-                  <span>{ac.numero_telefone}</span>
+                  <span>{ac.telefone}</span>
                 </InfoItem>
               )}
 

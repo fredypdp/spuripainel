@@ -273,7 +273,7 @@ export default function CadastrarAcademiaPageContent() {
           nome:            nomeAcademia.trim(),
           provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
           endereco:        endereco.trim(),
-          numero_telefone: numeroTelefone.trim(),
+          telefone: numeroTelefone.trim(),
           email:           email.trim(),
           website:         website.trim() || undefined,
           nivel_escolar:   nivel_es,          // NivelEscolar: 'fundamental' | 'medio' | 'misto'
@@ -288,7 +288,7 @@ export default function CadastrarAcademiaPageContent() {
           nome:            nomeAcademia.trim(),
           provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
           endereco:        endereco.trim(),
-          numero_telefone: numeroTelefone.trim(),
+          telefone: numeroTelefone.trim(),
           email:           email.trim(),
           website:         website.trim() || undefined,
           cursos:          [],

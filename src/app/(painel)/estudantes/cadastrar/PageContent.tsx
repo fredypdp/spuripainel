@@ -126,12 +126,20 @@ export default function CadastrarEstudantePageContent() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [telefoneResponsavel, setTelefoneResponsavel] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
   const [bilheteResponsavel, setBilheteResponsavel] = useState('');
   const [dataNascimento, setDataNascimento] = useState<Date | null>(null);
   const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
   const [genero, setGenero] = useState<Genero>('masculino');
   const [cursoSelecionado, setCursoSelecionado] = useState<Curso | null>(null);
+  const [biEstudanteFile, setBiEstudanteFile] = useState<File | undefined>();
+  const [biResponsavelFile, setBiResponsavelFile] = useState<File | undefined>();
+  const [cedulaEstudanteFile, setCedulaEstudanteFile] = useState<File | undefined>();
+  const [declaracaoFile, setDeclaracaoFile] = useState<File | undefined>();
+  const [certificado6File, setCertificado6File] = useState<File | undefined>();
+  const [certificado9File, setCertificado9File] = useState<File | undefined>();
+  const [certificadoMedioFile, setCertificadoMedioFile] = useState<File | undefined>();
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [resultado, setResultado] = useState<ResultadoCadastro | null>(null);
@@ -215,8 +223,11 @@ export default function CadastrarEstudantePageContent() {
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
-    if (!bilheteIdentidade.trim() && !bilheteResponsavel.trim()) {
-      erros.push('Pelo menos um bilhete (estudante ou responsável) deve ser preenchido');
+    if (!isSuperior && !bilheteResponsavel.trim()) {
+      erros.push('BI do responsável é obrigatório para estudantes escolares');
+    }
+    if (!telefone.trim() && !telefoneResponsavel.trim()) {
+      erros.push('Informe pelo menos um telefone do estudante ou do responsável');
     }
     if (bilhetesIdentidadeIguais()) {
       erros.push('O BI do estudante não pode ser igual ao BI do responsável');
@@ -227,9 +238,13 @@ export default function CadastrarEstudantePageContent() {
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       erros.push('E-mail inválido');
     }
-    if (telefone.trim() && telefone.replace(/\D/g, '').length < 9) {
-      erros.push('Telefone inválido (mínimo 9 dígitos)');
-    }
+    if (telefone.trim() && telefone.replace(/\D/g, '').length !== 9) erros.push('Telefone do estudante deve ter 9 dígitos');
+    if (telefoneResponsavel.trim() && telefoneResponsavel.replace(/\D/g, '').length !== 9) erros.push('Telefone do responsável deve ter 9 dígitos');
+    if (telefone.trim() && telefoneResponsavel.trim() && telefone.replace(/\D/g, '') === telefoneResponsavel.replace(/\D/g, '')) erros.push('Os telefones do estudante e do responsável não podem ser iguais');
+    if (!isSuperior && !biResponsavelFile) erros.push('PDF do BI do responsável é obrigatório');
+    if (bilheteIdentidade.trim() && !biEstudanteFile) erros.push('PDF do BI do estudante é obrigatório quando o BI é informado');
+    if (!bilheteIdentidade.trim() && !cedulaEstudanteFile) erros.push('Cédula do estudante é obrigatória quando o BI do estudante não é informado');
+    if (!declaracaoFile && !certificado6File && !certificado9File && !certificadoMedioFile) erros.push('Envie uma declaração ou certificado acadêmico aplicável');
     setValidationErrors(erros);
     return erros.length === 0;
   };
@@ -238,12 +253,15 @@ export default function CadastrarEstudantePageContent() {
     setNome('');
     setEmail('');
     setTelefone('');
+    setTelefoneResponsavel('');
     setBilheteIdentidade('');
     setBilheteResponsavel('');
     setDataNascimento(null);
     setAnoEscolarSelecionado(null);
     setCursoSelecionado(null);
     setGenero('masculino');
+    setBiEstudanteFile(undefined); setBiResponsavelFile(undefined); setCedulaEstudanteFile(undefined);
+    setDeclaracaoFile(undefined); setCertificado6File(undefined); setCertificado9File(undefined); setCertificadoMedioFile(undefined);
     setValidationErrors([]);
     setResultado(null);
   };
@@ -259,7 +277,8 @@ export default function CadastrarEstudantePageContent() {
       genero,
       data_nascimento: dataNascimentoISO,
       email: email.trim() || undefined,
-      telefone: telefone.trim() || undefined,
+      telefone: telefone.replace(/\D/g, '') || undefined,
+      telefone_responsavel: telefoneResponsavel.replace(/\D/g, '') || undefined,
       bilhete_identidade: bilheteIdentidade.trim() || undefined,
       bilhete_identidade_responsavel: bilheteResponsavel.trim() || undefined,
       ano_escolar_fundamental:
@@ -278,6 +297,13 @@ export default function CadastrarEstudantePageContent() {
           : undefined,
       curso_superior_id:
         isSuperior && cursoSelecionado ? cursoSelecionado.id : undefined,
+      bi_estudante: biEstudanteFile,
+      bi_responsavel: biResponsavelFile,
+      cedula_estudante: cedulaEstudanteFile,
+      declaracao: declaracaoFile,
+      certificado_6_ano_fundamental: certificado6File,
+      certificado_9_ano_fundamental: certificado9File,
+      certificado_ensino_medio: certificadoMedioFile,
     };
 
     try {
@@ -440,6 +466,11 @@ export default function CadastrarEstudantePageContent() {
                 />
               </div>
 
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Telefone do responsável</Label>
+                <Input type="text" placeholder="Ex: 923456789" defaultValue={telefoneResponsavel} onChange={e => setTelefoneResponsavel(e.target.value)} disabled={carregandoCadastro} />
+              </div>
+
               {/* Bilhetes */}
               <div className="col-span-2 sm:col-span-1">
                 <Label>Bilhete do Estudante</Label>
@@ -460,6 +491,18 @@ export default function CadastrarEstudantePageContent() {
                   onChange={e => setBilheteResponsavel(e.target.value.trimStart())}
                   disabled={carregandoCadastro}
                 />
+              </div>
+
+              {/* Documentos */}
+              <div className="col-span-2 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:grid-cols-2">
+                <p className="col-span-1 text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">Documentos PDF obrigatórios</p>
+                <label className="text-sm text-gray-600 dark:text-gray-300">BI do estudante<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setBiEstudanteFile(e.target.files?.[0])} /></label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">BI do responsável *<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setBiResponsavelFile(e.target.files?.[0])} /></label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">Cédula do estudante<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setCedulaEstudanteFile(e.target.files?.[0])} /></label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">Declaração<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setDeclaracaoFile(e.target.files?.[0])} /></label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">Certificado 6º fundamental<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setCertificado6File(e.target.files?.[0])} /></label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">Certificado 9º fundamental<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setCertificado9File(e.target.files?.[0])} /></label>
+                <label className="text-sm text-gray-600 dark:text-gray-300">Certificado ensino médio<input type="file" accept="application/pdf,.pdf" className="mt-1 block w-full text-sm" onChange={e => setCertificadoMedioFile(e.target.files?.[0])} /></label>
               </div>
             </div>
 
