@@ -1,8 +1,8 @@
 ---
-modificado: 26-06-2026 00:00
+modificado: 28-06-2026 17:10
 criado: 05-04-2026 13:01
 ---
-Versão atual: 2.0.0
+Versão atual: 2.0.8
 ## Índice
 
 1. [[#1. Visão Geral]]
@@ -143,7 +143,6 @@ Projeções são tabelas PostgreSQL otimizadas para leitura. São reconstruídas
 |`projection_faltas`|Faltas registadas|
 |`projection_avaliacao_final`|Avaliações finais de ano|
 |`projection_categorias_nota`|Categorias personalizadas de nota|
-|`projection_telefones_extra`|Telefones extras de qualquer usuário|
 
 Se uma projeção ficar corrompida ou inconsistente, basta executar um **Rebuild** que a reconstrói do zero a partir do ledger.
 
@@ -369,9 +368,11 @@ Representa um curso oferecido por uma academia (médio ou superior). O **tipo é
 | Tipo       | Períodos                                        | Anos                       |
 | ---------- | ----------------------------------------------- | -------------------------- |
 | `medio`    | Trimestres fixos do sistema (não configuráveis) | Formato `[n]_ano_medio`    |
-| `superior` | Semestres configurados pela academia            | Formato `[n]_ano_superior` |
+| `superior` | Total de semestres informado como número na API; backend deriva `1_semestre` até `N_semestre` | Calculados pelo backend no formato `[n]_ano_superior` |
 
-**Formato dos semestres**: `[n]_semestre` onde n ≥ 1 (ex: `1_semestre`, `2_semestre`).
+Para cursos superiores, a criação/edição recebe `periodos` como número inteiro positivo (quantidade total de semestres) e não aceita `anos_academicos` no payload. O backend persiste os semestres sequenciais no formato `[n]_semestre` e calcula os anos acadêmicos com `ceil(periodos / 2)`. Ex.: `periodos = 3` deriva `periodos = ["1_semestre", "2_semestre", "3_semestre"]` e `anos_academicos = ["1_ano_superior", "2_ano_superior"]`.
+
+**Formato dos semestres persistidos**: `[n]_semestre` onde n ≥ 1 (ex: `1_semestre`, `2_semestre`).
 
 Os trimestres (`1_trimestre`, `2_trimestre`, `3_trimestre`) são **fixos do sistema** e nunca configurados no curso. São os períodos padrão para notas do tipo escolar.
 
@@ -490,21 +491,31 @@ Permite que qualquer usuário (estudante, academia ou admin) registe números de
 
 **Quem faz**: Academia (status ativo)
 
-1. Academia envia os dados do estudante
-2. Sistema gera código único (`AAA1234`), verificando ledger e projeção
-3. Senha padrão = código do estudante (ex: `ABC1234`)
-4. Estudante criado com **status `ativo`** e vinculado à academia
-5. Dados académicos (ano escolar, status, curso) são configurados na criação
+1. Academia envia os dados do estudante e os PDFs obrigatórios em `multipart/form-data`.
+2. Sistema aplica a mesma matriz documental da solicitação de matrícula: BI do responsável, BI ou cédula do estudante, e certificado aplicável ou declaração.
+3. Sistema valida que todos os arquivos são PDF, respeitam o limite de 5MB e possuem assinatura `%PDF`.
+4. Sistema gera código único (`AAA1234`), verificando ledger e projeção.
+5. Documentos são enviados ao storage definitivo em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/`.
+6. Senha padrão = código do estudante (ex: `ABC1234`).
+7. Estudante é criado com **status `ativo`**, vinculado à academia e com o mapa `documentos` gravado no evento `EstudanteCriadoComVinculo` e na projeção.
+8. Se qualquer validação ou persistência falhar após upload parcial, o diretório de documentos do estudante é removido para evitar ficheiros órfãos.
 
 **Regras de validação:**
 
 - `genero` obrigatório: `masculino` ou `feminino`
 - `data_nascimento` obrigatório: deve ser anterior à data atual
+- JSON puro não é aceito no cadastro direto; o fluxo deve usar `multipart/form-data` para impedir bypass documental
+- `bilhete_identidade_responsavel` e o PDF `bi_responsavel` são obrigatórios para estudantes escolares/fundamental/médio
+- `bilhete_identidade` e `bilhete_identidade_responsavel`, quando ambos informados, não podem ser iguais após normalização
+- `bi_estudante` é obrigatório quando `bilhete_identidade` do estudante for informado
+- `cedula_estudante` é obrigatória quando o estudante não tiver BI próprio
+- o BI do responsável não pode coincidir com o BI principal de outro estudante escolar/fundamental/médio, mas pode repetir como BI de responsável de irmãos/outros estudantes
+- Certificado aplicável por ano/nível (`certificado_6_ano_fundamental`, `certificado_9_ano_fundamental` ou `certificado_ensino_medio`) pode ser substituído por `declaracao`; quando não houver certificado aplicável, `declaracao` é obrigatória
 - `ano_escolar_fundamental` deve seguir o formato canônico para o tipo de ensino
-- Se informar `curso_medio_id`, o curso deve existir e ser do tipo `medio`
-- Se informar `curso_superior_id`, o curso deve existir e ser do tipo `superior`
+- Se informar `curso_medio_id`, o curso deve existir, estar ativo, pertencer à academia e ser do tipo `medio`
+- Se informar `curso_superior_id`, o curso deve existir, estar ativo, pertencer à academia e ser do tipo `superior`
 - Status inicial padrão para fundamental: `em_andamento`
-- Status inicial padrão para médio e superior: `em_andamento`
+- Status inicial padrão para médio e superior: `inativo` até eventos específicos de matrícula/curso
 
 ---
 
@@ -705,9 +716,9 @@ Não há rota pública registrada para execução manual de avaliação final. A
 - `medio` usa a sequência `anos_academicos` do curso médio vinculado ao estudante; por isso o estudante precisa ter curso médio existente, ativo e com `anos_academicos` configurados.
 - O backend valida que `nivel_ano_academico_atual` é exatamente o nível atualmente armazenado no estudante (`ano_escolar` para fundamental ou `ano_escolar_medio` para médio). Se o payload indicar outro nível, a avaliação é bloqueada.
 - Se reprovado, `proximo_ano_academico` fica `null`, o estudante permanece no mesmo nível, os status de ciclo não mudam e ele não é removido das turmas atuais.
-- Se aprovado e ainda existe próximo nível, `proximo_ano_academico` recebe o próximo item da sequência e o aggregate atualiza `ano_escolar` ou `ano_escolar_medio`.
-- Se aprovado no último nível do ciclo, `proximo_ano_academico` fica `null` e o aggregate marca `status_escolar_fundamental` ou `status_escolar_medio` como `finalizado`.
-- Para eventos escolares aprovados com turmas removidas, a projeção de turmas remove o estudante das turmas atuais, registra histórico no ano letivo e tenta adicioná-lo a uma turma ativa do próximo nível.
+- Se aprovado e ainda existe próximo nível, `proximo_ano_academico` recebe o próximo item da sequência e o aggregate atualiza `ano_escolar` ou `ano_escolar_medio`. No fundamental, se a academia atual ainda não oferta o próximo ano global em `projection_academias.anos_academicos`, o evento mantém `proximo_ano_academico` preenchido, registra `motivo_progressao = "academia_sem_oferta_do_proximo_ano_academico_fundamental"`, deixa `status_escolar_fundamental = "em_andamento"` e não cria vínculo automático com turma/matéria/curso/período inexistente.
+- Se aprovado no último nível real do ciclo, `proximo_ano_academico` fica `null` e o aggregate marca `status_escolar_fundamental` ou `status_escolar_medio` como `finalizado`. A falta de oferta do próximo ano pela academia não é tratada como fim real do ciclo fundamental.
+- Para eventos escolares aprovados com turmas removidas, a projeção de turmas remove o estudante das turmas atuais, registra histórico no ano letivo e tenta adicioná-lo a uma turma ativa do próximo nível, exceto quando `motivo_progressao` indicar ausência de oferta do próximo ano fundamental pela academia; nesse caso, o estudante fica sem turma automática até a academia habilitar/ofertar o ano.
 - A seleção de turma destino prioriza compatibilidade com `turno` e `curso_id` da turma de origem; se não houver compatível, usa qualquer turma ativa do próximo nível na mesma academia.
 - Se não existir turma destino válida para aprovado com próximo nível, a projeção de turmas falha para impedir estado parcial.
 
@@ -840,7 +851,7 @@ Esse endpoint retorna `202 Accepted` com `job_id`, `poll_url` e `sse_url`; o cli
 
 1. `admins`
 2. `academias`
-3. `cursos`, `materias`, `categorias_nota`, `telefones_extra`
+3. `cursos`, `materias`, `categorias_nota`
 4. `estudantes`, `turmas`
 5. `notas`, `faltas`
 6. `avaliacao_final`
@@ -879,6 +890,14 @@ Se qualquer item falhar, o job fica como `failed` (não `done`), permitindo que 
 - Rebuild assíncrono de projeções usa o mesmo pipeline de integridade do rebuild síncrono, mas sem manter a conexão HTTP aberta por minutos.
 
 ---
+
+### Telefones nativos e remoção de telefone extra
+
+O modelo `projection_telefones_extra` e o endpoint de telefone extra foram removidos. O telefone passa a fazer parte das entidades principais: estudante (`telefone`, `telefone_verificado`, `telefone_responsavel`, `telefone_responsavel_verificado`), academia (`telefone`, `telefone_verificado`) e admin (`telefone`, `telefone_verificado`).
+
+A normalização remove espaços, hifens e parênteses; o valor persistido deve ser string com exatamente 9 dígitos numéricos, sem DDI. A verificação de telefone ainda não possui fluxo ativo: os campos `*_verificado` existem para evitar conflitos de schema no futuro e não devem ser expostos como processo operacional.
+
+Regras de estudante: ao menos um telefone deve existir; `telefone` e `telefone_responsavel` não podem ser iguais; e o telefone de um estudante não pode ser reaproveitado como telefone de responsável de outro estudante.
 
 ## 6. Regras de Negócio
 
@@ -931,6 +950,19 @@ Se qualquer item falhar, o job fica como `failed` (não `done`), permitindo que 
 | Observação obrigatória na correção               | Justificativa da alteração em `PUT /academia/atualizar-falta`                           |
 | Motivo obrigatório na deleção                    | Para auditoria no ledger e na projeção                                                  |
 | Duplicata bloqueada                              | Mesma combinação `data + codigo_estudante + materia_disciplinar_id` é rejeitada         |
+| Sumário opcional                                  | Falta pode apontar para `sumario_id`; o backend valida escopo e grava `sumario_titulo` como snapshot histórico |
+
+### 6.4.1 Regras de Sumários/Aulas
+
+| Regra | Detalhe |
+| ----- | ------- |
+| Academia inferida | `academia_id`/`codigo_academia` vêm do token, nunca do payload |
+| Contexto protegido | `nivel` e `type` são inferidos da matéria/curso validado |
+| Matéria obrigatória | `materia_id` deve pertencer à academia e conter o `ano_academico` solicitado |
+| Curso obrigatório quando aplicável | Médio e superior exigem curso da mesma academia; se a matéria já tem curso, ele prevalece |
+| Período coerente | Superior usa `N_semestre`; escolar/médio usa `N_trimestre`; matéria superior com período definido deve coincidir |
+| Remoção lógica | `DELETE /academia/sumarios/:id` marca `deleted_at` para preservar vínculos históricos |
+| Snapshot em faltas | Faltas recebem apenas `sumario_id` no payload; `sumario_titulo` é copiado do sumário pelo backend no momento do vínculo |
 
 ### 6.5 Regras de Avaliação Final
 
@@ -1147,7 +1179,7 @@ GET  /jobs/:id?results=true       →  { ... resultados por item ... }
 
 ### 10.1 Arquivamento de Estudante
 
-O sistema possui o status geral `arquivado` para estudantes que saíram da academia, mas cujos registos históricos devem ser mantidos. A academia não define esse status diretamente: usa `POST /academia/estudante/:codigo/desvincular`, que registra `EstudanteDesvinculadoDaAcademia`. Para retorno do estudante, usa `POST /academia/estudante/:codigo/revincular`, que registra `EstudanteReintegrado` e reativa o vínculo.
+O sistema possui o status geral `arquivado` para estudantes que saíram da academia, mas cujos registos históricos devem ser mantidos. A academia não define esse status diretamente: usa `POST /academia/estudante/:codigo/desvincular`, que registra `EstudanteDesvinculadoDaAcademia`. Para retorno do estudante, usa `POST /academia/estudante/:codigo/revincular`, que registra `EstudanteReintegrado` e reativa o vínculo. A revinculação não aceita ano/semestre definido pelo cliente; o backend encontra a posição em que o estudante parou a partir do histórico. Ela diferencia retorno ao mesmo curso de mudança real de curso: no mesmo curso o aggregate mantém a posição acadêmica anterior (`ano_escolar_fundamental`, `ano_escolar_medio`, `semestre_atual` e `ano_superior`); ao mudar de curso médio reinicia em `1_ano_medio`; ao mudar de curso superior reinicia em `1_semestre`/`1_ano_superior`. Trancamento, interrupção, desvinculação e reativação alteram vínculo/status operacional, mas não zeram progressão nem removem histórico acadêmico, financeiro ou de auditoria.
 
 ### 10.2 Validação de Data de Falta
 
@@ -1195,14 +1227,16 @@ Eventos do ledger:
 3. Os documentos são enviados ao storage em `{codigo_academia}/matriculas/matricula_{codigo_solicitacao}/`.
 4. Para cada PDF, o storage devolve o caminho interno, a URL do arquivo (`file_url`) e a URL de download (`download_url`); esses dados são gravados no evento de criação e na projeção.
 5. O aggregate `SolicitacaoMatricula` valida que `bilhete_identidade` e `bilhete_identidade_responsavel`, quando ambos informados, não sejam iguais.
-6. O aggregate `SolicitacaoMatricula` grava o evento de criação.
-7. A academia lista/consulta solicitações e aprova ou reprova.
-8. Na aprovação, o sistema reutiliza o aggregate `Estudante` e emite `EstudanteCriadoComVinculo`.
-9. Na reprovação, grava o evento de reprovação e remove o diretório dos documentos.
+6. Para estudantes escolares/fundamental/médio, o handler e o aggregate exigem `bilhete_identidade_responsavel`, `bi_responsavel`, `bi_estudante` quando houver BI próprio, `cedula_estudante` quando não houver BI próprio, e certificado aplicável ou `declaracao`.
+7. Antes de criar ou aprovar a solicitação escolar, o handler confirma que o BI do responsável não pertence como BI principal a outro estudante escolar/fundamental/médio já existente.
+8. O aggregate `SolicitacaoMatricula` grava o evento de criação.
+9. A academia lista/consulta solicitações e aprova ou reprova.
+10. Na aprovação, o sistema reutiliza o aggregate `Estudante`, revalida os documentos e conflitos atuais, e emite `EstudanteCriadoComVinculo`.
+11. Na reprovação, grava o evento de reprovação e remove o diretório dos documentos.
 
 ### Regras de negócio
 
-- O bilhete de identidade do responsável é obrigatório para toda academia escolar e de nível superior.
+- O bilhete de identidade do responsável é obrigatório para estudantes escolares/fundamental/médio.
 - A cédula do estudante é obrigatória quando o bilhete de identidade do estudante não for enviado.
 - Certificado do 6.º ano fundamental só é aplicável para matrículas do 7.º ao 9.º ano fundamental.
 - Certificado do 9.º ano fundamental só é aplicável para matrículas do ensino médio.
@@ -1255,3 +1289,21 @@ O ano letivo global e o ano letivo da academia passam a separar o identificador 
 Cada tipo possui um único `periodo` configurado por Admin FPP no formato `MM_MM`. Esse período não é recriado a cada virada de ano; ele é combinado com o `ano_letivo` ativo para calcular o intervalo real aceito nas operações de faltas.
 
 As academias podem declarar a finalização de um ano letivo por tipo. Essa ação é registrada no ledger por meio do evento `AnoLetivoAcademiaFinalizado` e projetada em `projection_anos_letivos_academia_finalizacoes`, mantendo a informação auditável por academia, tipo, ano, usuário, data e observação. A finalização, que também define automaticamente o ano letivo seguinte da academia, só é aceita na janela operacional entre o mês de fim do período letivo configurado para o tipo e o mês imediatamente anterior ao mês de início do próximo período: em termos de validação, o mês atual precisa ser `>=` ao mês final de `periodo` e `<` ao mês inicial de `periodo`. Exemplo: com `periodo=10_07`, a academia pode finalizar em julho, agosto ou setembro (meses 07, 08 e 09); de outubro a junho a operação é bloqueada, porque o ano letivo ainda está em curso ou o próximo período já começou. Quando todas as academias ativas do mesmo tipo ficam alinhadas no mesmo ano letivo após esses avanços, a plataforma atualiza automaticamente esse valor como o ano letivo global daquele tipo. Escolas nunca bloqueiam nem avançam o calendário global do superior, e o superior nunca bloqueia nem avança o calendário global escolar.
+
+---
+
+## Atualização 2.0.7 — Gestão segura de anos acadêmicos por academias
+
+Academias agora podem consultar, adicionar, substituir e desabilitar escopos acadêmicos habilitados via `/academia/anos-academicos`. O contrato mantém a separação entre **ano acadêmico/período** e **ano letivo/calendário**.
+
+- **Fundamental/misto**: a lista ativa continua na academia (`projection_academias.anos_academicos`) e aceita somente códigos canônicos `[1-9]_ano_fundamental`.
+- **Médio**: a lista ativa pertence ao curso médio (`projection_cursos.anos_academicos`) e requer `curso_id`, evitando colisão com anos do fundamental em escolas mistas.
+- **Superior**: a academia informa somente `periodos` numérico no curso superior; semestres (`[n]_semestre`) e anos superiores (`[n]_ano_superior`) seguem derivados pelo backend.
+- **Segurança**: cada alteração valida propriedade da academia, compatibilidade entre `type` e nível/curso, e bloqueia reduções que afetariam estudantes ativos no ano ou semestre removido.
+- **Preservação histórica**: remoções são lógicas/prospectivas; eventos, ledger, histórico acadêmico, turmas, matérias, notas, faltas, avaliações finais e sumários já registrados não são apagados nem reprocessados.
+- **Contratos explícitos na API**: a documentação da API detalha `GET`, `POST`, `PATCH` e `DELETE /academia/anos-academicos` com funcionamento, permissões, payloads por `type`, respostas de sucesso e erros esperados.
+- **Leitura por admin**: admins usam `GET /academia/anos-academicos?codigo_academia=...`; as rotas de escrita permanecem exclusivas para academias autenticadas e ativas.
+
+## Atualização 2.0.8 — Progressão fundamental sem oferta do próximo ano
+
+A avaliação final do fundamental agora diferencia conclusão real do ciclo e ausência operacional de oferta na academia. Quando o estudante é aprovado em um ano anterior ao `9_ano_fundamental`, o backend calcula o próximo ano global canônico e verifica se ele existe em `projection_academias.anos_academicos` da academia atual. Se não existir, o estudante avança para esse próximo ano global, permanece com `status_escolar_fundamental = "em_andamento"`, continua vinculado à mesma academia, não recebe turma automática e o evento registra `motivo_progressao = "academia_sem_oferta_do_proximo_ano_academico_fundamental"`. A aprovação no `9_ano_fundamental` continua finalizando o fundamental normalmente.
