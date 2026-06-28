@@ -85,7 +85,7 @@ export interface CriarEscolaRequest {
   nome: string;
   provincia: string;
   endereco: string;
-  numero_telefone?: string;
+  telefone?: string;
   email?: string;
   website?: string;
   nivel_escolar: NivelEscolar;
@@ -104,7 +104,7 @@ export interface CriarUniversidadeRequest {
   nome: string;
   provincia: string;
   endereco: string;
-  numero_telefone?: string;
+  telefone?: string;
   email?: string;
   website?: string;
   cursos?: string[];
@@ -123,6 +123,7 @@ export interface CriarEstudanteRequest {
   data_nascimento: string;
   email?: string;
   telefone?: string;
+  telefone_responsavel?: string;
   /** Não pode ser igual ao BI do responsável (trim + case-insensitive). */
   bilhete_identidade?: string;
   /** Não pode ser igual ao BI do estudante (trim + case-insensitive). */
@@ -132,6 +133,13 @@ export interface CriarEstudanteRequest {
   curso_medio_id?: string | null;
   ano_superior?: string | null;
   curso_superior_id?: string | null;
+  bi_estudante?: File;
+  bi_responsavel?: File;
+  cedula_estudante?: File;
+  declaracao?: File;
+  certificado_6_ano_fundamental?: File;
+  certificado_9_ano_fundamental?: File;
+  certificado_ensino_medio?: File;
 }
 
 
@@ -192,6 +200,7 @@ export interface CriarSolicitacaoMatriculaRequest {
   data_nascimento: string;
   email?: string;
   telefone?: string;
+  telefone_responsavel?: string;
   /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
@@ -321,6 +330,7 @@ export interface RegistrarFaltasRequest {
   data: ApiDate;
   materia_disciplinar_id: string;
   quantidade: number;
+  sumario_id?: string;
   observacao?: string;
 }
 
@@ -337,15 +347,16 @@ export interface DesativarRequest {
 export interface CriarCursoRequest {
   nome: string;
   type: CursoType;
-  anos_academicos: string[];
-  /** Obrigatório para superior */
-  periodos?: string[];
+  /** Obrigatório para médio; não enviar para superior. */
+  anos_academicos?: string[];
+  /** Obrigatório para superior: quantidade total de semestres. */
+  periodos?: number;
 }
 
 export interface AtualizarCursoRequest {
   nome?: string;
   anos_academicos?: string[];
-  periodos?: string[];
+  periodos?: number;
 }
 
 export interface CriarMateriaRequest {
@@ -372,6 +383,7 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
   telefone?: string;
+  telefone_responsavel?: string;
   /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
@@ -391,7 +403,7 @@ export interface AtualizarDadosAcademiaRequest {
   nome?: string;
   provincia?: string;
   endereco?: string;
-  numero_telefone?: string;
+  telefone?: string;
   email?: string;
   website?: string;
   nivel_escolar?: string;
@@ -692,6 +704,7 @@ export interface AtualizarFaltaRequest {
   data?: ApiDate;
   materia_disciplinar_id?: string;
   quantidade?: number;
+  sumario_id?: string;
   observacao: string;
 }
 
@@ -805,6 +818,8 @@ export interface Falta {
   materia_nome?: string;
   quantidade: number;
   observacao?: string;
+  sumario_id?: string;
+  sumario_titulo?: string;
   registered_at: string;
   event_id: string;
   version: number;
@@ -850,6 +865,70 @@ export interface AvaliacaoFinal {
   observacao?: string;
   registered_at: string;
   version: number;
+}
+
+
+export interface Sumario {
+  id: string;
+  codigo_academia: string;
+  sumario_titulo: string;
+  descricao?: string;
+  periodo: Periodo;
+  ano_academico: string;
+  curso_id?: string;
+  materia_id: string;
+  materia_nome?: string;
+  created_at: string;
+  updated_at?: string;
+  deleted_at?: string;
+  version?: number;
+}
+
+export interface CriarSumarioRequest {
+  sumario_titulo: string;
+  descricao?: string;
+  periodo: Periodo;
+  ano_academico: string;
+  curso_id?: string;
+  materia_id: string;
+}
+
+export type AtualizarSumarioRequest = Partial<CriarSumarioRequest>;
+
+export interface ListarSumariosParams {
+  periodo?: string | string[];
+  ano_academico?: string | string[];
+  curso_id?: string | string[];
+  materia_id?: string | string[];
+  codigo_academia?: string;
+  token?: string;
+}
+
+export interface ListarSumariosResponse {
+  sumarios: Sumario[];
+  total: number;
+}
+
+export interface SumarioResponse {
+  sumario: Sumario;
+}
+
+export type GerirAnosAcademicosRequest =
+  | { type: 'fundamental'; anos_academicos: string[] }
+  | { type: 'medio'; curso_id: string; anos_academicos: string[] }
+  | { type: 'superior'; curso_id: string; periodos: number };
+
+export interface GerirAnosAcademicosResponse {
+  message: string;
+  type: TipoEnsino;
+  curso_id?: string;
+  anos_academicos: string[];
+  periodos?: string[];
+}
+
+export interface ListarAnosAcademicosResponse {
+  academia: Pick<AcademiaDetalhada, 'nivel' | 'nivel_escolar' | 'anos_academicos'>;
+  cursos: Curso[];
 }
 
 export interface Curso {
@@ -979,7 +1058,7 @@ export interface AcademiaDetalhada {
   codigo_academia: string;
   provincia: string;
   endereco: string;
-  numero_telefone?: string;
+  telefone?: string;
   email?: string;
   email_verificado: boolean;
   website?: string;

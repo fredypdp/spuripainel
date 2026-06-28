@@ -98,6 +98,14 @@ import type {
   ListarFinalizacoesAnoLetivoResponse,
   ListarLimitesFinalizacaoAnoLetivoResponse,
   AnoLetivoTipo,
+  CriarSumarioRequest,
+  AtualizarSumarioRequest,
+  ListarSumariosParams,
+  ListarSumariosResponse,
+  SumarioResponse,
+  GerirAnosAcademicosRequest,
+  GerirAnosAcademicosResponse,
+  ListarAnosAcademicosResponse,
 } from '@/types/api';
 
 export interface ErrorResponse {
@@ -225,6 +233,7 @@ function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteReque
     data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento')!,
     email: data.email?.trim() || undefined,
     telefone: data.telefone?.trim() || undefined,
+    telefone_responsavel: data.telefone_responsavel?.trim() || undefined,
     bilhete_identidade: bilheteIdentidade,
     bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
     ano_escolar_fundamental: data.ano_escolar_fundamental ?? null,
@@ -235,6 +244,26 @@ function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteReque
   };
 
   return payload;
+}
+
+function prepareCriarEstudanteForm(data: CriarEstudanteRequest): FormData {
+  const payload = prepareCriarEstudante(data);
+  const form = new FormData();
+  const entries = Object.entries({ ...payload,
+    bi_estudante: data.bi_estudante,
+    bi_responsavel: data.bi_responsavel,
+    cedula_estudante: data.cedula_estudante,
+    declaracao: data.declaracao,
+    certificado_6_ano_fundamental: data.certificado_6_ano_fundamental,
+    certificado_9_ano_fundamental: data.certificado_9_ano_fundamental,
+    certificado_ensino_medio: data.certificado_ensino_medio,
+  });
+  entries.forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (value instanceof File) form.append(key, value);
+    else form.append(key, String(value).trim());
+  });
+  return form;
 }
 
 function prepareMotivoEstudante(data: MotivoEstudanteRequest): MotivoEstudanteRequest {
@@ -265,6 +294,7 @@ function prepareAtualizarDadosPessoaisEstudante(
     nome: data.nome?.trim() || undefined,
     email: data.email?.trim() || undefined,
     telefone: data.telefone?.trim() || undefined,
+    telefone_responsavel: data.telefone_responsavel?.trim() || undefined,
     bilhete_identidade: bilheteIdentidade,
     bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
     data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento'),
@@ -364,21 +394,6 @@ export const perfilService = {
   alterarSenha: (data: AlterarSenhaRequest, token?: string) =>
     api.put<{ message: string }>(
       '/alterar-senha',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  adicionarTelefoneExtra: (
-    data: { numero_telefone: string },
-    token?: string
-  ) =>
-    api.post<{
-      message: string;
-      id: string;
-      numero_telefone: string;
-      verificado: boolean;
-    }>(
-      '/adicionar-telefone-extra',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -645,9 +660,9 @@ export const academiaService = {
     ),
 
   cadastrarEstudante: (data: CriarEstudanteRequest, token?: string) =>
-    api.post<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string } }>(
+    api.postForm<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string } }>(
       '/academia/estudante/register',
-      prepareCriarEstudante(data),
+      prepareCriarEstudanteForm(data),
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -846,6 +861,65 @@ export const academiaService = {
       token: tok || tokenStorage.get() || undefined,
     });
   },
+
+  // ── Anos acadêmicos ────────────────────────────────────────────
+
+  listarAnosAcademicos: (params?: { codigo_academia?: string; token?: string } | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok = isLegacy ? (params as string | undefined) : params?.token;
+    const codigo = isLegacy ? undefined : params?.codigo_academia;
+    const qs = codigo ? `?codigo_academia=${encodeURIComponent(codigo)}` : '';
+    return api.get<ListarAnosAcademicosResponse>(`/academia/anos-academicos${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
+
+  adicionarAnosAcademicos: (data: GerirAnosAcademicosRequest, token?: string) =>
+    api.post<GerirAnosAcademicosResponse>('/academia/anos-academicos', data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  substituirAnosAcademicos: (data: GerirAnosAcademicosRequest, token?: string) =>
+    api.patch<GerirAnosAcademicosResponse>('/academia/anos-academicos', data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  removerAnosAcademicos: (data: GerirAnosAcademicosRequest, token?: string) =>
+    api.delete<GerirAnosAcademicosResponse>('/academia/anos-academicos', {
+      token: token || tokenStorage.get() || undefined,
+      method: 'DELETE',
+      body: JSON.stringify(data),
+      headers: { 'Content-Type': 'application/json' },
+    } as any),
+
+  // ── Sumários/Aulas ───────────────────────────────────────────────
+
+  criarSumario: (data: CriarSumarioRequest, token?: string) =>
+    api.post<SumarioResponse>('/academia/sumarios', data, { token: token || tokenStorage.get() || undefined }),
+
+  listarSumarios: (params?: ListarSumariosParams | string) => {
+    const isLegacy = typeof params === 'string' || params === undefined;
+    const tok = isLegacy ? (params as string | undefined) : params?.token;
+    const qs = new URLSearchParams();
+    if (!isLegacy) {
+      appendMultiValueParam(qs, 'periodo', params?.periodo);
+      appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
+      appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+      appendMultiValueParam(qs, 'materia_id', params?.materia_id);
+      if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
+    }
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<ListarSumariosResponse>(`/academia/sumarios${query}`, { token: tok || tokenStorage.get() || undefined });
+  },
+
+  getSumario: (id: string, token?: string) =>
+    api.get<SumarioResponse>(`/academia/sumarios/${encodeURIComponent(id)}`, { token: token || tokenStorage.get() || undefined }),
+
+  atualizarSumario: (id: string, data: AtualizarSumarioRequest, token?: string) =>
+    api.put<MensagemResponse>(`/academia/sumarios/${encodeURIComponent(id)}`, data, { token: token || tokenStorage.get() || undefined }),
+
+  deletarSumario: (id: string, token?: string) =>
+    api.delete<MensagemResponse>(`/academia/sumarios/${encodeURIComponent(id)}`, { token: token || tokenStorage.get() || undefined }),
 
   // ── Categorias de nota ────────────────────────────────────────────
 

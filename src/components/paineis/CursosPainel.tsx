@@ -234,12 +234,13 @@ export default function CursosPainel() {
     if (!formData.nome.trim()) { showAlert("error", "Nome do curso é obrigatório"); return; }
     try {
       if (editingCurso) {
-        await executarAtualizarCurso(editingCurso.id, { nome: formData.nome, type: formData.type });
+        await executarAtualizarCurso(editingCurso.id, { nome: formData.nome, ...(formData.type === "superior" ? { periodos: formData.numSemestres } : { anos_academicos: gerarAnosMedio(formData.numAnos).map(a => a.value) }) });
         showAlert("success", "Curso atualizado com sucesso");
       } else {
-        const anosGerados = formData.type === "medio" ? gerarAnosMedio(formData.numAnos).map(a => a.value) : gerarAnosSuperior(formData.numAnos).map(a => a.value);
-        const periodosGerados = formData.type === "superior" ? gerarSemestres(formData.numSemestres).map(s => s.value) : undefined;
-        await executarCriarCurso({ nome: formData.nome, type: formData.type, anos_academicos: anosGerados, ...(periodosGerados && { periodos: periodosGerados }) });
+        const payload = formData.type === "superior"
+          ? { nome: formData.nome, type: formData.type, periodos: formData.numSemestres }
+          : { nome: formData.nome, type: formData.type, anos_academicos: gerarAnosMedio(formData.numAnos).map(a => a.value) };
+        await executarCriarCurso(payload);
         showAlert("success", "Curso criado com sucesso");
       }
       resetForm(); executarListarCursos();
