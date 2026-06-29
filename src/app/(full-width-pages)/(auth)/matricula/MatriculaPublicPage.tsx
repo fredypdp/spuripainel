@@ -2,23 +2,23 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Dropdown } from "primereact/dropdown";
 import Input from "@/components/form/input/InputField";
-import FileInput from "@/components/form/input/FileInput";
-import DatePicker from "@/components/form/date-picker";
+import SmartSelect from "@/components/form/SmartSelect";
+import BirthDateInput from "@/components/form/BirthDateInput";
+import DocumentUpload from "@/components/form/DocumentUpload";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { academiaService, consultasService, solicitacaoMatriculaService } from "@/lib/api/services";
 import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, Genero } from "@/types/api";
 
-type StepId = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type StepId = 0 | 1 | 2 | 3 | 4 | 5;
 type FileKey = "bi_estudante" | "bi_responsavel" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
 type MatriculaForm = Partial<CriarSolicitacaoMatriculaRequest> & { genero: Genero };
 
 interface AnoOpcao { label: string; value: string }
 interface DocumentoOpcao { key: FileKey; label: string; obrigatorio: boolean }
 
-const steps = ["1º Passo", "2º Passo", "3º Passo", "4º Passo", "5º Passo", "6º Passo", "7º Passo"];
+const steps = ["1º Passo", "2º Passo", "3º Passo", "4º Passo", "5º Passo", "6º Passo"];
 const emptyForm: MatriculaForm = { genero: "masculino" };
 
 function normalizarAcademia(response: unknown): AcademiaDetalhada {
@@ -49,7 +49,7 @@ function toAnoOptions(anos?: string[]): AnoOpcao[] {
 function isFundamental(ano?: string) { return !!ano && ano.includes("fundamental"); }
 function isMedio(ano?: string) { return !!ano && ano.includes("medio"); }
 function isSuperior(ano?: string) { return !!ano && ano.includes("superior"); }
-function fileName(file?: File) { return file ? `${file.name} (${Math.ceil(file.size / 1024)} KB)` : "Não anexado"; }
+function fileName(file?: File) { return file ? "✓ anexado" : "Não anexado"; }
 
 export default function MatriculaPublicPage() {
   const [step, setStep] = useState<StepId>(0);
@@ -114,32 +114,30 @@ export default function MatriculaPublicPage() {
 
   const documentos = useMemo<DocumentoOpcao[]>(() => {
     const docs: DocumentoOpcao[] = [
-      { key: "bi_estudante", label: "Bilhete de Identidade do estudante", obrigatorio: false },
-      { key: "bi_responsavel", label: "Bilhete de Identidade do responsável", obrigatorio: true },
-      { key: "cedula_estudante", label: "Cédula do estudante (se não anexar o BI do estudante)", obrigatorio: !files.bi_estudante },
+      { key: "bi_estudante", label: "Bilhete de identidade do estudante", obrigatorio: !!form.bilhete_identidade?.trim() },
+      { key: "bi_responsavel", label: "Bilhete de identidade do responsável", obrigatorio: !isSuperior(anoSelecionado ?? undefined) },
+      { key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !form.bilhete_identidade?.trim() },
+      { key: "declaracao", label: "Declaração", obrigatorio: false },
     ];
 
-    if (anoSelecionado && !isFundamental(anoSelecionado)) {
-      docs.push({ key: "declaracao", label: "Declaração escolar (alternativa ao certificado)", obrigatorio: false });
-    }
     if (anoSelecionado && ["7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental"].includes(anoSelecionado)) {
-      docs.push({ key: "certificado_6_ano_fundamental", label: "Certificado do 6.º ano fundamental", obrigatorio: !files.declaracao });
-    }
-    if (anoSelecionado && isMedio(anoSelecionado)) {
-      docs.push({ key: "certificado_9_ano_fundamental", label: "Certificado do 9.º ano fundamental", obrigatorio: !files.declaracao });
-    }
-    if (anoSelecionado && isSuperior(anoSelecionado)) {
+      docs.push({ key: "certificado_6_ano_fundamental", label: "Certificado da 6.ª classe", obrigatorio: !files.declaracao });
+    } else if (anoSelecionado && isMedio(anoSelecionado)) {
+      docs.push({ key: "certificado_9_ano_fundamental", label: "Certificado da 9.ª classe", obrigatorio: !files.declaracao });
+    } else if (anoSelecionado && isSuperior(anoSelecionado)) {
       docs.push({ key: "certificado_ensino_medio", label: "Certificado do ensino médio", obrigatorio: !files.declaracao });
+    } else {
+      docs[3] = { ...docs[3], obrigatorio: true };
     }
     return docs;
-  }, [anoSelecionado, files.bi_estudante, files.declaracao]);
+  }, [anoSelecionado, files.declaracao, form.bilhete_identidade]);
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
   }
 
-  function setTelefone(value: string) {
-    setField("telefone", onlyDigits(value).slice(0, 9));
+  function setTelefone(key: "telefone" | "telefone_responsavel", value: string) {
+    setField(key, onlyDigits(value).slice(0, 9));
   }
 
   function setBilheteIdentidade(key: "bilhete_identidade" | "bilhete_identidade_responsavel", value: string) {
@@ -208,18 +206,19 @@ export default function MatriculaPublicPage() {
       if (!form.nome?.trim()) return "Informe o nome completo.";
       if (!form.genero) return "Selecione o gênero.";
       if (!form.data_nascimento) return "Informe a data de nascimento.";
+      if (form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
+      if (!isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
+      if (form.bilhete_identidade_responsavel && !isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
+      if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_responsavel)) return "O BI do estudante não pode ser igual ao BI do responsável.";
     }
     if (current === 3) {
+      if (!form.telefone?.trim() && !form.telefone_responsavel?.trim()) return "Informe pelo menos um telefone do estudante ou do responsável.";
+      if (form.telefone && onlyDigits(form.telefone).length !== 9) return "Telefone do estudante deve ter exatamente 9 dígitos locais.";
+      if (form.telefone_responsavel && onlyDigits(form.telefone_responsavel).length !== 9) return "Telefone do responsável deve ter exatamente 9 dígitos locais.";
+      if (form.telefone && form.telefone_responsavel && onlyDigits(form.telefone) === onlyDigits(form.telefone_responsavel)) return "Os telefones do estudante e do responsável não podem ser iguais.";
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Informe um email válido.";
     }
     if (current === 4) {
-      if (form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
-      if (!form.bilhete_identidade?.trim() && !files.cedula_estudante) return "Informe o BI do estudante ou anexe a cédula do estudante no passo de documentos.";
-      if (!form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
-      if (!isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
-      if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_responsavel)) return "O BI do estudante não pode ser igual ao BI do responsável.";
-    }
-    if (current === 5) {
       const faltando = documentos.find((doc) => doc.obrigatorio && !files[doc.key]);
       if (faltando) return `Anexe o documento: ${faltando.label}.`;
     }
@@ -233,7 +232,7 @@ export default function MatriculaPublicPage() {
       return;
     }
     setErro("");
-    setStep((prev) => Math.min(prev + 1, 6) as StepId);
+    setStep((prev) => Math.min(prev + 1, 5) as StepId);
   }
 
   function voltar() {
@@ -244,7 +243,7 @@ export default function MatriculaPublicPage() {
   async function submit() {
     setErro("");
     setSucesso("");
-    for (let i = 0; i <= 5; i += 1) {
+    for (let i = 0; i <= 4; i += 1) {
       const msg = validarStep(i as StepId);
       if (msg) {
         setStep(i as StepId);
@@ -265,6 +264,7 @@ export default function MatriculaPublicPage() {
         curso_medio_id: isMedio(anoSelecionado) ? curso?.id : undefined,
         curso_superior_id: isSuperior(anoSelecionado) ? curso?.id : undefined,
         telefone: onlyDigits(form.telefone ?? "") || undefined,
+        telefone_responsavel: onlyDigits(form.telefone_responsavel ?? "") || undefined,
         bilhete_identidade: form.bilhete_identidade?.toUpperCase(),
         bilhete_identidade_responsavel: form.bilhete_identidade_responsavel?.toUpperCase(),
         ...files,
@@ -286,6 +286,7 @@ export default function MatriculaPublicPage() {
     ["Gênero", form.genero === "feminino" ? "Feminino" : "Masculino"],
     ["Data de nascimento", form.data_nascimento ?? "-"],
     ["Telefone", form.telefone ?? "-"],
+    ["Telefone do responsável", form.telefone_responsavel ?? "-"],
     ["Email", form.email ?? "-"],
     ["BI estudante", form.bilhete_identidade ?? "-"],
     ["BI responsável", form.bilhete_identidade_responsavel ?? "-"],
@@ -319,19 +320,12 @@ export default function MatriculaPublicPage() {
           {step === 0 && (
             <section className="space-y-4">
               <StepTitle title="1. Escolher a instituição" description="Pesquise na lista pública ou informe o código da instituição." />
-              <Dropdown
-                value={academia}
-                options={academias}
-                onChange={(e) => selecionarAcademia(e.value as AcademiaDetalhada | null)}
-                optionLabel="nome"
-                filter
-                showClear
+              <SmartSelect
+                value={academia?.codigo_academia ?? ""}
+                options={academias.map((item) => ({ value: item.codigo_academia, label: `${item.nome} · ${item.provincia}` }))}
+                onChange={(value) => selecionarAcademia(academias.find((item) => item.codigo_academia === value) ?? null)}
+                searchable
                 placeholder="Pesquisar instituição por nome"
-                emptyMessage="Nenhuma instituição encontrada"
-                emptyFilterMessage="Nenhuma instituição encontrada"
-                className="w-full"
-                itemTemplate={(item: AcademiaDetalhada) => <AcademiaOption academia={item} />}
-                valueTemplate={(item: AcademiaDetalhada | null) => item ? <AcademiaOption academia={item} compact /> : <span className="text-gray-400">Pesquisar instituição por nome</span>}
               />
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                 <Input placeholder="Ou digite o código da instituição" defaultValue={codigoAcademia} onChange={(e) => setCodigoAcademia(e.target.value)} />
@@ -351,28 +345,24 @@ export default function MatriculaPublicPage() {
                 {(academiaSuperior || academiaMedia) && (
                   <div className="sm:col-span-2">
                     <Label>Curso *</Label>
-                    <Dropdown value={curso} options={cursosDisponiveis} onChange={(e) => handleCursoChange(e.value as Curso)} optionLabel="nome" filter placeholder="Selecione o curso" emptyMessage="Nenhum curso ativo" className="w-full" />
+                    <SmartSelect value={curso?.id ?? ""} options={cursosDisponiveis.map((item) => ({ value: item.id, label: item.nome }))} onChange={(value) => handleCursoChange(cursosDisponiveis.find((item) => item.id === value) ?? null)} searchable placeholder="Selecione o curso" />
                   </div>
                 )}
                 {academiaMista && (
                   <div className="sm:col-span-2">
                     <Label>Curso médio (se for matrícula no médio)</Label>
-                    <Dropdown value={curso} options={cursosMedio} onChange={(e) => handleCursoChange(e.value as Curso | null)} optionLabel="nome" filter showClear placeholder="Selecione somente se o ano for do médio" emptyMessage="Nenhum curso médio ativo" className="w-full" />
+                    <SmartSelect value={curso?.id ?? ""} options={cursosMedio.map((item) => ({ value: item.id, label: item.nome }))} onChange={(value) => handleCursoChange(cursosMedio.find((item) => item.id === value) ?? null)} searchable placeholder="Selecione somente se o ano for do médio" />
                   </div>
                 )}
                 <div className="sm:col-span-2">
                   <Label>Ano acadêmico *</Label>
-                  <Dropdown
-                    value={anoSelecionado}
+                  <SmartSelect
+                    value={anoSelecionado ?? ""}
                     options={anosDisponiveis}
-                    onChange={(e) => handleAnoChange(e.value as string)}
-                    optionLabel="label"
-                    optionValue="value"
-                    filter
+                    onChange={(value) => handleAnoChange(value)}
+                    searchable
                     placeholder={(academiaSuperior || academiaMedia) && !curso ? "Selecione o curso primeiro" : "Selecione o ano acadêmico"}
                     disabled={(academiaSuperior || academiaMedia) && !curso}
-                    emptyMessage="Nenhum ano disponível"
-                    className="w-full"
                   />
                 </div>
               </div>
@@ -385,45 +375,38 @@ export default function MatriculaPublicPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2"><Label>Nome completo *</Label><Input placeholder="Nome completo do estudante" defaultValue={form.nome} onChange={(e) => setField("nome", e.target.value)} /></div>
                 <div><Label>Gênero *</Label><div className="flex gap-2">{(["masculino", "feminino"] as Genero[]).map((item) => <button key={item} type="button" onClick={() => setField("genero", item)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${form.genero === item ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{item === "masculino" ? "Masculino" : "Feminino"}</button>)}</div></div>
-                <DatePicker id="matricula-data-nascimento" label="Data de nascimento *" placeholder="Selecione a data" maxDate="today" onChange={(dates) => setField("data_nascimento", dates[0]?.toISOString().slice(0, 10) ?? "")} />
+                <BirthDateInput id="matricula-data-nascimento" required value={form.data_nascimento} onChange={(value) => setField("data_nascimento", value)} />
+                <div><Label>Bilhete de Identidade do estudante</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade", e.target.value)} hint="Use 9 números, 2 letras e 3 números." /></div>
+                <div><Label>Bilhete de Identidade do responsável</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório fora do ensino superior." /></div>
               </div>
             </section>
           )}
 
           {step === 3 && (
             <section className="space-y-4">
-              <StepTitle title="4. Telefone e email" description="Estes contactos ajudam a instituição a responder à solicitação." />
+              <StepTitle title="4. Telefone e email" description="Informe contactos válidos para a instituição responder à solicitação." />
               <div className="grid gap-4 sm:grid-cols-2">
-                <div><Label>Telefone</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone ?? "")} onChange={(e) => setTelefone(e.target.value)} /></div>
-                <div><Label>Email</Label><Input type="email" placeholder="email@exemplo.com" defaultValue={form.email} onChange={(e) => setField("email", e.target.value)} /></div>
+                <div><Label>Telefone do estudante</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone ?? "")} onChange={(e) => setTelefone("telefone", e.target.value)} /></div>
+                <div><Label>Telefone do responsável</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone_responsavel ?? "")} onChange={(e) => setTelefone("telefone_responsavel", e.target.value)} /></div>
+                <div className="sm:col-span-2"><Label>Email</Label><Input type="email" placeholder="email@exemplo.com" defaultValue={form.email} onChange={(e) => setField("email", e.target.value)} /></div>
               </div>
             </section>
           )}
 
           {step === 4 && (
             <section className="space-y-4">
-              <StepTitle title="5. Bilhetes de Identidade" description="Informe o BI do estudante e o BI do responsável." />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div><Label>Bilhete de Identidade do estudante *</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade", e.target.value)} hint="Use 9 números, 2 letras e 3 números. Ex.: 123456789LA041" /></div>
-                <div><Label>Bilhete de Identidade do responsável *</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório no formato 123456789LA041." /></div>
+              <StepTitle title="5. Anexar documentos" description={`Mostrando apenas documentos exigidos para ${getAnoLabel(anoSelecionado ?? undefined)}.`} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setFiles((prev) => ({ ...prev, [doc.key]: file })); }} />)}
               </div>
             </section>
           )}
 
           {step === 5 && (
             <section className="space-y-4">
-              <StepTitle title="6. Anexar documentos" description={`Mostrando apenas documentos exigidos para ${getAnoLabel(anoSelecionado ?? undefined)}.`} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {documentos.map((doc) => <div key={doc.key} className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><Label>{doc.label} *</Label><FileInput className="mt-2" onChange={(e) => setFiles((prev) => ({ ...prev, [doc.key]: e.target.files?.[0] }))} />{files[doc.key] && <p className="mt-2 text-xs font-medium text-green-600 dark:text-green-400">{fileName(files[doc.key])}</p>}</div>)}
-              </div>
-            </section>
-          )}
-
-          {step === 6 && (
-            <section className="space-y-4">
-              <StepTitle title="7. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação." />
+              <StepTitle title="6. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação." />
               <div className="grid gap-2 sm:grid-cols-2">{resumo.map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>)}</div>
-              <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {fileName(files[doc.key])}</p>)}</div></div>
+              <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {files[doc.key] ? "✓ verificado" : "Não anexado"}</p>)}</div></div>
               {sucesso && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-500/10 dark:text-green-300">{sucesso}</p>}
             </section>
           )}
@@ -432,7 +415,7 @@ export default function MatriculaPublicPage() {
         {erro && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-300">{erro}</p>}
         <div className="mt-5 flex items-center justify-between gap-3">
           <button type="button" onClick={voltar} disabled={step === 0 || loading} className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 disabled:opacity-50 dark:border-gray-800 dark:text-gray-300">Voltar</button>
-          {step < 6 ? <Button onClick={avancar}>Continuar</Button> : <Button disabled={loading || !!sucesso} onClick={submit}>{loading ? "Enviando..." : sucesso ? "Solicitação enviada" : "Solicitar matrícula"}</Button>}
+          {step < 5 ? <Button onClick={avancar}>Continuar</Button> : <Button disabled={loading || !!sucesso} onClick={submit}>{loading ? "Enviando..." : sucesso ? "Solicitação enviada" : "Solicitar matrícula"}</Button>}
         </div>
       </div>
     </div>
