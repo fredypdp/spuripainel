@@ -162,6 +162,7 @@ export default function CursosPainel() {
   const toggleSecao = (key: string) => setSecaoAberta(p => ({ ...p, [key]: p[key] === false ? true : false }));
   const isSecaoAberta = (key: string) => secaoAberta[key] !== false;
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { executarListarCursos(); }, []);
 
   const showAlert = (variant: "success" | "error" | "warning" | "info", message: string) => {
@@ -315,43 +316,41 @@ export default function CursosPainel() {
                 <option value="superior">Ensino Superior</option>
               </select>
             </div>
-            {!editingCurso && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Número de anos *
-                    <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(gera automaticamente: 1º…{formData.numAnos}º {formData.type === "medio" ? "Médio" : "Superior"})</span>
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => setFormData(p => ({ ...p, numAnos: Math.max(1, p.numAnos - 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">−</button>
-                    <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">{formData.numAnos}</span>
-                    <button type="button" onClick={() => setFormData(p => ({ ...p, numAnos: Math.min(10, p.numAnos + 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">+</button>
-                    <div className="flex flex-wrap gap-1 ml-2">
-                      {(formData.type === "medio" ? gerarAnosMedio(formData.numAnos) : gerarAnosSuperior(formData.numAnos)).map(a => (
-                        <span key={a.value} className="text-xs px-2 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded border border-brand-200 dark:border-brand-800">{a.label}</span>
-                      ))}
-                    </div>
+            {formData.type === "medio" && !editingCurso && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Número de anos *
+                  <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(gera automaticamente: 1º…{formData.numAnos}º Médio)</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setFormData(p => ({ ...p, numAnos: Math.max(1, p.numAnos - 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">−</button>
+                  <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">{formData.numAnos}</span>
+                  <button type="button" onClick={() => setFormData(p => ({ ...p, numAnos: Math.min(10, p.numAnos + 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">+</button>
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {gerarAnosMedio(formData.numAnos).map(a => (
+                      <span key={a.value} className="text-xs px-2 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded border border-brand-200 dark:border-brand-800">{a.label}</span>
+                    ))}
                   </div>
                 </div>
-                {formData.type === "superior" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Número de semestres *
-                      <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(gera: 1º…{formData.numSemestres}º Semestre)</span>
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setFormData(p => ({ ...p, numSemestres: Math.max(1, p.numSemestres - 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">−</button>
-                      <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">{formData.numSemestres}</span>
-                      <button type="button" onClick={() => setFormData(p => ({ ...p, numSemestres: Math.min(20, p.numSemestres + 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">+</button>
-                      <div className="flex flex-wrap gap-1 ml-2">
-                        {gerarSemestres(formData.numSemestres).map(s => (
-                          <span key={s.value} className="text-xs px-2 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">{s.label}</span>
-                        ))}
-                      </div>
-                    </div>
+              </div>
+            )}
+            {formData.type === "superior" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Número de semestres *
+                  <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(envia periodos numérico; anos superiores são derivados pela API)</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setFormData(p => ({ ...p, numSemestres: Math.max(1, p.numSemestres - 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">−</button>
+                  <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">{formData.numSemestres}</span>
+                  <button type="button" onClick={() => setFormData(p => ({ ...p, numSemestres: Math.min(20, p.numSemestres + 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">+</button>
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {gerarSemestres(formData.numSemestres).map(s => (
+                      <span key={s.value} className="text-xs px-2 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">{s.label}</span>
+                    ))}
                   </div>
-                )}
-              </>
+                </div>
+              </div>
             )}
             <div className="flex gap-3 pt-4">
               <button type="submit" className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors">
