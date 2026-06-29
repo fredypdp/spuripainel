@@ -406,9 +406,17 @@ export default function CursosPainel() {
               </div>
               {curso.anos_academicos.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Anos:</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Anos acadêmicos{curso.type === "superior" ? " derivados" : ""}:</p>
                   <div className="flex flex-wrap gap-1">
                     {curso.anos_academicos.map((n) => <span key={n} className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">{formatarNivelLabel(n)}</span>)}
+                  </div>
+                </div>
+              )}
+              {curso.type === "superior" && (curso.periodos?.length ?? 0) > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Semestres retornados pela API:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {curso.periodos?.map((n) => <span key={n} className="text-xs px-2 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded">{n.replace(/_/g, " ").replace(/^(\d+)/, "$1º")}</span>)}
                   </div>
                 </div>
               )}
