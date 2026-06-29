@@ -162,11 +162,11 @@ Implementar no front end as atualizações de matrícula, cadastro de estudantes
 - Cursos superiores no gerenciamento de cursos não devem depender de listas manuais de semestres/anos superiores.
 - Deve haver tratamento de loading, vazio, erro, sucesso e validação de formulário nas novas páginas.
 - As permissões devem impedir acesso por usuários que não sejam academia nas páginas novas.
-- A implementação deve incluir testes/checks mínimos aplicáveis ao projeto (`lint`, build/typecheck ou equivalente) e revisão manual das jornadas críticas.
+- A implementação deve incluir testes/checks mínimos aplicáveis ao projeto e revisão manual das jornadas críticas.
 
 ## Observações técnicas
 
 - Reaproveitar serviços e hooks de API existentes sempre que possível, criando novos métodos tipados apenas quando necessário.
-- Preferir componentes reutilizáveis para o novo dropdown, seletor de data e anexador de documentos.
+- Preferir componentes reutilizáveis para o novo dropdown, seletor de data e anexador de documentos caso estes atendam a nova demanda. Caso não, importe ou crie novos componentes para essa demanda.
 - Não envolver imports com `try/catch`.
 - Manter compatibilidade com a arquitetura atual do Next.js e com os padrões de estilo já existentes no projeto.
