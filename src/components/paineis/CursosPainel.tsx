@@ -407,7 +407,7 @@ export default function CursosPainel() {
                 <div className="mb-3">
                   <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Anos acadêmicos do curso médio</h4>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Use ações incrementais da API. A lista final precisa continuar em sequência crescente a partir do 1º ano médio.
+                    O que é: define quais anos este curso médio oferece para novas turmas e matrículas. Como funciona: a API adiciona ou remove apenas os anos selecionados e mantém a sequência obrigatória 1º, 2º e 3º ano, sem lacunas. Como usar: clique nos anos desejados abaixo e depois em Adicionar selecionados ou Remover selecionados.
                   </p>
                 </div>
                 <div className="mb-3 flex flex-wrap gap-2">
@@ -454,9 +454,9 @@ export default function CursosPainel() {
             )}
             {editingCurso?.type === "superior" && (
               <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-800 dark:border-teal-900/50 dark:bg-teal-900/10 dark:text-teal-200">
-                <p className="font-semibold">Cursos superiores não aceitam adição/remoção direta de anos acadêmicos.</p>
+                <p className="font-semibold">Anos acadêmicos do ensino superior</p>
                 <p className="mt-1">
-                  A API retorna os semestres em leitura e deriva os anos superiores desses períodos; este painel mantém apenas os dados cadastrais do curso.
+                  O que é: a API representa a organização do curso superior por semestres/períodos e deriva os anos superiores a partir deles. Como funciona: não há adição ou remoção direta de anos, períodos ou semestres por esta tela nem por /academia/anos-academicos. Como usar: confira abaixo os períodos retornados pela API e altere aqui apenas os dados cadastrais permitidos do curso.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1">
                   {(editingCurso.periodos ?? []).map(periodo => (

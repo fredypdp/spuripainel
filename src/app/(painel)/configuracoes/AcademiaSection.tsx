@@ -565,7 +565,7 @@ export default function AcademiaSection() {
                   Anos acadêmicos fundamentais
                 </h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-                  Gerencie apenas a oferta do ensino fundamental da academia. As rotas da API adicionam ou removem itens específicos, sem substituição em massa.
+                  O que é: esta seção controla quais anos do ensino fundamental a academia oferece para novas turmas e matrículas. Como funciona: a API adiciona ou remove somente os anos selecionados, preservando histórico e sem substituir a lista inteira. Como usar: a lista ativa aparece em ordem crescente; se faltar algum ano, selecione-o em Anos que faltam e clique em Adicionar. Para remover, selecione um ano ativo na lista e clique em Remover.
                 </p>
               </div>
               <button type="button" onClick={carregarAnosFundamentais} disabled={loadingAnosFund} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
@@ -582,6 +582,7 @@ export default function AcademiaSection() {
 
             <div className="mt-4">
               <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Lista ativa em ordem crescente</p>
+              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Estes são os anos fundamentais atualmente disponíveis. Clique em um item da lista para marcá-lo para remoção.</p>
               {loadingAnosFund ? (
                 <div className="h-12 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
               ) : anosFundamentais.length ? (
@@ -600,6 +601,7 @@ export default function AcademiaSection() {
             {ANOS_FUNDAMENTAL.some(ano => !anosFundamentais.includes(ano)) && (
               <div className="mt-4">
                 <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Anos que faltam</p>
+                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Estes botões aparecem somente quando a academia ainda não possui todos os anos fundamentais. Selecione os anos que deseja habilitar e use Adicionar.</p>
                 <div className="flex flex-wrap gap-2">
                   {ANOS_FUNDAMENTAL.filter(ano => !anosFundamentais.includes(ano)).map(ano => (
                     <button key={ano} type="button" onClick={() => toggleAnoFundamental(ano)} className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${anosFundSelecionados.includes(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
