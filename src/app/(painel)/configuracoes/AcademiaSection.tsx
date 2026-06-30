@@ -21,7 +21,9 @@ const getApiErrorMessage = (error: any, fallback: string) => {
   return [detail?.message || data?.message || error?.message || fallback, data?.request_id ? `Request ID: ${data.request_id}` : undefined].filter(Boolean).join(" ");
 };
 
-export default function AcademiaSection() {
+export type AcademiaSettingsSection = "ano-letivo" | "anos-academicos" | "categorias-nota" | "regras-avaliacao-final" | "all";
+
+export default function AcademiaSection({ section = "all" }: { section?: AcademiaSettingsSection }) {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
   const { user } = useUserType();
   // academia.nivel is 'escola' | 'superior' — NOT academia.type ('public' | 'private')
@@ -136,7 +138,7 @@ export default function AcademiaSection() {
         : await academiaService.removerAnosAcademicos(payload);
       setAnosFundamentais(sortAnosFundamental(response.anos_academicos ?? []));
       setAnosFundSelecionados([]);
-      setSucessoAnosFund(modo === "add" ? "Anos fundamentais adicionados com sucesso." : "Anos fundamentais removidos com sucesso.");
+      setSucessoAnosFund(modo === "add" ? "Anos acadêmicos adicionados com sucesso." : "Anos acadêmicos removidos com sucesso.");
     } catch (error: any) {
       setErroAnosFund(getApiErrorMessage(error, "Erro ao alterar anos acadêmicos fundamentais"));
     } finally {
@@ -183,9 +185,15 @@ export default function AcademiaSection() {
   const configuracaoTipo = configuracoesData?.configuracoes?.find((item) => item.type === tipoAcademia);
   const finalizacoes = finalizacoesData?.finalizacoes ?? [];
   const finalizacaoAtual = finalizacoes.find((item) => item.type === tipoAcademia && item.ano_letivo === valorAtual);
+  const showAnoLetivo = section === "all" || section === "ano-letivo";
+  const showAnosFundamentais = section === "all" || section === "anos-academicos";
+  const showCategorias = section === "all" || section === "categorias-nota";
+  const showRegras = section === "all" || section === "regras-avaliacao-final";
 
   return (
     <div>
+      {showAnoLetivo && (
+      <>
       {/* ── Cabeçalho da secção ──────────────────────────────────────────── */}
       <div className="mb-6">
         <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -489,8 +497,11 @@ export default function AcademiaSection() {
           )}
         </div>
       </div>
+      </>
+      )}
 
       <div className="mt-6 space-y-6">
+        {showAnoLetivo && (
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -555,14 +566,15 @@ export default function AcademiaSection() {
             </div>
           </div>
         </div>
+        )}
 
-        {permiteFundamental && (
+        {showAnosFundamentais && permiteFundamental && (
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-white">
                   <Icon icon="mdi:school-outline" width="18px" className="text-brand-500" />
-                  Anos acadêmicos fundamentais
+                  Anos acadêmicos
                 </h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
                   Controle quais anos do ensino fundamental a academia oferece para novas turmas e matrículas. As alterações são feitas somente nos anos selecionados, preservando os registros já existentes. A lista ativa aparece em ordem crescente; se faltar algum ano, selecione-o em Anos que faltam e clique em Adicionar. Para remover, selecione um ano ativo na lista e clique em Remover.
@@ -625,9 +637,9 @@ export default function AcademiaSection() {
           </div>
         )}
 
-        <AcademiaCategoriesSection />
-        <AvaliacaoFinalRulesSection />
-        <PasswordSettingsCard />
+        {showCategorias && <AcademiaCategoriesSection />}
+        {showRegras && <AvaliacaoFinalRulesSection />}
+        {section === "all" && <PasswordSettingsCard />}
       </div>
 
     </div>

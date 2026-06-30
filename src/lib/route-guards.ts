@@ -70,7 +70,27 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
-    path: '/configuracoes',
+    path: '/configuracoes/ano-letivo',
+    allowedTypes: ['admin', 'academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/configuracoes/anos-academicos',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/configuracoes/categorias-nota',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/configuracoes/regras-avaliacao-final',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/configuracoes/seguranca',
     allowedTypes: ['admin', 'academia', 'estudante'],
     redirectIfUnauthorized: '/',
   },

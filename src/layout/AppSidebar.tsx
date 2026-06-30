@@ -81,7 +81,13 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
     name: "Configurações",
-    path: "/configuracoes",
+    subItems: [
+      { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
+      { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
+      { name: "Categorias de nota", path: "/configuracoes/categorias-nota" },
+      { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
+      { name: "Segurança", path: "/configuracoes/seguranca" },
+    ],
   },
   {
     icon: <Icon width="24px" icon="mdi:flask-outline" />,
@@ -116,6 +122,9 @@ export default function AppSidebar() {
      * user?.academia?.nivel distingue o tipo de instituição: 'escola' | 'superior'
      * user?.academia?.type indica a natureza: 'public' | 'private'
      */
+    const isFundamentalOrMixed =
+      user?.academia?.nivel === "escola" &&
+      ["fundamental", "misto"].includes(user?.academia?.nivel_escolar ?? "");
     const isFundamental =
       user?.academia?.nivel === "escola" &&
       user?.academia?.nivel_escolar === "fundamental";
@@ -138,9 +147,9 @@ export default function AppSidebar() {
           if (item.name === "Gerenciamento") {
             return user.tipo === "academia";
           }
-          // Configurações: admin FPP ou academia
-          if (item.path === "/configuracoes") {
-            return isFpp || user.tipo === "academia";
+          // Configurações: admin FPP, academia ou estudante (segurança)
+          if (item.name === "Configurações") {
+            return isFpp || user.tipo === "academia" || user.tipo === "estudante";
           }
           // Armazenamento: apenas admin
           if (item.path === "/armazenamento") {
@@ -174,6 +183,28 @@ export default function AppSidebar() {
           };
         }
 
+        // Configurações: mostrar apenas páginas aplicáveis ao tipo de usuário
+        if (item.name === "Configurações" && item.subItems) {
+          const academiaSettingsPaths = [
+            "/configuracoes/ano-letivo",
+            ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
+            "/configuracoes/categorias-nota",
+            "/configuracoes/regras-avaliacao-final",
+            "/configuracoes/seguranca",
+          ];
+          const visiblePaths = new Set(
+            user?.tipo === "academia"
+              ? academiaSettingsPaths
+              : user?.tipo === "admin" && isFpp
+                ? ["/configuracoes/ano-letivo", "/configuracoes/seguranca"]
+                : ["/configuracoes/seguranca"],
+          );
+          return {
+            ...item,
+            subItems: item.subItems.filter((sub) => visiblePaths.has(sub.path)),
+          };
+        }
+
         // Estudantes: "Cadastrar" só para academia
         if (item.name === "Estudantes" && item.subItems) {
           return {
@@ -197,7 +228,7 @@ export default function AppSidebar() {
       filteredNavItems.forEach((nav, index) => {
         if (nav.subItems) {
           nav.subItems.forEach((subItem) => {
-            if (subItem.path === pathname) {
+            if (subItem.path === pathname || pathname.startsWith(`${subItem.path}/`)) {
               result = {
                 type: menuType as "main" | "others",
                 index,
@@ -223,7 +254,7 @@ export default function AppSidebar() {
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+  const isActive = useCallback((path: string) => path === pathname || pathname.startsWith(`${path}/`), [pathname]);
 
   useEffect(() => {
     if (openSubmenu !== null) {

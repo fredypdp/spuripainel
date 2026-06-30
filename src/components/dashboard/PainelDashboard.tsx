@@ -342,7 +342,7 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
           />
           {admin.role === "fpp" && (
             <QuickLink
-              href="/configuracoes"
+              href="/configuracoes/ano-letivo"
               icon="mdi:cog-outline"
               label="Configurações"
               sub="Ano letivo e sistema"
