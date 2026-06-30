@@ -370,7 +370,9 @@ Representa um curso oferecido por uma academia (médio ou superior). O **tipo é
 | `medio`    | Trimestres fixos do sistema (não configuráveis) | Formato `[n]_ano_medio`    |
 | `superior` | Total de semestres informado como número na API; backend deriva `1_semestre` até `N_semestre` | Calculados pelo backend no formato `[n]_ano_superior` |
 
-Para cursos superiores, a criação/edição recebe `periodos` como número inteiro positivo (quantidade total de semestres) e não aceita `anos_academicos` no payload. O backend persiste os semestres sequenciais no formato `[n]_semestre` e calcula os anos acadêmicos com `ceil(periodos / 2)`. Ex.: `periodos = 3` deriva `periodos = ["1_semestre", "2_semestre", "3_semestre"]` e `anos_academicos = ["1_ano_superior", "2_ano_superior"]`.
+Para cursos superiores, a criação recebe `periodos` como número inteiro positivo (quantidade total de semestres) e não aceita `anos_academicos` no payload. A rota cadastral de edição `PUT /academia/curso/:id/dados` não aceita manipular `periodos`, `semestres` nem `anos_academicos`; ela fica restrita a dados cadastrais. O backend persiste os semestres sequenciais no formato `[n]_semestre` e calcula os anos acadêmicos com `ceil(periodos / 2)`. Ex.: `periodos = 3` deriva `periodos = ["1_semestre", "2_semestre", "3_semestre"]` e `anos_academicos = ["1_ano_superior", "2_ano_superior"]`.
+
+Na criação de cursos médios, `POST /academia/curso` aplica a mesma proteção de sequência de anos médios usada por `POST /academia/anos-academicos`: `anos_academicos` deve começar em `1_ano_medio`, seguir em ordem crescente, não pular posições e não repetir anos. Assim, cargas como `["2_ano_medio"]`, `["1_ano_medio", "3_ano_medio"]` ou `["2_ano_medio", "1_ano_medio"]` são rejeitadas antes da criação.
 
 **Formato dos semestres persistidos**: `[n]_semestre` onde n ≥ 1 (ex: `1_semestre`, `2_semestre`).
 
@@ -491,11 +493,11 @@ Permite que qualquer usuário (estudante, academia ou admin) registe números de
 
 **Quem faz**: Academia (status ativo)
 
-1. Academia envia os dados do estudante e os PDFs obrigatórios em `multipart/form-data`.
-2. Sistema aplica a mesma matriz documental da solicitação de matrícula: BI do responsável, BI ou cédula do estudante, e certificado aplicável ou declaração.
-3. Sistema valida que todos os arquivos são PDF, respeitam o limite de 5MB e possuem assinatura `%PDF`.
+1. Academia envia os dados do estudante em `multipart/form-data`, com ou sem anexos.
+2. Sistema mantém obrigatórias as validações cadastrais e acadêmicas, mas não bloqueia o cadastro direto pela ausência de PDFs.
+3. Sistema valida que todos os arquivos enviados são PDF, respeitam o limite de 5MB e possuem assinatura `%PDF`.
 4. Sistema gera código único (`AAA1234`), verificando ledger e projeção.
-5. Documentos são enviados ao storage definitivo em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/`.
+5. Quando enviados, os documentos são enviados ao storage definitivo em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/`.
 6. Senha padrão = código do estudante (ex: `ABC1234`).
 7. Estudante é criado com **status `ativo`**, vinculado à academia e com o mapa `documentos` gravado no evento `EstudanteCriadoComVinculo` e na projeção.
 8. Se qualquer validação ou persistência falhar após upload parcial, o diretório de documentos do estudante é removido para evitar ficheiros órfãos.
@@ -504,13 +506,12 @@ Permite que qualquer usuário (estudante, academia ou admin) registe números de
 
 - `genero` obrigatório: `masculino` ou `feminino`
 - `data_nascimento` obrigatório: deve ser anterior à data atual
-- JSON puro não é aceito no cadastro direto; o fluxo deve usar `multipart/form-data` para impedir bypass documental
-- `bilhete_identidade_responsavel` e o PDF `bi_responsavel` são obrigatórios para estudantes escolares/fundamental/médio
+- JSON puro não é aceito no cadastro direto; o fluxo deve usar `multipart/form-data`, mesmo quando nenhum anexo for enviado
+- `bilhete_identidade_responsavel` continua obrigatório para estudantes escolares/fundamental/médio; o PDF `bi_responsavel` é opcional no cadastro direto
 - `bilhete_identidade` e `bilhete_identidade_responsavel`, quando ambos informados, não podem ser iguais após normalização
-- `bi_estudante` é obrigatório quando `bilhete_identidade` do estudante for informado
-- `cedula_estudante` é obrigatória quando o estudante não tiver BI próprio
+- `bi_estudante` e `cedula_estudante` são opcionais no cadastro direto; quando enviados, precisam ser PDFs válidos
 - o BI do responsável não pode coincidir com o BI principal de outro estudante escolar/fundamental/médio, mas pode repetir como BI de responsável de irmãos/outros estudantes
-- Certificado aplicável por ano/nível (`certificado_6_ano_fundamental`, `certificado_9_ano_fundamental` ou `certificado_ensino_medio`) pode ser substituído por `declaracao`; quando não houver certificado aplicável, `declaracao` é obrigatória
+- Certificados acadêmicos e `declaracao` são opcionais no cadastro direto; quando enviados, precisam ser PDFs válidos
 - `ano_escolar_fundamental` deve seguir o formato canônico para o tipo de ensino
 - Se informar `curso_medio_id`, o curso deve existir, estar ativo, pertencer à academia e ser do tipo `medio`
 - Se informar `curso_superior_id`, o curso deve existir, estar ativo, pertencer à academia e ser do tipo `superior`
@@ -950,19 +951,11 @@ Regras de estudante: ao menos um telefone deve existir; `telefone` e `telefone_r
 | Observação obrigatória na correção               | Justificativa da alteração em `PUT /academia/atualizar-falta`                           |
 | Motivo obrigatório na deleção                    | Para auditoria no ledger e na projeção                                                  |
 | Duplicata bloqueada                              | Mesma combinação `data + codigo_estudante + materia_disciplinar_id` é rejeitada         |
-| Sumário opcional                                  | Falta pode apontar para `sumario_id`; o backend valida escopo e grava `sumario_titulo` como snapshot histórico |
+| Sem vínculo de sumário                           | Faltas são independentes e não aceitam `sumario_id` ou `sumario_titulo` |
 
-### 6.4.1 Regras de Sumários/Aulas
+### 6.4.1 Remoção de Sumários/Aulas
 
-| Regra | Detalhe |
-| ----- | ------- |
-| Academia inferida | `academia_id`/`codigo_academia` vêm do token, nunca do payload |
-| Contexto protegido | `nivel` e `type` são inferidos da matéria/curso validado |
-| Matéria obrigatória | `materia_id` deve pertencer à academia e conter o `ano_academico` solicitado |
-| Curso obrigatório quando aplicável | Médio e superior exigem curso da mesma academia; se a matéria já tem curso, ele prevalece |
-| Período coerente | Superior usa `N_semestre`; escolar/médio usa `N_trimestre`; matéria superior com período definido deve coincidir |
-| Remoção lógica | `DELETE /academia/sumarios/:id` marca `deleted_at` para preservar vínculos históricos |
-| Snapshot em faltas | Faltas recebem apenas `sumario_id` no payload; `sumario_titulo` é copiado do sumário pelo backend no momento do vínculo |
+O sistema não possui mais a entidade sumário/aula. As faltas devem ser lançadas e consultadas sem `sumario_id`, `sumario_titulo` ou qualquer vínculo equivalente.
 
 ### 6.5 Regras de Avaliação Final
 
@@ -1294,15 +1287,16 @@ As academias podem declarar a finalização de um ano letivo por tipo. Essa aç�
 
 ## Atualização 2.0.7 — Gestão segura de anos acadêmicos por academias
 
-Academias agora podem consultar, adicionar, substituir e desabilitar escopos acadêmicos habilitados via `/academia/anos-academicos`. O contrato mantém a separação entre **ano acadêmico/período** e **ano letivo/calendário**.
+Academias agora podem consultar, adicionar e desabilitar escopos acadêmicos habilitados via `/academia/anos-academicos`, sem substituição em massa. O contrato mantém a separação entre **ano acadêmico/período** e **ano letivo/calendário**.
 
 - **Fundamental/misto**: a lista ativa continua na academia (`projection_academias.anos_academicos`) e aceita somente códigos canônicos `[1-9]_ano_fundamental`.
 - **Médio**: a lista ativa pertence ao curso médio (`projection_cursos.anos_academicos`) e requer `curso_id`, evitando colisão com anos do fundamental em escolas mistas.
 - **Superior**: a academia informa somente `periodos` numérico no curso superior; semestres (`[n]_semestre`) e anos superiores (`[n]_ano_superior`) seguem derivados pelo backend.
 - **Segurança**: cada alteração valida propriedade da academia, compatibilidade entre `type` e nível/curso, e bloqueia reduções que afetariam estudantes ativos no ano ou semestre removido.
-- **Preservação histórica**: remoções são lógicas/prospectivas; eventos, ledger, histórico acadêmico, turmas, matérias, notas, faltas, avaliações finais e sumários já registrados não são apagados nem reprocessados.
-- **Contratos explícitos na API**: a documentação da API detalha `GET`, `POST`, `PATCH` e `DELETE /academia/anos-academicos` com funcionamento, permissões, payloads por `type`, respostas de sucesso e erros esperados.
+- **Preservação histórica**: remoções são lógicas/prospectivas; eventos, ledger, histórico acadêmico, turmas, matérias, notas, faltas, avaliações finais já registrados não são apagados nem reprocessados.
+- **Contratos explícitos na API**: a documentação da API detalha `GET`, `POST` e `DELETE /academia/anos-academicos` com funcionamento, permissões, payloads por `type`, respostas de sucesso e erros esperados.
 - **Leitura por admin**: admins usam `GET /academia/anos-academicos?codigo_academia=...`; as rotas de escrita permanecem exclusivas para academias autenticadas e ativas.
+- **Erros acionáveis**: as respostas de erro dessas rotas usam o envelope padrão com `details[]` contendo `field`, `code` e `message`, inclusive em conflitos `409` causados por estudantes ativos, para indicar exatamente o campo problemático, o motivo e a correção esperada.
 
 ## Atualização 2.0.8 — Progressão fundamental sem oferta do próximo ano
 

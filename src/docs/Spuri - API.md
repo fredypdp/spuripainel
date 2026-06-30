@@ -89,8 +89,11 @@ Todas as respostas de erro seguem o formato:
 }
 ```
 
-> `details` é opcional e normalmente aparece em `400` quando a validação de payload
-> falha no bind/validator. Campos sem erro podem omitir essa chave.
+> `details` é opcional. Ele aparece quando a rota consegue apontar exatamente
+> o campo, o código interno do problema e uma explicação acionável para o
+> cliente corrigir a requisição. Em `/academia/anos-academicos`, `details`
+> também pode aparecer em `409 Conflict` quando a alteração é bloqueada por
+> estudantes ativos vinculados ao ano/período removido.
 
 ### Códigos HTTP
 
@@ -1093,16 +1096,16 @@ Atualiza os dados cadastrais da academia autenticada.
 
 ### Regras automáticas de documentos de matrícula
 
-A obrigatoriedade dos documentos não é mais configurada por academia. O backend aplica automaticamente as mesmas regras abaixo no `POST /solicitacao-matricula` e no cadastro direto `POST /academia/estudante/register`:
+A obrigatoriedade dos documentos não é mais configurada por academia. O backend aplica automaticamente as regras abaixo no `POST /solicitacao-matricula` e na aprovação da solicitação. No cadastro direto `POST /academia/estudante/register`, os anexos são opcionais e somente os PDFs enviados são validados tecnicamente:
 
-- Para estudantes escolares/fundamental/médio, `bi_responsavel` e `bilhete_identidade_responsavel` são obrigatórios em todos os fluxos de criação e aprovação.
+- Para estudantes escolares/fundamental/médio, `bi_responsavel` e `bilhete_identidade_responsavel` são obrigatórios na solicitação pública e na aprovação; no cadastro direto, apenas o `bilhete_identidade_responsavel` textual permanece obrigatório.
 - `bilhete_identidade` e `bilhete_identidade_responsavel`, quando ambos informados para o mesmo estudante, não podem ser iguais.
-- Para estudantes escolares/fundamental/médio, `bi_estudante` é obrigatório quando `bilhete_identidade` for informado; `cedula_estudante` é obrigatória quando o estudante não tiver BI próprio.
+- Na solicitação pública, `bi_estudante` é obrigatório quando `bilhete_identidade` for informado; `cedula_estudante` é obrigatória quando o estudante não tiver BI próprio.
 - Para estudantes escolares/fundamental/médio, o BI do responsável não pode coincidir com o BI principal de outro estudante escolar/fundamental/médio; ele pode repetir como BI de responsável de outros estudantes.
 - `certificado_6_ano_fundamental` é o certificado aplicável somente para `7_ano_fundamental`, `8_ano_fundamental` e `9_ano_fundamental`.
 - `certificado_9_ano_fundamental` é o certificado aplicável somente para anos do ensino médio.
 - `certificado_ensino_medio` é o certificado aplicável somente para anos do ensino superior.
-- `declaracao` é obrigatória quando o certificado aplicável não for enviado ou quando não existir certificado aplicável ao ano académico informado.
+- Na solicitação pública, `declaracao` é obrigatória quando o certificado aplicável não for enviado ou quando não existir certificado aplicável ao ano académico informado.
 
 
 ---
@@ -1278,14 +1281,31 @@ Retorna uma visão unificada dos escopos acadêmicos habilitados da academia: an
 
 | Status | Quando ocorre | Response |
 | --- | --- | --- |
-| `400` | Admin não enviou `codigo_academia`. | `{ "error": "VALIDATION_ERROR", "message": "codigo_academia é obrigatório para admin" }` |
+| `400` | Admin não enviou `codigo_academia`. | Ver envelope detalhado abaixo com `field="codigo_academia"` e `code="campo_obrigatorio"`. |
 | `401` | Token ausente ou inválido. | `{ "error": "UNAUTHORIZED", "message": "..." }` |
 | `403` | Usuário não é academia nem admin autorizado, ou academia está inativa. | `{ "error": "FORBIDDEN", "message": "..." }` |
 | `404` | Academia do token ou `codigo_academia` não encontrada. | `{ "error": "NOT_FOUND", "message": "academia não encontrado" }` |
 
+**Exemplo 400 — admin sem `codigo_academia`:**
+
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "Administradores precisam informar o parâmetro de consulta 'codigo_academia' para o sistema saber de qual academia deve listar/alterar os anos acadêmicos. Exemplo: ?codigo_academia=ACA001",
+  "request_id": "uuid-da-requisicao",
+  "details": [
+    {
+      "field": "codigo_academia",
+      "code": "campo_obrigatorio",
+      "message": "Administradores precisam informar o parâmetro de consulta 'codigo_academia' para o sistema saber de qual academia deve listar/alterar os anos acadêmicos. Exemplo: ?codigo_academia=ACA001"
+    }
+  ]
+}
+```
+
 ### POST /academia/anos-academicos
 
-Adiciona/habilita novos escopos acadêmicos sem remover os escopos existentes. Use esta rota para expandir a oferta da academia ou do curso.
+Adiciona/habilita novos escopos acadêmicos sem remover os escopos existentes. Não existe mais operação de substituição em massa para anos acadêmicos.
 
 **Proteção**: autenticado + academia ativa. Admins não escrevem por esta rota.
 
@@ -1294,8 +1314,10 @@ Adiciona/habilita novos escopos acadêmicos sem remover os escopos existentes. U
 | `type` | Onde altera | Campos aceitos | Campos obrigatórios | Resultado |
 | --- | --- | --- | --- | --- |
 | `fundamental` | Academia autenticada (`projection_academias.anos_academicos`) | `type`, `anos_academicos` | `type`, `anos_academicos` | Une os anos enviados com os anos fundamentais já ativos. |
-| `medio` | Curso médio da academia (`projection_cursos.anos_academicos`) | `type`, `curso_id`, `anos_academicos` | `type`, `curso_id`, `anos_academicos` | Une os anos enviados com os anos médios já ativos no curso. |
-| `superior` | Curso superior da academia (`projection_cursos.periodos` e anos derivados) | `type`, `curso_id`, `periodos` | `type`, `curso_id`, `periodos` | Define a quantidade total de semestres informada e deriva os anos superiores por `ceil(periodos/2)`. |
+| `medio` | Curso médio da academia (`projection_cursos.anos_academicos`) | `type`, `curso_id`, `anos_academicos` | `type`, `curso_id`, `anos_academicos` | Une os anos enviados com os anos médios já ativos no curso, preservando ordem sequencial crescente contínua iniciada em `1_ano_medio`. |
+| `superior` | Não altera por esta rota | nenhum fluxo de escrita permitido | n/a | Retorna erro estruturado. Cursos superiores não aceitam adição direta de anos/períodos por `/academia/anos-academicos`. |
+
+Payloads com `codigo_academia`, campos desconhecidos ou campos de substituição em massa como `substituir`, `replace`, `patch`, `set` e `update` são rejeitados.
 
 **Request — fundamental/misto:**
 
@@ -1337,92 +1359,7 @@ Adiciona/habilita novos escopos acadêmicos sem remover os escopos existentes. U
 }
 ```
 
-**Request — superior:**
-
-```json
-{
-  "type": "superior",
-  "curso_id": "uuid-do-curso-superior",
-  "periodos": 8
-}
-```
-
-**Response 200 — superior:**
-
-```json
-{
-  "message": "anos acadêmicos atualizados com sucesso",
-  "type": "superior",
-  "curso_id": "uuid-do-curso-superior",
-  "anos_academicos": ["1_ano_superior", "2_ano_superior", "3_ano_superior", "4_ano_superior"],
-  "periodos": ["1_semestre", "2_semestre", "3_semestre", "4_semestre", "5_semestre", "6_semestre", "7_semestre", "8_semestre"]
-}
-```
-
-### PATCH /academia/anos-academicos
-
-Substitui completamente o conjunto habilitado do escopo informado. Use esta rota quando a lista final desejada já é conhecida.
-
-**Proteção**: autenticado + academia ativa. Admins não escrevem por esta rota.
-
-**Funcionamento:**
-
-- Para `fundamental`, `anos_academicos` substitui a lista de anos fundamentais da academia.
-- Para `medio`, `anos_academicos` substitui a lista de anos acadêmicos do curso médio informado em `curso_id`.
-- Para `superior`, `periodos` substitui a quantidade total de semestres do curso superior; o backend recalcula `periodos` (`1_semestre` até `n_semestre`) e `anos_academicos` superiores automaticamente.
-- Qualquer ano/semestre que exista hoje e deixe de existir após a substituição é tratado como redução e passa pelas validações de estudantes ativos.
-
-**Request — fundamental/misto:**
-
-```json
-{
-  "type": "fundamental",
-  "anos_academicos": ["1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental"]
-}
-```
-
-**Request — médio:**
-
-```json
-{
-  "type": "medio",
-  "curso_id": "uuid-do-curso-medio",
-  "anos_academicos": ["1_ano_medio", "2_ano_medio", "3_ano_medio"]
-}
-```
-
-**Request — superior:**
-
-```json
-{
-  "type": "superior",
-  "curso_id": "uuid-do-curso-superior",
-  "periodos": 8
-}
-```
-
-**Response 200 — fundamental/médio:**
-
-```json
-{
-  "message": "anos acadêmicos atualizados com sucesso",
-  "type": "medio",
-  "curso_id": "uuid-do-curso-medio",
-  "anos_academicos": ["1_ano_medio", "2_ano_medio", "3_ano_medio"]
-}
-```
-
-**Response 200 — superior:**
-
-```json
-{
-  "message": "anos acadêmicos atualizados com sucesso",
-  "type": "superior",
-  "curso_id": "uuid-do-curso-superior",
-  "anos_academicos": ["1_ano_superior", "2_ano_superior", "3_ano_superior", "4_ano_superior"],
-  "periodos": ["1_semestre", "2_semestre", "3_semestre", "4_semestre", "5_semestre", "6_semestre", "7_semestre", "8_semestre"]
-}
-```
+**Importante:** `PATCH /academia/anos-academicos` foi removido do roteamento e do contrato público. Clientes devem usar `POST` para adicionar e `DELETE` para remover escopos específicos, sem fallback para substituição de lista.
 
 ### DELETE /academia/anos-academicos
 
@@ -1434,8 +1371,8 @@ Desabilita/remover logicamente escopos acadêmicos da oferta futura, preservando
 
 - `fundamental`: remove do cadastro da academia somente os anos enviados em `anos_academicos`.
 - `medio`: remove do curso médio informado somente os anos enviados em `anos_academicos`.
-- `superior`: não recebe uma lista de semestres a remover; recebe `periodos` com a nova quantidade total de semestres que deve permanecer ativa no curso. Exemplo: se o curso tem 8 semestres e o payload envia `periodos: 6`, os semestres `7_semestre` e `8_semestre` deixam de estar disponíveis para novos vínculos.
-- A remoção é lógica/prospectiva: o backend não apaga eventos, ledger, estudantes, turmas, matérias, notas, faltas, avaliações finais ou sumários já registrados.
+- `superior`: não é permitido por esta rota. Cursos superiores não aceitam remoção direta de anos acadêmicos, períodos ou semestres por `/academia/anos-academicos`.
+- A remoção é lógica/prospectiva: o backend não apaga eventos, ledger, estudantes, turmas, matérias, notas, faltas, avaliações finais já registrados.
 
 **Request — fundamental/misto:**
 
@@ -1453,16 +1390,6 @@ Desabilita/remover logicamente escopos acadêmicos da oferta futura, preservando
   "type": "medio",
   "curso_id": "uuid-do-curso-medio",
   "anos_academicos": ["4_ano_medio"]
-}
-```
-
-**Request — superior:**
-
-```json
-{
-  "type": "superior",
-  "curso_id": "uuid-do-curso-superior",
-  "periodos": 6
 }
 ```
 
@@ -1488,7 +1415,7 @@ Desabilita/remover logicamente escopos acadêmicos da oferta futura, preservando
 }
 ```
 
-### Validações e erros de `POST`, `PATCH` e `DELETE /academia/anos-academicos`
+### Validações e erros de `POST` e `DELETE /academia/anos-academicos`
 
 **Validações comuns:**
 
@@ -1498,24 +1425,103 @@ Desabilita/remover logicamente escopos acadêmicos da oferta futura, preservando
 - O `type` do payload precisa corresponder ao `type` do curso informado.
 - `fundamental` só é permitido para academias escolares com `nivel_escolar` igual a `fundamental` ou `misto`.
 - `fundamental` aceita somente códigos canônicos `[1-9]_ano_fundamental`.
-- `medio` aceita somente anos médios compatíveis com o curso.
-- `superior` aceita somente `periodos` numérico; `anos_academicos` superiores enviados pelo cliente não são usados como fonte manual.
+- `medio` aceita somente anos médios compatíveis com o curso e mantém a lista final em ordem sequencial crescente contínua desde `1_ano_medio`.
+- `superior` não possui fluxo de escrita por `/academia/anos-academicos`; tentativas de adicionar/remover anos acadêmicos, períodos ou semestres retornam erro estruturado.
 - Academias fundamental/misto devem manter ao menos um ano acadêmico ativo após a operação.
-- Reduções em `PATCH` e `DELETE` são bloqueadas com `409 Conflict` quando existem estudantes ativos no ano/semestre removido (`status_escolar_fundamental`, `status_escolar_medio` ou `status_superior` em andamento conforme o escopo operacional).
+- Reduções em `DELETE` são bloqueadas com `409 Conflict` quando existem estudantes ativos no ano removido (`status_escolar_fundamental` ou `status_escolar_medio` em andamento conforme o escopo operacional).
 
 **Erros esperados:**
 
 | Status | Quando ocorre | Response |
 | --- | --- | --- |
-| `400` | Payload JSON inválido. | `{ "error": "VALIDATION_ERROR", "message": "payload inválido" }` |
-| `400` | `type` ausente ou diferente de `fundamental`, `medio` e `superior`. | `{ "error": "VALIDATION_ERROR", "message": "type deve ser fundamental, medio ou superior" }` |
-| `400` | `curso_id` ausente para médio/superior. | `{ "error": "VALIDATION_ERROR", "message": "curso_id é obrigatório para type medio" }` |
-| `400` | Curso inexistente, de outra academia ou com `type` incompatível. | `{ "error": "VALIDATION_ERROR", "message": "curso não encontrado" }` |
-| `400` | Academia não pode gerenciar o fundamental, ou lista final ficaria vazia. | `{ "error": "VALIDATION_ERROR", "message": "academia não pode gerenciar anos do fundamental" }` |
-| `409` | Redução afetaria estudantes ativos. | `{ "error": "CONFLICT", "message": "não é possível desativar anos_academicos [...]: existem N estudante(s) ativo(s) vinculados" }` |
+| `400` | Payload JSON inválido. | Envelope detalhado com `field="payload"` e `code="json_invalido"`. |
+| `400` | `type` ausente ou diferente de `fundamental`, `medio` e `superior`. | Envelope detalhado com `field="type"` e `code="valor_invalido"`. |
+| `400` | `curso_id` ausente para médio/superior. | Envelope detalhado com `field="curso_id"` e `code="campo_obrigatorio"`. |
+| `400` | Curso inexistente. | Envelope detalhado com `field="curso_id"` e `code="nao_encontrado"`. |
+| `400` | Curso pertence a outra academia. | Envelope detalhado com `field="curso_id"` e `code="curso_de_outra_academia"`. |
+| `400` | Curso está inativo. | Envelope detalhado com `field="curso_id"` e `code="curso_inativo"`. |
+| `400` | `type` do payload não corresponde ao tipo do curso. | Envelope detalhado com `field="type"` e `code="tipo_diferente_do_curso"`. |
+| `400` | Academia não pode gerenciar fundamental. | Envelope detalhado com `field="type"` e `code="nivel_incompativel"`. |
+| `400` | `anos_academicos` ausente, vazio ou em formato inválido. | Envelope detalhado com `field="anos_academicos"` e `code="campo_obrigatorio"` ou `code="formato_invalido"`. |
+| `400` | A operação deixaria academia fundamental/misto sem nenhum ano ativo. | Envelope detalhado com `field="anos_academicos"` e `code="remocao_invalida"`. |
+| `400` | Curso médio ficaria sem anos ou com sequência inválida. | Envelope detalhado com `field="anos_academicos"` e `code="remocao_invalida"` ou `code="sequencia_invalida"`. |
+| `400` | Tentativa de escrita direta em curso superior. | Envelope detalhado com `field="type"` e `code="operacao_nao_suportada"`. |
+| `409` | Redução afetaria estudantes ativos. | Envelope detalhado com `field="anos_academicos"` e `code="estudantes_ativos_vinculados"`. |
 | `401` | Token ausente ou inválido. | `{ "error": "UNAUTHORIZED", "message": "..." }` |
 | `403` | Usuário não é academia ativa. | `{ "error": "FORBIDDEN", "message": "..." }` |
 | `404` | Academia autenticada não encontrada. | `{ "error": "NOT_FOUND", "message": "academia não encontrado" }` |
+
+**Formato detalhado dos erros de anos acadêmicos:**
+
+As rotas `GET`, `POST` e `DELETE /academia/anos-academicos`
+mantêm o envelope global de erro, mas agora retornam `details` com um único
+item apontando o campo exato que deve ser corrigido.
+
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "O campo 'curso_id' é obrigatório quando type='medio', porque anos de médio/superior pertencem a um curso específico.",
+  "request_id": "uuid-da-requisicao",
+  "details": [
+    {
+      "field": "curso_id",
+      "code": "campo_obrigatorio",
+      "message": "O campo 'curso_id' é obrigatório quando type='medio', porque anos de médio/superior pertencem a um curso específico."
+    }
+  ]
+}
+```
+
+**Exemplo 400 — `type` inválido ou ausente:**
+
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "O campo 'type' recebeu '', mas só aceita: 'fundamental', 'medio' ou 'superior'. Use 'fundamental' para anos do ensino fundamental, 'medio' para cursos médios e 'superior' para cursos superiores.",
+  "request_id": "uuid-da-requisicao",
+  "details": [
+    {
+      "field": "type",
+      "code": "valor_invalido",
+      "message": "O campo 'type' recebeu '', mas só aceita: 'fundamental', 'medio' ou 'superior'. Use 'fundamental' para anos do ensino fundamental, 'medio' para cursos médios e 'superior' para cursos superiores."
+    }
+  ]
+}
+```
+
+**Exemplo 400 — curso superior com `anos_academicos`:**
+
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "Não envie 'anos_academicos' para curso superior. Para superior, envie apenas 'periodos'; o sistema calcula os anos automaticamente. Exemplo: periodos=8 gera anos como ['1_ano_superior', '2_ano_superior', ...].",
+  "request_id": "uuid-da-requisicao",
+  "details": [
+    {
+      "field": "anos_academicos",
+      "code": "campo_nao_permitido",
+      "message": "Não envie 'anos_academicos' para curso superior. Para superior, envie apenas 'periodos'; o sistema calcula os anos automaticamente. Exemplo: periodos=8 gera anos como ['1_ano_superior', '2_ano_superior', ...]."
+    }
+  ]
+}
+```
+
+**Exemplo 409 — estudantes ativos bloqueando remoção/redução:**
+
+```json
+{
+  "error": "CONFLICT",
+  "message": "Não é possível desativar os anos [4_ano_fundamental] porque existem 3 estudante(s) ativo(s) vinculados a eles. Transfira, conclua ou inative esses estudantes antes de remover os anos.",
+  "request_id": "uuid-da-requisicao",
+  "details": [
+    {
+      "field": "anos_academicos",
+      "code": "estudantes_ativos_vinculados",
+      "message": "Não é possível desativar os anos [4_ano_fundamental] porque existem 3 estudante(s) ativo(s) vinculados a eles. Transfira, conclua ou inative esses estudantes antes de remover os anos."
+    }
+  ]
+}
+```
 
 ---
 
@@ -1957,7 +1963,7 @@ Para implementar o cliente de forma segura:
 
 ### POST /academia/estudante/register
 
-Cadastra um novo estudante vinculado à academia autenticada. A partir da versão 2.0.4, o cadastro direto usa `multipart/form-data` e exige a mesma matriz documental do `POST /solicitacao-matricula`; JSON puro não é mais aceito para evitar cadastro sem documentação obrigatória. Para estudantes escolares/fundamental/médio, a criação valida também que o BI do responsável não coincide com o BI principal de outro estudante escolar.
+Cadastra um novo estudante vinculado à academia autenticada. O cadastro direto usa `multipart/form-data`, mas os anexos documentais são opcionais neste fluxo: a academia pode criar o estudante sem PDFs e anexá-los apenas quando estiverem disponíveis. JSON puro não é aceito. Para estudantes escolares/fundamental/médio, a criação mantém as validações cadastrais, incluindo BI textual do responsável e a regra de que esse BI não pode coincidir com o BI principal de outro estudante escolar.
 
 **Proteção**: autenticado + academia ativa
 
@@ -1985,17 +1991,32 @@ Cadastra um novo estudante vinculado à academia autenticada. A partir da versã
 
 | Campo de arquivo | Regra |
 | --- | --- |
-| `bi_responsavel` | Obrigatório. |
-| `bi_estudante` | Obrigatório quando `bilhete_identidade` do estudante for informado. |
-| `cedula_estudante` | Obrigatória quando `bilhete_identidade` do estudante não for informado. |
-| `declaracao` | Obrigatória quando o certificado aplicável não for enviado ou quando não existir certificado aplicável. |
-| `certificado_6_ano_fundamental` | Aplicável a `7_ano_fundamental`, `8_ano_fundamental` e `9_ano_fundamental`; pode ser substituído por `declaracao`. |
-| `certificado_9_ano_fundamental` | Aplicável ao ensino médio; pode ser substituído por `declaracao`. |
-| `certificado_ensino_medio` | Aplicável ao ensino superior; pode ser substituído por `declaracao`. |
+| `bi_responsavel` | Opcional; quando enviado, deve ser PDF válido. |
+| `bi_estudante` | Opcional; pode ser enviado quando `bilhete_identidade` do estudante for informado. |
+| `cedula_estudante` | Opcional; pode ser enviada quando o estudante ainda não tiver BI próprio. |
+| `declaracao` | Opcional; pode ser enviada como documento escolar provisório. |
+| `certificado_6_ano_fundamental` | Opcional; aplicável a `7_ano_fundamental`, `8_ano_fundamental` e `9_ano_fundamental`. |
+| `certificado_9_ano_fundamental` | Opcional; aplicável ao ensino médio. |
+| `certificado_ensino_medio` | Opcional; aplicável ao ensino superior. |
 
-Todos os ficheiros devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 5MB. Os documentos são armazenados em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` e gravados no evento `EstudanteCriadoComVinculo` e na projeção do estudante como `documentos.<campo>.path`, `documentos.<campo>.file_url` e `documentos.<campo>.download_url`. Se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
+Quando enviados, todos os ficheiros devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 5MB. Os documentos são armazenados em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` e gravados no evento `EstudanteCriadoComVinculo` e na projeção do estudante como `documentos.<campo>.path`, `documentos.<campo>.file_url` e `documentos.<campo>.download_url`. Se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
 
-**Exemplo cURL:**
+**Exemplo cURL sem documentos:**
+
+```bash
+curl -X POST https://api.exemplo.ao/academia/estudante/register \
+  -H "Authorization: Bearer <jwt_academia>" \
+  -F "nome=João Silva" \
+  -F "genero=masculino" \
+  -F "data_nascimento=2010-05-20" \
+  -F "telefone=923000000" \
+  -F "telefone_responsavel=924000000" \
+  -F "bilhete_identidade=001234567LA089" \
+  -F "bilhete_identidade_responsavel=009876543LA089" \
+  -F "ano_escolar_fundamental=7_ano_fundamental"
+```
+
+**Exemplo cURL com documentos opcionais:**
 
 ```bash
 curl -X POST https://api.exemplo.ao/academia/estudante/register \
@@ -2009,8 +2030,7 @@ curl -X POST https://api.exemplo.ao/academia/estudante/register \
   -F "bilhete_identidade_responsavel=009876543LA089" \
   -F "ano_escolar_fundamental=7_ano_fundamental" \
   -F "bi_estudante=@./bi_estudante.pdf;type=application/pdf" \
-  -F "bi_responsavel=@./bi_responsavel.pdf;type=application/pdf" \
-  -F "certificado_6_ano_fundamental=@./certificado_6.pdf;type=application/pdf"
+  -F "declaracao=@./declaracao.pdf;type=application/pdf"
 ```
 
 **Status na criação:** o cadastro cria o vínculo ativo com a academia. Por padrão, `status = "ativo"`, `status_escolar_fundamental = "em_andamento"`, `status_escolar_medio = "inativo"` e `status_superior = "inativo"`. Depois do cadastro, alterações de status acontecem somente por endpoints de acontecimentos.
@@ -2040,7 +2060,6 @@ curl -X POST https://api.exemplo.ao/academia/estudante/register \
 - `400` — `Content-Type` diferente de `multipart/form-data`
 - `400` — genero inválido, data_nascimento inválida ou no futuro
 - `400` — ano académico em formato incorreto ou incompatível com a academia/curso
-- `400` — `bi_responsavel` ausente, `cedula_estudante` ausente sem `bi_estudante`, ou certificado/declaração ausente
 - `400` — ficheiro não PDF, sem assinatura `%PDF`, com extensão diferente de `.pdf` ou acima de 5MB
 - `400` — BI do estudante igual ao BI do responsável, ou BI do estudante já cadastrado
 
@@ -2637,7 +2656,17 @@ Cria um novo curso para a academia. O tipo efetivo do curso é inferido pelo bac
 
 Para cursos superiores, `periodos` é um **número inteiro positivo** que representa o total de semestres. O backend persiste internamente os semestres sequenciais (`1_semestre` até `N_semestre`) e calcula `anos_academicos` automaticamente com `ceil(periodos / 2)`. Ex.: `periodos = 3` gera `periodos = ["1_semestre", "2_semestre", "3_semestre"]` e `anos_academicos = ["1_ano_superior", "2_ano_superior"]`.
 
-Cursos superiores não aceitam `anos_academicos` no payload; cursos médios não aceitam `periodos` numérico.
+Cursos superiores não aceitam `anos_academicos` no payload; cursos médios não aceitam `periodos` numérico. Para curso médio, `anos_academicos` passa pela mesma proteção de sequência usada em `POST /academia/anos-academicos`: a lista precisa ser contínua, crescente e iniciada em `1_ano_medio` (por exemplo, `["1_ano_medio", "2_ano_medio"]`). Listas que comecem em `2_ano_medio`, pulem anos, repitam anos ou venham fora de ordem são rejeitadas antes da criação do curso.
+
+
+**Exemplo 400 — curso médio com anos fora de sequência:**
+
+```json
+{
+  "message": "anos do ensino médio devem estar em ordem sequencial crescente começando em 1_ano_medio; esperado 2_ano_medio na posição 2",
+  "error": "anos do ensino médio devem estar em ordem sequencial crescente começando em 1_ano_medio; esperado 2_ano_medio na posição 2"
+}
+```
 
 **Response 201:**
 
@@ -2655,7 +2684,7 @@ Cursos superiores não aceitam `anos_academicos` no payload; cursos médios não
 
 **Erros:**
 
-- `400` — nome ausente, `type` incompatível com a academia ou anos_academicos inválidos para curso médio
+- `400` — nome ausente, `type` incompatível com a academia ou anos_academicos inválidos, não sequenciais ou fora de ordem para curso médio
 - `400` — curso superior sem `periodos`, com `periodos <= 0`, decimal, string, array, nulo ou com `anos_academicos` enviado
 - `400` — curso médio com `periodos` numérico enviado
 - `403` — academia inativa não pode criar cursos
@@ -2745,31 +2774,22 @@ Desativa um curso ativo.
 
 ### PUT /academia/curso/:id/dados
 
-Atualiza dados de um curso. O `type` é imutável.
+Atualiza somente dados cadastrais de um curso. O `type` é imutável e esta rota não manipula anos acadêmicos, períodos ou semestres.
 
 **Proteção**: autenticado + academia ativa
 
 **Validações de integridade:**
 
-- Para cursos médios, `anos_academicos` pode ser enviado e a atualização é rejeitada se remover algum ano que ainda possua estudante ativo matriculado no curso.
-- Para cursos superiores, `anos_academicos` não pode ser enviado. Quando `periodos` numérico é enviado, o backend recalcula semestres e anos acadêmicos derivados; se houver redução, a atualização é rejeitada ao remover semestre usado por estudante ativo em `semestre_atual` ou ano superior ainda usado por estudante ativo.
-- `periodos` numérico é aceito apenas para cursos superiores e deve ser inteiro positivo.
+- O payload aceito para esta rota é cadastral; atualmente, use `nome` para renomear o curso.
+- Campos acadêmicos como `anos_academicos`, `anosAcademicos`, `periodos`, `semestres`, `quantidade_semestres` e `anos` são rejeitados com erro de validação, sem mutação parcial.
+- Para adicionar ou remover anos de curso médio, use `POST` ou `DELETE /academia/anos-academicos` com `type=medio` e `curso_id`.
+- Cursos superiores não aceitam adição/remoção direta de anos acadêmicos, períodos ou semestres por esta rota nem por `/academia/anos-academicos`; qualquer fluxo futuro de períodos deve ser explícito e separado dos dados cadastrais do curso.
 
-**Request para curso médio:** (todos opcionais)
-
-```json
-{
-  "nome": "string",
-  "anos_academicos": ["1_ano_medio", "2_ano_medio"]
-}
-```
-
-**Request para curso superior:** (todos opcionais)
+**Request:**
 
 ```json
 {
-  "nome": "string",
-  "periodos": 10
+  "nome": "string"
 }
 ```
 
@@ -2779,18 +2799,17 @@ Atualiza dados de um curso. O `type` é imutável.
 {
   "message": "curso atualizado com sucesso",
   "nome": "string",
-  "type": "superior",
-  "anos_academicos": ["1_ano_superior", "2_ano_superior", "3_ano_superior", "4_ano_superior", "5_ano_superior"],
-  "periodos": ["1_semestre", "2_semestre", "3_semestre", "4_semestre", "5_semestre", "6_semestre", "7_semestre", "8_semestre", "9_semestre", "10_semestre"]
+  "type": "medio",
+  "anos_academicos": ["1_ano_medio", "2_ano_medio"],
+  "periodos": null
 }
 ```
 
 **Erros:**
 
 - `400` — nenhum campo para atualizar
-- `400` — tentativa de remover `anos_academicos` ou `periodos` ainda usados por estudantes ativos
-- `400` — curso superior com `anos_academicos` enviado ou `periodos` inválido
-- `400` — curso médio com `periodos` numérico enviado
+- `400` — `type` enviado na edição, pois o tipo do curso é imutável
+- `400` — campo acadêmico enviado (`anos_academicos`, `anosAcademicos`, `periodos`, `semestres`, `quantidade_semestres`, `anos` ou equivalente)
 
 ---
 
@@ -3629,115 +3648,7 @@ Lista registros de notas com escopo por perfil.
 
 ## 13.1 Sumários/Aulas
 
-Os sumários representam a aula ou conteúdo ministrado por uma academia e podem ser vinculados opcionalmente às faltas. O backend nunca confia em `academia_id`, `nivel` ou `type` enviados pelo cliente: a academia vem do token, enquanto `nivel` e `type` são inferidos a partir da matéria/curso validado.
-
-### POST /academia/sumarios
-
-Cria um sumário/aula.
-
-**Request:**
-
-```json
-{
-  "sumario_titulo": "Introdução às equações do 2º grau",
-  "descricao": "Conteúdo detalhado opcional",
-  "periodo": "1_trimestre",
-  "ano_academico": 9,
-  "curso_id": "uuid-do-curso",
-  "materia_id": "uuid-da-materia"
-}
-```
-
-Regras principais:
-
-- `sumario_titulo` é obrigatório e deve ter entre 3 e 200 caracteres.
-- `materia_id` é obrigatório e deve pertencer à academia autenticada.
-- `curso_id` é obrigatório para matérias de `type=medio` e `type=superior`; quando a matéria já possui curso, o backend usa esse curso como fonte de verdade.
-- Matérias superiores aceitam apenas períodos `N_semestre` e, se a matéria tiver `periodo` definido, ele deve coincidir com o período do sumário.
-- Matérias escolares/médio aceitam períodos `N_trimestre`.
-- `ano_academico` deve existir em `anos_academicos` da matéria.
-
-**Response 201:**
-
-```json
-{
-  "message": "sumário criado com sucesso",
-  "sumario": {
-    "id": "uuid",
-    "sumario_titulo": "Introdução às equações do 2º grau",
-    "materia_id": "uuid-da-materia"
-  }
-}
-```
-### GET /academia/sumarios
-
-Lista sumários da academia autenticada. Admin pode consultar para suporte informando `codigo_academia`. Filtros opcionais: `periodo`, `ano_academico`, `curso_id`, `materia_id`.
-
-
-**Request:** sem payload
-
-**Response 200:**
-
-```json
-{
-  "sumarios": [],
-  "total": 0
-}
-```
-### GET /academia/sumarios/:id
-
-Retorna um sumário, desde que pertença à academia autenticada.
-
-
-**Request:** sem payload
-
-**Response 200:**
-
-```json
-{
-  "sumario": {
-    "id": "uuid",
-    "sumario_titulo": "Introdução às equações do 2º grau"
-  }
-}
-```
-### PUT /academia/sumarios/:id
-
-Atualiza título, descrição ou contexto acadêmico do sumário. A atualização reexecuta as mesmas validações de escopo da criação.
-
-**Request:** (todos os campos opcionais; envie pelo menos um campo para alteração)
-
-```json
-{
-  "sumario_titulo": "Introdução às equações do 2º grau",
-  "descricao": "Conteúdo detalhado atualizado",
-  "periodo": "1_trimestre",
-  "ano_academico": 9,
-  "curso_id": "uuid-do-curso",
-  "materia_id": "uuid-da-materia"
-}
-```
-
-**Response 200:**
-
-```json
-{
-  "message": "sumário atualizado com sucesso"
-}
-```
-### DELETE /academia/sumarios/:id
-
-Remove logicamente o sumário (`deleted_at`), preservando faltas já vinculadas e seus snapshots históricos.
-
-**Request:** sem payload
-
-**Response 200:**
-
-```json
-{
-  "message": "sumário deletado com sucesso"
-}
-```
+O recurso de sumários/aulas foi removido do contrato público da API. Não há endpoints para criar, listar, consultar, atualizar ou remover sumários, e faltas não aceitam nem retornam vínculo com sumário.
 
 ## 14. Faltas
 ### POST /academia/faltas-aluno
@@ -3754,7 +3665,6 @@ Registra falta(s) para um estudante.
   "data": "2025-03-15",              // formato AAAA-MM-DD
   "materia_disciplinar_id": "uuid",
   "quantidade": 2,                    // mínimo 1 (sem teto máximo)
-  "sumario_id": "uuid",               // opcional; cliente não envia sumario_titulo
   "observacao": "string"              // opcional
 }
 ```
@@ -3765,7 +3675,7 @@ Registra falta(s) para um estudante.
 - `data` é tratada como **date-only** (sem hora), em formato `AAAA-MM-DD`
 - Se o estudante tiver `ano_escolar_fundamental`, esse ano deve existir em `anos_academicos` da matéria; caso contrário, o registro é bloqueado
 - Idempotência (duplicata bloqueada): combinação `data + codigo_estudante + materia_disciplinar_id`
-- `sumario_id` é opcional; quando informado, o backend busca o sumário, valida academia/matéria/ano acadêmico e grava `sumario_titulo` como snapshot histórico na falta
+- Payloads de falta não aceitam `sumario_id`, `sumario_titulo` ou campos equivalentes de sumário.
 - O endpoint `POST /academia/faltas-aluno/async` reaproveita exatamente as mesmas validações deste endpoint por item do lote
 
 **Response 201:**
@@ -3801,7 +3711,6 @@ Corrige uma falta registada.
   "data": "2025-03-16",                 // opcional
   "materia_disciplinar_id": "uuid",     // opcional
   "quantidade": 3,                      // opcional, mínimo 1
-  "sumario_id": "uuid",                 // opcional; troca o vínculo e atualiza o snapshot
   "observacao": "string"                // OBRIGATÓRIO (justificativa da correção)
 }
 ```
