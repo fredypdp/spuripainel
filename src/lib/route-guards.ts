@@ -75,7 +75,7 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
-    path: '/configuracoes/anos-academicos-fundamentais',
+    path: '/configuracoes/anos-academicos',
     allowedTypes: ['academia'],
     redirectIfUnauthorized: '/',
   },

@@ -83,7 +83,7 @@ const navItems: NavItem[] = [
     name: "Configurações",
     subItems: [
       { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
-      { name: "Anos fundamentais", path: "/configuracoes/anos-academicos-fundamentais" },
+      { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
       { name: "Categorias de nota", path: "/configuracoes/categorias-nota" },
       { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
       { name: "Segurança", path: "/configuracoes/seguranca" },
@@ -122,6 +122,9 @@ export default function AppSidebar() {
      * user?.academia?.nivel distingue o tipo de instituição: 'escola' | 'superior'
      * user?.academia?.type indica a natureza: 'public' | 'private'
      */
+    const isFundamentalOrMixed =
+      user?.academia?.nivel === "escola" &&
+      ["fundamental", "misto"].includes(user?.academia?.nivel_escolar ?? "");
     const isFundamental =
       user?.academia?.nivel === "escola" &&
       user?.academia?.nivel_escolar === "fundamental";
@@ -182,15 +185,16 @@ export default function AppSidebar() {
 
         // Configurações: mostrar apenas páginas aplicáveis ao tipo de usuário
         if (item.name === "Configurações" && item.subItems) {
+          const academiaSettingsPaths = [
+            "/configuracoes/ano-letivo",
+            ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
+            "/configuracoes/categorias-nota",
+            "/configuracoes/regras-avaliacao-final",
+            "/configuracoes/seguranca",
+          ];
           const visiblePaths = new Set(
             user?.tipo === "academia"
-              ? [
-                  "/configuracoes/ano-letivo",
-                  "/configuracoes/anos-academicos-fundamentais",
-                  "/configuracoes/categorias-nota",
-                  "/configuracoes/regras-avaliacao-final",
-                  "/configuracoes/seguranca",
-                ]
+              ? academiaSettingsPaths
               : user?.tipo === "admin" && isFpp
                 ? ["/configuracoes/ano-letivo", "/configuracoes/seguranca"]
                 : ["/configuracoes/seguranca"],

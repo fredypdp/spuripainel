@@ -10,21 +10,21 @@ import PasswordSettingsCard from "./PasswordSettingsCard";
 
 type SettingsSection =
   | "ano-letivo"
-  | "anos-fundamentais"
+  | "anos-academicos"
   | "categorias-nota"
   | "regras-avaliacao-final"
   | "seguranca";
 
 const PAGE_TITLES: Record<SettingsSection, string> = {
   "ano-letivo": "Ano Letivo",
-  "anos-fundamentais": "Anos acadêmicos fundamentais",
+  "anos-academicos": "Anos acadêmicos",
   "categorias-nota": "Categorias de nota",
   "regras-avaliacao-final": "Regras de avaliação final",
   seguranca: "Segurança",
 };
 
 export default function PageContent({ section }: { section: SettingsSection }) {
-  const { isAcademia, isAdmin, isEstudante } = useUserType();
+  const { isAcademia, isAdmin, isEstudante, user } = useUserType();
   const pageTitle = PAGE_TITLES[section];
 
   if (section === "seguranca") {
@@ -32,6 +32,29 @@ export default function PageContent({ section }: { section: SettingsSection }) {
       <div>
         <PageBreadcrumb pageTitle={pageTitle} />
         {isAdmin ? <AdminSection section="seguranca" /> : <PasswordSettingsCard />}
+      </div>
+    );
+  }
+
+  const canManageAcademicYears =
+    user?.academia?.nivel === "escola" &&
+    ["fundamental", "misto"].includes(user?.academia?.nivel_escolar ?? "");
+
+  if (isAcademia && section === "anos-academicos" && !canManageAcademicYears) {
+    return (
+      <div>
+        <PageBreadcrumb pageTitle={pageTitle} />
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-900/20 flex items-center gap-4">
+          <span className="text-amber-500 text-2xl">
+            <Icon icon="mdi:school-off-outline" width="28px" />
+          </span>
+          <div>
+            <p className="font-semibold text-amber-700 dark:text-amber-400">Página indisponível para este nível</p>
+            <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+              A configuração de anos acadêmicos aparece apenas para academias do nível fundamental ou misto.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
