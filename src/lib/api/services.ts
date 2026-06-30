@@ -98,11 +98,6 @@ import type {
   ListarFinalizacoesAnoLetivoResponse,
   ListarLimitesFinalizacaoAnoLetivoResponse,
   AnoLetivoTipo,
-  CriarSumarioRequest,
-  AtualizarSumarioRequest,
-  ListarSumariosParams,
-  ListarSumariosResponse,
-  SumarioResponse,
   GerirAnosAcademicosRequest,
   GerirAnosAcademicosResponse,
   ListarAnosAcademicosResponse,
@@ -879,11 +874,6 @@ export const academiaService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  substituirAnosAcademicos: (data: GerirAnosAcademicosRequest, token?: string) =>
-    api.patch<GerirAnosAcademicosResponse>('/academia/anos-academicos', data, {
-      token: token || tokenStorage.get() || undefined,
-    }),
-
   removerAnosAcademicos: (data: GerirAnosAcademicosRequest, token?: string) =>
     api.delete<GerirAnosAcademicosResponse>('/academia/anos-academicos', {
       token: token || tokenStorage.get() || undefined,
@@ -891,35 +881,6 @@ export const academiaService = {
       body: JSON.stringify(data),
       headers: { 'Content-Type': 'application/json' },
     } as any),
-
-  // ── Sumários/Aulas ───────────────────────────────────────────────
-
-  criarSumario: (data: CriarSumarioRequest, token?: string) =>
-    api.post<SumarioResponse>('/academia/sumarios', data, { token: token || tokenStorage.get() || undefined }),
-
-  listarSumarios: (params?: ListarSumariosParams | string) => {
-    const isLegacy = typeof params === 'string' || params === undefined;
-    const tok = isLegacy ? (params as string | undefined) : params?.token;
-    const qs = new URLSearchParams();
-    if (!isLegacy) {
-      appendMultiValueParam(qs, 'periodo', params?.periodo);
-      appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
-      appendMultiValueParam(qs, 'curso_id', params?.curso_id);
-      appendMultiValueParam(qs, 'materia_id', params?.materia_id);
-      if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
-    }
-    const query = qs.toString() ? `?${qs.toString()}` : '';
-    return api.get<ListarSumariosResponse>(`/academia/sumarios${query}`, { token: tok || tokenStorage.get() || undefined });
-  },
-
-  getSumario: (id: string, token?: string) =>
-    api.get<SumarioResponse>(`/academia/sumarios/${encodeURIComponent(id)}`, { token: token || tokenStorage.get() || undefined }),
-
-  atualizarSumario: (id: string, data: AtualizarSumarioRequest, token?: string) =>
-    api.put<MensagemResponse>(`/academia/sumarios/${encodeURIComponent(id)}`, data, { token: token || tokenStorage.get() || undefined }),
-
-  deletarSumario: (id: string, token?: string) =>
-    api.delete<MensagemResponse>(`/academia/sumarios/${encodeURIComponent(id)}`, { token: token || tokenStorage.get() || undefined }),
 
   // ── Categorias de nota ────────────────────────────────────────────
 

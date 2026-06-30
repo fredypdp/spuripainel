@@ -235,8 +235,8 @@ export default function CursosPainel() {
     if (!formData.nome.trim()) { showAlert("error", "Nome do curso é obrigatório"); return; }
     try {
       if (editingCurso) {
-        await executarAtualizarCurso(editingCurso.id, { nome: formData.nome, ...(formData.type === "superior" ? { periodos: formData.numSemestres } : { anos_academicos: gerarAnosMedio(formData.numAnos).map(a => a.value) }) });
-        showAlert("success", "Curso atualizado com sucesso");
+        await executarAtualizarCurso(editingCurso.id, { nome: formData.nome.trim() });
+        showAlert("success", "Dados cadastrais do curso atualizados com sucesso");
       } else {
         const payload = formData.type === "superior"
           ? { nome: formData.nome, type: formData.type, periodos: formData.numSemestres }

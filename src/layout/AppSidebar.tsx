@@ -53,7 +53,6 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Cursos",               path: "/gerenciamento/cursos"               },
       { name: "Anos Acadêmicos",      path: "/gerenciamento/anos-academicos"      },
-      { name: "Sumários",             path: "/gerenciamento/sumarios"             },
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
       { name: "Turmas",               path: "/gerenciamento/turmas"               },
     ],

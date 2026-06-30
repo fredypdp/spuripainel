@@ -330,7 +330,6 @@ export interface RegistrarFaltasRequest {
   data: ApiDate;
   materia_disciplinar_id: string;
   quantidade: number;
-  sumario_id?: string;
   observacao?: string;
 }
 
@@ -355,8 +354,6 @@ export interface CriarCursoRequest {
 
 export interface AtualizarCursoRequest {
   nome?: string;
-  anos_academicos?: string[];
-  periodos?: number;
 }
 
 export interface CriarMateriaRequest {
@@ -704,7 +701,6 @@ export interface AtualizarFaltaRequest {
   data?: ApiDate;
   materia_disciplinar_id?: string;
   quantidade?: number;
-  sumario_id?: string;
   observacao: string;
 }
 
@@ -818,8 +814,6 @@ export interface Falta {
   materia_nome?: string;
   quantidade: number;
   observacao?: string;
-  sumario_id?: string;
-  sumario_titulo?: string;
   registered_at: string;
   event_id: string;
   version: number;
@@ -868,55 +862,9 @@ export interface AvaliacaoFinal {
 }
 
 
-export interface Sumario {
-  id: string;
-  codigo_academia: string;
-  sumario_titulo: string;
-  descricao?: string;
-  periodo: Periodo;
-  ano_academico: string;
-  curso_id?: string;
-  materia_id: string;
-  materia_nome?: string;
-  created_at: string;
-  updated_at?: string;
-  deleted_at?: string;
-  version?: number;
-}
-
-export interface CriarSumarioRequest {
-  sumario_titulo: string;
-  descricao?: string;
-  periodo: Periodo;
-  ano_academico: string;
-  curso_id?: string;
-  materia_id: string;
-}
-
-export type AtualizarSumarioRequest = Partial<CriarSumarioRequest>;
-
-export interface ListarSumariosParams {
-  periodo?: string | string[];
-  ano_academico?: string | string[];
-  curso_id?: string | string[];
-  materia_id?: string | string[];
-  codigo_academia?: string;
-  token?: string;
-}
-
-export interface ListarSumariosResponse {
-  sumarios: Sumario[];
-  total: number;
-}
-
-export interface SumarioResponse {
-  sumario: Sumario;
-}
-
 export type GerirAnosAcademicosRequest =
   | { type: 'fundamental'; anos_academicos: string[] }
-  | { type: 'medio'; curso_id: string; anos_academicos: string[] }
-  | { type: 'superior'; curso_id: string; periodos: number };
+  | { type: 'medio'; curso_id: string; anos_academicos: string[] };
 
 export interface GerirAnosAcademicosResponse {
   message: string;
