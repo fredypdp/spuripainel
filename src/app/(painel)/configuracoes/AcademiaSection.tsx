@@ -11,6 +11,16 @@ import PasswordSettingsCard from "./PasswordSettingsCard";
 import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
 import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
 
+const ANOS_FUNDAMENTAL = Array.from({ length: 9 }, (_, index) => `${index + 1}_ano_fundamental`);
+const labelAnoFundamental = (ano: string) => ano.replace("_ano_fundamental", "º ano fundamental");
+const sortAnosFundamental = (anos: string[]) =>
+  [...new Set(anos)].sort((a, b) => ANOS_FUNDAMENTAL.indexOf(a) - ANOS_FUNDAMENTAL.indexOf(b));
+const getApiErrorMessage = (error: any, fallback: string) => {
+  const data = error?.data ?? error?.response?.data;
+  const detail = data?.details?.[0];
+  return [detail?.message || data?.message || error?.message || fallback, data?.request_id ? `Request ID: ${data.request_id}` : undefined].filter(Boolean).join(" ");
+};
+
 export default function AcademiaSection() {
   // ── Tipo da academia (fixo — vem do perfil do utilizador) ────────────────
   const { user } = useUserType();
@@ -48,6 +58,11 @@ export default function AcademiaSection() {
   const [sucessoFinalizacao, setSucessoFinalizacao] = useState(false);
 
   const [sucesso, setSucesso] = useState(false);
+  const [anosFundamentais, setAnosFundamentais] = useState<string[]>([]);
+  const [anosFundSelecionados, setAnosFundSelecionados] = useState<string[]>([]);
+  const [loadingAnosFund, setLoadingAnosFund] = useState(false);
+  const [erroAnosFund, setErroAnosFund] = useState("");
+  const [sucessoAnosFund, setSucessoAnosFund] = useState("");
 
   // ── Override state: só guarda o que o utilizador alterou explicitamente ───
   const [anoDeOverride, setAnoDeOverride] = useState<string | null>(null);
@@ -80,6 +95,54 @@ export default function AcademiaSection() {
     buscarConfiguracoes().catch(() => undefined);
     buscarFinalizacoes().catch(() => undefined);
   }, [buscarAnoLetivo, buscarAnoLetivoGlobal, buscarConfiguracoes, buscarFinalizacoes, tipoAcademia]);
+
+  const permiteFundamental = user?.academia?.nivel !== "superior" && ["fundamental", "misto"].includes(user?.academia?.nivel_escolar ?? "fundamental");
+
+  const carregarAnosFundamentais = useCallback(async () => {
+    if (!permiteFundamental) return;
+    setLoadingAnosFund(true);
+    setErroAnosFund("");
+    try {
+      const response = await academiaService.listarAnosAcademicos();
+      setAnosFundamentais(sortAnosFundamental((response.academia?.anos_academicos ?? []).filter(ano => ano.includes("fundamental"))));
+    } catch (error: any) {
+      setErroAnosFund(getApiErrorMessage(error, "Erro ao carregar anos acadêmicos fundamentais"));
+    } finally {
+      setLoadingAnosFund(false);
+    }
+  }, [permiteFundamental]);
+
+  useEffect(() => {
+    carregarAnosFundamentais().catch(() => undefined);
+  }, [carregarAnosFundamentais]);
+
+  const toggleAnoFundamental = (ano: string) => {
+    setAnosFundSelecionados(prev => prev.includes(ano) ? prev.filter(item => item !== ano) : [...prev, ano]);
+  };
+
+  const alterarAnosFundamentais = async (modo: "add" | "remove", anos = anosFundSelecionados) => {
+    if (!anos.length) { setErroAnosFund("Selecione pelo menos um ano acadêmico fundamental."); return; }
+    if (modo === "remove" && anosFundamentais.filter(ano => !anos.includes(ano)).length === 0) {
+      setErroAnosFund("A academia deve manter ao menos um ano fundamental ativo.");
+      return;
+    }
+    setLoadingAnosFund(true);
+    setErroAnosFund("");
+    setSucessoAnosFund("");
+    try {
+      const payload = { type: "fundamental" as const, anos_academicos: sortAnosFundamental(anos) };
+      const response = modo === "add"
+        ? await academiaService.adicionarAnosAcademicos(payload)
+        : await academiaService.removerAnosAcademicos(payload);
+      setAnosFundamentais(sortAnosFundamental(response.anos_academicos ?? []));
+      setAnosFundSelecionados([]);
+      setSucessoAnosFund(modo === "add" ? "Anos fundamentais adicionados com sucesso." : "Anos fundamentais removidos com sucesso.");
+    } catch (error: any) {
+      setErroAnosFund(getApiErrorMessage(error, "Erro ao alterar anos acadêmicos fundamentais"));
+    } finally {
+      setLoadingAnosFund(false);
+    }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -492,6 +555,73 @@ export default function AcademiaSection() {
             </div>
           </div>
         </div>
+
+        {permiteFundamental && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-white">
+                  <Icon icon="mdi:school-outline" width="18px" className="text-brand-500" />
+                  Anos acadêmicos fundamentais
+                </h3>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                  Gerencie apenas a oferta do ensino fundamental da academia. As rotas da API adicionam ou removem itens específicos, sem substituição em massa.
+                </p>
+              </div>
+              <button type="button" onClick={carregarAnosFundamentais} disabled={loadingAnosFund} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                <Icon icon="mdi:refresh" width="16px" />
+                Recarregar
+              </button>
+            </div>
+
+            {(erroAnosFund || sucessoAnosFund) && (
+              <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${erroAnosFund ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400" : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"}`}>
+                {erroAnosFund || sucessoAnosFund}
+              </div>
+            )}
+
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Lista ativa em ordem crescente</p>
+              {loadingAnosFund ? (
+                <div className="h-12 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+              ) : anosFundamentais.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {anosFundamentais.map(ano => (
+                    <button key={ano} type="button" onClick={() => toggleAnoFundamental(ano)} className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${anosFundSelecionados.includes(ano) ? "border-red-500 bg-red-500 text-white" : "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300"}`}>
+                      {labelAnoFundamental(ano)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">Nenhum ano fundamental ativo.</p>
+              )}
+            </div>
+
+            {ANOS_FUNDAMENTAL.some(ano => !anosFundamentais.includes(ano)) && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Anos que faltam</p>
+                <div className="flex flex-wrap gap-2">
+                  {ANOS_FUNDAMENTAL.filter(ano => !anosFundamentais.includes(ano)).map(ano => (
+                    <button key={ano} type="button" onClick={() => toggleAnoFundamental(ano)} className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${anosFundSelecionados.includes(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
+                      {labelAnoFundamental(ano)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {ANOS_FUNDAMENTAL.some(ano => !anosFundamentais.includes(ano)) && (
+                <button type="button" onClick={() => alterarAnosFundamentais("add")} disabled={loadingAnosFund} className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">
+                  Adicionar
+                </button>
+              )}
+              <button type="button" onClick={() => alterarAnosFundamentais("remove")} disabled={loadingAnosFund || anosFundamentais.length === 0} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                Remover
+              </button>
+            </div>
+          </div>
+        )}
 
         <AcademiaCategoriesSection />
         <AvaliacaoFinalRulesSection />
