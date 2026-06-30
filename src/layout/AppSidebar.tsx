@@ -81,7 +81,13 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
     name: "Configurações",
-    path: "/configuracoes",
+    subItems: [
+      { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
+      { name: "Anos fundamentais", path: "/configuracoes/anos-academicos-fundamentais" },
+      { name: "Categorias de nota", path: "/configuracoes/categorias-nota" },
+      { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
+      { name: "Segurança", path: "/configuracoes/seguranca" },
+    ],
   },
   {
     icon: <Icon width="24px" icon="mdi:flask-outline" />,
@@ -138,9 +144,9 @@ export default function AppSidebar() {
           if (item.name === "Gerenciamento") {
             return user.tipo === "academia";
           }
-          // Configurações: admin FPP ou academia
-          if (item.path === "/configuracoes") {
-            return isFpp || user.tipo === "academia";
+          // Configurações: admin FPP, academia ou estudante (segurança)
+          if (item.name === "Configurações") {
+            return isFpp || user.tipo === "academia" || user.tipo === "estudante";
           }
           // Armazenamento: apenas admin
           if (item.path === "/armazenamento") {
@@ -174,6 +180,27 @@ export default function AppSidebar() {
           };
         }
 
+        // Configurações: mostrar apenas páginas aplicáveis ao tipo de usuário
+        if (item.name === "Configurações" && item.subItems) {
+          const visiblePaths = new Set(
+            user?.tipo === "academia"
+              ? [
+                  "/configuracoes/ano-letivo",
+                  "/configuracoes/anos-academicos-fundamentais",
+                  "/configuracoes/categorias-nota",
+                  "/configuracoes/regras-avaliacao-final",
+                  "/configuracoes/seguranca",
+                ]
+              : user?.tipo === "admin" && isFpp
+                ? ["/configuracoes/ano-letivo", "/configuracoes/seguranca"]
+                : ["/configuracoes/seguranca"],
+          );
+          return {
+            ...item,
+            subItems: item.subItems.filter((sub) => visiblePaths.has(sub.path)),
+          };
+        }
+
         // Estudantes: "Cadastrar" só para academia
         if (item.name === "Estudantes" && item.subItems) {
           return {
@@ -197,7 +224,7 @@ export default function AppSidebar() {
       filteredNavItems.forEach((nav, index) => {
         if (nav.subItems) {
           nav.subItems.forEach((subItem) => {
-            if (subItem.path === pathname) {
+            if (subItem.path === pathname || pathname.startsWith(`${subItem.path}/`)) {
               result = {
                 type: menuType as "main" | "others",
                 index,
@@ -223,7 +250,7 @@ export default function AppSidebar() {
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+  const isActive = useCallback((path: string) => path === pathname || pathname.startsWith(`${path}/`), [pathname]);
 
   useEffect(() => {
     if (openSubmenu !== null) {
