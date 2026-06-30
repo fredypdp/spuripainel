@@ -544,7 +544,7 @@ function RebuildAllResultsPanel({
   );
 }
 
-function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
+export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   const anoAtual = new Date().getFullYear();
   const [anoDe, setAnoDe] = useState(String(anoAtual));
   const [anosDefinidos, setAnosDefinidos] = useState<Record<AnoLetivoTipo, string | null>>({ escolar: null, superior: null });
@@ -800,7 +800,9 @@ function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function AdminSection() {
+export type AdminSettingsSection = "ano-letivo" | "seguranca" | "projecoes" | "all";
+
+export default function AdminSection({ section = "all" }: { section?: AdminSettingsSection }) {
   const { user } = useUserType();
   const isFPP = user?.admin?.role === "fpp";
   const { statuses, errors, timestamps, rebuild, rebuildRaw } =
@@ -844,15 +846,20 @@ export default function AdminSection() {
   }
 
   const tiers = [1, 2, 3, 4];
+  const showAnoLetivo = section === "all" || section === "ano-letivo";
+  const showSeguranca = section === "all" || section === "seguranca";
+  const showProjecoes = section === "all" || section === "projecoes";
 
   return (
     <div>
-      <GlobalAcademicYearCard isFPP={isFPP} />
-      <div className="mb-6">
-        <PasswordSettingsCard />
-      </div>
+      {showAnoLetivo && <GlobalAcademicYearCard isFPP={isFPP} />}
+      {showSeguranca && (
+        <div className="mb-6">
+          <PasswordSettingsCard />
+        </div>
+      )}
 
-      {isFPP ? (
+      {showProjecoes && (isFPP ? (
       <>
       {/* ── Cabeçalho ──────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
@@ -997,7 +1004,7 @@ export default function AdminSection() {
             A documentação reserva o ano letivo global e o rebuild de projeções para FPP. Operações de ativação/desativação ficam nas páginas de gerenciamento.
           </p>
         </div>
-      )}
+      ))}
     </div>
   );
 }
