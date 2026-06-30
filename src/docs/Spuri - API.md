@@ -317,6 +317,8 @@ interface MateriaDTO {
   type: MateriaType          // preenchido automaticamente (exceto escola mista, que informa no create)
   anos_academicos?: string[]  // ex: ['2_ano_fundamental'] ou ['1_ano_medio']
   periodo?: string            // ex: '1_semestre' — obrigatório para superior
+  pendencia_permitida: boolean // disponível apenas para medio/superior; define se pode ficar pendente
+  pendencia_nivel_conclusao?: string // ex: '3_ano_medio' ou '2_semestre'; limite máximo com pendência
   codigo_academia: string
   curso_id?: string           // UUID — obrigatório para medio e superior
   status: string              // 'ativo' | 'inativo' | 'deletado'
@@ -2001,6 +2003,34 @@ Cadastra um novo estudante vinculado à academia autenticada. O cadastro direto 
 
 Quando enviados, todos os ficheiros devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 5MB. Os documentos são armazenados em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` e gravados no evento `EstudanteCriadoComVinculo` e na projeção do estudante como `documentos.<campo>.path`, `documentos.<campo>.file_url` e `documentos.<campo>.download_url`. Se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
 
+**Request — multipart/form-data (sem documentos):**
+
+```text
+nome=João Silva
+genero=masculino
+data_nascimento=2010-05-20
+telefone=923000000
+telefone_responsavel=924000000
+bilhete_identidade=001234567LA089
+bilhete_identidade_responsavel=009876543LA089
+ano_escolar_fundamental=7_ano_fundamental
+```
+
+**Request — multipart/form-data (com documentos opcionais):**
+
+```text
+nome=João Silva
+genero=masculino
+data_nascimento=2010-05-20
+telefone=923000000
+telefone_responsavel=924000000
+bilhete_identidade=001234567LA089
+bilhete_identidade_responsavel=009876543LA089
+ano_escolar_fundamental=7_ano_fundamental
+bi_estudante=@./bi_estudante.pdf;type=application/pdf
+declaracao=@./declaracao.pdf;type=application/pdf
+```
+
 **Exemplo cURL sem documentos:**
 
 ```bash
@@ -2789,7 +2819,9 @@ Atualiza somente dados cadastrais de um curso. O `type` é imutável e esta rota
 
 ```json
 {
-  "nome": "string"
+  "nome": "string",
+  "pendencia_permitida": true,
+  "pendencia_nivel_conclusao": "3_ano_medio"
 }
 ```
 
@@ -2877,7 +2909,10 @@ Cria uma nova matéria disciplinar.
   "nome": "Álgebra Linear",
   "type": "superior",
   "anos_academicos": ["1_ano_superior"],
-  "curso_id": "uuid"  // obrigatório para medio e superior
+  "curso_id": "uuid",  // obrigatório para medio e superior
+  "periodo": "1_semestre",  // obrigatório para superior e deve existir nos períodos do curso
+  "pendencia_permitida": true,
+  "pendencia_nivel_conclusao": "2_semestre"
 }
 ```
 
@@ -2891,17 +2926,22 @@ Cria uma nova matéria disciplinar.
     "nome": "string",
     "type": "superior",
     "status": "inativo",
-    "proximo_passo": "defina o periodo via PUT /academia/materias/uuid/periodo antes de ativar"
+    "pendencia_permitida": true,
+    "pendencia_nivel_conclusao": "2_semestre",
+    "periodo": "1_semestre"
   }
 }
 ```
 
 **Notas:**
 
-- Matérias `superior` nascem **inativas** e exigem período antes de ativar
+- Matérias `superior` nascem **inativas**, exigem `periodo` no `POST /academia/materia` e não permitem edição posterior do período
+- `pendencia_permitida` é um booleano disponível apenas para matérias `medio` ou `superior`; quando `true`, indica que o estudante pode avançar com essa matéria pendente para aprovação futura antes de concluir o ciclo
+- `pendencia_nivel_conclusao` é uma string disponível apenas para matérias `medio` ou `superior`; deve ser um ano acadêmico médio (`N_ano_medio`) ou semestre superior (`N_semestre`) válido do curso e define o último nível em que o estudante poderá chegar com pendências desta matéria
 - `curso_id` obrigatório para `medio` e `superior`
 - Para `fundamental`: `anos_academicos` com 1 a 9 itens no formato correto
 - Para `medio`/`superior`: exatamente 1 item no formato correto
+- `periodo` não é aceito em `PUT /academia/materia/:id/dados`; para matérias superiores ele deve ser escolhido somente na criação
 
 ---
 
@@ -2978,40 +3018,9 @@ Desativa uma matéria ativa.
 
 ---
 
-### PUT /academia/materia/:id/periodo
-
-Define o período de uma matéria do tipo `superior`. Pré-requisito para ativar a matéria.
-
-**Proteção**: autenticado + academia ativa
-
-**Request:**
-
-```json
-{
-  "periodo": "1_semestre"  // deve existir nos períodos do curso vinculado
-}
-```
-
-**Response 200:**
-
-```json
-{
-  "message": "periodo definido com sucesso",
-  "nome": "string",
-  "periodo": "1_semestre"
-}
-```
-
-**Erros:**
-
-- `400` — matéria não é do tipo superior
-- `400` — período não pertence ao curso vinculado
-
----
-
 ### PUT /academia/materia/:id/dados
 
-Atualiza o nome de uma matéria.
+Atualiza os dados cadastrais de uma matéria, incluindo os campos `pendencia_permitida` e `pendencia_nivel_conclusao`. O campo `periodo` não pode ser editado.
 
 **Proteção**: autenticado + academia ativa
 
@@ -3019,7 +3028,9 @@ Atualiza o nome de uma matéria.
 
 ```json
 {
-  "nome": "string"
+  "nome": "string",
+  "pendencia_permitida": true,
+  "pendencia_nivel_conclusao": "3_ano_medio"
 }
 ```
 
@@ -3028,9 +3039,18 @@ Atualiza o nome de uma matéria.
 ```json
 {
   "message": "matéria atualizada com sucesso",
-  "nome": "string"
+  "nome": "string",
+  "pendencia_permitida": true,
+  "pendencia_nivel_conclusao": "3_ano_medio"
 }
 ```
+
+**Erros:**
+
+- `400` — `periodo` informado na edição; o período só pode ser definido no `POST /academia/materia`
+- `400` — `pendencia_permitida` informado para matéria do tipo `fundamental`
+- `400` — `pendencia_nivel_conclusao` informado para matéria do tipo `fundamental`
+- `400` — `pendencia_nivel_conclusao` não corresponde a um ano acadêmico médio (`N_ano_medio`) ou semestre superior (`N_semestre`) válido do curso
 
 ---
 
@@ -4683,7 +4703,6 @@ Use `poll_url` (`GET /jobs/:id`) e/ou `sse_url` (`GET /jobs/stream`).
 |`DELETE /academia/curso/async`|igual ao `DELETE /academia/curso/:id` (`id` vai no item)|`202` (job criado)|500|
 |`PUT /academia/materia/ativar/async`|igual ao `PUT /academia/materia/:id/ativar` (`id` vai no item)|`202` (job criado)|1000|
 |`PUT /academia/materia/desativar/async`|igual ao `PUT /academia/materia/:id/desativar` (`id` vai no item)|`202` (job criado)|1000|
-|`PUT /academia/materia/periodo/async`|igual ao `PUT /academia/materia/:id/periodo` (`id` vai no item)|`202` (job criado)|1000|
 |`PUT /academia/materia/dados/async`|igual ao `PUT /academia/materia/:id/dados` (`id` vai no item)|`202` (job criado)|1000|
 |`DELETE /academia/materia/async`|igual ao `DELETE /academia/materia/:id` (`id` vai no item)|`202` (job criado)|1000|
 |`PUT /academia/turma/ativar/async`|igual ao `PUT /academia/turma/:codigo/ativar` (`codigo_turma` vai no item)|`202` (job criado)|500|
@@ -4794,3 +4813,83 @@ Quando a configuração do Google Drive ou da quota estiver incompleta ou invál
 ```
 
 ---
+
+## Atualização — Avaliação final automática por matéria e pendências
+
+### Regras de avaliação final
+
+O contrato público de `POST /academia/avaliacao-final/regras` e `PUT /academia/avaliacao-final/regras/:id` passa a usar `nivel` como campo oficial da regra. O campo legado `tipo_ensino` não é aceito nos payloads de regra e retorna erro de validação claro orientando o uso de `nivel`.
+
+#### Campos principais
+
+- `nivel`: `fundamental`, `medio` ou `superior`.
+  - Academias superiores têm `nivel` preenchido automaticamente como `superior`.
+  - Academias escolares não mistas têm `nivel` preenchido automaticamente a partir de `nivel_escolar`.
+  - Academias mistas devem informar `fundamental` ou `medio`.
+- `anos_academicos`: aceito apenas para `nivel='fundamental'`.
+- `materias_chave`: obrigatório em regra raiz de `nivel='medio'`; lista IDs das matérias obrigatórias para aprovação direta.
+- `materias_aplicaveis`: lista opcional para regra descendente limitar quais matérias de recuperação serão recalculadas.
+- `limite_materias_pendentes`: obrigatório para `nivel='medio'` e `nivel='superior'`; deve ser inteiro maior ou igual a zero.
+- `formula`: continua declarativa e validada pelo parser do backend.
+  - Fundamental e médio usam referências como `[categoria,periodo]`.
+  - Superior pode usar `[categoria]`; o backend infere o período no momento da execução usando o período/semestre avaliado.
+
+#### Exemplo — regra fundamental
+
+```json
+{
+  "type": "normal",
+  "nome": "Avaliação final anual",
+  "nivel": "fundamental",
+  "anos_academicos": ["6_ano_fundamental"],
+  "nota_minima_aprovacao": 10,
+  "formula": "([prova,1_trimestre]+[prova,2_trimestre]+[prova,3_trimestre])/3"
+}
+```
+
+#### Exemplo — regra média com pendência
+
+```json
+{
+  "type": "normal",
+  "nome": "Fechamento anual do médio",
+  "nivel": "medio",
+  "materias_chave": ["b7f7b4d7-5d1e-4d1a-98ea-6a4a7b79b7c0"],
+  "limite_materias_pendentes": 2,
+  "nota_minima_aprovacao": 10,
+  "formula": "([prova,1_trimestre]+[prova,2_trimestre]+[prova,3_trimestre])/3"
+}
+```
+
+#### Exemplo — regra superior com período inferido
+
+```json
+{
+  "type": "normal",
+  "nome": "Fechamento semestral superior",
+  "nivel": "superior",
+  "limite_materias_pendentes": 1,
+  "nota_minima_aprovacao": 10,
+  "formula": "([prova]+[trabalho])/2"
+}
+```
+
+### Respostas e persistência
+
+As respostas de regras expõem `nivel`, `materias_chave`, `materias_aplicaveis` e `limite_materias_pendentes`. O backend armazena snapshots preparados para resultados por matéria, aprovação com pendência e pendências geradas.
+
+### Matérias pendentes
+
+Foi introduzida a projeção persistente `projection_materias_pendentes` para armazenar pendências de nível médio e superior. Cada registro identifica estudante, matéria, academia, curso, nível, escopo letivo, regra/evento de origem, status `pendente` e metadados de auditoria. A tabela impede pendência aberta duplicada para o mesmo estudante, matéria, curso, nível, ano letivo e escopo acadêmico.
+
+## Atualização de debug — fechamento automático por matéria
+
+A revisão arquivo por arquivo do fluxo de avaliação final confirmou e completou a execução automática por matéria. Ao lançar uma nota, o backend agora resolve o escopo da regra ativa, carrega somente as matérias aplicáveis daquele estudante e calcula uma `nota_final` independente por `materia_id`.
+
+### Ajustes completados
+
+- O cálculo automático deixou de usar uma única massa de notas do estudante e passou a filtrar notas por `materia_disciplinar_id`.
+- O resultado da avaliação final inclui `resultados_materias`, com `materia_id`, `nota_final`, `aprovado`, `type`, `formula_snapshot`, `regra_avaliacao_final_id` e `pendencia_permitida`.
+- Em regras superiores, o período continua omitido no payload da fórmula e é preenchido por matéria usando o `periodo` cadastrado na própria matéria avaliada.
+- Para médio e superior, se todas as reprovações finais couberem em `limite_materias_pendentes` e todas as matérias reprovadas permitirem pendência, o evento é registrado como `aprovado=true` e `aprovado_com_pendencia=true`.
+- As pendências geradas no evento são projetadas em `projection_materias_pendentes` com proteção contra duplicidade aberta.
