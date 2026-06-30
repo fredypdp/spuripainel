@@ -1,2 +1,5 @@
-import PageContent from "./PageContent";
-export default function Page(){ return <PageContent/>; }
+import { redirect } from "next/navigation";
+
+export default function RecursoRemovidoPage() {
+  redirect("/faltas");
+}
