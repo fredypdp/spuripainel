@@ -52,7 +52,6 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
     subItems: [
       { name: "Cursos",               path: "/gerenciamento/cursos"               },
-      { name: "Anos Acadêmicos",      path: "/gerenciamento/anos-academicos"      },
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
       { name: "Turmas",               path: "/gerenciamento/turmas"               },
     ],

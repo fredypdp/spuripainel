@@ -14,11 +14,24 @@ import { getCookie } from "@/lib/utils/cookies";
 const gerarAnosMedio = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `${i + 1}_ano_medio`, label: `${i + 1}º Ano Médio` }));
 const gerarAnosSuperior = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `${i + 1}_ano_superior`, label: `${i + 1}º Ano Superior` }));
 const gerarSemestres = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `${i + 1}_semestre`, label: `${i + 1}º Semestre` }));
+const ANOS_MEDIO = gerarAnosMedio(3);
 
 const formatarNivelLabel = (nivel: string): string => {
   const m = nivel.match(/^(\d+)_ano_(medio|superior)$/);
   if (m) { const tipo = m[2] === "medio" ? "Médio" : "Superior"; return `${m[1]}º ${tipo}`; }
   return nivel.replace(/_/g, " ");
+};
+
+const ordenarAnosMedio = (anos: string[]) =>
+  [...new Set(anos)].sort((a, b) => ANOS_MEDIO.findIndex(x => x.value === a) - ANOS_MEDIO.findIndex(x => x.value === b));
+
+const isSequenciaMedioValida = (anos: string[]) =>
+  anos.length > 0 && anos.every((ano, index) => ano === ANOS_MEDIO[index]?.value);
+
+const getApiErrorMessage = (error: any, fallback: string) => {
+  const data = error?.data ?? error?.response?.data;
+  const detail = data?.details?.[0];
+  return [detail?.message || data?.message || error?.message || fallback, data?.request_id ? `Request ID: ${data.request_id}` : undefined].filter(Boolean).join(" ");
 };
 
 interface CursoFormData {
@@ -133,6 +146,8 @@ export default function CursosPainel() {
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [viewTipoCurso, setViewTipoCurso] = useState<"medio" | "superior">("medio");
   const [secaoAberta, setSecaoAberta] = useState<Record<string, boolean>>({});
+  const [anosSelecionados, setAnosSelecionados] = useState<string[]>([]);
+  const [alterandoAnos, setAlterandoAnos] = useState<"add" | "remove" | null>(null);
 
   // Lote
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -248,9 +263,44 @@ export default function CursosPainel() {
     } catch (error: any) { showAlert("error", error?.message || "Erro ao salvar curso"); }
   };
 
+  const toggleAnoSelecionado = (ano: string) => {
+    setAnosSelecionados(prev => prev.includes(ano) ? prev.filter(item => item !== ano) : [...prev, ano]);
+  };
+
+  const handleAnosAcademicosCurso = async (modo: "add" | "remove") => {
+    if (!editingCurso || editingCurso.type !== "medio") return;
+    if (anosSelecionados.length === 0) { showAlert("error", "Selecione pelo menos um ano acadêmico do curso médio"); return; }
+    const atuais = editingCurso.anos_academicos ?? [];
+    const finais = modo === "add"
+      ? ordenarAnosMedio([...atuais, ...anosSelecionados])
+      : ordenarAnosMedio(atuais.filter(ano => !anosSelecionados.includes(ano)));
+    if (!isSequenciaMedioValida(finais)) {
+      showAlert("error", "Cursos médios devem manter sequência contínua, iniciada no 1º ano médio, sem lacunas e sem ficar vazios.");
+      return;
+    }
+    setAlterandoAnos(modo);
+    try {
+      const payload = { type: "medio" as const, curso_id: editingCurso.id, anos_academicos: ordenarAnosMedio(anosSelecionados) };
+      const response = modo === "add"
+        ? await academiaService.adicionarAnosAcademicos(payload)
+        : await academiaService.removerAnosAcademicos(payload);
+      const anosAtualizados = response.anos_academicos ?? finais;
+      setEditingCurso({ ...editingCurso, anos_academicos: anosAtualizados });
+      setFormData(prev => ({ ...prev, anos_academicos: anosAtualizados, numAnos: anosAtualizados.length || prev.numAnos }));
+      setAnosSelecionados([]);
+      showAlert("success", modo === "add" ? "Anos acadêmicos adicionados ao curso" : "Anos acadêmicos removidos do curso");
+      executarListarCursos();
+    } catch (error: any) {
+      showAlert("error", getApiErrorMessage(error, "Erro ao alterar anos acadêmicos do curso"));
+    } finally {
+      setAlterandoAnos(null);
+    }
+  };
+
   const handleEdit = (curso: Curso) => {
     setEditingCurso(curso);
     setFormData({ nome: curso.nome, type: curso.type, anos_academicos: curso.anos_academicos, numAnos: curso.anos_academicos.length || 3, periodos: curso.periodos ?? [], numSemestres: curso.periodos?.length || 6 });
+    setAnosSelecionados([]);
     setShowForm(true);
   };
 
@@ -273,7 +323,7 @@ export default function CursosPainel() {
     } catch (e: any) { showAlert("error", e?.message ?? "Erro ao deletar curso"); }
   };
 
-  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6 }); setEditingCurso(null); setShowForm(false); };
+  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6 }); setEditingCurso(null); setAnosSelecionados([]); setShowForm(false); };
   // tipo é imutável após criação; se academia.nivel === 'superior', forçar 'superior'
   const isTipoDisabled = () => !!editingCurso || user?.academia?.nivel === "superior";
   const listaCursos = cursos?.cursos ?? [];
@@ -349,6 +399,71 @@ export default function CursosPainel() {
                       <span key={s.value} className="text-xs px-2 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded border border-teal-200 dark:border-teal-800">{s.label}</span>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+            {editingCurso?.type === "medio" && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                <div className="mb-3">
+                  <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Anos acadêmicos do curso médio</h4>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Use ações incrementais da API. A lista final precisa continuar em sequência crescente a partir do 1º ano médio.
+                  </p>
+                </div>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {ANOS_MEDIO.map(ano => {
+                    const ativo = formData.anos_academicos.includes(ano.value);
+                    const selecionado = anosSelecionados.includes(ano.value);
+                    return (
+                      <button
+                        key={ano.value}
+                        type="button"
+                        onClick={() => toggleAnoSelecionado(ano.value)}
+                        className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          selecionado
+                            ? "border-brand-500 bg-brand-500 text-white"
+                            : ativo
+                              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300"
+                              : "border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        }`}
+                      >
+                        {ano.label}{ativo ? " · ativo" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAnosAcademicosCurso("add")}
+                    disabled={!!alterandoAnos}
+                    className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                  >
+                    {alterandoAnos === "add" ? "Adicionando..." : "Adicionar selecionados"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAnosAcademicosCurso("remove")}
+                    disabled={!!alterandoAnos}
+                    className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {alterandoAnos === "remove" ? "Removendo..." : "Remover selecionados"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {editingCurso?.type === "superior" && (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-800 dark:border-teal-900/50 dark:bg-teal-900/10 dark:text-teal-200">
+                <p className="font-semibold">Cursos superiores não aceitam adição/remoção direta de anos acadêmicos.</p>
+                <p className="mt-1">
+                  A API retorna os semestres em leitura e deriva os anos superiores desses períodos; este painel mantém apenas os dados cadastrais do curso.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {(editingCurso.periodos ?? []).map(periodo => (
+                    <span key={periodo} className="rounded bg-white px-2 py-1 text-xs font-medium text-teal-700 dark:bg-gray-800 dark:text-teal-300">
+                      {periodo.replace(/_/g, " ").replace(/^(\d+)/, "$1º")}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
