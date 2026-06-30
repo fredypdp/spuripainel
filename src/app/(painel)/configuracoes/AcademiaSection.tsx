@@ -565,7 +565,7 @@ export default function AcademiaSection() {
                   Anos acadêmicos fundamentais
                 </h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-                  O que é: esta seção controla quais anos do ensino fundamental a academia oferece para novas turmas e matrículas. Como funciona: a API adiciona ou remove somente os anos selecionados, preservando histórico e sem substituir a lista inteira. Como usar: a lista ativa aparece em ordem crescente; se faltar algum ano, selecione-o em Anos que faltam e clique em Adicionar. Para remover, selecione um ano ativo na lista e clique em Remover.
+                  Controle quais anos do ensino fundamental a academia oferece para novas turmas e matrículas. As alterações são feitas somente nos anos selecionados, preservando os registros já existentes. A lista ativa aparece em ordem crescente; se faltar algum ano, selecione-o em Anos que faltam e clique em Adicionar. Para remover, selecione um ano ativo na lista e clique em Remover.
                 </p>
               </div>
               <button type="button" onClick={carregarAnosFundamentais} disabled={loadingAnosFund} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
