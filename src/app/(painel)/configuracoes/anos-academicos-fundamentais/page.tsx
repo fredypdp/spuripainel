@@ -5,5 +5,5 @@ import PageContent from "../PageContent";
 export const metadata: Metadata = { title: "Anos acadêmicos fundamentais" };
 
 export default function AnosAcademicosFundamentaisPage() {
-  return <PageContent section="anos-fundamentais" />;
+  return <PageContent section="anos-academicos" />;
 }
