@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import { useApi, academiaService } from "@/lib/api";
+import { formatApiError } from "@/lib/api/client";
 import type { Curso, CursoType, MeuPerfilResponse } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
@@ -28,11 +29,7 @@ const ordenarAnosMedio = (anos: string[]) =>
 const isSequenciaMedioValida = (anos: string[]) =>
   anos.length > 0 && anos.every((ano, index) => ano === ANOS_MEDIO[index]?.value);
 
-const getApiErrorMessage = (error: any, fallback: string) => {
-  const data = error?.data ?? error?.response?.data;
-  const detail = data?.details?.[0];
-  return [detail?.message || data?.message || error?.message || fallback, data?.request_id ? `Request ID: ${data.request_id}` : undefined].filter(Boolean).join(" ");
-};
+const getApiErrorMessage = formatApiError;
 
 interface CursoFormData {
   nome: string; type: CursoType; anos_academicos: string[];
@@ -214,8 +211,8 @@ export default function CursosPainel() {
       try {
         await operacao(c.id);
         setLoteItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: 'success' } : it));
-      } catch (err: any) {
-        setLoteItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: 'error', message: err?.message } : it));
+      } catch (err: unknown) {
+        setLoteItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: 'error', message: formatApiError(err, 'Falha') } : it));
       }
       setLoteProgresso(Math.round(((i + 1) / cursosSel.length) * 100));
       await new Promise(r => setTimeout(r, 200));
@@ -260,7 +257,7 @@ export default function CursosPainel() {
         showAlert("success", "Curso criado com sucesso");
       }
       resetForm(); executarListarCursos();
-    } catch (error: any) { showAlert("error", error?.message || "Erro ao salvar curso"); }
+    } catch (error: unknown) { showAlert("error", getApiErrorMessage(error, "Erro ao salvar curso")); }
   };
 
   const toggleAnoSelecionado = (ano: string) => {
@@ -290,7 +287,7 @@ export default function CursosPainel() {
       setAnosSelecionados([]);
       showAlert("success", modo === "add" ? "Anos acadêmicos adicionados ao curso" : "Anos acadêmicos removidos do curso");
       executarListarCursos();
-    } catch (error: any) {
+    } catch (error: unknown) {
       showAlert("error", getApiErrorMessage(error, "Erro ao alterar anos acadêmicos do curso"));
     } finally {
       setAlterandoAnos(null);
@@ -309,7 +306,7 @@ export default function CursosPainel() {
       if (curso.status === "ativo") { await executarDesativarCurso(curso.id); showAlert("success", "Curso desativado"); }
       else { await executarAtivarCurso(curso.id); showAlert("success", "Curso ativado"); }
       executarListarCursos();
-    } catch (error: any) { showAlert("error", error?.message || "Erro ao alterar status"); }
+    } catch (error: unknown) { showAlert("error", getApiErrorMessage(error, "Erro ao alterar status")); }
   };
 
   const handleDeletar = async (cursoId: string) => {
@@ -320,7 +317,7 @@ export default function CursosPainel() {
       if (res?.materias_deletadas?.length) msg += ` e ${res.materias_deletadas.length} matéria(s)`;
       showAlert("success", msg);
       executarListarCursos();
-    } catch (e: any) { showAlert("error", e?.message ?? "Erro ao deletar curso"); }
+    } catch (e: unknown) { showAlert("error", getApiErrorMessage(e, "Erro ao deletar curso")); }
   };
 
   const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6 }); setEditingCurso(null); setAnosSelecionados([]); setShowForm(false); };

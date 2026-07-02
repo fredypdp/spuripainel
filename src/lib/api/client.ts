@@ -15,17 +15,50 @@ export const getApiBaseUrl = () => {
   return url;
 };
 
+export interface ApiErrorDetail {
+  field?: string;
+  code?: string;
+  message?: string;
+}
+
+export interface ApiErrorEnvelope {
+  error?: string;
+  message?: string;
+  request_id?: string;
+  details?: ApiErrorDetail[];
+}
+
 export interface FetchOptions extends RequestInit {
   token?: string;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+export const asApiErrorEnvelope = (value: unknown): ApiErrorEnvelope | undefined => {
+  if (!isRecord(value)) return undefined;
+  const details = Array.isArray(value.details)
+    ? value.details.filter(isRecord).map((detail) => ({
+        field: typeof detail.field === 'string' ? detail.field : undefined,
+        code: typeof detail.code === 'string' ? detail.code : undefined,
+        message: typeof detail.message === 'string' ? detail.message : undefined,
+      }))
+    : undefined;
+
+  return {
+    error: typeof value.error === 'string' ? value.error : undefined,
+    message: typeof value.message === 'string' ? value.message : undefined,
+    request_id: typeof value.request_id === 'string' ? value.request_id : undefined,
+    details,
+  };
+};
 
 export class ApiError extends Error {
   constructor(
     public status: number,
     public statusText: string,
-    public data?: any
+    public data?: ApiErrorEnvelope
   ) {
-    // ✅ Extrai a melhor mensagem disponível automaticamente
     const message = extractErrorMessage(data, statusText);
     super(message);
     this.name = 'ApiError';
@@ -37,7 +70,7 @@ export class SpuriApiError extends ApiError {
   constructor(
     status: number,
     statusText: string,
-    data?: any
+    data?: ApiErrorEnvelope
   ) {
     super(status, statusText, data);
     this.name = 'SpuriApiError';
@@ -45,13 +78,24 @@ export class SpuriApiError extends ApiError {
 }
 
 /**
- * ✅ Extrai a melhor mensagem de erro disponível
- * Prioridade: data.message > data.error > statusText
+ * Extrai a mensagem priorizando o envelope documentado pela API:
+ * details[0].message > message > error > statusText.
  */
-function extractErrorMessage(data: any, statusText: string): string {
+function extractErrorMessage(data: ApiErrorEnvelope | undefined, statusText: string): string {
+  const detailMessage = data?.details?.find((detail) => detail.message)?.message;
+  if (detailMessage) return detailMessage;
   if (data?.message) return data.message;
   if (data?.error) return data.error;
   return statusText || 'Erro desconhecido';
+}
+
+export function formatApiError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    const requestId = error.data?.request_id;
+    return [error.message || fallback, requestId ? `Request ID: ${requestId}` : undefined].filter(Boolean).join(' ');
+  }
+  if (error instanceof Error) return error.message || fallback;
+  return fallback;
 }
 
 /**
@@ -88,11 +132,11 @@ async function fetchApi<T>(
 
   // ✅ Tratamento de erro ANTES do parse
   if (!response.ok) {
-    let errorData: any = null;
+    let errorData: ApiErrorEnvelope | undefined;
     
     try {
-      errorData = await response.json();
-    } catch (parseError) {
+      errorData = asApiErrorEnvelope(await response.json()) ?? { error: response.statusText };
+    } catch {
       errorData = { error: response.statusText };
     }
     
@@ -123,7 +167,7 @@ export const api = {
   get: <T>(endpoint: string, options?: FetchOptions) =>
     fetchApi<T>(endpoint, { ...options, method: 'GET' }),
 
-  post: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
+  post: <T, TBody = unknown>(endpoint: string, data?: TBody, options?: FetchOptions) =>
     fetchApi<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -137,7 +181,7 @@ export const api = {
       body: data,
     }),
 
-  put: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
+  put: <T, TBody = unknown>(endpoint: string, data?: TBody, options?: FetchOptions) =>
     fetchApi<T>(endpoint, {
       ...options,
       method: 'PUT',
@@ -147,7 +191,7 @@ export const api = {
   delete: <T>(endpoint: string, options?: FetchOptions) =>
     fetchApi<T>(endpoint, { ...options, method: 'DELETE' }),
 
-  patch: <T>(endpoint: string, data?: any, options?: FetchOptions) =>
+  patch: <T, TBody = unknown>(endpoint: string, data?: TBody, options?: FetchOptions) =>
     fetchApi<T>(endpoint, {
       ...options,
       method: 'PATCH',
