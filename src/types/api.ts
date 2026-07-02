@@ -343,18 +343,34 @@ export interface DesativarRequest {
   motivo: string;
 }
 
-export interface CriarCursoRequest {
-  nome: string;
-  type: CursoType;
-  /** Obrigatório para médio; não enviar para superior. */
-  anos_academicos?: string[];
-  /** Obrigatório para superior: quantidade total de semestres. */
-  periodos?: number;
+export interface MateriasChaveCursoAnoDTO {
+  ano_academico: AnoMedio;
+  materias_chave: string[];
 }
 
-export interface AtualizarCursoRequest {
+export type CriarCursoMedioRequest = {
+  nome: string;
+  type: 'medio';
+  /** Obrigatório para médio; sequência contínua iniciada em 1_ano_medio. */
+  anos_academicos: AnoMedio[];
+  /** Obrigatório para médio: um item não vazio por ano acadêmico do curso. */
+  materias_chave: MateriasChaveCursoAnoDTO[];
+};
+
+export type CriarCursoSuperiorRequest = {
+  nome: string;
+  type: 'superior';
+  /** Obrigatório para superior: quantidade total de semestres. */
+  periodos: number;
+};
+
+export type CriarCursoRequest = CriarCursoMedioRequest | CriarCursoSuperiorRequest;
+
+export type AtualizarCursoRequest = {
   nome?: string;
-}
+  /** Permitido apenas para cursos médios; não manipula anos acadêmicos. */
+  materias_chave?: MateriasChaveCursoAnoDTO[];
+};
 
 export interface CriarMateriaRequest {
   nome: string;
@@ -884,6 +900,8 @@ export interface Curso {
   nome: string;
   type: CursoType;
   anos_academicos: string[];
+  /** Apenas médio: configuração curricular usada pela avaliação final do Médio. */
+  materias_chave?: MateriasChaveCursoAnoDTO[];
   periodos?: string[];
   codigo_academia: string;
   status: 'ativo' | 'inativo' | 'deletado';
