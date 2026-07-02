@@ -965,7 +965,7 @@ export const academiaService = {
   // ── Cursos ────────────────────────────────────────────────────────
 
   criarCurso: (data: CriarCursoRequest, token?: string) =>
-    api.post<{ message: string; data: { id: string; nome: string; type: string; periodos?: string[] } }>(
+    api.post<{ message: string; data: Curso }>(
       '/academia/curso',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -1022,7 +1022,7 @@ export const academiaService = {
     ),
 
   atualizarCurso: (cursoId: string, data: AtualizarCursoRequest, token?: string) =>
-    api.put<{ message: string; nome: string; type: string; anos_academicos: string[]; periodos?: string[] }>(
+    api.put<{ message: string; data?: Curso; nome: string; type?: string; anos_academicos?: string[]; materias_chave?: Curso['materias_chave']; periodos?: string[] }>(
       `/academia/curso/${cursoId}/dados`,
       data,
       { token: token || tokenStorage.get() || undefined }
