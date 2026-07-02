@@ -47,6 +47,52 @@ A auditoria deve verificar, no mínimo:
 
 A conclusão da auditoria deve ser registrada na implementação/PR com a lista dos arquivos revisados e o impacto identificado.
 
+
+## Auditoria obrigatória de todo `/src` em cascata
+
+Além da auditoria de documentação, é obrigatório verificar **todo o diretório `src`** para descobrir, componente por componente e página por página, o que precisa ser atualizado para o novo contrato da API.
+
+A análise deve seguir uma abordagem em cascata:
+
+1. começar pelas rotas e páginas em `src/app`;
+2. identificar o componente principal de cada página;
+3. mapear todos os componentes filhos renderizados direta ou indiretamente;
+4. seguir props, callbacks, estados locais, contextos, hooks, services e tipos usados por cada componente;
+5. identificar quais dados vêm da API, quais são derivados no frontend e quais ainda são mockados/legados;
+6. decidir, para cada arquivo analisado, se ele precisa de implementação, atualização, remoção ou apenas validação sem mudança;
+7. implementar os ajustes necessários no mesmo fluxo, sem deixar componentes filhos incompatíveis com o componente pai.
+
+Essa auditoria deve cobrir, no mínimo:
+
+- páginas e layouts em `src/app`;
+- componentes em `src/components`;
+- guards, providers e contexts;
+- services, clients, hooks e helpers em `src/lib`;
+- tipos globais e DTOs em `src/types`;
+- stores, constants, mocks, fixtures e utilitários;
+- menus, breadcrumbs, cards, tabelas, filtros, formulários, modais e estados vazios;
+- componentes específicos por visão de estudante, admin e academia.
+
+Para cada página/fluxo auditado, registrar a árvore funcional mínima:
+
+```text
+Página/Rota
+└─ Componente pai
+   ├─ Componente filho afetado
+   ├─ Hook/service/tipo consumido
+   └─ Ajuste necessário ou justificativa de não alteração
+```
+
+A implementação deve garantir coerência entre pai e filhos:
+
+- se o payload muda no componente pai, todos os filhos que montam, validam ou exibem esse payload devem ser atualizados;
+- se a response muda no service/hook, todos os componentes consumidores devem ajustar renderização, filtros, tabelas e estados vazios;
+- se permissões mudam, menus, guards, páginas e ações internas devem ser atualizados juntos;
+- se um tipo é alterado, todos os usos devem ser corrigidos sem casts artificiais;
+- se uma rota ou campo foi removido, nenhum componente filho deve continuar exibindo fallback legado.
+
+A tarefa não deve ser considerada concluída apenas por atualizar services ou tipos. É obrigatório validar a cadeia completa `rota → página → componente pai → componentes filhos → hooks/services → tipos → UI`, em todos os fluxos relevantes dentro de `src`.
+
 ## Escopo técnico obrigatório
 
 ### 1. Contratos de API e tipagem do frontend
@@ -243,16 +289,17 @@ A UI deve tornar evidente para o usuário quando uma matéria pertence a um curs
 
 A tarefa só pode ser considerada concluída quando:
 
-1. todos os arquivos de `/src` tiverem sido auditados e classificados;
-2. todas as rotas documentadas em `Spuri - API.md` usadas pelo frontend tiverem serviço/tipo compatível ou decisão registrada de não uso;
-3. todos os payloads enviados pelo frontend seguirem exatamente o contrato da API;
-4. todos os responses consumidos estiverem tipados conforme documentação;
-5. erros estruturados forem tratados de forma uniforme;
-6. a UI mudar dinamicamente conforme usuário logado, responsabilidades e nível da academia;
-7. regras de avaliação final tiverem UI versátil para diferentes configurações por academia;
-8. cursos e matérias disciplinares estiverem alinhados com o contrato atual;
-9. rotas, menus, services, tipos e mocks obsoletos forem removidos;
-10. testes e checks do projeto passarem ou tiverem limitação ambiental justificada.
+1. todos os arquivos de `src/docs` tiverem sido auditados e classificados;
+2. todo o diretório `src` tiver sido auditado em cascata por rota, página, componente pai, componentes filhos, hooks/services e tipos;
+3. todas as rotas documentadas em `Spuri - API.md` usadas pelo frontend tiverem serviço/tipo compatível ou decisão registrada de não uso;
+4. todos os payloads enviados pelo frontend seguirem exatamente o contrato da API;
+5. todos os responses consumidos estiverem tipados conforme documentação;
+6. erros estruturados forem tratados de forma uniforme;
+7. a UI mudar dinamicamente conforme usuário logado, responsabilidades e nível da academia;
+8. regras de avaliação final tiverem UI versátil para diferentes configurações por academia;
+9. cursos e matérias disciplinares estiverem alinhados com o contrato atual;
+10. rotas, menus, services, tipos e mocks obsoletos forem removidos;
+11. testes e checks do projeto passarem ou tiverem limitação ambiental justificada.
 
 ## Validação obrigatória
 
@@ -268,6 +315,7 @@ Ao finalizar, executar no mínimo:
 O PR deve listar:
 
 - documentos de `src/docs` auditados;
+- árvore de auditoria em cascata de `src` por rota, página, componente pai, filhos, hooks/services e tipos;
 - rotas ajustadas;
 - tipos criados/alterados/removidos;
 - telas alteradas;
