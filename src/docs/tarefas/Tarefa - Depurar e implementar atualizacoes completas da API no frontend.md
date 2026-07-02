@@ -243,7 +243,7 @@ A UI deve tornar evidente para o usuário quando uma matéria pertence a um curs
 
 A tarefa só pode ser considerada concluída quando:
 
-1. todos os arquivos de `src/docs` tiverem sido auditados e classificados;
+1. todos os arquivos de `/src` tiverem sido auditados e classificados;
 2. todas as rotas documentadas em `Spuri - API.md` usadas pelo frontend tiverem serviço/tipo compatível ou decisão registrada de não uso;
 3. todos os payloads enviados pelo frontend seguirem exatamente o contrato da API;
 4. todos os responses consumidos estiverem tipados conforme documentação;
