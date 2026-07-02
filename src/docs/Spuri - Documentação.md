@@ -374,6 +374,8 @@ Para cursos superiores, a criação recebe `periodos` como número inteiro posit
 
 Na criação de cursos médios, `POST /academia/curso` aplica a mesma proteção de sequência de anos médios usada por `POST /academia/anos-academicos`: `anos_academicos` deve começar em `1_ano_medio`, seguir em ordem crescente, não pular posições e não repetir anos. Assim, cargas como `["2_ano_medio"]`, `["1_ano_medio", "3_ano_medio"]` ou `["2_ano_medio", "1_ano_medio"]` são rejeitadas antes da criação.
 
+Cursos médios também possuem `materias_chave` persistente no próprio curso, por `ano_academico`. Cada ano listado em `anos_academicos` deve ter exatamente uma configuração em `materias_chave` com pelo menos uma matéria. As matérias informadas precisam existir, estar ativas, pertencer à mesma academia, ao mesmo curso médio, ao nível `medio` e ao ano acadêmico da configuração. Cursos superiores rejeitam `materias_chave`.
+
 **Formato dos semestres persistidos**: `[n]_semestre` onde n ≥ 1 (ex: `1_semestre`, `2_semestre`).
 
 Os trimestres (`1_trimestre`, `2_trimestre`, `3_trimestre`) são **fixos do sistema** e nunca configurados no curso. São os períodos padrão para notas do tipo escolar.
@@ -425,23 +427,6 @@ O código de turma deve ser **único dentro da academia**. Antes da validação 
 **Estados:** `ativo` / `inativo` / `deletado`
 
 **Eventos:** `TurmaCriada`, `TurmaAtivada`, `TurmaDesativada`, `TurmaDadosAtualizados`, `TurmaDeletada`, `EstudanteAdicionadoATurma`, `EstudanteRemovidoDaTurma`
-
----
-
-### 4.7 Telefone Extra
-
-Permite que qualquer usuário (estudante, academia ou admin) registe números de telefone adicionais.
-
-**Normalização**: o número é normalizado antes de salvar (remove espaços, hífens, parênteses; mantém `+` inicial).
-
-**Formato aceito após normalização**: `+?[0-9]{7,15}`
-
-**Estados de verificação**:
-
-- Não verificado: qualquer usuário pode cadastrar o mesmo número
-- Verificado: apenas um usuário pode ter aquele número verificado (índice único parcial)
-
-**Eventos:** `TelefoneExtraAdicionado`, `TelefoneExtraVerificado`
 
 ---
 
@@ -612,156 +597,216 @@ Academias podem criar **categorias adicionais** personalizadas e também configu
 
 ### 5.6 Avaliação Final de Ano Académico
 
-**Quem faz**: Academia (status ativo, com ano letivo configurado)
+**Quem faz**: Academia ativa, com ano letivo configurado, por meio da configuração de regras e do lançamento de notas. A academia **não envia manualmente** a nota final calculada nem decide aprovação/reprovação no payload de execução.
 
-A avaliação final é o mecanismo auditável que decide aprovação, reprovação, progressão de nível e finalização de ciclo. A decisão **não é manual**: a academia configura regras de avaliação final, e o backend calcula a `nota_final` por fórmula, compara com a `nota_minima_aprovacao` da regra e registra o resultado por evento.
+A avaliação final é automática, auditável e orientada por regras. Ela é disparada pelo fluxo de lançamento de notas quando o backend identifica que existem regras ativas e notas suficientes para calcular a etapa aplicável. O modelo atual **não é uma média global única do estudante**: o backend calcula uma `nota_final` independente para cada matéria disciplinar aplicável, registra resultados por matéria e deriva a decisão geral do conjunto de resultados, da cadeia de regras e, apenas para Médio/Superior, das regras de pendência.
 
-**Conceitos principais:**
+#### 5.6.1 Conceitos funcionais
 
-- `type` identifica publicamente a etapa da avaliação final configurada na regra (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.). Ele não é enviado pelo cliente para executar a avaliação: na execução automática, o backend descobre o `type` percorrendo a cadeia de regras aplicável, da raiz até as dependentes.
-- `tipo_ensino` da avaliação é sempre inferido do estudante: `superior` tem prioridade quando há curso/ano/status superior; depois `medio`; caso contrário, `fundamental`.
-- `nivel_ano_academico_atual` precisa ser o nível atual real do estudante e precisa ser válido para o tipo de ensino inferido.
-- `proximo_ano_academico` é sempre calculado pelo backend. O cliente não pode enviá-lo.
-- `aprovado` também é sempre calculado pelo backend e não é aceito como decisão manual.
+| Conceito | Significado funcional |
+|---|---|
+| Regra raiz | Regra ativa sem `aplica_se_reprovado_em_type`. É a primeira etapa da cadeia para uma academia, `nivel` e escopo. Deve existir no máximo uma raiz ativa por escopo aplicável. |
+| Regra descendente | Regra ativa com `aplica_se_reprovado_em_type`, executada somente depois de reprovação no `type` indicado. Modela recuperação, exame, recurso ou outra nova chance. |
+| `type` | Nome público da etapa (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.). É configurado na regra, não enviado para executar avaliação. |
+| `nivel` | Campo público de escopo da regra: `fundamental`, `medio` ou `superior`. O contrato novo de regras não aceita `tipo_ensino`. |
+| Fórmula | Expressão textual declarativa validada por parser próprio. Calcula a nota final de uma matéria usando notas existentes. Não há `eval`, script, template executável nem código dinâmico. |
+| `nota_minima_aprovacao` | Nota mínima para aprovar cada matéria avaliada na etapa. |
+| Matérias avaliadas | Matérias ativas da academia que pertencem ao nível/curso/ano/período do estudante e, se houver, ao filtro `materias_aplicaveis` da regra. |
+| `materias_chave` | Configuração curricular do curso médio, por `ano_academico`; não pertence à regra. Na raiz do Médio, o backend resolve a lista pelo `curso_medio_id` do estudante e pelo `ano_escolar_medio` atual. Reprovação em matéria não-chave na raiz não impede aprovação direta; reprovação em matéria-chave impede e pode acionar cadeia/pendência. |
+| `materias_aplicaveis` | Lista opcional de matérias que restringe a execução da regra. É especialmente útil em descendentes para recalcular apenas matérias de recuperação/exame/recurso. |
+| `limite_materias_pendentes` | Inteiro obrigatório e não negativo para Médio/Superior. Define quantas reprovações finais podem virar pendência. Não existe no Fundamental. |
+| `pendencia_permitida` | Campo da matéria de Médio/Superior. Somente matérias com esse campo verdadeiro podem gerar aprovação com pendência. |
+| `pendencia_nivel_conclusao` | Campo da matéria de Médio/Superior que indica o nível/semestre de conclusão usado para bloqueio funcional de progressão/conclusão quando há pendência aberta. |
+| Matéria pendente | Registro persistente em `projection_materias_pendentes`, criado quando uma avaliação de Médio/Superior aprova com pendência. Mantém histórico aberto/baixado por estudante, matéria, curso, ano letivo e escopo. |
 
-**Configuração de regras:**
+A avaliação registrada é idempotente no escopo suportado: o sistema evita gravar duas avaliações com o mesmo estudante, academia, ano letivo, nível interno da avaliação, ano/período acadêmico atual e `type`. Eventos e projeções preservam snapshots de fórmula, regra, matérias e pendências suficientes para auditoria.
 
-- Cada regra pertence à academia autenticada e contém `type`, `nome`, `descricao`, `tipo_ensino`, `anos_academicos`, `nota_minima_aprovacao`, `categorias_envolvidas`, `formula`, `aplica_se_reprovado_em_type`, `status` e `version`.
-- `type` é obrigatório na criação; o cliente deve enviar explicitamente a etapa pública (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso`, etc.). O backend aceita apenas letras, números, espaços e `_`, descarta espaços antes/depois, converte apenas espaços internos entre textos para `_` antes de persistir e rejeita outros caracteres.
-- `type`, `nome`, `tipo_ensino`, `anos_academicos`, `formula` e `nota_minima_aprovacao > 0` são obrigatórios na criação; `descricao` é opcional. `categorias_envolvidas` não precisa ser enviado: o backend extrai automaticamente as categorias referenciadas na `formula`. Se o cliente enviar esse campo, ele deve bater exatamente com as categorias da fórmula, sem sobras nem omissões. Exemplos de `nome`: `Avaliação final`, `Avaliação final (com exame)` e `Avaliação final (com recurso)`.
-- `tipo_ensino` deve ser exatamente `fundamental`, `medio` ou `superior`.
-- Não pode haver dois registros ativos com o mesmo `codigo_academia`, `tipo_ensino`, `type` e ano acadêmico sobreposto. Assim, regras do mesmo `type` podem coexistir para anos diferentes, mas não para o mesmo ano. Ao criar ou editar uma regra, o `type` pode ser igual ao de uma regra inativa; nesse caso, a regra inativa fica impedida de ser ativada enquanto existir regra ativa conflitante.
-- Para cada academia, tipo de ensino e ano acadêmico, deve existir no máximo uma regra raiz ativa. Regra raiz é a regra sem `aplica_se_reprovado_em_type`.
-- `aplica_se_reprovado_em_type` é opcional apenas para a regra raiz; em regra dependente (`avaliacao_final_com_recurso`, por exemplo), passa pela mesma normalização de `type`, deve apontar para um `type` ativo existente na mesma academia e tipo de ensino, não pode apontar para o próprio `type`, não pode criar ciclo de dependências e deve usar exatamente os mesmos `anos_academicos` da regra raiz da cadeia. Uma regra dependente inativa não pode ser ativada enquanto a regra da qual ela depende estiver inativa.
-- A cadeia aplicável a um estudante precisa ter exatamente uma raiz; regras dependentes só participam quando apontam para outro `type` dentro da mesma cadeia aplicável ao ano acadêmico.
+#### 5.6.2 Montagem e criação de regras de avaliação final
 
-**Fórmula textual (`formula_textual_v1`):**
+A academia monta uma cadeia declarando uma regra raiz e, opcionalmente, regras descendentes. O endpoint de criação usa `nivel` como campo público; `tipo_ensino` é legado e é rejeitado em criação/edição de regras.
 
-A regra usa `formula` como string declarativa. O backend valida e interpreta a expressão com parser próprio; não há `eval`, JavaScript, SQL dinâmico, templates executáveis nem execução de código do usuário. O modelo antigo em árvore JSON foi removido e não é alternativa suportada.
+**Preenchimento/validação de `nivel` pela academia autenticada:**
 
-Sintaxe oficial:
+| Academia autenticada | Comportamento |
+|---|---|
+| Superior | O backend força `nivel="superior"`. Se o payload informar outro nível, falha. |
+| Escola fundamental | O backend aceita omissão ou `nivel="fundamental"`; outro nível falha. |
+| Escola média | O backend aceita omissão ou `nivel="medio"`; outro nível falha. |
+| Escola mista | O payload deve informar explicitamente `fundamental` ou `medio`. Escola mista não cria regra `superior`. |
 
-- Referência de nota: `[categoria,periodo]`, por exemplo `[nota_escola,1_trimestre]`.
-- Operadores permitidos: `+`, `-`, `*`, `/`.
-- Precedência: multiplicação/divisão antes de soma/subtração. Parênteses podem agrupar partes da fórmula.
-- Constantes numéricas positivas ou zero podem ser usadas para médias, pesos e divisores, com decimal por ponto (`0.4`).
-- Espaços são ignorados. Qualquer caractere fora dessa gramática é rejeitado.
-- O backend extrai de `formula` as `categorias_envolvidas`; todas as categorias referenciadas precisam estar ativas/configuradas para a academia nos anos acadêmicos da regra. Se `categorias_envolvidas` for enviado manualmente, ele precisa corresponder exatamente à extração da fórmula.
-- Todos os períodos são validados pelas regras existentes (`1_trimestre`, `2_trimestre`, `3_trimestre`, `[n]_semestre` etc.).
-- Divisão por zero é bloqueada tanto na validação quanto durante o cálculo.
-- Fórmulas grandes demais são rejeitadas.
+**Campos por nível:**
 
-Exemplos válidos:
+| Campo | Fundamental | Médio | Superior |
+|---|---:|---:|---:|
+| `nivel` | `fundamental` | `medio` | `superior` |
+| `anos_academicos` | Obrigatório e não vazio; array simples de anos fundamentais | Obrigatório; lista de objetos `{curso_id, anos_academicos}` por curso médio | Rejeitado |
+| `materias_chave` | Rejeitado | Rejeitado na regra; obrigatório no curso médio, por ano acadêmico | Rejeitado |
+| `materias_aplicaveis` | Opcional; lista de itens `{ano_academico, materias}` | Opcional; lista de itens `{curso_id, ano_academico, materias}` | Opcional; lista de itens `{curso_id, ano_academico, materias}` com ano derivado dos semestres |
+| `limite_materias_pendentes` | Rejeitado | Obrigatório, `>= 0` | Obrigatório, `>= 0` |
+| `aplica_se_reprovado_em_type` | Ausente na raiz; presente em descendente | Ausente na raiz; presente em descendente | Ausente na raiz; presente em descendente |
 
-```text
-([nota_escola,1_trimestre]+[nota_escola,2_trimestre]+[nota_escola,3_trimestre])/3
-([nota_escola,1_trimestre]*0.3)+([nota_escola,2_trimestre]*0.3)+([nota_exame_final,3_trimestre]*0.4)
-[nota_escola,1_trimestre]+[nota_professor,1_trimestre]
-```
+**Regras de cadeia e unicidade:**
 
-Exemplos inválidos:
+- `type`, `nome`, `nivel`, `formula` e `nota_minima_aprovacao > 0` são obrigatórios na criação; `descricao` é opcional.
+- `type` aceita letras, números, espaços e `_`; espaços internos são normalizados para `_`.
+- `categorias_envolvidas` é extraído da `formula`; se enviado, deve bater exatamente com as categorias extraídas.
+- Não pode haver duas regras ativas com o mesmo `codigo_academia`, `nivel`, `type` e escopo sobreposto. No Fundamental a sobreposição é por `ano_academico`; no Médio é por par `curso_id` + `ano_academico`. Superior continua sem `anos_academicos` nesta mudança.
+- Deve haver no máximo uma raiz ativa por academia, `nivel` e escopo. Uma cadeia sem raiz ou com múltiplas raízes aplicáveis não é executável de forma determinística.
+- Descendentes devem apontar para regra ativa existente no mesmo `nivel`, não podem apontar para si mesmas, não podem criar ciclo e devem usar exatamente o mesmo escopo da raiz da cadeia: mesmos anos no Fundamental e mesmos pares `curso_id` + `ano_academico` no Médio.
+- Inativar uma regra inativa também suas dependentes diretas/indiretas para preservar a consistência da cadeia.
+- Na edição, não é permitido alterar `type`, `nivel`, `anos_academicos`, dependência, `materias_chave`, `materias_aplicaveis`, limite, status ou version; para mudar escopo/cadeia, cria-se nova regra. Se `materias_chave` for enviado em criação ou edição de regra, o backend rejeita e orienta configurar as matérias-chave no curso médio, por `ano_academico`.
 
-```text
-{ "op": "..." }
-[nota_escola]
-[nota_escola,1_trimestre]/0
-eval([nota_escola,1_trimestre])
-[nota_inexistente,1_trimestre]
-```
+**Exemplos funcionais de configuração:**
 
-Quando a fórmula referencia uma nota ainda ausente, a avaliação não é fechada naquele momento; ela aguarda novo lançamento.
+| Cenário | Configuração típica |
+|---|---|
+| Raiz do Fundamental | `nivel=fundamental`, `anos_academicos=["6_ano_fundamental"]`, fórmula com trimestres explícitos, sem limite de pendência. |
+| Recuperação do Fundamental | `nivel=fundamental`, mesmo `anos_academicos` da raiz, `aplica_se_reprovado_em_type="avaliacao_final"`, fórmula da recuperação/exame. |
+| Raiz do Médio | `nivel=medio`, `anos_academicos=[{curso_id, anos_academicos:["1_ano_medio"]}]`, sem `materias_chave` na regra, `limite_materias_pendentes` definido. As matérias-chave vêm do curso médio/ano do estudante. |
+| Descendente do Médio | `nivel=medio`, mesmo escopo por curso/ano da raiz, `aplica_se_reprovado_em_type` apontando para a raiz, `materias_aplicaveis=[{curso_id, ano_academico, materias:[...]}]` com as matérias que podem ser recalculadas no exame. |
+| Raiz do Superior | `nivel=superior`, sem `anos_academicos`, fórmula com referências `[categoria]`, `limite_materias_pendentes` definido. |
+| Superior com pendência | Mesma regra superior, matérias com `pendencia_permitida=true` e, quando aplicável, `pendencia_nivel_conclusao` indicando o semestre-limite. |
 
-**Processo automático ao registrar notas:**
+#### 5.6.3 Fórmulas por nível
 
-Não há rota pública registrada para execução manual de avaliação final. A antiga rota manual de avaliação final não faz parte do contrato exposto; a avaliação final é acionada automaticamente pelo registro de notas. O cliente configura regras e lança notas, e o backend decide quando a avaliação pode ser calculada.
+A regra usa `formula` como texto declarativo. O parser valida referências, operadores, parênteses, constantes, categorias e períodos antes de persistir ou calcular. Erro de fórmula é erro de validação, não falha operacional inesperada.
 
-1. Ao registrar uma nota, o backend valida a academia autenticada, o ano letivo, o estudante, a matéria/categoria/período e o pertencimento à academia.
-2. O backend infere o `tipo_ensino` do estudante e identifica o ano acadêmico atual real.
-3. O backend busca todas as regras ativas aplicáveis à academia, ao tipo de ensino e ao ano acadêmico.
-4. A cadeia precisa ter exatamente uma regra raiz, isto é, uma regra sem `aplica_se_reprovado_em_type`.
-5. A execução começa na raiz e não na categoria da nota recém-registrada. O `type` executado vem da regra encontrada.
-6. Para regras dependentes, o backend segue `aplica_se_reprovado_em_type` e só executa a regra se o estudante foi reprovado no `type` pré-requisito, seja no mesmo processamento, seja em avaliação já persistida.
-7. Se um pré-requisito aprovou, a dependente é encerrada sem execução; se o pré-requisito ainda não existe, a dependente aguarda.
-8. O backend impede duplicidade para o mesmo estudante, academia, ano letivo, tipo de ensino, ano acadêmico e `type`.
-9. O backend carrega notas do ano letivo atual apenas nas categorias envolvidas na regra, calcula a fórmula e obtém `nota_final`.
-10. Se faltar nota exigida pela fórmula, a regra é ignorada naquele momento e será tentada novamente em novos lançamentos de nota.
-11. O backend define `aprovado = nota_final >= nota_minima_aprovacao`.
-12. O backend calcula `proximo_ano_academico`: quando reprovado, permanece no nível; quando aprovado, avança para o próximo nível ou retorna `null` no último nível do ciclo.
-13. O evento registra `type`, `nota_final`, `nota_minima_aprovacao`, `regra_avaliacao_final_id`, `formula_snapshot`, `aplica_se_reprovado_em_type`, turma atual e turmas removidas.
+| Nível | Formato da referência | Exemplo válido | Exemplo inválido |
+|---|---|---|---|
+| Fundamental | `[categoria,periodo]` | `([nota_escola,1_trimestre]+[nota_escola,2_trimestre]+[nota_escola,3_trimestre])/3` | `[nota_escola]` |
+| Médio | `[categoria,periodo]` | `[nota_escola,1_trimestre]*0.4+[nota_exame,3_trimestre]*0.6` | `[nota_exame]` |
+| Superior | `[categoria]`; período inferido pela matéria/semestre avaliado | `([nota_pp1]+[nota_pp2])/2` | `[nota_pp1,1_semestre]` |
 
-**Como a fórmula considera períodos:**
+No Superior, o backend preenche o período no momento do cálculo usando a matéria/escopo avaliado (`periodo` da matéria e `semestre_atual` do estudante). Assim, a mesma regra superior pode calcular as matérias do semestre atual sem expor período explícito no payload da regra.
 
-- Cada referência `[categoria,periodo]` exige nota naquele par exato de categoria e período.
-- Para médias simples, some explicitamente os períodos necessários e divida pela quantidade desejada.
-- Para pesos, multiplique cada referência ou grupo por sua constante, por exemplo `[nota_escola,1_trimestre]*0.3`.
+Se a fórmula exigir nota que ainda não existe para determinada matéria, categoria e período, aquela execução não fecha a avaliação naquele momento; o lançamento de novas notas tentará novamente. A fórmula sempre lê notas do ano letivo atual, da mesma academia, do mesmo estudante, da matéria avaliada e de categorias extraídas da própria fórmula.
 
-**Persistência, auditoria e versionamento:**
+#### 5.6.4 Execução automática por lançamento de notas
 
-- O aggregate emite `AvaliacaoFinalEscolar` para fundamental/médio e `AvaliacaoFinalSuperior` para superior.
-- A projeção `projection_avaliacao_final` grava os dados calculados e usa unicidade por `codigo_estudante`, `codigo_academia`, `ano_lectivo`, `tipo_ensino`, `ano_academico_atual` e `type`.
-- A avaliação salva o snapshot da regra usada (`formula_snapshot`) e o identificador `regra_avaliacao_final_id`; alterações futuras na regra não alteram avaliações já registradas.
-- O campo `version` da avaliação na projeção acompanha a versão do evento do aggregate.
-- O campo `version` da regra começa em `1` na criação da regra e aumenta a cada edição ou inativação/deleção lógica.
+1. A academia registra/atualiza nota; o backend valida ano letivo, estudante, matéria, categoria, período e pertencimento.
+2. O backend infere o nível acadêmico do estudante para execução: Superior tem prioridade quando há vínculo/status superior; depois Médio; caso contrário Fundamental.
+3. Para Superior, o backend transforma `semestre_atual` em `[n]_semestre` e valida esse período contra o curso.
+4. O backend busca regras ativas aplicáveis à academia, ao `nivel` e ao escopo acadêmico atual.
+5. A cadeia começa na raiz. Descendentes só são consideradas se a etapa anterior reprovou.
+6. Para cada regra executável, o backend resolve as matérias aplicáveis e calcula `nota_final` individual por matéria.
+7. O resultado de cada matéria compara `nota_final` com `nota_minima_aprovacao`.
+8. No Médio, antes da decisão geral, o backend carrega o curso médio do estudante e resolve `materias_chave` pela configuração do `ano_escolar_medio` atual. Se o curso não possuir configuração para esse ano, a avaliação falha com erro claro de configuração ausente.
+9. A decisão geral é derivada dos resultados por matéria, das matérias-chave resolvidas do curso/ano e, no Médio/Superior, das condições de pendência.
+10. O evento grava snapshots: regra, `type`, fórmula usada, nota mínima, curso usado, matérias-chave resolvidas, resultados por matéria, pendências geradas, turma atual/turmas removidas quando aplicável e dados de progressão.
+11. Se a avaliação já existir no escopo idempotente, o backend não duplica o registro.
 
-**Cálculo da nota final e decisão de aprovação/reprovação:**
+#### 5.6.5 Fundamental
 
-- A decisão final é sempre `aprovado = nota_final >= nota_minima_aprovacao`; se a nota calculada for menor que a mínima, o resultado é reprovação.
-- `nota_final` não é uma média fixa do sistema. Ela é o resultado da `formula` configurada pela academia para a regra ativa daquele `tipo_ensino`, `ano_academico` e `type`.
-- A fórmula lê somente notas do `ano_lectivo` atual, da mesma `codigo_academia`, do mesmo `codigo_estudante`, não deletadas (`deleted_at IS NULL`) e pertencentes às `categorias_envolvidas`.
-- Se a fórmula exigir uma categoria/período que ainda não possui nota, o cálculo não é fechado. Na execução automática por lançamento de nota, a regra fica aguardando novos lançamentos; na execução manual interna/legada, o backend devolve erro de validação.
-- Notas corrigidas ou deletadas não reabrem automaticamente uma avaliação final já registrada. A avaliação final é um evento auditável e idempotente por ano letivo, nível e `type`; ajustes posteriores exigem fluxo operacional próprio/rebuild conforme administração do sistema.
+- O escopo é `ano_escolar_fundamental` atual do estudante (`1_ano_fundamental` a `9_ano_fundamental`).
+- Regras fundamentais usam `anos_academicos` como array simples; regras médias usam `anos_academicos` por curso (`curso_id` + anos); regras superiores não aceitam `anos_academicos`.
+- O backend avalia cada matéria fundamental ativa aplicável ao ano do estudante, respeitando `materias_aplicaveis` se configurado.
+- Cada matéria recebe `nota_final` própria; aprovação direta exige que todas as matérias avaliadas atinjam a mínima.
+- Uma ou mais matérias abaixo da mínima reprovam a etapa e podem acionar regra descendente por matéria reprovada.
+- Fundamental não permite aprovação com pendência: regra fundamental não tem `limite_materias_pendentes` e matérias fundamentais não aceitam `pendencia_permitida`/`pendencia_nivel_conclusao`.
+- Aprovado em ano intermediário progride para o próximo ano fundamental. Se a academia não oferta o próximo ano, o evento registra o motivo `academia_sem_oferta_do_proximo_ano_academico_fundamental`, mantém o ciclo em andamento e não adiciona turma automaticamente.
+- Aprovado no `9_ano_fundamental` finaliza o ciclo fundamental. Reprovado permanece no mesmo ano.
 
-**Funcionamento escolar (Fundamental e Médio):**
+#### 5.6.6 Médio
 
-- `fundamental` usa sequência fixa de níveis: `1_ano_fundamental` até `9_ano_fundamental`.
-- `medio` usa a sequência `anos_academicos` do curso médio vinculado ao estudante; por isso o estudante precisa ter curso médio existente, ativo e com `anos_academicos` configurados.
-- O backend valida que `nivel_ano_academico_atual` é exatamente o nível atualmente armazenado no estudante (`ano_escolar` para fundamental ou `ano_escolar_medio` para médio). Se o payload indicar outro nível, a avaliação é bloqueada.
-- Se reprovado, `proximo_ano_academico` fica `null`, o estudante permanece no mesmo nível, os status de ciclo não mudam e ele não é removido das turmas atuais.
-- Se aprovado e ainda existe próximo nível, `proximo_ano_academico` recebe o próximo item da sequência e o aggregate atualiza `ano_escolar` ou `ano_escolar_medio`. No fundamental, se a academia atual ainda não oferta o próximo ano global em `projection_academias.anos_academicos`, o evento mantém `proximo_ano_academico` preenchido, registra `motivo_progressao = "academia_sem_oferta_do_proximo_ano_academico_fundamental"`, deixa `status_escolar_fundamental = "em_andamento"` e não cria vínculo automático com turma/matéria/curso/período inexistente.
-- Se aprovado no último nível real do ciclo, `proximo_ano_academico` fica `null` e o aggregate marca `status_escolar_fundamental` ou `status_escolar_medio` como `finalizado`. A falta de oferta do próximo ano pela academia não é tratada como fim real do ciclo fundamental.
-- Para eventos escolares aprovados com turmas removidas, a projeção de turmas remove o estudante das turmas atuais, registra histórico no ano letivo e tenta adicioná-lo a uma turma ativa do próximo nível, exceto quando `motivo_progressao` indicar ausência de oferta do próximo ano fundamental pela academia; nesse caso, o estudante fica sem turma automática até a academia habilitar/ofertar o ano.
-- A seleção de turma destino prioriza compatibilidade com `turno` e `curso_id` da turma de origem; se não houver compatível, usa qualquer turma ativa do próximo nível na mesma academia.
-- Se não existir turma destino válida para aprovado com próximo nível, a projeção de turmas falha para impedir estado parcial.
+- O escopo é o `ano_escolar_medio` atual do estudante, validado contra o curso médio ativo vinculado.
+- O backend avalia matérias médias ativas do curso e ano atual; `materias_aplicaveis` restringe a lista quando informado. O curso médio precisa ter `materias_chave` completa para todos os seus `anos_academicos`, com pelo menos uma matéria por ano.
+- A regra raiz de Médio não aceita `materias_chave`. A lista é obrigatória no curso médio, por ano acadêmico, e é resolvida pelo par `curso_medio_id` + `ano_escolar_medio` do estudante. Na raiz, reprovação em matéria-chave impede aprovação direta; reprovação apenas em matéria não-chave não torna a decisão geral reprovada nessa etapa, embora o resultado por matéria continue registrado.
+- Descendentes podem recalcular matérias reprovadas e/ou limitadas por `materias_aplicaveis`; se uma matéria reprovada não estiver na lista da descendente, ela não é recalculada por aquela regra.
+- Depois da última etapa aplicável, reprovações podem virar pendência somente se: o total de reprovações for menor ou igual a `limite_materias_pendentes` e todas as matérias reprovadas tiverem `pendencia_permitida=true`.
+- Se essas condições forem satisfeitas, o evento é aprovado com `aprovado_com_pendencia=true` e gera registros em `projection_materias_pendentes`.
+- Se o limite for ultrapassado, ou se alguma matéria reprovada não permitir pendência, o estudante reprova totalmente e nenhuma pendência nova é criada.
+- Pendências de curso anterior permanecem históricas e não devem bloquear o curso atual; o curso salvo na pendência faz parte da decisão funcional de bloqueio.
+- `pendencia_nivel_conclusao` representa o ano-limite para bloquear conclusão/progressão quando há pendência aberta do curso atual.
 
-**Funcionamento no Ensino Superior:**
+Cenários típicos do Médio:
 
-- `superior` usa `semestre_atual` como unidade corrente; o backend o converte para `[n]_semestre`, valida o período em `curso.periodos` e deriva `ano_superior = ceil(semestre_atual / 2)`.
-- O estudante precisa ter curso superior vinculado; o curso precisa existir, estar `ativo` e possuir `periodos` com o semestre atual.
-- O backend valida que o nível avaliado no superior é o período derivado de `semestre_atual`, não o `ano_superior`; por exemplo, `semestre_atual = 2` avalia `2_semestre`.
-- A aprovação no superior avança para o próximo semestre configurado no curso; no último semestre, marca `status_superior = finalizado`.
-- A reprovação no superior mantém o estudante no mesmo `semestre_atual`, no mesmo `ano_superior` derivado e não altera `status_superior`.
-- Avaliação superior não altera turmas automaticamente; vínculos com turmas do superior são geridos pelas regras próprias de turmas/matrícula.
+| Cenário | Resultado funcional |
+|---|---|
+| Todas as matérias-chave aprovadas | Aprovação direta na raiz, com progressão ou conclusão conforme ano do curso. |
+| Matéria não-chave reprovada na raiz | Resultado por matéria fica reprovado, mas a decisão geral da raiz pode permanecer aprovada conforme comportamento atual. |
+| Matéria-chave reprovada e aprovada em descendente | A cadeia registra a nova etapa e a aprovação da descendente permite progressão/conclusão. |
+| Matéria reprovada sem descendente aplicável | Decide reprovação total ou aprovação com pendência conforme limite e permissão da matéria. |
+| Uma pendência dentro do limite | Aprovação com pendência; pendência aberta é criada. |
+| Pendências acima do limite | Reprovação total; não cria pendências. |
+| Matéria com `pendencia_permitida=false` | Reprovação total, mesmo dentro do limite numérico. |
 
-**Transição para ano seguinte e semestres:**
+#### 5.6.7 Superior
 
-- A transição do estudante sempre usa o **nível acadêmico atual** e o **próximo nível acadêmico** calculado pelo backend. Para Fundamental, a sequência é fixa; para Médio, a sequência vem de `curso.anos_academicos`; para Superior, a sequência vem de `curso.periodos`.
-- Em aprovação com próximo nível, o evento grava `proximo_ano_academico` para Fundamental/Médio; no Superior, grava `proximo_semestre_atual` e o `ano_superior` derivado após a progressão.
-- Em aprovação sem próximo nível, significa conclusão do último nível configurado: o campo de ano não avança e o status do ciclo passa para `finalizado`.
-- Em reprovação, `proximo_ano_academico` fica `null`; isto significa retenção no mesmo nível, não conclusão.
-- No Superior, a avaliação final progride por semestre. O campo persistido `semestre_atual` é a fonte de verdade, e `ano_superior` é compatibilidade derivada pela fórmula `ceil(semestre_atual / 2)`.
-- Os semestres do Superior (`1_semestre`, `2_semestre`, etc.) são simultaneamente `periodos` de curso/matéria/nota e o escopo da regra de avaliação final superior. Regras superiores usam valores semestrais em `anos_academicos` por compatibilidade com o schema.
-- Aprovação em semestre intermediário incrementa `semestre_atual` e recalcula `ano_superior`; aprovação no último semestre marca `status_superior = finalizado`; reprovação mantém semestre, ano superior e status.
-- Eventos `AvaliacaoFinalSuperior` carregam o semestre avaliado, próximo semestre calculado e `ano_superior` antes/depois, permitindo rebuild determinístico das projeções de estudantes e avaliações.
+- O escopo é o curso superior ativo e o `semestre_atual` do estudante, convertido para `1_semestre`, `2_semestre`, etc.
+- O backend avalia matérias superiores ativas do curso cujo `periodo` corresponde ao semestre atual.
+- Fórmulas superiores não declaram período; o período é preenchido automaticamente para cada matéria avaliada.
+- Aprovação direta exige todas as matérias avaliadas com nota final maior ou igual à mínima.
+- Reprovação em matéria aciona descendentes aplicáveis; descendentes também trabalham por matéria e podem ser restringidas por `materias_aplicaveis`.
+- Após esgotar a cadeia, o estudante pode aprovar com pendência se o total de reprovações couber em `limite_materias_pendentes` e todas as matérias reprovadas permitirem pendência.
+- Reprovação por limite excedido ou matéria sem pendência permitida mantém o estudante no mesmo `semestre_atual` e não altera o status superior.
+- Aprovação em semestre intermediário incrementa `semestre_atual` e recalcula `ano_superior`; aprovação no último semestre finaliza o ciclo superior.
+- Pendência de curso anterior permanece histórica e não bloqueia o curso atual.
 
-**Cadeias de avaliação final (`avaliacao_final`, `avaliacao_final_com_exame`, `avaliacao_final_com_recurso` etc.):**
+#### 5.6.8 Regras descendentes por matéria
 
-- Para cada academia, tipo de ensino e ano acadêmico deve haver exatamente uma regra raiz aplicável, ou seja, uma regra ativa sem `aplica_se_reprovado_em_type`.
-- Regras dependentes precisam ter o mesmo escopo de `anos_academicos` da raiz e só executam se o estudante foi reprovado no `type` indicado em `aplica_se_reprovado_em_type`. Exemplo: `avaliacao_final_com_recurso` pode depender de reprovação em `avaliacao_final`; `avaliacao_final_com_exame` pode depender de reprovação em `avaliacao_final_com_recurso`.
-- Se a regra anterior aprovar, as dependentes são encerradas sem execução, porque não há reprovação a recuperar.
-- Cada `type` tem idempotência própria: o estudante pode ter uma avaliação `avaliacao_final` e, se reprovado, uma avaliação `avaliacao_final_com_recurso`, mas não duas avaliações `avaliacao_final` para o mesmo ano letivo, nível e tipo de ensino.
+Regra descendente é qualquer regra com `aplica_se_reprovado_em_type`. Ela representa uma etapa posterior da cadeia e só roda quando a etapa ascendente indicada reprovou. A descendente herda a lógica por matéria: calcula notas para matérias aplicáveis, compara cada resultado com a mínima e grava `type`/regra/fórmula usados naquela etapa.
 
-**Consultas:**
+Pontos importantes:
 
-- `GET /avaliacoes` → todos os registos, com filtros por `tipo_ensino`, `ano_letivo`, `ano_academico_atual`, `codigo_turma`, `codigo_academia` e `type`.
+- A descendente não é uma média global do estudante; ela recalcula matérias no escopo da regra.
+- `materias_aplicaveis` funciona como filtro: matéria fora da lista não é recalculada naquela etapa.
+- A cadeia termina quando não há descendente ativa aplicável, quando a etapa anterior aprovou ou quando faltam notas para calcular a próxima etapa.
+- Ao final da última etapa reprovada, Médio/Superior avaliam se a reprovação vira pendência; Fundamental sempre permanece reprovado.
+- Exemplo: raiz `avaliacao_final` reprova Matemática e Física; descendente `avaliacao_final_com_exame` com `materias_aplicaveis=[Matemática]` recalcula somente Matemática. Física continua com o resultado anterior para a decisão final/pendência.
+
+#### 5.6.9 Resultados por matéria, eventos, projeções e auditoria
+
+Cada avaliação final gravada deve ser explicada pelos itens de `resultados_materias`, não por média global única. Cada item contém, no mínimo, `materia_id`, `nota_final`, `aprovado`, `type`, `formula_snapshot`, `regra_avaliacao_final_id` e `pendencia_permitida`. A projeção também mantém `nota_final` agregada como média dos itens calculados para compatibilidade/consulta resumida, mas a decisão funcional é por matéria.
+
+Eventos `AvaliacaoFinalEscolar` e `AvaliacaoFinalSuperior` preservam snapshots de regra, fórmula, notas calculadas, progressão e pendências geradas. Alterações posteriores de regra, matéria ou nota não reescrevem silenciosamente decisões já registradas; ajustes exigem fluxo operacional próprio/rebuild controlado.
+
+#### 5.6.10 Pendências de matérias
+
+Pendências existem apenas para Médio e Superior. Elas são consideradas depois de reprovação na cadeia aplicável e só são criadas quando a decisão final é aprovação com pendência. Se o estudante reprova totalmente, nenhuma nova pendência é criada.
+
+A pendência carrega funcionalmente: estudante, matéria, academia, curso, `nivel`, ano letivo, escopo acadêmico (`ano_escolar_medio` ou `periodo_superior`), regra/evento de origem, status `pendente`, dados de origem/snapshot e timestamps. Há proteção contra duplicidade aberta no mesmo estudante, matéria, curso, nível, ano letivo e escopo. A estrutura também possui campos de baixa (`baixada_por_event_id`, `updated_at`) para histórico, mas a documentação funcional reconhece uma limitação atual: **não há rota pública consolidada de regularização/baixa de pendência exposta nesta documentação de API**. Portanto, o sistema já persiste e consulta a base de pendências abertas/históricas, mas a regularização operacional precisa ser implementada ou conduzida por fluxo administrativo/evento específico antes de ser tratada como rotina pública.
+
+#### 5.6.11 Bloqueio por `pendencia_nivel_conclusao` e regularização
+
+`pendencia_nivel_conclusao` pertence à matéria e deve ser usado para identificar pendências bloqueantes do curso atual. Funcionalmente:
+
+- No Médio, pendência aberta cujo limite coincide com ano de conclusão bloqueia conclusão automática até baixa.
+- No Superior, pendência aberta cujo limite coincide com semestre/período conclusivo bloqueia conclusão automática até baixa.
+- Aprovação com pendência pode permitir progressão intermediária, mas não deve permitir conclusão com pendência bloqueante do curso atual.
+- Pendências não bloqueantes permitem progressão conforme regra de avaliação, desde que pertençam a escopo anterior e dentro do limite funcional definido.
+- Pendências de curso anterior são históricas e não bloqueiam o curso atual.
+- Regularização de pendência é diferente de avaliação final normal: deve avaliar a matéria pendente, registrar evento próprio auditável, baixar a pendência se aprovada e manter aberta se reprovada. Como limitação atual, esse fluxo ainda não está exposto como endpoint público completo; ao ser implementado, deve reutilizar os dados de origem da pendência e retomar progressão/conclusão quando não restarem pendências relevantes abertas.
+
+#### 5.6.12 Cenários de erro e validação
+
+Devem falhar com erro de validação ou bloqueio funcional:
+
+- Payload de regra com `tipo_ensino`; use `nivel`.
+- Academia mista criando regra sem `nivel` ou tentando criar regra `superior`.
+- Academia não mista criando regra de nível incompatível com sua configuração.
+- `anos_academicos` ausente em regra fundamental ou presente em Médio/Superior.
+- `limite_materias_pendentes` presente no Fundamental, ausente em Médio/Superior ou negativo.
+- `materias_chave` enviado em qualquer regra de avaliação final; o campo pertence ao curso médio, não à regra.
+- Curso médio sem `materias_chave` para todo ano acadêmico do curso, ou com matérias-chave vazias, duplicadas, inativas, inexistentes, de outra academia, de outro curso, de outro nível ou fora do ano configurado.
+- `materias_aplicaveis` fora do escopo do curso/ano/período aplicável deve ser tratada como configuração inválida ou ineficaz operacionalmente; QA deve validar esse cenário contra a base de matérias da academia.
+- Descendente órfã, descendente que aponta para si mesma, ciclo de dependências ou escopo fundamental diferente da raiz.
+- Fórmula Fundamental/Médio sem período explícito (`[categoria]`).
+- Fórmula Superior com período explícito (`[categoria,periodo]`).
+- Fórmula com categoria inexistente, período inválido, divisão por zero, caracteres fora da gramática ou categorias enviadas que não batem com a fórmula.
+- Tentativa de criar pendência em matéria fundamental.
+- Tentativa de criar duplicidade de pendência aberta no mesmo escopo.
+- Tentativa de concluir/progredir em desacordo com pendência bloqueante do curso atual.
+
+#### 5.6.13 Consultas
+
+- `GET /avaliacoes` → registros de avaliação final, com filtros por `nivel`, ano letivo, ano/período acadêmico atual, turma, academia e `type`. O filtro legado `tipo_ensino` é rejeitado no handler atual.
 - `GET /aprovacoes` → apenas aprovados (`aprovado = TRUE`) com os mesmos filtros.
-- `GET /reprovacoes` → apenas reprovados (`aprovado = FALSE`) com os mesmos filtros.
+- `GET /reprovacoes` → reprovações definitivas; reprovações intermediárias com descendente ativa posterior não aparecem como definitivas até a cadeia terminar.
 - `GET /academia/avaliacao-final/regras` → lista regras da academia autenticada.
-- `PUT /academia/avaliacao-final/regras/:id` → edita apenas `nome`, `descricao`, `nota_minima_aprovacao` e `formula`; as categorias são recalculadas pela fórmula.
-- `DELETE /academia/avaliacao-final/regras/:id` → inativa a regra e suas dependentes em cadeia. A deleção é lógica, não física, para preservar histórico e snapshots de avaliações já registradas. Após a inativação, dependentes não podem ser reativadas sem o pré-requisito ativo, e regras inativas com `type` conflitante com regra ativa permanecem bloqueadas para ativação.
+- `PUT /academia/avaliacao-final/regras/:id` → edita apenas campos seguros de apresentação/cálculo (`nome`, `descricao`, `nota_minima_aprovacao`, `formula`).
+- `DELETE /academia/avaliacao-final/regras/:id` → inativa a regra e suas dependentes em cascata.
 
-**Escopo por academia:** quando o usuário autenticado é academia, o backend força `codigo_academia` para a academia autenticada; não é permitido consultar dados de outra academia.
-
-**Dependência entre filtros:** para consultas admin, o filtro `codigo_turma` exige também `codigo_academia` para garantir resolução correta da turma no contexto da academia.
+**Escopo por academia:** usuário autenticado como academia só consulta/gerencia dados da própria academia. Admin pode consultar de forma ampla com filtros.
 
 ---
 
@@ -803,6 +848,8 @@ Para deletar um curso:
 3. Não pode ter matérias ativas (desativar todas primeiro)
 4. Matérias inativas são deletadas em cascata automaticamente
 5. Turmas inativas vinculadas são deletadas em cascata automaticamente
+
+Em cursos médios, `materias_chave` é parte da configuração curricular do curso. A criação/edição rejeita lacunas: todo `ano_academico` do curso deve possuir uma entrada em `materias_chave`, e cada entrada deve conter pelo menos uma matéria média ativa daquele mesmo curso, academia e ano. Essa regra garante que a avaliação final do Médio sempre consiga resolver as matérias-chave pelo curso/ano do estudante.
 
 **Ciclo de vida da matéria superior:**
 
@@ -892,14 +939,6 @@ Se qualquer item falhar, o job fica como `failed` (não `done`), permitindo que 
 
 ---
 
-### Telefones nativos e remoção de telefone extra
-
-O modelo `projection_telefones_extra` e o endpoint de telefone extra foram removidos. O telefone passa a fazer parte das entidades principais: estudante (`telefone`, `telefone_verificado`, `telefone_responsavel`, `telefone_responsavel_verificado`), academia (`telefone`, `telefone_verificado`) e admin (`telefone`, `telefone_verificado`).
-
-A normalização remove espaços, hifens e parênteses; o valor persistido deve ser string com exatamente 9 dígitos numéricos, sem DDI. A verificação de telefone ainda não possui fluxo ativo: os campos `*_verificado` existem para evitar conflitos de schema no futuro e não devem ser expostos como processo operacional.
-
-Regras de estudante: ao menos um telefone deve existir; `telefone` e `telefone_responsavel` não podem ser iguais; e o telefone de um estudante não pode ser reaproveitado como telefone de responsável de outro estudante.
-
 ## 6. Regras de Negócio
 
 ### 6.1 Regras de Academia
@@ -971,7 +1010,7 @@ O sistema não possui mais a entidade sumário/aula. As faltas devem ser lançad
 | Aprovação no último nível finaliza ciclo | Define o status do ciclo correspondente como `finalizado` |
 | Uma avaliação por type/ano letivo/nível | Idempotência via aggregate e projeção |
 | Ativação de regra dependente | Uma regra dependente inativa só pode ser ativada se o `type` apontado em `aplica_se_reprovado_em_type` estiver ativo |
-| Reativação com `type` conflitante | Regra inativa não pode ser ativada enquanto houver regra ativa com o mesmo `type`, tipo de ensino e ano acadêmico sobreposto |
+| Reativação com `type` conflitante | Regra inativa não pode ser ativada enquanto houver regra ativa com o mesmo `type`, `nivel` e escopo acadêmico sobreposto |
 | Aprovação escolar move para turma do próximo ano; reprovação escolar mantém na turma | Automático na projeção de turmas para fundamental/médio |
 | Avaliação superior não altera turmas | Turmas do superior são geridas separadamente |
 
@@ -1282,103 +1321,3 @@ O ano letivo global e o ano letivo da academia passam a separar o identificador 
 Cada tipo possui um único `periodo` configurado por Admin FPP no formato `MM_MM`. Esse período não é recriado a cada virada de ano; ele é combinado com o `ano_letivo` ativo para calcular o intervalo real aceito nas operações de faltas.
 
 As academias podem declarar a finalização de um ano letivo por tipo. Essa ação é registrada no ledger por meio do evento `AnoLetivoAcademiaFinalizado` e projetada em `projection_anos_letivos_academia_finalizacoes`, mantendo a informação auditável por academia, tipo, ano, usuário, data e observação. A finalização, que também define automaticamente o ano letivo seguinte da academia, só é aceita na janela operacional entre o mês de fim do período letivo configurado para o tipo e o mês imediatamente anterior ao mês de início do próximo período: em termos de validação, o mês atual precisa ser `>=` ao mês final de `periodo` e `<` ao mês inicial de `periodo`. Exemplo: com `periodo=10_07`, a academia pode finalizar em julho, agosto ou setembro (meses 07, 08 e 09); de outubro a junho a operação é bloqueada, porque o ano letivo ainda está em curso ou o próximo período já começou. Quando todas as academias ativas do mesmo tipo ficam alinhadas no mesmo ano letivo após esses avanços, a plataforma atualiza automaticamente esse valor como o ano letivo global daquele tipo. Escolas nunca bloqueiam nem avançam o calendário global do superior, e o superior nunca bloqueia nem avança o calendário global escolar.
-
----
-
-## Atualização 2.0.7 — Gestão segura de anos acadêmicos por academias
-
-Academias agora podem consultar, adicionar e desabilitar escopos acadêmicos habilitados via `/academia/anos-academicos`, sem substituição em massa. O contrato mantém a separação entre **ano acadêmico/período** e **ano letivo/calendário**.
-
-- **Fundamental/misto**: a lista ativa continua na academia (`projection_academias.anos_academicos`) e aceita somente códigos canônicos `[1-9]_ano_fundamental`.
-- **Médio**: a lista ativa pertence ao curso médio (`projection_cursos.anos_academicos`) e requer `curso_id`, evitando colisão com anos do fundamental em escolas mistas.
-- **Superior**: a academia informa somente `periodos` numérico no curso superior; semestres (`[n]_semestre`) e anos superiores (`[n]_ano_superior`) seguem derivados pelo backend.
-- **Segurança**: cada alteração valida propriedade da academia, compatibilidade entre `type` e nível/curso, e bloqueia reduções que afetariam estudantes ativos no ano ou semestre removido.
-- **Preservação histórica**: remoções são lógicas/prospectivas; eventos, ledger, histórico acadêmico, turmas, matérias, notas, faltas, avaliações finais já registrados não são apagados nem reprocessados.
-- **Contratos explícitos na API**: a documentação da API detalha `GET`, `POST` e `DELETE /academia/anos-academicos` com funcionamento, permissões, payloads por `type`, respostas de sucesso e erros esperados.
-- **Leitura por admin**: admins usam `GET /academia/anos-academicos?codigo_academia=...`; as rotas de escrita permanecem exclusivas para academias autenticadas e ativas.
-- **Erros acionáveis**: as respostas de erro dessas rotas usam o envelope padrão com `details[]` contendo `field`, `code` e `message`, inclusive em conflitos `409` causados por estudantes ativos, para indicar exatamente o campo problemático, o motivo e a correção esperada.
-
-## Atualização 2.0.8 — Progressão fundamental sem oferta do próximo ano
-
-A avaliação final do fundamental agora diferencia conclusão real do ciclo e ausência operacional de oferta na academia. Quando o estudante é aprovado em um ano anterior ao `9_ano_fundamental`, o backend calcula o próximo ano global canônico e verifica se ele existe em `projection_academias.anos_academicos` da academia atual. Se não existir, o estudante avança para esse próximo ano global, permanece com `status_escolar_fundamental = "em_andamento"`, continua vinculado à mesma academia, não recebe turma automática e o evento registra `motivo_progressao = "academia_sem_oferta_do_proximo_ano_academico_fundamental"`. A aprovação no `9_ano_fundamental` continua finalizando o fundamental normalmente.
-
-## Atualização — Avaliação final automática por matéria e pendências
-
-### O que mudou
-
-A avaliação final automática foi remodelada para deixar de tratar regras como uma configuração genérica única e passar a suportar cálculo auditável por matéria. A base agora diferencia regras por `nivel`, prepara armazenamento de resultados por matéria e introduz o recurso persistente de matérias pendentes para médio e superior.
-
-### Renomeação de contrato
-
-- O campo público `tipo_ensino` foi removido das regras de avaliação final.
-- O novo campo público é `nivel`.
-- Payloads de criação de regra contendo `tipo_ensino` são rejeitados com mensagem de validação.
-- Consultas e respostas de regras passam a retornar `nivel`.
-- Internamente, a tabela de regras usa a coluna `nivel`.
-
-### Regras por nível
-
-#### Fundamental
-
-- Usa `anos_academicos` como escopo obrigatório.
-- Não aceita `limite_materias_pendentes`.
-- Não aceita `materias_chave`.
-- Continua usando fórmula com categoria e período explícito.
-
-#### Médio
-
-- Não aceita `anos_academicos` no payload público.
-- Exige `limite_materias_pendentes`.
-- Exige `materias_chave` na regra raiz.
-- Permite pendência quando a matéria permite pendência e o total de reprovações finais fica dentro do limite configurado.
-
-#### Superior
-
-- Não aceita `anos_academicos` no payload público.
-- Exige `limite_materias_pendentes`.
-- A fórmula pode omitir o período em referências de nota, por exemplo `[prova]`; no cálculo, o backend preenche o período/semestre avaliado.
-
-### Validações implementadas
-
-- `nivel` é validado contra o cadastro da academia autenticada.
-- Academias superiores recebem `nivel='superior'` automaticamente.
-- Academias escolares não mistas recebem `nivel` automaticamente de `nivel_escolar`.
-- Academias mistas devem informar `fundamental` ou `medio`.
-- `anos_academicos` só é aceito para fundamental.
-- `limite_materias_pendentes` é obrigatório e não negativo para médio/superior.
-- `materias_chave` é obrigatório em regra raiz de nível médio.
-- Fórmulas seguem usando parser próprio, sem `eval` e sem execução de código do usuário.
-
-### Persistência adicionada
-
-Foi criada a migration `079_avaliacao_final_nivel_materias_pendentes.sql`, que:
-
-- renomeia `projection_regras_avaliacao_final.tipo_ensino` para `nivel`;
-- adiciona `materias_chave`, `materias_aplicaveis`, `limite_materias_pendentes` e `resultados_materias_snapshot` às regras;
-- adiciona `resultados_materias`, `aprovado_com_pendencia` e `pendencias_geradas` às avaliações finais;
-- cria `projection_materias_pendentes` com índices para consulta e unicidade de pendência aberta.
-
-### O que foi removido
-
-- Aceitação pública de `tipo_ensino` em regras de avaliação final.
-- Obrigatoriedade de `anos_academicos` para regras médias e superiores.
-- Exigência de período explícito na fórmula superior.
-
-### Observação operacional
-
-A estrutura de dados e o contrato da API foram preparados para avaliação por matéria e pendências. As decisões continuam auditáveis por evento de avaliação final, com snapshots para reconstrução de cálculo e com tabela dedicada para histórico de pendências.
-
-## Atualização de debug — conclusão da avaliação final automática por matéria
-
-Durante o debug completo da tarefa de avaliação final por matéria e pendências, o fluxo automático foi completado para garantir que a decisão final não dependa mais de uma média global única do estudante.
-
-### Implementação finalizada
-
-- A execução automática agora monta a lista de matérias aplicáveis conforme o `nivel` da regra:
-  - fundamental: matérias ativas da academia no `ano_escolar_fundamental` do estudante;
-  - médio: matérias ativas do curso médio atual e do `ano_escolar_medio` avaliado, respeitando `materias_chave`/`materias_aplicaveis` quando configuradas;
-  - superior: matérias ativas do curso superior atual no período/semestre avaliado.
-- O carregamento de notas passou a filtrar por matéria, categoria, ano letivo e academia, evitando que notas de outra matéria contaminem o cálculo.
-- Cada matéria gera um item auditável em `resultados_materias` no evento e na projeção de avaliação final.
-- A decisão geral deriva do conjunto de matérias: reprovação em qualquer matéria reprova o estudante, exceto quando o nível permite pendências, o limite configurado é respeitado e todas as matérias reprovadas possuem `pendencia_permitida=true`.
-- Quando há aprovação com pendência, o evento registra `aprovado_com_pendencia=true` e `pendencias_geradas`; a projeção persiste essas pendências em `projection_materias_pendentes` usando `ON CONFLICT DO NOTHING` para manter idempotência.
