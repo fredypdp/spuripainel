@@ -95,7 +95,6 @@ export type {
   AtualizarCursoRequest,
   CriarMateriaRequest,
   AtualizarMateriaRequest,
-  DefinirPeriodoMateriaRequest,
   AtualizarDadosPessoaisEstudanteRequest,
   AtualizarDadosAcademicosEstudanteRequest,
   AtualizarDadosAcademiaRequest,

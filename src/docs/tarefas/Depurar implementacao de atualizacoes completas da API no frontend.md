@@ -281,3 +281,23 @@ O PR deve listar obrigatoriamente:
 
 - A auditoria ampla encontrou várias ocorrências de `any` em telas auxiliares de testes, jobs e parsing de respostas. Elas não bloqueiam esta correção de contrato crítico, mas devem ser endereçadas em refatoração própria para eliminar todos os adaptadores frouxos restantes.
 - Não foi possível executar validação completa local porque as dependências não estavam instaladas e `npm install` foi bloqueado pelo registry com `403 Forbidden` para `@iconify/react`.
+
+## Complemento de depuração pós-revisão — 2026-07-02
+
+### Comentários endereçados
+
+- A página de regras de avaliação final não deve oferecer categorias fixas que a academia ainda não configurou. O dropdown de categorias foi corrigido para usar exclusivamente `GET /academia/categorias-nota`, filtrando categorias `ativo` por escopo/anos selecionados; nenhuma categoria é sintetizada no frontend.
+- A rota `/gerenciamento/materias-disciplinares` foi reauditada como parte da árvore `src/app/(painel)/gerenciamento/materias-disciplinares/page.tsx → src/components/paineis/MateriaPainel.tsx → academiaService → src/types/api.ts`.
+
+### Achados adicionais corrigidos
+
+- `src/components/paineis/MateriaPainel.tsx` usava todos os anos fundamentais estáticos no formulário, mesmo quando a academia não ofertava esses anos. O formulário agora limita as opções fundamentais aos `anos_academicos` da academia autenticada.
+- Matérias de nível médio/superior agora só permitem exatamente um ano acadêmico do curso selecionado, alinhando a UI à regra do contrato.
+- Matérias superiores exigiam definição posterior de `periodo` via rota removida. A UI passou a exigir `periodo` no cadastro e removeu a ação/modal de definição posterior.
+- O service removeu `PUT /academia/materia/:id/periodo` e `/academia/materia/periodo/async`, evitando fallback para contrato legado removido.
+- Os tipos de criação de matéria foram separados por nível (`fundamental`, `medio`, `superior`) e passaram a representar `periodo`, `pendencia_permitida` e `pendencia_nivel_conclusao` conforme aplicabilidade documentada.
+
+### Escopo ainda validado sem alteração de código nesta rodada
+
+- As ocorrências restantes de `tipo_ensino` em avaliações finais referem-se à entidade/consulta de avaliações já calculadas (`AvaliacaoFinalDTO` e filtros de `GET /avaliacoes`, `GET /aprovacoes`, `GET /reprovacoes`), não ao payload de regras de avaliação final.
+- `materias_chave` permanece restrito a cursos médios e não é enviado por regras de avaliação final.

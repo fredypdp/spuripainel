@@ -372,24 +372,47 @@ export type AtualizarCursoRequest = {
   materias_chave?: MateriasChaveCursoAnoDTO[];
 };
 
-export interface CriarMateriaRequest {
+export type CriarMateriaFundamentalRequest = {
   nome: string;
-  /**
-   * Opcional: no backend atual o tipo é preenchido automaticamente,
-   * exceto em academias escolares de nível misto.
-   */
-  type?: MateriaType;
-  anos_academicos?: string[];
-  curso_id?: string;
-}
+  type?: 'fundamental';
+  /** Fundamental permite 1 a 9 anos acadêmicos próprios da academia. */
+  anos_academicos: AnoFundamental[];
+  curso_id?: never;
+  periodo?: never;
+  pendencia_permitida?: never;
+  pendencia_nivel_conclusao?: never;
+};
+
+export type CriarMateriaMedioRequest = {
+  nome: string;
+  type?: 'medio';
+  /** Médio exige exatamente um ano acadêmico pertencente ao curso. */
+  anos_academicos: AnoMedio[];
+  curso_id: string;
+  periodo?: never;
+  pendencia_permitida?: boolean;
+  pendencia_nivel_conclusao?: AnoMedio;
+};
+
+export type CriarMateriaSuperiorRequest = {
+  nome: string;
+  type?: 'superior';
+  /** Superior exige exatamente um ano acadêmico calculado pelo curso. */
+  anos_academicos: string[];
+  curso_id: string;
+  /** Obrigatório no POST; a rota legado de definição posterior foi removida. */
+  periodo: AnoSuperior;
+  pendencia_permitida?: boolean;
+  pendencia_nivel_conclusao?: AnoSuperior;
+};
+
+export type CriarMateriaRequest =
+  | CriarMateriaFundamentalRequest
+  | CriarMateriaMedioRequest
+  | CriarMateriaSuperiorRequest;
 
 export interface AtualizarMateriaRequest {
   nome?: string;
-}
-
-/** PUT /academia/materias/:id/periodo */
-export interface DefinirPeriodoMateriaRequest {
-  periodo: string;
 }
 
 export interface AtualizarDadosPessoaisEstudanteRequest {
@@ -962,6 +985,8 @@ export interface Materia {
   curso_id?: string;
   /** Apenas para tipo 'superior'. */
   periodo?: string;
+  pendencia_permitida?: boolean;
+  pendencia_nivel_conclusao?: string;
   status: 'ativo' | 'inativo' | 'deletado';
   deleted_at?: string;
   created_at: string;

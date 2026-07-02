@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useApi, academiaService, tokenStorage } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
-import { Curso, Materia, MateriaType } from "@/types/api";
+import { AnoFundamental, AnoMedio, AnoSuperior, CriarMateriaRequest, Materia, MateriaType } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
@@ -16,6 +16,9 @@ interface MateriaFormData {
   type: MateriaType;
   anos_academicos: string[];
   curso_id?: string;
+  periodo?: string;
+  pendencia_permitida: boolean;
+  pendencia_nivel_conclusao?: string;
 }
 
 const ANOS_FUNDAMENTAL = [
@@ -118,40 +121,6 @@ function BarraLoteMaterias({ selecionadas, materiasList, onLimpar, onAtivar, onD
 
 // ── Modais ────────────────────────────────────────────────────────────────────
 
-function ModalDefinirPeriodo({ materia, periodos, onConfirm, onClose }: { materia: Materia; periodos: string[]; onConfirm: (periodo: string) => Promise<void>; onClose: () => void }) {
-  const [periodo, setPeriodo] = useState(periodos[0] ?? "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!periodo) { setError("Selecione um período."); return; }
-    setLoading(true);
-    try { await onConfirm(periodo); onClose(); } catch (err: unknown) { setError(formatApiError(err, "Erro ao definir período.")); } finally { setLoading(false); }
-  }
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Definir Período</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Matéria: <span className="font-medium text-gray-700 dark:text-gray-200">{materia.nome}</span></p>
-        {error && <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Período *</label>
-            <select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
-              <option value="">Selecione</option>
-              {periodos.map(p => <option key={p} value={p}>{formatarPeriodoLabel(p)}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
-            <Button size="sm" disabled={loading}>{loading ? "Salvando..." : "Confirmar"}</Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 function ModalConfirmarDelete({ materia, onConfirm, onClose }: { materia: Materia; onConfirm: () => Promise<void>; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   async function handle() { setLoading(true); try { await onConfirm(); onClose(); } finally { setLoading(false); } }
@@ -199,14 +168,12 @@ function AnosChips({ anos }: { anos: string[] }) {
 
 // ── Card de matéria ───────────────────────────────────────────────────────────
 
-function MateriaCard({ materia, getCursoNome, periodosDoCurso, onEdit, onToggleStatus, onDefinirPeriodo, onDelete, selecionada, onToggleSelecao }: {
-  materia: Materia; getCursoNome: (id?: string) => string; periodosDoCurso: string[];
+function MateriaCard({ materia, getCursoNome, onEdit, onToggleStatus, onDelete, selecionada, onToggleSelecao }: {
+  materia: Materia; getCursoNome: (id?: string) => string;
   onEdit: (m: Materia) => void; onToggleStatus: (m: Materia) => void;
-  onDefinirPeriodo: (m: Materia) => void; onDelete: (m: Materia) => void;
+  onDelete: (m: Materia) => void;
   selecionada?: boolean; onToggleSelecao?: (id: string) => void;
 }) {
-  const precisaDefinirPeriodo = materia.type === "superior" && !materia.periodo;
-  const podeAtivar = materia.type !== "superior" || !!materia.periodo;
   const podeDelete = materia.status === "inativo";
 
   return (
@@ -241,18 +208,9 @@ function MateriaCard({ materia, getCursoNome, periodosDoCurso, onEdit, onToggleS
       {materia.curso_id && <p className="text-xs text-gray-500 dark:text-gray-400">Curso: <span className="font-medium">{getCursoNome(materia.curso_id)}</span></p>}
       {materia.anos_academicos && materia.anos_academicos.length > 0 && <AnosChips anos={materia.anos_academicos} />}
 
-      {precisaDefinirPeriodo && (
-        <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <p className="text-xs text-amber-700 dark:text-amber-300">⚠️ Defina o período para poder ativar esta matéria</p>
-        </div>
-      )}
-
       <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
         <button onClick={() => onEdit(materia)} className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-brand-500 transition-colors"><Icon icon="mdi:pencil" width={14} />Editar</button>
-        {precisaDefinirPeriodo && periodosDoCurso.length > 0 && (
-          <button onClick={() => onDefinirPeriodo(materia)} className="flex items-center gap-1 px-2 py-1 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 transition-colors"><Icon icon="mdi:calendar-check" width={14} />Definir Período</button>
-        )}
-        <button onClick={() => onToggleStatus(materia)} disabled={materia.status === "inativo" && !podeAtivar} className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${materia.status === "ativo" ? "text-orange-600 dark:text-orange-400 hover:text-orange-700" : "text-green-600 dark:text-green-400 hover:text-green-700"}`}>
+        <button onClick={() => onToggleStatus(materia)} className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors ${materia.status === "ativo" ? "text-orange-600 dark:text-orange-400 hover:text-orange-700" : "text-green-600 dark:text-green-400 hover:text-green-700"}`}>
           <Icon icon={materia.status === "ativo" ? "mdi:pause-circle" : "mdi:play-circle"} width={14} />
           {materia.status === "ativo" ? "Desativar" : "Ativar"}
         </button>
@@ -273,10 +231,9 @@ function formatarSecaoLabel(ano: string): string {
   return `${m[1]}º Ano — ${tipo[m[2]] ?? m[2]}`;
 }
 
-function MateriasAgrupadas({ materias, listaCursos, getCursoNome, getPeriodosDoCurso, onEdit, onToggleStatus, onDefinirPeriodo, onDelete, selecionadas, onToggleSelecao, onToggleTodas }: {
-  materias: Materia[]; listaCursos: Curso[]; getCursoNome: (id?: string) => string;
-  getPeriodosDoCurso: (m: Materia) => string[]; onEdit: (m: Materia) => void;
-  onToggleStatus: (m: Materia) => void; onDefinirPeriodo: (m: Materia) => void;
+function MateriasAgrupadas({ materias, getCursoNome, onEdit, onToggleStatus, onDelete, selecionadas, onToggleSelecao, onToggleTodas }: {
+  materias: Materia[]; getCursoNome: (id?: string) => string;
+  onEdit: (m: Materia) => void; onToggleStatus: (m: Materia) => void;
   onDelete: (m: Materia) => void; selecionadas: Set<string>;
   onToggleSelecao: (id: string) => void; onToggleTodas: (lista: Materia[]) => void;
 }) {
@@ -342,8 +299,8 @@ function MateriasAgrupadas({ materias, listaCursos, getCursoNome, getPeriodosDoC
                 {lista.map(materia => (
                   <MateriaCard
                     key={materia.id} materia={materia} getCursoNome={getCursoNome}
-                    periodosDoCurso={getPeriodosDoCurso(materia)} onEdit={onEdit}
-                    onToggleStatus={onToggleStatus} onDefinirPeriodo={onDefinirPeriodo}
+                    onEdit={onEdit}
+                    onToggleStatus={onToggleStatus}
                     onDelete={onDelete} selecionada={selecionadas.has(materia.id)}
                     onToggleSelecao={onToggleSelecao}
                   />
@@ -359,12 +316,34 @@ function MateriasAgrupadas({ materias, listaCursos, getCursoNome, getPeriodosDoC
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
+function buildMateriaPayload(formData: MateriaFormData, incluirType: boolean): CriarMateriaRequest {
+  if (formData.type === "fundamental") {
+    return { nome: formData.nome.trim(), ...(incluirType ? { type: "fundamental" as const } : {}), anos_academicos: formData.anos_academicos as AnoFundamental[] };
+  }
+  if (formData.type === "medio") {
+    return {
+      nome: formData.nome.trim(),
+      ...(incluirType ? { type: "medio" as const } : {}),
+      anos_academicos: formData.anos_academicos as AnoMedio[],
+      curso_id: formData.curso_id ?? "",
+      ...(formData.pendencia_permitida ? { pendencia_permitida: true, ...(formData.pendencia_nivel_conclusao ? { pendencia_nivel_conclusao: formData.pendencia_nivel_conclusao as AnoMedio } : {}) } : {}),
+    };
+  }
+  return {
+    nome: formData.nome.trim(),
+    ...(incluirType ? { type: "superior" as const } : {}),
+    anos_academicos: formData.anos_academicos,
+    curso_id: formData.curso_id ?? "",
+    periodo: formData.periodo as AnoSuperior,
+    ...(formData.pendencia_permitida ? { pendencia_permitida: true, ...(formData.pendencia_nivel_conclusao ? { pendencia_nivel_conclusao: formData.pendencia_nivel_conclusao as AnoSuperior } : {}) } : {}),
+  };
+}
+
 export default function MateriaPainel() {
   const [showForm, setShowForm] = useState(false);
   const [editingMateria, setEditingMateria] = useState<Materia | null>(null);
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [user] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-  const [materiaParaPeriodo, setMateriaParaPeriodo] = useState<Materia | null>(null);
   const [materiaParaDelete, setMateriaParaDelete] = useState<Materia | null>(null);
   const [viewNivel, setViewNivel] = useState<"fundamental" | "medio">("fundamental");
 
@@ -382,7 +361,6 @@ export default function MateriaPainel() {
   const { execute: executarListarCursos, data: cursosRaw, loading: ListandoCursos } = useApi(academiaService.listarCursos);
   const { execute: executarAtivarMateria } = useApi(academiaService.ativarMateria);
   const { execute: executarDesativarMateria } = useApi(academiaService.desativarMateria);
-  const { execute: executarDefinirPeriodo } = useApi(academiaService.definirPeriodoMateria);
   const { execute: executarDeletarMateria } = useApi(academiaService.deletarMateria);
 
   const listaMaterias: Materia[] = materiasRaw?.materias ?? [];
@@ -401,14 +379,13 @@ export default function MateriaPainel() {
     return "fundamental";
   };
 
-  const [formData, setFormData] = useState<MateriaFormData>({ nome: "", type: getDefaultType(), anos_academicos: [], curso_id: undefined });
+  const [formData, setFormData] = useState<MateriaFormData>({ nome: "", type: getDefaultType(), anos_academicos: [], curso_id: undefined, periodo: undefined, pendencia_permitida: false, pendencia_nivel_conclusao: undefined });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const token = tokenStorage.get() ?? undefined;
     executarListarCursos(token);
     executarListarMaterias(token);
-  }, []); // Intentionally empty: these functions are stable references from useApi and should only run on mount
+  }, [executarListarCursos, executarListarMaterias]);
 
   const showMsg = (variant: "success" | "error" | "warning" | "info", message: string) => {
     setAlert({ variant, message });
@@ -487,19 +464,15 @@ export default function MateriaPainel() {
     e.preventDefault();
     if (!formData.nome.trim()) { showMsg("error", "Nome da matéria é obrigatório"); return; }
     if (formData.anos_academicos.length === 0) { showMsg("error", "Selecione pelo menos um ano/nível"); return; }
+    if (formData.type !== "fundamental" && formData.anos_academicos.length !== 1) { showMsg("error", "Matérias de Médio ou Superior devem possuir exatamente um ano/nível do curso."); return; }
     if (formData.type !== "fundamental" && !formData.curso_id) { showMsg("error", `Matérias do tipo ${formData.type === "medio" ? "Médio" : "Superior"} devem estar vinculadas a um curso`); return; }
+    if (formData.type === "superior" && !formData.periodo) { showMsg("error", "Selecione o período/semestre da matéria superior na criação."); return; }
     try {
       if (editingMateria) { await executarAtualizarMateria(editingMateria.id, { nome: formData.nome }); showMsg("success", "Matéria atualizada com sucesso"); }
       else {
-        const payload = {
-          nome: formData.nome,
-          ...(isAcademiaMista() ? { type: formData.type } : {}),
-          anos_academicos: formData.anos_academicos,
-          ...(formData.curso_id && { curso_id: formData.curso_id }),
-        };
-        const res = await executarCriarMateria(payload);
-        if ((res as any)?.data?.status === "inativo") { showMsg("info", `Matéria "${formData.nome}" criada como inativa. Defina o período antes de ativar.`); }
-        else { showMsg("success", "Matéria criada com sucesso"); }
+        const payload = buildMateriaPayload(formData, isAcademiaMista());
+        await executarCriarMateria(payload);
+        showMsg("success", "Matéria criada com sucesso");
       }
       resetForm(); carregarDados();
     } catch (error: unknown) { showMsg("error", formatApiError(error, "Erro ao salvar matéria")); }
@@ -507,7 +480,7 @@ export default function MateriaPainel() {
 
   const handleEdit = (materia: Materia) => {
     setEditingMateria(materia);
-    setFormData({ nome: materia.nome, type: materia.type, anos_academicos: [], curso_id: undefined });
+    setFormData({ nome: materia.nome, type: materia.type, anos_academicos: [], curso_id: undefined, periodo: undefined, pendencia_permitida: false, pendencia_nivel_conclusao: undefined });
     setShowForm(true);
   };
 
@@ -515,18 +488,11 @@ export default function MateriaPainel() {
     try {
       if (materia.status === "ativo") { await executarDesativarMateria(materia.id); showMsg("success", "Matéria desativada"); }
       else {
-        if (materia.type === "superior" && !materia.periodo) { showMsg("warning", `Defina o período de "${materia.nome}" antes de ativar`); return; }
         await executarAtivarMateria(materia.id); showMsg("success", "Matéria ativada");
       }
       const token = tokenStorage.get() ?? undefined;
       executarListarMaterias(token);
     } catch (e: unknown) { showMsg("error", formatApiError(e, "Erro ao alterar status")); }
-  };
-
-  const handleDefinirPeriodo = async (materiaId: string, periodo: string) => {
-    await executarDefinirPeriodo(materiaId, { periodo });
-    showMsg("success", `Período definido: ${formatarPeriodoLabel(periodo)}`);
-    carregarDados();
   };
 
   const handleDeletar = async (materiaId: string) => {
@@ -535,20 +501,35 @@ export default function MateriaPainel() {
     carregarDados();
   };
 
-  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], curso_id: undefined }); setEditingMateria(null); setShowForm(false); };
+  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], curso_id: undefined, periodo: undefined, pendencia_permitida: false, pendencia_nivel_conclusao: undefined }); setEditingMateria(null); setShowForm(false); };
 
   const handleAnosToggle = (ano: string) => {
-    setFormData(prev => ({ ...prev, anos_academicos: prev.anos_academicos.includes(ano) ? prev.anos_academicos.filter(a => a !== ano) : [...prev.anos_academicos, ano] }));
+    setFormData(prev => {
+      const selecionado = prev.anos_academicos.includes(ano);
+      const anos_academicos = prev.type === "fundamental"
+        ? (selecionado ? prev.anos_academicos.filter(a => a !== ano) : [...prev.anos_academicos, ano])
+        : (selecionado ? [] : [ano]);
+      return { ...prev, anos_academicos, pendencia_nivel_conclusao: undefined };
+    });
   };
 
-  const handleTypeChange = (newType: MateriaType) => { setFormData({ ...formData, type: newType, anos_academicos: [], curso_id: undefined }); };
+  const handleTypeChange = (newType: MateriaType) => { setFormData({ ...formData, type: newType, anos_academicos: [], curso_id: undefined, periodo: undefined, pendencia_permitida: false, pendencia_nivel_conclusao: undefined }); };
 
   const getCursosByType = () => listaCursos.filter(c => c.type === formData.type && c.status === "ativo");
   const getCursoNome = (cursoId?: string): string => { if (!cursoId) return ""; return listaCursos.find(c => c.id === cursoId)?.nome ?? cursoId; };
-  const getPeriodosDoCurso = (materia: Materia): string[] => { if (!materia.curso_id) return []; return listaCursos.find(c => c.id === materia.curso_id)?.periodos ?? []; };
+  const getPeriodosDisponiveis = () => {
+    if (formData.type !== "superior" || !formData.curso_id) return [];
+    return listaCursos.find(c => c.id === formData.curso_id)?.periodos ?? [];
+  };
+
+  const getPendenciaNiveisDisponiveis = () => formData.type === "superior" ? getPeriodosDisponiveis() : getAnosDisponiveis().map(a => a.value);
 
   const getAnosDisponiveis = () => {
-    if (formData.type === "fundamental") return ANOS_FUNDAMENTAL;
+    if (formData.type === "fundamental") {
+      const anosAcademia = user?.academia?.anos_academicos?.filter(a => a.includes("fundamental")) ?? [];
+      const permitidos = anosAcademia.length ? anosAcademia : [];
+      return ANOS_FUNDAMENTAL.filter(a => permitidos.includes(a.value));
+    }
     if (!formData.curso_id) return [];
     const curso = listaCursos.find(c => c.id === formData.curso_id);
     if (!curso) return [];
@@ -572,7 +553,6 @@ export default function MateriaPainel() {
 
   return (
     <div className="space-y-6">
-      {materiaParaPeriodo && <ModalDefinirPeriodo materia={materiaParaPeriodo} periodos={getPeriodosDoCurso(materiaParaPeriodo)} onConfirm={p => handleDefinirPeriodo(materiaParaPeriodo.id, p)} onClose={() => setMateriaParaPeriodo(null)} />}
       {materiaParaDelete && <ModalConfirmarDelete materia={materiaParaDelete} onConfirm={() => handleDeletar(materiaParaDelete.id)} onClose={() => setMateriaParaDelete(null)} />}
       <ModalResultadoLote isOpen={loteModalOpen} onClose={() => setLoteModalOpen(false)} items={loteItems} titulo={loteTitulo} progresso={loteProgresso} />
       {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : alert.variant === "error" ? "Erro" : "Aviso"} message={alert.message} />}
@@ -610,11 +590,11 @@ export default function MateriaPainel() {
                     </select>
                   </div>
                 )}
-                {formData.type === "superior" && <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"><p className="text-xs text-amber-700 dark:text-amber-300">⚠️ Matérias do tipo Superior são criadas como <strong>inativas</strong>. Você precisará definir o período antes de ativá-las.</p></div>}
+                {formData.type === "superior" && <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"><p className="text-xs text-amber-700 dark:text-amber-300">⚠️ Matérias superiores exigem o período no cadastro; ele deve pertencer aos períodos do curso e não é editado depois.</p></div>}
                 {formData.type !== "fundamental" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
-                    <select value={formData.curso_id ?? ""} onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, anos_academicos: [] })} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
+                    <select value={formData.curso_id ?? ""} onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, anos_academicos: [], periodo: undefined, pendencia_nivel_conclusao: undefined })} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
                       <option value="">Selecione um curso</option>
                       {getCursosByType().map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                     </select>
@@ -632,6 +612,31 @@ export default function MateriaPainel() {
                     </div>
                   )}
                 </div>
+                {formData.type === "superior" && formData.curso_id && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Período/semestre *</label>
+                    <select value={formData.periodo ?? ""} onChange={e => setFormData({ ...formData, periodo: e.target.value || undefined })} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
+                      <option value="">Selecione o período</option>
+                      {getPeriodosDisponiveis().map(p => <option key={p} value={p}>{formatarPeriodoLabel(p)}</option>)}
+                    </select>
+                  </div>
+                )}
+                {formData.type !== "fundamental" && formData.curso_id && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input type="checkbox" checked={formData.pendencia_permitida} onChange={e => setFormData({ ...formData, pendencia_permitida: e.target.checked, pendencia_nivel_conclusao: e.target.checked ? formData.pendencia_nivel_conclusao : undefined })} />
+                      Permite pendência
+                    </label>
+                    {formData.pendencia_permitida && (
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Limite para conclusão da pendência
+                        <select value={formData.pendencia_nivel_conclusao ?? ""} onChange={e => setFormData({ ...formData, pendencia_nivel_conclusao: e.target.value || undefined })} className="mt-1 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
+                          <option value="">Sem limite explícito</option>
+                          {getPendenciaNiveisDisponiveis().map(n => <option key={n} value={n}>{n.includes("semestre") ? formatarPeriodoLabel(n) : formatarSecaoLabel(n)}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                )}
               </>
             )}
             <div className="flex gap-3 pt-4">
@@ -675,8 +680,8 @@ export default function MateriaPainel() {
 
             <MateriasAgrupadas
               materias={isAcademiaMista() ? listaMaterias.filter(m => m.type === viewNivel) : listaMaterias}
-              listaCursos={listaCursos} getCursoNome={getCursoNome} getPeriodosDoCurso={getPeriodosDoCurso}
-              onEdit={handleEdit} onToggleStatus={handleToggleStatus} onDefinirPeriodo={setMateriaParaPeriodo}
+              getCursoNome={getCursoNome}
+              onEdit={handleEdit} onToggleStatus={handleToggleStatus}
               onDelete={setMateriaParaDelete} selecionadas={selecionadas}
               onToggleSelecao={handleToggleSelecao} onToggleTodas={handleToggleTodas}
             />
