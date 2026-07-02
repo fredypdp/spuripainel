@@ -952,8 +952,8 @@ export interface Evento {
   aggregate_type: string;
   event_type: string;
   event_version: number;
-  payload: any;
-  metadata: any;
+  payload: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   occurred_at: string;
   recorded_at: string;
   ledger_hash: string;
