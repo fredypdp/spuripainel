@@ -107,6 +107,7 @@ export interface ErrorResponse {
   error: string;
   message?: string;
   request_id?: string;
+  details?: Array<{ field?: string; code?: string; message?: string }>;
 }
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;

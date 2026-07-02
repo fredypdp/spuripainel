@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
+import { formatApiError } from "@/lib/api/client";
 import type { Curso, MeuPerfilResponse, Turma, EstudanteDetalhado } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
@@ -330,23 +331,23 @@ export default function TurmasPainel() {
       if (editingTurma) { await atualizarTurma(editingTurma.codigo_turma, { nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined }); showMsg("success", "Turma actualizada com sucesso"); }
       else { await criarTurma({ codigo_turma: formData.codigo_turma, nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined }); showMsg("success", "Turma criada com sucesso"); }
       resetForm(); reload();
-    } catch (err: any) { showMsg("error", err?.message || "Erro ao guardar turma"); }
+    } catch (err: unknown) { showMsg("error", formatApiError(err, "Erro ao guardar turma")); }
   };
 
   const handleAdd = async (codigoTurma: string) => {
     if (!codigoAdd.trim()) return;
     try { await adicionarEstudante(codigoTurma, { codigo_estudante: codigoAdd.trim() }); showMsg("success", "Estudante adicionado"); setCodigoAdd(""); setAddingTo(null); reload(); }
-    catch (err: any) { showMsg("error", err?.message || "Erro ao adicionar estudante"); }
+    catch (err: unknown) { showMsg("error", formatApiError(err, "Erro ao adicionar estudante")); }
   };
 
   const handleRemove = async (codigoTurma: string, codigoEstudante: string) => {
     try { await removerEstudante(codigoTurma, codigoEstudante); showMsg("success", "Estudante removido"); reload(); }
-    catch (err: any) { showMsg("error", err?.message || "Erro ao remover estudante"); }
+    catch (err: unknown) { showMsg("error", formatApiError(err, "Erro ao remover estudante")); }
   };
 
   const handleDeletarTurma = async (codigoTurma: string) => {
     try { await executarDeletarTurma(codigoTurma); showMsg("success", "Turma deletada com sucesso"); reload(); }
-    catch (e: any) { showMsg("error", e?.message ?? "Erro ao deletar turma"); }
+    catch (e: unknown) { showMsg("error", formatApiError(e, "Erro ao deletar turma")); }
   };
 
   const handleToggleStatus = async (turma: Turma) => {
@@ -355,7 +356,7 @@ export default function TurmasPainel() {
       if (turma.status === "ativo") { await desativarTurma(turma.codigo_turma, t); showMsg("success", "Turma desativada"); }
       else { await ativarTurma(turma.codigo_turma, t); showMsg("success", "Turma ativada"); }
       reload();
-    } catch (e: any) { showMsg("error", e?.message ?? "Erro ao alterar status da turma"); }
+    } catch (e: unknown) { showMsg("error", formatApiError(e, "Erro ao alterar status da turma")); }
   };
 
   // ── TurmaCard ───────────────────────────────────────────────────────────

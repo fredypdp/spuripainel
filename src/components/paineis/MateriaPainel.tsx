@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import { useApi, academiaService, tokenStorage } from "@/lib/api";
+import { formatApiError } from "@/lib/api/client";
 import { Curso, Materia, MateriaType } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -125,7 +126,7 @@ function ModalDefinirPeriodo({ materia, periodos, onConfirm, onClose }: { materi
     e.preventDefault();
     if (!periodo) { setError("Selecione um período."); return; }
     setLoading(true);
-    try { await onConfirm(periodo); onClose(); } catch (err: any) { setError(err?.message ?? "Erro ao definir período."); } finally { setLoading(false); }
+    try { await onConfirm(periodo); onClose(); } catch (err: unknown) { setError(formatApiError(err, "Erro ao definir período.")); } finally { setLoading(false); }
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -435,8 +436,8 @@ export default function MateriaPainel() {
       try {
         await operacao(m.id);
         setLoteItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: 'success' } : it));
-      } catch (err: any) {
-        setLoteItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: 'error', message: err?.message } : it));
+      } catch (err: unknown) {
+        setLoteItems(prev => prev.map((it, idx) => idx === i ? { ...it, status: 'error', message: formatApiError(err, 'Falha') } : it));
       }
       setLoteProgresso(Math.round(((i + 1) / materiasSel.length) * 100));
       await new Promise(r => setTimeout(r, 150));
@@ -501,7 +502,7 @@ export default function MateriaPainel() {
         else { showMsg("success", "Matéria criada com sucesso"); }
       }
       resetForm(); carregarDados();
-    } catch (error: any) { showMsg("error", error?.message || "Erro ao salvar matéria"); }
+    } catch (error: unknown) { showMsg("error", formatApiError(error, "Erro ao salvar matéria")); }
   };
 
   const handleEdit = (materia: Materia) => {
@@ -519,7 +520,7 @@ export default function MateriaPainel() {
       }
       const token = tokenStorage.get() ?? undefined;
       executarListarMaterias(token);
-    } catch (e: any) { showMsg("error", e?.message ?? "Erro ao alterar status"); }
+    } catch (e: unknown) { showMsg("error", formatApiError(e, "Erro ao alterar status")); }
   };
 
   const handleDefinirPeriodo = async (materiaId: string, periodo: string) => {
