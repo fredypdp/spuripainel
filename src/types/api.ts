@@ -642,34 +642,76 @@ export type CategoriaNota =
  */
 export type AvaliacaoFinalFormulaTextual = string;
 
-export interface CriarRegraAvaliacaoFinalRequest {
-  /** Opcional; vazio vira 'normal' no backend. */
-  type?: string;
+export type EscopoMateriaAplicavelFundamental = {
+  ano_academico: string;
+  materias: string[];
+};
+
+export type EscopoMateriaAplicavelCurso = {
+  curso_id: string;
+  ano_academico: string;
+  materias: string[];
+};
+
+export type EscopoAnosAcademicosMedio = {
+  curso_id: string;
+  anos_academicos: AnoMedio[];
+};
+
+interface CriarRegraAvaliacaoFinalBaseRequest {
+  /** Obrigatório. Identifica a etapa pública; espaços são normalizados pelo backend. */
+  type: string;
   nome: string;
   descricao?: string;
-  tipo_ensino: TipoEnsino;
-  /** Superior usa semestres: '1_semestre', '2_semestre', ... */
-  anos_academicos: string[];
   nota_minima_aprovacao: number;
-  /** Opcional: o backend extrai automaticamente a partir de formula. */
+  /** O backend extrai automaticamente a partir de formula quando omitido. */
   categorias_envolvidas?: CategoriaNota[];
+  /** Fórmula textual v1; o modelo JSON em árvore antigo foi removido. */
   formula: AvaliacaoFinalFormulaTextual;
   aplica_se_reprovado_em_type?: string | null;
 }
 
+export type CriarRegraAvaliacaoFinalRequest =
+  | (CriarRegraAvaliacaoFinalBaseRequest & {
+      nivel: 'fundamental';
+      anos_academicos: AnoFundamental[];
+      materias_aplicaveis?: EscopoMateriaAplicavelFundamental[];
+      limite_materias_pendentes?: never;
+    })
+  | (CriarRegraAvaliacaoFinalBaseRequest & {
+      nivel: 'medio';
+      anos_academicos: EscopoAnosAcademicosMedio[];
+      materias_aplicaveis?: EscopoMateriaAplicavelCurso[];
+      limite_materias_pendentes: number;
+    })
+  | (CriarRegraAvaliacaoFinalBaseRequest & {
+      nivel: 'superior';
+      anos_academicos?: never;
+      materias_aplicaveis?: EscopoMateriaAplicavelCurso[];
+      limite_materias_pendentes: number;
+    });
+
 export interface EditarRegraAvaliacaoFinalRequest {
-  nome?: string;
+  nome: string;
   descricao?: string;
-  nota_minima_aprovacao?: number;
-  categorias_envolvidas?: CategoriaNota[];
-  formula?: AvaliacaoFinalFormulaTextual;
+  nota_minima_aprovacao: number;
+  formula: AvaliacaoFinalFormulaTextual;
 }
 
-export interface RegraAvaliacaoFinal extends Omit<CriarRegraAvaliacaoFinalRequest, 'categorias_envolvidas'> {
-  categorias_envolvidas: CategoriaNota[];
+export interface RegraAvaliacaoFinal {
   id: string;
   codigo_academia: string;
   type: string;
+  nome: string;
+  descricao?: string;
+  nivel: TipoEnsino;
+  anos_academicos?: string[] | EscopoAnosAcademicosMedio[];
+  nota_minima_aprovacao: number;
+  categorias_envolvidas: CategoriaNota[];
+  formula: AvaliacaoFinalFormulaTextual;
+  aplica_se_reprovado_em_type?: string | null;
+  materias_aplicaveis?: EscopoMateriaAplicavelFundamental[] | EscopoMateriaAplicavelCurso[];
+  limite_materias_pendentes?: number | null;
   status: 'ativo' | 'inativo' | 'deletado' | string;
   version: number;
 }
