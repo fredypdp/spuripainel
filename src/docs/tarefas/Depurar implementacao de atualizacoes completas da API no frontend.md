@@ -234,3 +234,50 @@ O PR deve listar obrigatoriamente:
 - decisões diante de divergências documentais;
 - comandos de validação executados;
 - riscos remanescentes e próximos passos, se houver.
+
+## Evidências registradas nesta depuração — 2026-07-02
+
+### Documentos revisados e classificação
+
+- `src/docs/Spuri - API.md` — fonte obrigatória de implementação. Contrato confirmado para regras de avaliação final: payload usa `nivel`, rejeita `tipo_ensino`, diferencia `anos_academicos` fundamental, médio e superior, e mantém `GET /avaliacoes` com filtro `tipo_ensino` apenas para consultas de avaliações geradas.
+- `src/docs/Spuri - Documentação.md` — documentação funcional complementar. Reforça que `materias_chave` pertence ao curso médio, que regras usam `nivel`, que faltas não possuem vínculo com sumário/aula e que o superior não envia `anos_academicos` em regras.
+- `src/docs/tarefas/Tarefa - Depurar e implementar atualizacoes completas da API no frontend.md` — tarefa incorporada ao contrato atual e usada como checklist de auditoria.
+- `src/docs/tarefas/Depurar implementacao de atualizacoes completas da API no frontend.md` — tarefa executada nesta alteração e atualizada com evidências.
+
+### Busca ampla e classificação de achados
+
+- `PATCH /academia/anos-academicos` e `.patch('/academia/anos-academicos')`: nenhuma ocorrência ativa em `src` fora da documentação; sem fallback legado encontrado.
+- `sumario`, `sumário`, `sumarios`, `sumários`, `sumario_id`, `sumario_titulo` e `/academia/sumarios`: ocorrências ficam restritas à documentação/tarefa; nenhum payload de falta ativo mantém vínculo legado.
+- `tipo_ensino` em regras de avaliação final: encontrado como bug ativo em `src/app/(painel)/configuracoes/AvaliacaoFinalRulesSection.tsx` e nos tipos públicos de criação/retorno em `src/types/api.ts`. Corrigido para `nivel` e para union explícita por nível. As ocorrências restantes em consultas de avaliações, aprovações e reprovações são válidas porque `GET /avaliacoes`, `GET /aprovacoes` e `GET /reprovacoes` documentam esse filtro de consulta.
+- `materias_chave`: ocorrência válida em cursos médios e tipos de curso; não foi mantida em payload de regra de avaliação final.
+- `anos_academicos`: corrigido no fluxo de regras para não enviar lista plana no médio e para não enviar campo no superior; uso em academias, cursos, matérias e turmas permanece compatível com seus próprios contratos.
+- `request_id` e `details[]`: o client central continua preservando `request_id` e priorizando `details[0].message` para mensagens de erro estruturadas.
+- `any` e casts: permanecem ocorrências históricas em telas de testes/batch e adaptações de dados, mas a correção crítica removeu o contrato frouxo da criação de regras de avaliação final ao introduzir union discriminada.
+
+### Árvore funcional auditada nesta correção
+
+```text
+/configuracoes/regras-avaliacao-final
+└─ src/app/(painel)/configuracoes/PageContent.tsx
+   └─ src/app/(painel)/configuracoes/AcademiaSection.tsx
+      └─ src/app/(painel)/configuracoes/AvaliacaoFinalRulesSection.tsx
+         ├─ academiaService.criarRegraAvaliacaoFinal/listarRegrasAvaliacaoFinal/deletarRegraAvaliacaoFinal
+         ├─ academiaService.listarCategoriasNota/listarCursos
+         └─ src/types/api.ts (CriarRegraAvaliacaoFinalRequest, RegraAvaliacaoFinal)
+```
+
+### Ajustes implementados
+
+- A criação de regra de avaliação final deixou de montar payload legado com `tipo_ensino`.
+- O payload agora usa `nivel` e respeita o contrato por nível:
+  - fundamental envia `anos_academicos` como array simples de anos fundamentais;
+  - médio envia `anos_academicos` como lista de escopos `{ curso_id, anos_academicos }` e exige `limite_materias_pendentes`;
+  - superior não envia `anos_academicos` e exige `limite_materias_pendentes`.
+- A listagem de regras passou a ler `nivel` e a renderizar corretamente escopo superior sem `anos_academicos` e escopos médios por curso.
+- O construtor de fórmula passou a gerar referências superiores no formato `[categoria]`, sem período, conforme contrato de regras superiores.
+- Os tipos públicos de regra de avaliação final foram substituídos por union discriminada por `nivel`, removendo `tipo_ensino` dos payloads de criação/edição de regras.
+
+### Riscos remanescentes
+
+- A auditoria ampla encontrou várias ocorrências de `any` em telas auxiliares de testes, jobs e parsing de respostas. Elas não bloqueiam esta correção de contrato crítico, mas devem ser endereçadas em refatoração própria para eliminar todos os adaptadores frouxos restantes.
+- Não foi possível executar validação completa local porque as dependências não estavam instaladas e `npm install` foi bloqueado pelo registry com `403 Forbidden` para `@iconify/react`.
