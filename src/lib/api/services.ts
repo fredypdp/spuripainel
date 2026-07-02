@@ -60,7 +60,6 @@ import type {
   AvaliacoesEstudanteResponse,
   ListarAprovacoesResponse,
   ListarReprovacoesResponse,
-  DefinirPeriodoMateriaRequest,
   DeletarTurmaResponse,
   DeletarCursoResponse,
   TurmasEstudanteResponse,
@@ -1098,13 +1097,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  definirPeriodoMateria: (materiaId: string, data: DefinirPeriodoMateriaRequest, token?: string) =>
-    api.put<{ message: string; nome: string; periodo: string }>(
-      `/academia/materia/${materiaId}/periodo`,
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
   atualizarMateria: (materiaId: string, data: AtualizarMateriaRequest, token?: string) =>
     api.put<{ message: string; nome: string }>(
       `/academia/materia/${materiaId}/dados`,
@@ -1337,13 +1329,6 @@ export const academiaService = {
   desativarMateriaBatchAsync: (data: { id: string }[], token?: string) =>
     api.put<AsyncBatchResponse>(
       '/academia/materia/desativar/async',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  definirPeriodoMateriaBatchAsync: (data: (DefinirPeriodoMateriaRequest & { id: string })[], token?: string) =>
-    api.put<AsyncBatchResponse>(
-      '/academia/materia/periodo/async',
       data,
       { token: token || tokenStorage.get() || undefined }
     ),

@@ -372,24 +372,47 @@ export type AtualizarCursoRequest = {
   materias_chave?: MateriasChaveCursoAnoDTO[];
 };
 
-export interface CriarMateriaRequest {
+export type CriarMateriaFundamentalRequest = {
   nome: string;
-  /**
-   * Opcional: no backend atual o tipo é preenchido automaticamente,
-   * exceto em academias escolares de nível misto.
-   */
-  type?: MateriaType;
-  anos_academicos?: string[];
-  curso_id?: string;
-}
+  type?: 'fundamental';
+  /** Fundamental permite 1 a 9 anos acadêmicos próprios da academia. */
+  anos_academicos: AnoFundamental[];
+  curso_id?: never;
+  periodo?: never;
+  pendencia_permitida?: never;
+  pendencia_nivel_conclusao?: never;
+};
+
+export type CriarMateriaMedioRequest = {
+  nome: string;
+  type?: 'medio';
+  /** Médio exige exatamente um ano acadêmico pertencente ao curso. */
+  anos_academicos: AnoMedio[];
+  curso_id: string;
+  periodo?: never;
+  pendencia_permitida?: boolean;
+  pendencia_nivel_conclusao?: AnoMedio;
+};
+
+export type CriarMateriaSuperiorRequest = {
+  nome: string;
+  type?: 'superior';
+  /** Superior exige exatamente um ano acadêmico calculado pelo curso. */
+  anos_academicos: string[];
+  curso_id: string;
+  /** Obrigatório no POST; a rota legado de definição posterior foi removida. */
+  periodo: AnoSuperior;
+  pendencia_permitida?: boolean;
+  pendencia_nivel_conclusao?: AnoSuperior;
+};
+
+export type CriarMateriaRequest =
+  | CriarMateriaFundamentalRequest
+  | CriarMateriaMedioRequest
+  | CriarMateriaSuperiorRequest;
 
 export interface AtualizarMateriaRequest {
   nome?: string;
-}
-
-/** PUT /academia/materias/:id/periodo */
-export interface DefinirPeriodoMateriaRequest {
-  periodo: string;
 }
 
 export interface AtualizarDadosPessoaisEstudanteRequest {
@@ -642,34 +665,76 @@ export type CategoriaNota =
  */
 export type AvaliacaoFinalFormulaTextual = string;
 
-export interface CriarRegraAvaliacaoFinalRequest {
-  /** Opcional; vazio vira 'normal' no backend. */
-  type?: string;
+export type EscopoMateriaAplicavelFundamental = {
+  ano_academico: string;
+  materias: string[];
+};
+
+export type EscopoMateriaAplicavelCurso = {
+  curso_id: string;
+  ano_academico: string;
+  materias: string[];
+};
+
+export type EscopoAnosAcademicosMedio = {
+  curso_id: string;
+  anos_academicos: AnoMedio[];
+};
+
+interface CriarRegraAvaliacaoFinalBaseRequest {
+  /** Obrigatório. Identifica a etapa pública; espaços são normalizados pelo backend. */
+  type: string;
   nome: string;
   descricao?: string;
-  tipo_ensino: TipoEnsino;
-  /** Superior usa semestres: '1_semestre', '2_semestre', ... */
-  anos_academicos: string[];
   nota_minima_aprovacao: number;
-  /** Opcional: o backend extrai automaticamente a partir de formula. */
+  /** O backend extrai automaticamente a partir de formula quando omitido. */
   categorias_envolvidas?: CategoriaNota[];
+  /** Fórmula textual v1; o modelo JSON em árvore antigo foi removido. */
   formula: AvaliacaoFinalFormulaTextual;
   aplica_se_reprovado_em_type?: string | null;
 }
 
+export type CriarRegraAvaliacaoFinalRequest =
+  | (CriarRegraAvaliacaoFinalBaseRequest & {
+      nivel: 'fundamental';
+      anos_academicos: AnoFundamental[];
+      materias_aplicaveis?: EscopoMateriaAplicavelFundamental[];
+      limite_materias_pendentes?: never;
+    })
+  | (CriarRegraAvaliacaoFinalBaseRequest & {
+      nivel: 'medio';
+      anos_academicos: EscopoAnosAcademicosMedio[];
+      materias_aplicaveis?: EscopoMateriaAplicavelCurso[];
+      limite_materias_pendentes: number;
+    })
+  | (CriarRegraAvaliacaoFinalBaseRequest & {
+      nivel: 'superior';
+      anos_academicos?: never;
+      materias_aplicaveis?: EscopoMateriaAplicavelCurso[];
+      limite_materias_pendentes: number;
+    });
+
 export interface EditarRegraAvaliacaoFinalRequest {
-  nome?: string;
+  nome: string;
   descricao?: string;
-  nota_minima_aprovacao?: number;
-  categorias_envolvidas?: CategoriaNota[];
-  formula?: AvaliacaoFinalFormulaTextual;
+  nota_minima_aprovacao: number;
+  formula: AvaliacaoFinalFormulaTextual;
 }
 
-export interface RegraAvaliacaoFinal extends Omit<CriarRegraAvaliacaoFinalRequest, 'categorias_envolvidas'> {
-  categorias_envolvidas: CategoriaNota[];
+export interface RegraAvaliacaoFinal {
   id: string;
   codigo_academia: string;
   type: string;
+  nome: string;
+  descricao?: string;
+  nivel: TipoEnsino;
+  anos_academicos?: string[] | EscopoAnosAcademicosMedio[];
+  nota_minima_aprovacao: number;
+  categorias_envolvidas: CategoriaNota[];
+  formula: AvaliacaoFinalFormulaTextual;
+  aplica_se_reprovado_em_type?: string | null;
+  materias_aplicaveis?: EscopoMateriaAplicavelFundamental[] | EscopoMateriaAplicavelCurso[];
+  limite_materias_pendentes?: number | null;
   status: 'ativo' | 'inativo' | 'deletado' | string;
   version: number;
 }
@@ -920,6 +985,8 @@ export interface Materia {
   curso_id?: string;
   /** Apenas para tipo 'superior'. */
   periodo?: string;
+  pendencia_permitida?: boolean;
+  pendencia_nivel_conclusao?: string;
   status: 'ativo' | 'inativo' | 'deletado';
   deleted_at?: string;
   created_at: string;
