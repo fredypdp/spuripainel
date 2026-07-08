@@ -76,6 +76,7 @@ export default function AcademiaCategoriesSection() {
   }
 
   const categorias = data?.categorias ?? [];
+  const isSuperior = user?.academia?.nivel === "superior";
   const opcoesAnos = useMemo(() => {
     const academia = user?.academia;
     const cursos = (cursosData?.cursos ?? []).filter((curso) => curso.status === "ativo");
@@ -127,22 +128,28 @@ export default function AcademiaCategoriesSection() {
                     <p className="font-mono text-sm text-gray-500 dark:text-gray-400">{categoria.codigo}</p>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{categoria.anos_academicos?.length ? sortAnos(categoria.anos_academicos).map(labelAno).join(", ") : "Sem anos configurados"}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(categoria.codigo)}
-                    disabled={deletando}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                  >
-                    <Icon icon="mdi:trash-can-outline" width="14px" />
-                    Remover
-                  </button>
+                  {isSuperior && !categoria.readonly && !categoria.fixed ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(categoria.codigo)}
+                      disabled={deletando}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      <Icon icon="mdi:trash-can-outline" width="14px" />
+                      Remover
+                    </button>
+                  ) : (
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                      {categoria.source === "system" || categoria.fixed ? "Sistema" : "Somente leitura"}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        {isSuperior ? <form onSubmit={handleSubmit} className="space-y-3">
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Adicionar nova categoria de nota</p>
           <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Nome da categoria<input value={nome} onChange={(e) => setNome(e.target.value)} disabled={criando} placeholder="Ex.: Prova do professor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
           <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Código da categoria (sem espaços)<input value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9_]/g, ""))} disabled={criando} placeholder="Ex.: prova_profesor" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
@@ -161,7 +168,15 @@ export default function AcademiaCategoriesSection() {
           <button type="submit" disabled={criando || !codigo || !nome || anosAcademicos.size === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
             {criando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />A criar...</> : <><Icon icon="mdi:plus" width="18px" />Criar categoria</>}
           </button>
-        </form>
+        </form> : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            <p className="font-semibold">Categorias escolares fixas</p>
+            <p className="mt-1">
+              Escolas não criam nem removem categorias de nota. A listagem mostra o catálogo fixo do sistema
+              aplicável aos anos acadêmicos e cursos ativos da academia.
+            </p>
+          </div>
+        )}
       </div>
 
       {(erroCriar || erroDeletar || sucesso) && (
