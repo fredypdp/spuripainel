@@ -239,25 +239,69 @@ Tipos devem ajudar a impedir uso incorreto do contrato, não esconder incompatib
 
 ---
 
-# 8. Checklist para permissões e atores
+# 8. Checklist para permissões, procedência e atores
 
-Antes de exibir ações, páginas, botões ou dados, confirme na documentação quais atores podem executar ou visualizar o recurso.
+Antes de exibir ações, páginas, botões ou dados, confirme em `src/docs/Documentação.md` quais atores podem executar ou visualizar o recurso. O front end deve disponibilizar funcionalidades de acordo com a procedência do usuário autenticado, seu tipo, papel administrativo, academia vinculada e nível/tipo de academia quando esses atributos influenciarem o fluxo.
 
-Verifique:
+## 8.1 Identificação da procedência do usuário
 
-- Admin FPP;
-- Admin ADM;
-- Admin Gerente;
-- Academia;
-- Estudante.
+Ao implementar uma atualização, identifique primeiro de onde vem o usuário e qual escopo ele representa:
 
-A interface deve:
+1. **Estudante**: usuário final que visualiza dados acadêmicos próprios e só deve acessar informações e ações permitidas para o próprio vínculo estudantil.
+2. **Academia**: usuário institucional vinculado a uma academia específica, com acesso limitado aos dados e operações da própria academia.
+3. **Admin FPP**: administrador máximo, com permissões amplas para criar academias, criar outros admins, executar rebuilds e operar fluxos globais documentados.
+4. **Admin ADM**: administrador com permissões administrativas intermediárias, especialmente ativação/desativação de academias e admins de nível inferior quando documentado.
+5. **Admin Gerente**: administrador de consultas e ações administrativas básicas, sem assumir permissões de FPP ou ADM quando a documentação não permitir.
 
-1. ocultar ou desabilitar ações indisponíveis para o ator atual;
-2. tratar `401 Unauthorized` e `403 Forbidden` corretamente;
-3. evitar prometer ações que o backend não permite;
-4. preservar rotas protegidas conforme padrões existentes;
-5. exibir feedback claro quando o usuário não tiver permissão.
+Além do tipo principal do usuário, verifique atributos que podem mudar a interface:
+
+- `user.type` ou equivalente usado pelo projeto para distinguir `admin`, `academia` e `estudante`;
+- `admin.role` ou papel equivalente para distinguir `fpp`, `adm` e `gerente`;
+- academia vinculada ao usuário, quando existir;
+- `academia.type`, como `public` ou `private`, quando o contrato diferenciar funcionalidades;
+- `academia.nivel`, como `escola` ou `superior`, quando o contrato diferenciar cursos, matérias, notas, turmas, anos acadêmicos ou categorias;
+- status da academia, estudante, solicitação, ano letivo ou outro recurso quando o status restringir ações.
+
+## 8.2 Regras para exibição condicional
+
+A interface deve refletir permissões e escopo antes de renderizar ou habilitar funcionalidades:
+
+1. ocultar ações que o usuário nunca pode executar;
+2. desabilitar ações temporariamente indisponíveis por status, estado do recurso ou pré-condição documentada;
+3. exibir mensagens claras quando uma ação existir no fluxo, mas estiver bloqueada para o usuário atual;
+4. evitar mostrar botões, links, menus, tabs, cards ou rotas que induzam o usuário a tentar uma ação proibida;
+5. filtrar opções de formulário conforme tipo de usuário, papel administrativo, academia, tipo de academia e nível da academia;
+6. não depender apenas do front end para segurança: a API continua sendo a fonte final de autorização;
+7. tratar `401 Unauthorized` redirecionando ou encerrando sessão conforme padrão existente;
+8. tratar `403 Forbidden` como falta de permissão para aquela funcionalidade ou recurso específico;
+9. preservar rotas protegidas conforme os hooks, layouts e middlewares já existentes;
+10. evitar fallback para permissões mais amplas quando os dados do usuário ainda estiverem carregando.
+
+## 8.3 Procedência por tipo e nível de academia
+
+Quando o usuário for uma academia, ou quando um admin estiver operando dados de uma academia, considere as diferenças de contrato entre academias:
+
+- academias `public` e `private` podem ter regras, campos ou fluxos distintos se `src/docs/Documentação.md` documentar essa diferença;
+- academias de nível `escola` e `superior` podem ter diferenças em cursos, matérias, turmas, notas, categorias, períodos, anos acadêmicos e avaliações;
+- fluxos escolares não devem assumir regras do ensino superior;
+- fluxos superiores não devem assumir regras do ensino escolar;
+- componentes reutilizados entre níveis devem receber props ou configurações explícitas para evitar comportamento incorreto;
+- telas administrativas que listam ou editam academias devem respeitar o escopo do admin e o estado da academia selecionada.
+
+## 8.4 Checklist final de permissões
+
+Antes de concluir a implementação, valide:
+
+1. se cada ação visível é permitida para o tipo de usuário atual;
+2. se cada rota acessível condiz com o ator autenticado;
+3. se menus e CTAs mudam corretamente entre estudante, academia e admins;
+4. se admins FPP, ADM e Gerente não recebem a mesma interface quando as permissões documentadas forem diferentes;
+5. se academias de níveis `escola` e `superior` veem apenas campos, categorias, períodos e ações compatíveis com seu nível;
+6. se academias `public` e `private` seguem diferenças documentadas, quando existirem;
+7. se estados como inativo, ativo, arquivado, pendente, aprovado ou reprovado bloqueiam ou liberam ações corretamente;
+8. se o front end trata respostas `401` e `403` sem quebrar a experiência;
+9. se nenhuma regra de permissão foi inventada fora da documentação;
+10. se o backend continua sendo consultado como autoridade final para permissões e dados sensíveis.
 
 ---
 
