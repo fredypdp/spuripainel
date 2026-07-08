@@ -691,6 +691,8 @@ interface CriarRegraAvaliacaoFinalBaseRequest {
   categorias_envolvidas?: CategoriaNota[];
   /** Fórmula textual v1; o modelo JSON em árvore antigo foi removido. */
   formula: AvaliacaoFinalFormulaTextual;
+  /** Exclusivo de regra raiz; descendentes são acionadas por reprovação ancestral. */
+  nota_despertadora?: string;
   aplica_se_reprovado_em_type?: string | null;
 }
 
@@ -1017,7 +1019,7 @@ export interface Turma {
 }
 
 export interface CategoriaNotaItem {
-  id: string;
+  id?: string;
   codigo_academia: string;
   codigo: string;
   nome: string;
@@ -1025,9 +1027,12 @@ export interface CategoriaNotaItem {
   /** Anos acadêmicos nos quais a categoria pode receber notas. */
   anos_academicos: string[];
   adicionado_por?: string;
+  source?: 'system' | string;
+  fixed?: boolean;
+  readonly?: boolean;
   status: 'ativo' | 'inativo';
-  created_at: string;
-  version: number;
+  created_at?: string;
+  version?: number;
 }
 
 export interface Evento {
