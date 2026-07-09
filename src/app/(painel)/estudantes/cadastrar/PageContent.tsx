@@ -248,19 +248,40 @@ export default function CadastrarEstudantePageContent() {
 
   const cursosAtivos: Curso[] = dataCursos?.cursos?.filter((c: Curso) => c.status === 'ativo') ?? [];
   const documentos: DocumentoOpcao[] = (() => {
-    const docs: DocumentoOpcao[] = [
-      { key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: false },
-      { key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: false },
-      { key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: false },
-      { key: 'declaracao', label: documentLabels.declaracao, obrigatorio: false },
-    ];
-    if (['7_ano_fundamental', '8_ano_fundamental', '9_ano_fundamental'].includes(anoEscolarSelecionado ?? '')) {
-      docs.push({ key: 'certificado_6_ano_fundamental', label: documentLabels.certificado_6_ano_fundamental, obrigatorio: false });
-    } else if (isAnoMedio(anoEscolarSelecionado)) {
-      docs.push({ key: 'certificado_9_ano_fundamental', label: documentLabels.certificado_9_ano_fundamental, obrigatorio: false });
-    } else if (isAnoSuperior(anoEscolarSelecionado)) {
-      docs.push({ key: 'certificado_ensino_medio', label: documentLabels.certificado_ensino_medio, obrigatorio: false });
+    const anoAtual = anoEscolarSelecionado ?? undefined;
+    const estudanteSuperior = isSuperior || isAnoSuperior(anoAtual);
+    const temBiEstudanteTexto = !!bilheteIdentidade.trim();
+    const docs: DocumentoOpcao[] = [];
+
+    if (estudanteSuperior) {
+      docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
+      if (bilheteResponsavel.trim() || biResponsavelFile) docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: false });
+    } else {
+      docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: true });
+      if (!cedulaEstudanteFile && (temBiEstudanteTexto || biEstudanteFile)) {
+        docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
+      }
+      if (!biEstudanteFile) {
+        docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: !temBiEstudanteTexto });
+      }
     }
+
+    let certificadoAplicavel: DocumentoOpcao | null = null;
+    if (anoAtual === '7_ano_fundamental') {
+      certificadoAplicavel = { key: 'certificado_6_ano_fundamental', label: documentLabels.certificado_6_ano_fundamental, obrigatorio: !declaracaoFile };
+    } else if (anoAtual === '1_ano_medio') {
+      certificadoAplicavel = { key: 'certificado_9_ano_fundamental', label: documentLabels.certificado_9_ano_fundamental, obrigatorio: !declaracaoFile };
+    } else if (anoAtual === '1_ano_superior') {
+      certificadoAplicavel = { key: 'certificado_ensino_medio', label: documentLabels.certificado_ensino_medio, obrigatorio: !declaracaoFile };
+    }
+
+    if (certificadoAplicavel) {
+      if (!({ certificado_6_ano_fundamental: certificado6File, certificado_9_ano_fundamental: certificado9File, certificado_ensino_medio: certificadoMedioFile }[certificadoAplicavel.key as 'certificado_6_ano_fundamental' | 'certificado_9_ano_fundamental' | 'certificado_ensino_medio'])) {
+        docs.push({ key: 'declaracao', label: documentLabels.declaracao, obrigatorio: false });
+      }
+      if (!declaracaoFile) docs.push(certificadoAplicavel);
+    }
+
     return docs;
   })();
 
@@ -293,6 +314,9 @@ export default function CadastrarEstudantePageContent() {
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
+    if (isSuperior && !bilheteIdentidade.trim()) {
+      erros.push('BI do estudante é obrigatório no ensino superior');
+    }
     if (!isSuperior && !bilheteResponsavel.trim()) {
       erros.push('BI do responsável é obrigatório para estudantes escolares');
     }
@@ -568,7 +592,7 @@ export default function CadastrarEstudantePageContent() {
                 <div className="col-span-1 sm:col-span-2">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Documentos PDF</p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Os documentos são opcionais no cadastro direto. Se anexar, envie apenas PDF até 10MB.
+                    Envie os PDFs exigidos conforme o nível/ano acadêmico. Alternativas equivalentes deixam de ser solicitadas quando anexadas.
                   </p>
                 </div>
                 {documentos.map((doc) => (

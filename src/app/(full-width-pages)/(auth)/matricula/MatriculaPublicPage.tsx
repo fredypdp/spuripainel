@@ -113,35 +113,39 @@ export default function MatriculaPublicPage() {
 
   const documentos = useMemo<DocumentoOpcao[]>(() => {
     const anoAtual = anoSelecionado ?? undefined;
-    const estudantePrecisaResponsavel = !isSuperior(anoAtual);
+    const estudanteSuperior = isSuperior(anoAtual);
     const temBilheteEstudante = !!form.bilhete_identidade?.trim();
     const docs: DocumentoOpcao[] = [];
 
-    if (temBilheteEstudante) {
+    if (estudanteSuperior) {
       docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
-    }
-
-    if (estudantePrecisaResponsavel) {
-      docs.push(
-        { key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: true },
-        { key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante }
-      );
+      if (form.bilhete_identidade_responsavel?.trim() || files.bi_responsavel) docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: false });
+    } else {
+      docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: true });
+      if (!files.cedula_estudante && (temBilheteEstudante || files.bi_estudante)) {
+        docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
+      }
+      if (!files.bi_estudante) {
+        docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante });
+      }
     }
 
     let certificadoAplicavel: DocumentoOpcao | null = null;
-    if (anoAtual && ["7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental"].includes(anoAtual)) {
+    if (anoAtual === "7_ano_fundamental") {
       certificadoAplicavel = { key: "certificado_6_ano_fundamental", label: "Certificado da 6.ª classe", obrigatorio: !files.declaracao };
-    } else if (anoAtual && isMedio(anoAtual)) {
+    } else if (anoAtual === "1_ano_medio") {
       certificadoAplicavel = { key: "certificado_9_ano_fundamental", label: "Certificado da 9.ª classe", obrigatorio: !files.declaracao };
-    } else if (anoAtual && isSuperior(anoAtual)) {
+    } else if (anoAtual === "1_ano_superior") {
       certificadoAplicavel = { key: "certificado_ensino_medio", label: "Certificado do ensino médio", obrigatorio: !files.declaracao };
     }
 
-    docs.push({ key: "declaracao", label: "Declaração da escola", obrigatorio: !certificadoAplicavel || !files[certificadoAplicavel.key] });
-    if (certificadoAplicavel) docs.push(certificadoAplicavel);
+    if (certificadoAplicavel) {
+      if (!files[certificadoAplicavel.key]) docs.push({ key: "declaracao", label: "Declaração da escola", obrigatorio: false });
+      if (!files.declaracao) docs.push(certificadoAplicavel);
+    }
 
     return docs;
-  }, [anoSelecionado, files, form.bilhete_identidade]);
+  }, [anoSelecionado, files, form.bilhete_identidade, form.bilhete_identidade_responsavel]);
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
@@ -217,6 +221,7 @@ export default function MatriculaPublicPage() {
       if (!form.nome?.trim()) return "Informe o nome completo.";
       if (!form.genero) return "Selecione o gênero.";
       if (!form.data_nascimento) return "Informe a data de nascimento.";
+      if (isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade?.trim()) return "Informe o Bilhete de Identidade do estudante para o ensino superior.";
       if (form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
       if (!isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
       if (form.bilhete_identidade_responsavel && !isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
