@@ -234,25 +234,47 @@ function filtrarPorModelo(section: SchoolRuleSection, modelos?: ModeloMedio[]) {
 
 const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
   {
-    title: "1.º ao 5.º Fundamental, 7.º e 8.º Fundamental",
+    title: "1.º ao 5.º Fundamental",
+    scope: "Anos acadêmicos com regra regular",
+    formula: "Média anual = média dos 3 trimestres; nota mínima: 5 valores",
+    description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria.",
+    calculationSteps: [
+      "Média do trimestre = (nota do professor + prova trimestral) ÷ 2",
+      "Nota final da matéria = (média do 1.º trimestre + média do 2.º trimestre + média do 3.º trimestre) ÷ 3",
+      "Para aprovar o estudante deve ter no mínimo 5 valores em todas as matérias.",
+    ],
+  },
+  {
+    title: "6.º Fundamental",
+    scope: "Ano acadêmico com exame final e recurso",
+    formula: "Média regular; se necessário: exame final; se necessário: exame de recurso; nota mínima: 5 valores",
+    description: "Primeiro é aplicada a média regular anual. Se uma matéria ficar abaixo de 5 valores, o exame final passa a ser a nova etapa dessa matéria; se continuar reprovada, o recurso recalcula apenas as matérias ainda pendentes.",
+    calculationSteps: [
+      "1.ª etapa: usa a mesma média regular dos três trimestres.",
+      "2.ª etapa: matéria com menos de 5 valores pode ser reavaliada pelo exame final.",
+      "Para aprovar o estudante deve ter no mínimo 5 valores em todas as matérias após a etapa aplicável.",
+    ],
+  },
+  {
+    title: "7.º e 8.º Fundamental",
     scope: "Anos acadêmicos com regra regular",
     formula: "Média anual = média dos 3 trimestres; nota mínima: 10 valores",
     description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria.",
     calculationSteps: [
       "Média do trimestre = (nota do professor + prova trimestral) ÷ 2",
       "Nota final da matéria = (média do 1.º trimestre + média do 2.º trimestre + média do 3.º trimestre) ÷ 3",
-      "A matéria fica aprovada quando a nota final é maior ou igual a 10 valores.",
+      "Para aprovar o estudante deve ter no mínimo 10 valores em todas as matérias.",
     ],
   },
   {
-    title: "6.º e 9.º Fundamental",
-    scope: "Anos acadêmicos com exame final e recurso",
+    title: "9.º Fundamental",
+    scope: "Ano acadêmico com exame final e recurso",
     formula: "Média regular; se necessário: exame final; se necessário: exame de recurso; nota mínima: 10 valores",
     description: "Primeiro é aplicada a média regular anual. Se uma matéria ficar abaixo de 10 valores, o exame final passa a ser a nova etapa dessa matéria; se continuar reprovada, o recurso recalcula apenas as matérias ainda pendentes.",
     calculationSteps: [
       "1.ª etapa: usa a mesma média regular dos três trimestres.",
       "2.ª etapa: matéria com menos de 10 valores pode ser reavaliada pelo exame final.",
-      "3.ª etapa: matéria ainda abaixo de 10 valores pode ser reavaliada pelo exame de recurso.",
+      "Para aprovar o estudante deve ter no mínimo 10 valores em todas as matérias após a etapa aplicável.",
     ],
   },
   {
@@ -264,7 +286,7 @@ const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
     calculationSteps: [
       "Média do trimestre = (nota do professor + prova trimestral) ÷ 2",
       "Nota final da matéria = (média do 1.º trimestre + média do 2.º trimestre + média do 3.º trimestre) ÷ 3",
-      "A matéria fica aprovada quando a nota final é maior ou igual a 10 valores.",
+      "Para aprovar o estudante deve ter no mínimo 10 valores em todas as matérias.",
     ],
   },
   {
@@ -286,9 +308,9 @@ const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
     formula: "PAP ≥ 10 valores",
     description: "O 4.º ano existe apenas para cursos médios técnicos. A avaliação decisiva é a Prova de Aptidão Profissional (PAP).",
     calculationSteps: [
-      "Nota final = nota da PAP.",
+      "Nota final = nota da Prova de Aptidão Profissional.",
       "Aprova e conclui o Ensino Médio Técnico quando a PAP é maior ou igual a 10 valores.",
-      "Reprova no ano final técnico quando a PAP fica abaixo de 10 valores.",
+      "Reprova quando a PAP fica abaixo de 10 valores.",
     ],
   },
 ];
@@ -339,11 +361,11 @@ function InformacaoAvaliacaoFinal({ perfil, nivel, modelosMedio }: { perfil: Inf
         A avaliação final é calculada automaticamente quando as notas necessárias são lançadas. O sistema olha para cada matéria, faz a conta definida para aquele nível e decide se a nota ficou suficiente ou se o estudante precisa de uma nova oportunidade.
       </p>
     </div>
-    <div className="grid gap-4 lg:grid-cols-3">
-      {mostrarFundamental && <InfoCard title="Ensino fundamental"><p>O sistema agrupa os anos acadêmicos que partilham a mesma regra para deixar claro qual cálculo será aplicado. Em cada matéria, a plataforma calcula a nota final pela fórmula da subsecção correspondente, compara com 10 valores e guarda o resultado automaticamente.</p></InfoCard>}
-      {mostrarMedio && <InfoCard title="Ensino médio"><p>O ensino médio é apresentado como Ensino médio ({labelModelosMedio(modelosMedio)}). O Liceu vai do 1.º ao 3.º ano; o Ensino Médio Técnico vai do 1.º ao 4.º ano, sendo o 4.º ano técnico decidido pela PAP.</p></InfoCard>}
-      {mostrarSuperior && <InfoCard title="Ensino superior"><p>A academia define as categorias de nota, a fórmula de cálculo, a nota mínima e quantas matérias podem ficar pendentes. Depois disso, a cada lançamento de nota, o sistema verifica se já consegue calcular a situação da matéria.</p><p>Exemplo simples de fórmula: ([prova_1]+[prova_2])/2. Se a regra tiver nova chance, ela só é usada quando o estudante reprova na etapa anterior.</p></InfoCard>}
-    </div>
+    {perfil === "academia-superior" && mostrarSuperior && (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <InfoCard title="Ensino superior"><p>A academia define as categorias de nota, a fórmula de cálculo, a nota mínima e quantas matérias podem ficar pendentes. Depois disso, a cada lançamento de nota, o sistema verifica se já consegue calcular a situação da matéria.</p><p>Exemplo simples de fórmula: ([prova_1]+[prova_2])/2. Se a regra tiver nova chance, ela só é usada quando o estudante reprova na etapa anterior.</p></InfoCard>
+      </div>
+    )}
     {(mostrarFundamental || mostrarMedio) && (
       <InfoCard title="Explicando cada modelo de avaliação">
         <div className="space-y-3">
@@ -357,8 +379,6 @@ function InformacaoAvaliacaoFinal({ perfil, nivel, modelosMedio }: { perfil: Inf
         </div>
       </InfoCard>
     )}
-    {perfil === "admin" && <InfoCard title="O que o administrador precisa saber"><p>Nas escolas, as regras são fixas para manter o mesmo padrão entre academias: fundamental, Médio Liceu, Ensino Médio Técnico, exame e recurso seguem o catálogo oficial. No ensino superior, cada academia tem liberdade para criar suas próprias regras e categorias, porque os cursos podem ter formas diferentes de avaliação.</p></InfoCard>}
-    {perfil === "estudante" && <InfoCard title="Como isso aparece para o estudante"><p>{nivel === "superior" ? "A sua academia escolhe as regras. Quando todas as notas da fórmula estiverem lançadas, o sistema calcula a nota final da matéria e mostra se você passou, ficou com pendência permitida ou reprovou." : "Você não precisa configurar nada. A escola lança as notas e o sistema calcula automaticamente se cada matéria atingiu a nota mínima."}</p></InfoCard>}
-    {perfil === "academia-escola" && <InfoCard title="Configuração da escola"><p>Escolas não precisam criar regras nesta página. O padrão já vem pronto no sistema e acompanha os anos e cursos ativos da academia.</p></InfoCard>}
+    {perfil === "admin" && <InfoCard title="O que o administrador precisa saber"><p>Nas escolas, as regras são fixas para manter o mesmo padrão entre academias: Ensino fundamental, Ensino Médio Técnico ou Liceu, exame e recurso seguem o catálogo oficial. No ensino superior, cada academia tem liberdade para criar suas próprias regras e categorias.</p></InfoCard>}
   </div>;
 }
