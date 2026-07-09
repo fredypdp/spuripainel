@@ -1041,6 +1041,12 @@ export default function PageContent() {
     ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
     const telefonesGerados = new Set<string>();
 
+    const bilhetesGerados = new Set(estudantes.flatMap(e => [
+      e.bilhete_identidade,
+      e.bilhete_identidade_responsavel,
+    ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
+    const telefonesGerados = new Set<string>();
+
     const items: any[] = Array.from({ length: totalEstudantes }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {

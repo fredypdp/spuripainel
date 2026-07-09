@@ -143,6 +143,10 @@ export default function MatriculaPublicPage() {
       }
     }
 
+    const anoAnterior = getAnoAcademicoAnterior(anoAtual);
+    const declaracaoAplicavel: DocumentoOpcao | null = anoAnterior
+      ? { key: "declaracao", label: `Declaração escolar do ${getAnoLabel(anoAnterior)}`, obrigatorio: false }
+      : null;
     let certificadoAplicavel: DocumentoOpcao | null = null;
     if (anoAtual === "7_ano_fundamental") {
       certificadoAplicavel = { key: "certificado_6_ano_fundamental", label: "Certificado da 6.ª classe", obrigatorio: !files.declaracao };
@@ -153,8 +157,10 @@ export default function MatriculaPublicPage() {
     }
 
     if (certificadoAplicavel) {
-      if (!files[certificadoAplicavel.key]) docs.push({ key: "declaracao", label: "Declaração da escola", obrigatorio: false });
+      if (declaracaoAplicavel && !files[certificadoAplicavel.key]) docs.push(declaracaoAplicavel);
       if (!files.declaracao) docs.push(certificadoAplicavel);
+    } else if (declaracaoAplicavel) {
+      docs.push({ ...declaracaoAplicavel, obrigatorio: true });
     }
 
     return docs;
@@ -455,11 +461,6 @@ export default function MatriculaPublicPage() {
               <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo pode ter até 10MB.`} />
               {anoSelecionado === "1_ano_fundamental" && (
                 <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior."]} />
-              )}
-              {declaracaoAnoAcademico && (
-                <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-                  Se optar por enviar declaração, ela deve comprovar exatamente o {getAnoLabel(declaracaoAnoAcademico)}. Esse valor será enviado automaticamente como <b>declaracao_ano_academico</b>.
-                </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
