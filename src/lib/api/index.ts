@@ -2,7 +2,7 @@
 
 // Client
 export { api, tokenStorage, ApiError, SpuriApiError } from './client';
-export type { FetchOptions } from './client';
+export type { ApiErrorCode, ApiErrorDetail, ApiErrorEnvelope, FetchOptions } from './client';
 
 // Serviços
 export {
@@ -24,6 +24,7 @@ export { useApi, useApiQuery } from '@/hooks/useApi';
 export type {
   UserType,
   AdminType,
+  AdminRole,
   AcademiaType,
   NivelEscolar,
   AnoEscolar,
@@ -37,7 +38,9 @@ export type {
   StatusGeralEstudante,
   Periodo,
   CursoType,
+  ModeloCursoMedio,
   MateriaType,
+  Turno,
   LoginRequest,
   AuthResponse,
   ApiResponse,

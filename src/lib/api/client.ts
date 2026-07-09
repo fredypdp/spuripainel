@@ -21,10 +21,20 @@ export interface ApiErrorDetail {
   message?: string;
 }
 
+export type ApiErrorCode =
+  | 'VALIDATION_ERROR'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'RATE_LIMIT'
+  | 'INTERNAL_ERROR'
+  | 'ERROR';
+
 export interface ApiErrorEnvelope {
-  error?: string;
-  message?: string;
-  request_id?: string;
+  error: ApiErrorCode;
+  message: string;
+  request_id: string;
   details?: ApiErrorDetail[];
 }
 
@@ -45,10 +55,18 @@ export const asApiErrorEnvelope = (value: unknown): ApiErrorEnvelope | undefined
       }))
     : undefined;
 
+  if (
+    typeof value.error !== 'string' ||
+    typeof value.message !== 'string' ||
+    typeof value.request_id !== 'string'
+  ) {
+    return undefined;
+  }
+
   return {
-    error: typeof value.error === 'string' ? value.error : undefined,
-    message: typeof value.message === 'string' ? value.message : undefined,
-    request_id: typeof value.request_id === 'string' ? value.request_id : undefined,
+    error: value.error as ApiErrorCode,
+    message: value.message,
+    request_id: value.request_id,
     details,
   };
 };
@@ -135,9 +153,9 @@ async function fetchApi<T>(
     let errorData: ApiErrorEnvelope | undefined;
     
     try {
-      errorData = asApiErrorEnvelope(await response.json()) ?? { error: response.statusText };
+      errorData = asApiErrorEnvelope(await response.json());
     } catch {
-      errorData = { error: response.statusText };
+      errorData = undefined;
     }
     
     // ✅ Log detalhado do erro (apenas em dev)
@@ -188,8 +206,20 @@ export const api = {
       body: data ? JSON.stringify(data) : undefined,
     }),
 
-  delete: <T>(endpoint: string, options?: FetchOptions) =>
-    fetchApi<T>(endpoint, { ...options, method: 'DELETE' }),
+  delete: <T, TBody = unknown>(endpoint: string, dataOrOptions?: TBody | FetchOptions, options?: FetchOptions) => {
+    const hasExplicitOptions = options !== undefined;
+    const looksLikeOptions = !hasExplicitOptions && isRecord(dataOrOptions) && (
+      'token' in dataOrOptions || 'headers' in dataOrOptions || 'signal' in dataOrOptions || 'method' in dataOrOptions
+    );
+    const data = looksLikeOptions ? undefined : dataOrOptions as TBody | undefined;
+    const fetchOptions = (looksLikeOptions ? dataOrOptions : options) as FetchOptions | undefined;
+
+    return fetchApi<T>(endpoint, {
+      ...fetchOptions,
+      method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  },
 
   patch: <T, TBody = unknown>(endpoint: string, data?: TBody, options?: FetchOptions) =>
     fetchApi<T>(endpoint, {

@@ -14,7 +14,7 @@ import {
 export type AsyncBatchState =
   | { phase: 'idle' }
   | { phase: 'submitting' }
-  | { phase: 'polling'; jobId: string; summary: JobSummary; sseUrl?: string }
+  | { phase: 'polling'; jobId: string; summary: JobSummary }
   | { phase: 'done'; detail: JobDetail }
   | { phase: 'error'; message: string };
 
@@ -38,33 +38,22 @@ export interface UseAsyncBatchReturn {
   isLoading: boolean;
   /** Conveniência: progresso 0..100 durante polling */
   progress: number;
-  /**
-   * URL SSE retornada pelo backend para acompanhamento em tempo real.
-   * Disponível enquanto o job estiver na fase `polling`.
-   * Valor: `/jobs/stream` (relativo ao base URL da API).
-   */
-  sseUrl: string | undefined;
 }
 
 /**
  * Hook para gerenciar operações batch assíncronas com polling.
  *
  * Fluxo:
- * 1. submit(fn, items) → POST /endpoint/async → recebe job_id + poll_url + sse_url → 202 Accepted
+ * 1. submit(fn, items) → POST /endpoint/async → recebe job_id + poll_url → 202 Accepted
  * 2. Polling automático em GET /jobs/:id até status = done | failed
  * 3. State machine: idle → submitting → polling → done | error
- *
- * A partir da versão 1.0.9 do backend, a resposta 202 inclui `sse_url`
- * apontando para GET /jobs/stream para acompanhamento via Server-Sent Events.
- * O hook expõe esse valor através de `sseUrl` e no estado `polling.sseUrl`
- * para que o componente possa exibir a URL ou iniciar uma conexão SSE adicional.
  *
  * Nota sobre `JobDetail`: `pollJob` já normaliza a resposta da API
  * (`{ job, results }`) para um `JobDetail` plano com `results` incluído.
  *
  * @example
  * ```tsx
- * const { state, submit, isLoading, progress, sseUrl } = useAsyncBatch({
+ * const { state, submit, isLoading, progress } = useAsyncBatch({
  *   onProgress: (s) => console.log(`${s.progress}%`),
  * });
  *
@@ -115,9 +104,6 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
       }
 
       const jobId = response.job_id;
-      // sse_url retornado pelo backend desde a versão 1.0.9
-      const sseUrl = response.sse_url;
-
       if (!autoPoll) {
         const summaryPlaceholder: JobSummary = {
           id: jobId,
@@ -129,7 +115,7 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
           fail_items: 0,
           created_at: new Date().toISOString(),
         };
-        setState({ phase: 'polling', jobId, summary: summaryPlaceholder, sseUrl });
+        setState({ phase: 'polling', jobId, summary: summaryPlaceholder });
         return null;
       }
 
@@ -137,7 +123,7 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
       try {
         const initialSummary = await jobApiService.getStatus(jobId);
         if (!cancelledRef.current) {
-          setState({ phase: 'polling', jobId, summary: initialSummary, sseUrl });
+          setState({ phase: 'polling', jobId, summary: initialSummary });
         }
       } catch {
         // Ignorar erro no poll inicial — o job foi criado com sucesso
@@ -145,7 +131,6 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
           setState({
             phase: 'polling',
             jobId,
-            sseUrl,
             summary: {
               id: jobId,
               type: 'register_estudante_batch',
@@ -166,7 +151,7 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
           ...pollOpts,
           onProgress: (summary) => {
             if (!cancelledRef.current) {
-              setState({ phase: 'polling', jobId, summary, sseUrl });
+              setState({ phase: 'polling', jobId, summary });
               onProgress?.(summary);
             }
           },
@@ -201,7 +186,5 @@ export function useAsyncBatch(options: UseAsyncBatchOptions = {}): UseAsyncBatch
 
   const isLoading = state.phase === 'submitting' || state.phase === 'polling';
 
-  const sseUrl = state.phase === 'polling' ? state.sseUrl : undefined;
-
-  return { state, submit, cancel, reset, isLoading, progress, sseUrl };
+  return { state, submit, cancel, reset, isLoading, progress };
 }

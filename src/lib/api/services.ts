@@ -1,5 +1,5 @@
 // src/lib/api/services.ts
-// Rotas baseadas em: cmd/server/main.go — revisado em 2026-04
+// Rotas alinhadas à documentação da API em src/docs/Documentação.md — versão 2.1.1
 
 import { api, tokenStorage } from './client';
 import type { AsyncBatchResponse } from '@/lib/api/job-service';
@@ -99,13 +99,6 @@ import type {
   GerirAnosAcademicosResponse,
   ListarAnosAcademicosResponse,
 } from '@/types/api';
-
-export interface ErrorResponse {
-  error: string;
-  message?: string;
-  request_id?: string;
-  details?: Array<{ field?: string; code?: string; message?: string }>;
-}
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -825,17 +818,16 @@ export const academiaService = {
     }),
 
   removerAnosAcademicos: (data: GerirAnosAcademicosRequest, token?: string) =>
-    api.delete<GerirAnosAcademicosResponse>('/academia/anos-academicos', {
-      token: token || tokenStorage.get() || undefined,
-      method: 'DELETE',
-      body: JSON.stringify(data),
-      headers: { 'Content-Type': 'application/json' },
-    } as any),
+    api.delete<GerirAnosAcademicosResponse, GerirAnosAcademicosRequest>(
+      '/academia/anos-academicos',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 
   // ── Categorias de nota ────────────────────────────────────────────
 
   criarCategoriaNota: (data: CriarCategoriaNotaRequest, token?: string) =>
-    api.post<{ message: string; categoria: { codigo: string; nome: string } }>(
+    api.post<{ message: string; categoria: string }>(
       '/academia/categorias-nota',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -848,8 +840,9 @@ export const academiaService = {
     ),
 
   deletarCategoriaNota: (codigo: string, token?: string) =>
-    api.delete<{ message: string; categoria: { codigo: string; nome?: string } }>(
+    api.delete<{ message: string; categoria: string }>(
       `/academia/categorias-nota/${encodeURIComponent(codigo)}`,
+      undefined,
       { token: token || tokenStorage.get() || undefined }
     ),
 

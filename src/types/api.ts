@@ -5,7 +5,8 @@
 // =====================
 
 export type UserType = 'academia' | 'estudante' | 'admin';
-export type AdminType = 'gerente' | 'adm' | 'fpp';
+export type AdminRole = 'fpp' | 'adm' | 'gerente';
+export type AdminType = AdminRole;
 
 /**
  * Natureza da academia: pública ou privada.
@@ -62,7 +63,9 @@ export type Periodo =
   | `${number}_semestre`;
 
 export type CursoType   = 'medio' | 'superior';
+export type ModeloCursoMedio = 'liceu' | 'tecnico';
 export type MateriaType = 'fundamental' | 'medio' | 'superior';
+export type Turno = 'manha' | 'tarde' | 'noite';
 export type Genero      = 'masculino' | 'feminino';
 
 export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
@@ -354,7 +357,7 @@ export type CriarCursoMedioRequest = {
   nome: string;
   type: 'medio';
   /** Modelo do curso médio. O backend usa essa escolha para montar os anos automaticamente. */
-  modelo: 'liceu' | 'tecnico';
+  modelo: ModeloCursoMedio;
 };
 
 export type CriarCursoSuperiorRequest = {
@@ -788,7 +791,7 @@ export interface CriarCategoriaNotaRequest {
 export interface CriarTurmaRequest {
   codigo_turma: string;
   nivel: string;
-  turno: 'manha' | 'tarde' | 'noite';
+  turno: Turno;
   curso_id?: string;
 }
 
@@ -1001,7 +1004,7 @@ export interface Turma {
   codigo_academia: string;
   nivel: string;
   curso_id?: string;
-  turno: 'manha' | 'tarde' | 'noite';
+  turno: Turno;
   estudantes: string[];
   /**
    * Histórico de estudantes por ano letivo.

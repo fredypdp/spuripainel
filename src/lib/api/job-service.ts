@@ -91,7 +91,6 @@ export interface JobDetail extends JobSummary {
 
 /**
  * Resposta padrão de todas as rotas batch assíncronas (202 Accepted).
- * Inclui `sse_url` desde a versão 1.0.9 do backend.
  */
 export interface AsyncBatchResponse {
   message: string;
@@ -100,8 +99,6 @@ export interface AsyncBatchResponse {
   status: JobStatus;
   /** URL de polling: GET /jobs/:id */
   poll_url: string;
-  /** URL SSE para acompanhamento em tempo real: GET /jobs/stream */
-  sse_url: string;
 }
 
 // =====================
