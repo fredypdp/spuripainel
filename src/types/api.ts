@@ -817,13 +817,12 @@ export interface AdicionarEstudanteTurmaRequest {
 // ── Ano Letivo ────────────────────────────────────────────────────────────────
 
 /**
- * POST /academia/ano-letivo
- * tipo: 'escolar' | 'superior'
+ * POST /academia/definir-ano-letivo
+ * O backend infere o tipo pelo cadastro da academia. Não envie `type`, `tipo` nem `periodo`.
  */
 export interface DefinirAnoLetivoAcademiaRequest {
   /** Opcional: quando omitido, o backend usa o ano letivo global atual. */
   ano_letivo?: string; // formato: YYYY_YYYY  ex: "2025_2026"
-  tipo: 'escolar' | 'superior';
 }
 
 /**
@@ -1253,14 +1252,17 @@ export interface AnoLetivoResponse {
 export interface DefinirAnoLetivoResponse {
   message: string;
   ano_letivo: string;
-  tipo?: string;
-  /** Ano letivo oficial global definido pelo sistema (admin FPP). */
-  ano_letivo_oficial?: string;
+  tipo?: AnoLetivoTipo;
+  periodo: string;
+  imutavel: boolean;
 }
 
 export interface DefinirAnoLetivoGlobalResponse {
   message: string;
+  type: AnoLetivoTipo;
   ano_letivo: string;
+  periodo: string;
+  imutavel: boolean;
 }
 
 /** GET /ano-letivo */
@@ -1298,8 +1300,7 @@ export type AnoLetivoTipo = 'escolar' | 'superior';
 export interface AnoLetivoConfiguracao {
   type: AnoLetivoTipo;
   periodo: string;
-  updated_at?: string;
-  updated_by?: string;
+  imutavel: boolean;
 }
 
 export interface ListarConfiguracoesAnoLetivoResponse {

@@ -552,8 +552,6 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroDados, setErroDados] = useState<string | null>(null);
   const [periodos, setPeriodos] = useState<Record<AnoLetivoTipo, string>>({ escolar: "", superior: "" });
-  const [salvandoPeriodo, setSalvandoPeriodo] = useState<AnoLetivoTipo | null>(null);
-  const [mensagemPeriodo, setMensagemPeriodo] = useState<string | null>(null);
   const [finalizacoes, setFinalizacoes] = useState<import("@/types/api").AnoLetivoFinalizacao[]>([]);
   const [limites, setLimites] = useState<import("@/types/api").AnoLetivoFinalizacaoLimite[]>([]);
 
@@ -626,21 +624,7 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
     }
   }
 
-  async function handleSalvarPeriodo(type: AnoLetivoTipo) {
-    if (!isFPP) return;
-    setMensagemPeriodo(null);
-    setSalvandoPeriodo(type);
-    try {
-      const response = await adminService.atualizarConfiguracaoAnoLetivo(type, { periodo: periodos[type] });
-      setPeriodos((prev) => ({ ...prev, [type]: response.periodo }));
-      setMensagemPeriodo(`Período ${type} atualizado para ${formatPeriodoAnoLetivo(response.periodo)}.`);
-      setTimeout(() => setMensagemPeriodo(null), 4000);
-    } catch (err: unknown) {
-      setMensagemPeriodo(err instanceof Error ? err.message : "Erro ao atualizar período.");
-    } finally {
-      setSalvandoPeriodo(null);
-    }
-  }
+
 
   return (
     <>
@@ -654,7 +638,7 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             Ano letivo oficial global
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Responsabilidade do admin FPP: definir a referência inicial obrigatória para todas as academias e configurar os períodos por tipo. A API calcula o ano inicial pelo ano civil atual; depois disso, o global evolui automaticamente quando as academias finalizam seus anos letivos e ficam alinhadas.
+            Responsabilidade do admin FPP: definir a referência inicial obrigatória por tipo. Depois disso, o global evolui automaticamente quando as academias finalizam seus anos letivos e ficam alinhadas.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
@@ -725,13 +709,12 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
           <div className="mb-5">
             <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white">
               <Icon icon="mdi:tune-variant" width="20px" className="text-brand-500" />
-              Períodos e finalizações de ano letivo por tipo
+              Períodos fixos e finalizações de ano letivo por tipo
             </h3>
             <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-              Configure os períodos fixos escolhendo os meses por extenso. A API recebe automaticamente o formato MM_MM e usa estes valores para validar faltas, bloquear finalizações fora da janela permitida e calcular o intervalo real de datas de cada ano letivo.
+              Os períodos são fixos e imutáveis no sistema. Eles validam faltas, bloqueiam finalizações fora da janela permitida e calculam o intervalo real de datas de cada ano letivo.
             </p>
           </div>
-          {mensagemPeriodo && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-900 dark:bg-brand-900/20 dark:text-brand-300">{mensagemPeriodo}</div>}
           <div className="grid gap-4 lg:grid-cols-2">
             {(["escolar", "superior"] as AnoLetivoTipo[]).map((type) => {
               const limite = limites.find((item) => item.type === type);
@@ -745,37 +728,13 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
                     </div>
                     <span className="rounded-full bg-white px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-300">{totalFinalizacoes} finalização(ões)</span>
                   </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Começa em
-                      <select
-                        value={obterMesPeriodo(periodos[type], 0)}
-                        onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: atualizarMesPeriodo(prev[type], 0, e.target.value) }))}
-                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                      >
-                        {MESES_ANO_LETIVO.map((mes) => <option key={mes.valor} value={mes.valor}>{mes.label}</option>)}
-                      </select>
-                    </label>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Termina em
-                      <select
-                        value={obterMesPeriodo(periodos[type], 1)}
-                        onChange={(e) => setPeriodos((prev) => ({ ...prev, [type]: atualizarMesPeriodo(prev[type], 1, e.target.value) }))}
-                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                      >
-                        {MESES_ANO_LETIVO.map((mes) => <option key={mes.valor} value={mes.valor}>{mes.label}</option>)}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleSalvarPeriodo(type)}
-                      disabled={salvandoPeriodo === type}
-                      className="self-end rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                    >
-                      {salvandoPeriodo === type ? "..." : "Guardar"}
-                    </button>
+                  <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Período fixo do sistema</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-800 dark:text-white">
+                      {formatPeriodoAnoLetivo(periodos[type])}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Imutável; não há alteração manual de período nesta tela.</p>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Será enviado para a API como <code className="rounded bg-white px-1 py-0.5 dark:bg-gray-900">{periodos[type] || "MM_MM"}</code> ({formatPeriodoAnoLetivo(periodos[type])}).</p>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg bg-white p-3 dark:bg-gray-900/60">
                       <p className="text-gray-500 dark:text-gray-400">Finalizado por todas</p>
