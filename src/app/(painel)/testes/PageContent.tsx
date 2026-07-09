@@ -61,13 +61,16 @@ interface Curso {
 // ─── Categorias de Nota ───────────────────────────────────────────────────────
 
 const CATEGORIAS_ESCOLAR: { value: string; label: string }[] = [
-  { value: "nota_escola", label: "Nota Escola" },
-  { value: "nota_professor", label: "Nota Professor" },
+  { value: "nota_professor", label: "Nota do professor" },
+  { value: "prova_trimestral", label: "Prova do trimestre" },
+  { value: "exame_final", label: "Exame final" },
+  { value: "exame_recurso", label: "Exame de recuperação" },
+  { value: "nota_pap", label: "Prova final profissional" },
 ];
 
 const CATEGORIAS_SUPERIOR: { value: string; label: string }[] = [
-  { value: "nota_pp1", label: "PP1" },
-  { value: "nota_pp2", label: "PP2" },
+  { value: "nota_pp1", label: "Primeira prova" },
+  { value: "nota_pp2", label: "Segunda prova" },
   { value: "nota_exame", label: "Exame" },
 ];
 
@@ -152,25 +155,6 @@ function tiposCursoValidos(academia: AcademiaInfo): { value: "medio"|"superior";
   return [];
 }
 
-function tiposEnsinoDisponiveis(academia: AcademiaInfo, cursos: Curso[]): { value: string; label: string }[] {
-  const tipos: { value: string; label: string }[] = [];
-  if (academia.tipo === "escola") {
-    if (academia.nivel === "fundamental" || academia.nivel === "misto") {
-      tipos.push({ value: "fundamental", label: "Fundamental" });
-    }
-    const temCursoMedio = cursos.some(c => c.type === "medio");
-    if ((academia.nivel === "medio" || academia.nivel === "misto") && temCursoMedio) {
-      tipos.push({ value: "medio", label: "Médio" });
-    }
-  } else if (academia.tipo === "superior") {
-    const temCursoSuperior = cursos.some(c => c.type === "superior");
-    if (temCursoSuperior) {
-      tipos.push({ value: "superior", label: "Superior" });
-    }
-  }
-  return tipos;
-}
-
 type EscolaMode = "fundamental" | "medio" | "superior" | "misto";
 
 function getEscolaMode(academia: AcademiaInfo): EscolaMode {
@@ -224,6 +208,23 @@ function getAnoAcademicoEstudante(estudante: Estudante, academia: AcademiaInfo):
   if (academia.nivel === "fundamental") return estudante.ano_escolar_fundamental ?? null;
   if (academia.nivel === "medio") return estudante.ano_escolar_medio ?? null;
   return estudante.ano_escolar_medio || estudante.ano_escolar_fundamental || null;
+}
+
+function getCategoriasEscolaresPermitidas(anoAcademico: string, periodo: string): string[] {
+  if (anoAcademico === "4_ano_medio") return ["nota_pap"];
+
+  const categorias = ["nota_professor", "prova_trimestral"];
+  const anoComExame = ["6_ano_fundamental", "9_ano_fundamental", "3_ano_medio"].includes(anoAcademico);
+  if (anoComExame && periodo === "3_trimestre") {
+    categorias.push("exame_final", "exame_recurso");
+  }
+  return categorias;
+}
+
+function getNotaAleatoria(anoAcademico: string): number {
+  const max = /^([1-6])_ano_fundamental$/.test(anoAcademico) ? 10 : 20;
+  const min = max === 10 ? 5 : 10;
+  return parseFloat((rnd(min, max) + Math.random()).toFixed(1));
 }
 
 // ─── NumberStepper Component ───────────────────────────────────────────────────
@@ -417,12 +418,11 @@ export default function PageContent() {
   const [turmaConfig, setTurmaConfig] = useState({ qtd: 3, turno: "random" as string, nivel: "random", cursoId: "random", niveisSelecionados: [] as string[] });
   const [vincularConfig, setVincularConfig] = useState({ turmaCodigo: "random" });
 
-  const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_escola", "nota_professor"]);
+  const [categoriaEscolarSel, setCategoriaEscolarSel] = useState<string[]>(["nota_professor", "prova_trimestral"]);
   const [categoriaSuperiorSel, setCategoriaSuperiorSel] = useState<string[]>(["nota_pp1", "nota_pp2", "nota_exame"]);
 
   const [notaConfig, setNotaConfig] = useState({ qtdEstudantes: 0, periodo: "random" });
   const [faltaConfig, setFaltaConfig] = useState({ qtdEstudantes: 0 });
-  const [avalConfig, setAvalConfig] = useState({ tipoEnsino: "fundamental" as string, aprovPct: 70 });
 
   const [estudanteConfig, setEstudanteConfig] = useState({
     qtd: 20,
@@ -493,14 +493,6 @@ export default function PageContent() {
       }
     } catch { setAuthError("Erro ao ler dados da sessão. Faça login novamente."); }
   }, []);
-
-  useEffect(() => {
-    if (!academia) return;
-    const tipos = tiposEnsinoDisponiveis(academia, cursos);
-    if (tipos.length > 0) {
-      setAvalConfig(p => ({ ...p, tipoEnsino: tipos[0].value }));
-    }
-  }, [academia, cursos]);
 
   useEffect(() => {
     if (estudantes.length > 0) {
@@ -1385,7 +1377,11 @@ export default function PageContent() {
         }
 
         for (const p of periodos) {
-          for (const categoria of categoriasAtivas) {
+          const categoriasParaPeriodo = tipoNota === "escolar"
+            ? categoriasAtivas.filter(categoria => getCategoriasEscolaresPermitidas(anoAcademico, p).includes(categoria))
+            : categoriasAtivas;
+
+          for (const categoria of categoriasParaPeriodo) {
             const key = `${est.codigo_estudante}|${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
 
             if (notasExistentes.has(key)) {
@@ -1405,7 +1401,7 @@ export default function PageContent() {
               materia_disciplinar_id: mat.id,
               tipo: tipoNota,
               categoria,
-              nota: parseFloat((rnd(8, 20) + Math.random()).toFixed(1)),
+              nota: getNotaAleatoria(anoAcademico),
             });
           }
         }
@@ -1612,19 +1608,6 @@ export default function PageContent() {
     );
   };
 
-  // ─── Avaliações Finais ─────────────────────────────────────────────────────
-  //
-  // A execução manual/async de avaliação final foi removida do contrato público.
-  // O fluxo válido é: configurar regras e registrar notas; o backend dispara
-  // avaliações automaticamente quando a fórmula da regra estiver completa.
-  //
-  const gerarAvaliacoes = async () => {
-    addLog(
-      "Avaliações finais são automáticas: crie regras em Configurações > Regras de avaliação final e registre as notas exigidas pela fórmula. Este painel não chama rota manual/async porque ela não faz parte do contrato público.",
-      "warn"
-    );
-  };
-
   // ─── Configurar Ano Letivo ─────────────────────────────────────────────────────
   const configurarAnoLetivo = async () => {
     if (!academia) return;
@@ -1654,7 +1637,6 @@ export default function PageContent() {
 
   const tiposCursoDisp = academia ? tiposCursoValidos(academia) : [];
   const tiposMateriaDisp = academia ? tiposMateriaValidos(academia) : [];
-  const tiposEnsinoDisp = academia ? tiposEnsinoDisponiveis(academia, cursos) : [];
   const anosDispFundamental = academia?.anos_academicos?.filter(a => a.includes("fundamental")) || [];
   const modo = academia ? getEscolaMode(academia) : "fundamental";
 
@@ -1839,20 +1821,18 @@ export default function PageContent() {
             )}
 
             <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
-              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Jobs assíncronos</p>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#60a5fa" }}>ℹ Criação em lote</p>
               <p style={{ margin: 0 }}>
-                Esta página usa os endpoints batch documentados da API 2.0 (ex.: cursos, estudantes, notas, faltas e vínculos).
-                Ao submeter um job, o servidor processa em background e o progresso também aparece no <strong style={{ color: "#94a3b8" }}>sino 🔔</strong>.
+                Esta página cria cursos, estudantes, notas, faltas e vínculos em grupos para ser mais rápida.
+                O processamento continua no servidor, e o progresso também aparece no <strong style={{ color: "#94a3b8" }}>sino 🔔</strong>.
               </p>
             </div>
 
             <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 12, background: "#0a1929", fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 12 }}>
-              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Dedup de notas e faltas</p>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#94a3b8" }}>ℹ Evita registros repetidos</p>
               <p style={{ margin: 0 }}>
-                Em vez de consultar estudante por estudante, notas e faltas existentes são buscadas
-                de uma só vez via <code style={{ color: "#60a5fa" }}>GET /notas</code> e{" "}
-                <code style={{ color: "#60a5fa" }}>GET /faltas</code> (paginado). Isso reduz
-                drasticamente o número de requisições e o tempo de verificação.
+                Antes de criar novas notas ou faltas, a página verifica o que já existe.
+                Assim ela evita duplicar registros e termina a verificação mais rápido.
               </p>
             </div>
           </div>
@@ -2201,11 +2181,11 @@ export default function PageContent() {
 
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
-                  Gerar {estudanteConfig.qtd} Estudante(s) (async)
+                  Criar {estudanteConfig.qtd} estudante(s) em lote
                 </Btn>
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                Usa endpoint assíncrono — limite: 1000 por job
+                Criação em lote — até 1000 estudantes por envio.
               </p>
             </Section>
 
@@ -2244,7 +2224,7 @@ export default function PageContent() {
                         color="#0f4c75"
                         disabled={estudantesSemTurmaComCompativeis.length === 0}
                       >
-                        Vincular {estudantesSemTurmaComCompativeis.length} compatíveis (async)
+                        Vincular {estudantesSemTurmaComCompativeis.length} compatíveis em lote
                       </Btn>
                     </Row>
                     <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
@@ -2267,8 +2247,8 @@ export default function PageContent() {
                 />
                 <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
                   {tipoNota === "escolar"
-                    ? "Categorias fixas do ensino escolar"
-                    : "Categorias fixas do ensino superior"}
+                    ? "A escola usa opções fixas conforme o ano do estudante. Opções que não se aplicam serão ignoradas automaticamente."
+                    : "Escolha as categorias já configuradas para o ensino superior."}
                   {" · "}{categoriasAtivas.length} de {categoriasDisponiveis.length} selecionada(s)
                 </p>
               </SubSection>
@@ -2290,7 +2270,7 @@ export default function PageContent() {
                     </Sel>
                   </Field>
                   <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
-                    Gerar Notas (async)
+                    Gerar notas em lote
                   </Btn>
                 </Row>
               ) : (
@@ -2305,14 +2285,12 @@ export default function PageContent() {
                     hint={notaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                   />
                   <Btn onClick={() => withLoading(gerarNotas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
-                    Gerar Notas (async)
+                    Gerar notas em lote
                   </Btn>
                 </Row>
               )}
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: busca notas existentes via <code style={{ color: "#64748b" }}>GET /notas</code> (paginado, 1 req por 1000 registros)
-                <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/notas-aluno/async</code>
+                Primeiro verifica o que já foi lançado para evitar repetição. Depois cria apenas as notas que faltam.
               </p>
             </Section>
 
@@ -2329,42 +2307,14 @@ export default function PageContent() {
                   hint={faltaConfig.qtdEstudantes === 0 ? `todos (${estudantes.length})` : undefined}
                 />
                 <Btn onClick={() => withLoading(gerarFaltas)} color="#b45309" disabled={materiasParaNota.length === 0 || estudantes.length === 0}>
-                  Gerar Faltas (async)
+                  Gerar faltas em lote
                 </Btn>
               </Row>
               <p style={{ margin: "4px 0 0", fontSize: 11, color: "#475569" }}>
-                Fase 1: busca faltas existentes via <code style={{ color: "#64748b" }}>GET /faltas</code> (paginado, 1 req por 1000 registros)
-                <br />
-                Fase 2: submete via <code style={{ color: "#64748b" }}>POST /academia/faltas-aluno/async</code>
+                Primeiro verifica faltas já lançadas para evitar repetição. Depois cria apenas os registros que faltam.
               </p>
             </Section>
 
-            {/* Avaliações Finais */}
-            <Section title="Avaliações Finais" badge={estudantes.length === 0 ? "crie estudantes primeiro" : `${estudantes.length} estudantes`}>
-              {tiposEnsinoDisp.length === 0 ? (
-                <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>
-                  {academia.tipo === "escola" && (academia.nivel === "medio" || academia.nivel === "misto")
-                    ? "Crie e ative cursos médios para habilitar avaliações de nível médio"
-                    : "Crie e ative cursos para habilitar avaliações"}
-                </p>
-              ) : (
-                <>
-                  <Row>
-                    <Field label="Tipo ensino">
-                      <Sel value={avalConfig.tipoEnsino} onChange={e => setAvalConfig(p => ({ ...p, tipoEnsino: e.target.value }))}>
-                        {tiposEnsinoDisp.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
-                      </Sel>
-                    </Field>
-                    <div style={{ flex: 1, minWidth: 240, color: "#475569", fontSize: 12, lineHeight: 1.5 }}>
-                      A aprovação não é sorteada nem enviada pelo cliente. O backend calcula <code>nota_final</code> pelas regras activas, compara com <code>nota_minima_aprovacao</code> e dispara a cadeia <code>normal → recurso → especial</code> quando as notas ficam completas.
-                    </div>
-                    <Btn onClick={() => withLoading(gerarAvaliacoes)} color="#7c3aed" disabled={estudantes.length === 0}>
-                      Ver fluxo automático
-                    </Btn>
-                  </Row>
-                </>
-              )}
-            </Section>
           </div>
         </div>
 
