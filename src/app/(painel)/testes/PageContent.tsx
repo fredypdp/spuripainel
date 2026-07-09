@@ -36,6 +36,8 @@ interface Estudante {
   ano_superior?: string;
   curso_medio_id?: string;
   curso_superior_id?: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
   total_notas?: number;
   total_faltas?: number;
 }
@@ -121,6 +123,28 @@ const gerarNome = () => {
 const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
   return new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+};
+const gerarTelefoneAngola = (usados: Set<string>) => {
+  let telefone = "";
+  do {
+    telefone = `${pick(["91", "92", "93", "94", "95", "99"])}${rnd(1000000, 9999999)}`;
+  } while (usados.has(telefone));
+  usados.add(telefone);
+  return telefone;
+};
+const gerarBilheteIdentidade = (usados: Set<string>) => {
+  let bilhete = "";
+  do {
+    bilhete = `${rnd(100000000, 999999999)}${pick(["LA", "BO", "UE", "MO", "BE"])}${String(rnd(0, 999)).padStart(3, "0")}`;
+  } while (usados.has(bilhete.toLowerCase()));
+  usados.add(bilhete.toLowerCase());
+  return bilhete;
+};
+const gerarDataNascimentoPorAnoAcademico = (anoAcademico?: string) => {
+  if (anoAcademico?.endsWith("_ano_superior")) return gerarDataNasc(18, 35);
+  if (anoAcademico?.endsWith("_ano_medio")) return gerarDataNasc(14, 22);
+  if (anoAcademico?.endsWith("_ano_fundamental")) return gerarDataNasc(6, 16);
+  return gerarDataNasc();
 };
 
 const toggleSelecionado = (lista: string[], valor: string) =>
@@ -918,6 +942,31 @@ export default function PageContent() {
       ? anosSuperior.filter(a => cfg.anosSuperiorSelecionados.includes(a))
       : anosSuperior;
 
+    if (modo === "fundamental" && anosFSelecionados.length === 0) {
+      addLog("Não há anos fundamentais disponíveis para cadastrar estudantes conforme a documentação.", "warn");
+      return;
+    }
+    if (modo === "medio" && (!cursoMedioAlvo || anosMedioSelecionados.length === 0)) {
+      addLog("Selecione/crie um curso médio ativo com anos acadêmicos antes de cadastrar estudantes do médio.", "warn");
+      return;
+    }
+    if (modo === "superior" && (!cursoSuperiorAlvo || anosSuperiorSelecionados.length === 0)) {
+      addLog("Selecione/crie um curso superior ativo com anos acadêmicos antes de cadastrar estudantes do superior.", "warn");
+      return;
+    }
+    if (modo === "misto") {
+      const qtdFundamental = Math.floor(cfg.qtd * cfg.pctFundamental / 100);
+      const qtdMedio = cfg.qtd - qtdFundamental;
+      if (qtdFundamental > 0 && anosFSelecionados.length === 0) {
+        addLog("A geração mista inclui fundamental, mas não há anos fundamentais disponíveis.", "warn");
+        return;
+      }
+      if (qtdMedio > 0 && (!cursoMedioAlvo || anosMedioSelecionados.length === 0)) {
+        addLog("A geração mista inclui médio, mas falta curso médio ativo com anos acadêmicos.", "warn");
+        return;
+      }
+    }
+
     const anosFundamentaisGeracao = cfg.anoFundamental === "random" && cfg.anosFundamentalSelecionados.length > 0
       ? ordenarAnosAcademicos(anosFSelecionados)
       : [];
@@ -936,13 +985,17 @@ export default function PageContent() {
     const totalEstudantes = cfg.qtd * fatorMultiplicador;
     addLog(`Gerando ${totalEstudantes} estudante(s) via async (modo: ${modo})...`, "step");
 
+    const bilhetesGerados = new Set(estudantes.flatMap(e => [
+      e.bilhete_identidade,
+      e.bilhete_identidade_responsavel,
+    ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
+    const telefonesGerados = new Set<string>();
+
     const items: any[] = Array.from({ length: totalEstudantes }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
         nome,
         genero,
-        data_nascimento: gerarDataNasc(),
-        bilhete_identidade: `${rnd(100000000, 999999999)}LA0${rnd(10, 99)}`,
       };
 
       if (modo === "superior") {
@@ -995,6 +1048,16 @@ export default function PageContent() {
             payload.curso_medio_id = cursoMedioAlvo.id;
           }
         }
+      }
+
+      const anoAcademico = payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental;
+      payload.data_nascimento = gerarDataNascimentoPorAnoAcademico(anoAcademico);
+      payload.bilhete_identidade = gerarBilheteIdentidade(bilhetesGerados);
+      payload.telefone = gerarTelefoneAngola(telefonesGerados);
+
+      if (!payload.ano_superior) {
+        payload.bilhete_identidade_responsavel = gerarBilheteIdentidade(bilhetesGerados);
+        payload.telefone_responsavel = gerarTelefoneAngola(telefonesGerados);
       }
 
       return payload;
