@@ -269,8 +269,9 @@ function prepareMotivoEstudante(data: MotivoEstudanteRequest): MotivoEstudanteRe
 
 function buildSolicitacoesMatriculaQuery(params?: ListarSolicitacoesMatriculaParams): string {
   const qs = new URLSearchParams();
-  if (params?.status) qs.set('status', params.status);
-  if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia.trim());
+  const statuses = Array.isArray(params?.status) ? params?.status : params?.status ? [params.status] : [];
+  statuses.forEach((status) => qs.append('status', status));
+  if (params?.codigo_academia) appendMultiValueParam(qs, 'codigo_academia', params.codigo_academia);
   if (params?.limit !== undefined) qs.set('limit', String(params.limit));
   if (params?.offset !== undefined) qs.set('offset', String(params.offset));
   const query = qs.toString();
