@@ -118,8 +118,6 @@ export type {
   TipoNota,
   CategoriaNota,
   CategoriaNotaEscolar,
-  CategoriaNotaSuperiorFixa,
-  AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   CategoriaNotaItem,
   ListarCategoriasNotaResponse,

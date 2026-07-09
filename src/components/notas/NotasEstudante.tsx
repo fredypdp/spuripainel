@@ -36,8 +36,11 @@ function labelNivel(v: string): string {
 
 function formatCategoria(c: string) {
   const m: Record<string, string> = {
-    nota_escola: "Nota Escola", nota_professor: "Nota do Professor",
-    nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame",
+    nota_professor: "Nota do professor",
+    prova_trimestral: "Prova do trimestre",
+    exame_final: "Exame final",
+    exame_recurso: "Exame de recurso",
+    nota_pap: "Prova de Aptidão Profissional",
   };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
@@ -140,7 +143,7 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
   });
 
 
-  const categoriasOrdem = Array.from(new Set(["nota_professor", "nota_escola", ...notas.map(n => n.categoria)]));
+  const categoriasOrdem = Array.from(new Set(["nota_professor", "prova_trimestral", "exame_final", "exame_recurso", "nota_pap", ...notas.map(n => n.categoria)]));
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
@@ -156,8 +159,8 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([, { nome, notas: nm }]) => {
             const notaProf  = nm.find(n => n.categoria === "nota_professor");
-            const notaFinal = nm.find(n => n.categoria === "nota_escola");
-            if (!notaProf && !notaFinal) {
+            const provaTrimestral = nm.find(n => n.categoria === "prova_trimestral");
+            if (!notaProf && !provaTrimestral) {
               return nm.map((n, i) => (
                 <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
@@ -243,7 +246,7 @@ export default function NotasEstudante() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoEstudante]);
 
-  const todasNotas: Nota[] = historico?.notas ?? [];
+  const todasNotas: Nota[] = useMemo(() => historico?.notas ?? [], [historico]);
   const categoriasMap = useMemo<Record<string, string>>(() => ({}), []);
 
   // Académias únicas nas notas
