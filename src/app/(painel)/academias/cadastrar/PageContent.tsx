@@ -98,7 +98,7 @@ function SuccessState({
         </div>
 
         <p className="text-xs text-green-700 dark:text-green-400">
-          A senha padrão é o próprio código da academia. Comunique ao responsável para alterá-la no primeiro acesso.
+          A primeira senha é o próprio código da academia. Oriente o responsável a trocar a senha no primeiro acesso.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -142,6 +142,8 @@ export default function CadastrarAcademiaPageContent() {
   // Todos os estados são primitivos (string) para evitar problemas de
   // comparação por referência no PrimeReact Dropdown
   const [nomeAcademia,               setNomeAcademia]               = useState('');
+  const [nif,                         setNif]                         = useState('');
+  const [alvara,                      setAlvara]                      = useState<File | null>(null);
   const [email,                      setEmail]                      = useState('');
   const [numeroTelefone,             setNumeroTelefone]             = useState('');
   const [endereco,                   setEndereco]                   = useState('');
@@ -168,11 +170,11 @@ export default function CadastrarAcademiaPageContent() {
     );
   }
 
-  if (!user || user.tipo !== 'admin' || user.admin?.role !== 'fpp') {
+  if (!user || user.tipo !== 'admin') {
     return (
       <UnauthorizedAccess
         requiredTypes={['admin']}
-        message="Esta página é restrita a administradores FPP."
+        message="Esta página é restrita a administradores."
       />
     );
   }
@@ -180,44 +182,59 @@ export default function CadastrarAcademiaPageContent() {
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
 
-    if (!nomeAcademia.trim()) erros.push('Nome da academia é obrigatório');
-    if (!nivelAcademia)       erros.push('Selecione o nível da academia (escola ou superior)');
-    if (!academiaType)        erros.push('Selecione a natureza (pública ou privada)');
+    if (!nomeAcademia.trim()) erros.push('Informe o nome da academia');
+
+    const nifDigitos = nif.replace(/\D/g, '');
+    if (!nifDigitos) {
+      erros.push('Informe o NIF');
+    } else if (nifDigitos.length !== 10) {
+      erros.push('O NIF deve ter exatamente 10 números');
+    }
+
+    if (!alvara) {
+      erros.push('Anexe o alvará em PDF');
+    } else if (alvara.type !== 'application/pdf' && !alvara.name.toLowerCase().endsWith('.pdf')) {
+      erros.push('O alvará deve ser um arquivo PDF');
+    } else if (alvara.size > 10 * 1024 * 1024) {
+      erros.push('O alvará deve ter no máximo 10 MB');
+    }
+    if (!nivelAcademia)       erros.push('Escolha o tipo de instituição');
+    if (!academiaType)        erros.push('Escolha se é pública ou privada');
     if (!provinciaCodigo)     erros.push('Selecione a província');
-    if (!endereco.trim())     erros.push('Endereço é obrigatório');
+    if (!endereco.trim())     erros.push('Informe o endereço');
 
     if (!numeroTelefone.trim()) {
       erros.push('Número de telefone é obrigatório');
     } else {
       const apenasDigitos = numeroTelefone.replace(/\D/g, '');
-      if (apenasDigitos.length < 9) erros.push('Número de telefone inválido (mínimo 9 dígitos)');
+      if (apenasDigitos.length < 9) erros.push('Informe um telefone válido com pelo menos 9 números');
     }
 
     if (!email.trim()) {
       erros.push('E-mail é obrigatório');
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) erros.push('E-mail inválido');
+      if (!emailRegex.test(email)) erros.push('Informe um e-mail válido');
     }
 
     if (website.trim()) {
       try {
         new URL(website.trim());
       } catch {
-        erros.push('Website inválido (deve incluir http:// ou https://)');
+        erros.push('Informe o site completo, começando com http:// ou https://');
       }
     }
 
     // Validações específicas para escola
     if (nivelAcademia === 'escola') {
-      if (!nivelEscolar) erros.push('Selecione o nível escolar (fundamental, médio ou misto)');
+      if (!nivelEscolar) erros.push('Escolha quais níveis a escola oferece');
 
       // anos_academicos obrigatório para fundamental e misto
       if (
         (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') &&
         anosAcademicosSelecionados.length === 0
       ) {
-        erros.push('Selecione pelo menos um ano académico para escolas fundamental/misto');
+        erros.push('Selecione pelo menos um ano do ensino fundamental');
       }
 
       // anos_academicos NÃO deve ser informado para médio
@@ -231,6 +248,8 @@ export default function CadastrarAcademiaPageContent() {
 
   const limparFormulario = () => {
     setNomeAcademia('');
+    setNif('');
+    setAlvara(null);
     setEmail('');
     setNumeroTelefone('');
     setEndereco('');
@@ -271,6 +290,8 @@ export default function CadastrarAcademiaPageContent() {
           nivel:           "escola",          // AcademiaNivel — literal fixo
           type:            type,              // AcademiaType: 'public' | 'private'
           nome:            nomeAcademia.trim(),
+          nif:             nif.replace(/\D/g, ''),
+          alvara:          alvara as File,
           provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
           endereco:        endereco.trim(),
           telefone: numeroTelefone.trim(),
@@ -286,6 +307,8 @@ export default function CadastrarAcademiaPageContent() {
           nivel:           "superior",        // AcademiaNivel — literal fixo
           type:            type,              // AcademiaType: 'public' | 'private'
           nome:            nomeAcademia.trim(),
+          nif:             nif.replace(/\D/g, ''),
+          alvara:          alvara as File,
           provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
           endereco:        endereco.trim(),
           telefone: numeroTelefone.trim(),
@@ -352,6 +375,31 @@ export default function CadastrarAcademiaPageContent() {
                   onChange={(e) => setNomeAcademia(e.target.value)}
                   disabled={carregandoCadastro}
                 />
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <Label>NIF *</Label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="10 números"
+                  defaultValue={nif}
+                  onChange={(e) => setNif(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  disabled={carregandoCadastro}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Informe apenas os 10 números do NIF.</p>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Alvará em PDF *</Label>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => setAlvara(e.target.files?.[0] ?? null)}
+                  disabled={carregandoCadastro}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:file:bg-white/[0.06] dark:file:text-gray-300"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Envie o documento em PDF com até 10 MB.</p>
               </div>
 
               {/* Nível da academia: 'escola' | 'superior'
@@ -527,7 +575,7 @@ export default function CadastrarAcademiaPageContent() {
             {validationErrors.length > 0 && (
               <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <h4 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">
-                  Corrija os seguintes erros:
+                  Antes de continuar, corrija estes pontos:
                 </h4>
                 <ul className="list-disc list-inside space-y-1">
                   {validationErrors.map((erro, i) => (
@@ -551,9 +599,8 @@ export default function CadastrarAcademiaPageContent() {
             {/* Nota informativa */}
             <div className="mt-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Informação:</strong> A academia será criada com status{' '}
-                <strong>inativo</strong>. Um admin ADM ou FPP deve ativá-la manualmente.
-                A senha padrão será o <strong>código gerado automaticamente</strong>.
+                <strong>Informação:</strong> depois do cadastro, a academia fica aguardando ativação por um administrador ADM ou FPP.
+                A primeira senha será o <strong>código gerado automaticamente</strong>.
               </p>
             </div>
 
