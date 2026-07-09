@@ -90,6 +90,7 @@ export default function AvaliacaoFinalRulesSection() {
 
   const { data: regrasData, loading, execute: listarRegras } = useApi(academiaService.listarRegrasAvaliacaoFinal);
   const { data: categoriasData, execute: listarCategorias } = useApi(academiaService.listarCategoriasNota);
+  const { data: cursosData, execute: listarCursos } = useApi(academiaService.listarCursos);
   const { loading: criando, error, execute: criarRegra } = useApi(academiaService.criarRegraAvaliacaoFinal);
   const { loading: deletando, execute: deletarRegra } = useApi(academiaService.deletarRegraAvaliacaoFinal);
 
@@ -98,6 +99,13 @@ export default function AvaliacaoFinalRulesSection() {
     listarRegras().catch(() => undefined);
     listarCategorias().catch(() => undefined);
   }, [isAcademia, isSuperior, listarRegras, listarCategorias]);
+
+  useEffect(() => {
+    if (!isAcademia || isSuperior) return;
+    const nivelEscolar = academia?.nivel_escolar;
+    if (nivelEscolar !== "medio" && nivelEscolar !== "misto") return;
+    listarCursos().catch(() => undefined);
+  }, [academia?.nivel_escolar, isAcademia, isSuperior, listarCursos]);
 
   const periodosFormula = useMemo(() => tipoSelecionado === "superior" ? [] : ESCOLAR_PERIODOS, [tipoSelecionado]);
   const categoriasDisponiveis = useMemo(() => {
@@ -163,7 +171,8 @@ export default function AvaliacaoFinalRulesSection() {
 
   if (!isSuperior) {
     const nivelAcademia = academia?.nivel_escolar === "medio" ? "medio" : academia?.nivel_escolar === "misto" ? "misto" : "fundamental";
-    return <InformacaoAvaliacaoFinal perfil="academia-escola" nivel={nivelAcademia} />;
+    const modelosMedio = inferirModelosMedio(cursosData?.cursos ?? []);
+    return <InformacaoAvaliacaoFinal perfil="academia-escola" nivel={nivelAcademia} modelosMedio={modelosMedio} />;
   }
 
   return <div className="space-y-6"><InformacaoAvaliacaoFinal perfil="academia-superior" /><div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
@@ -182,49 +191,131 @@ export default function AvaliacaoFinalRulesSection() {
 
 
 
-const SCHOOL_RULE_SECTIONS = [
+type ModeloMedio = "liceu" | "tecnico";
+
+type SchoolRuleSection = {
+  title: string;
+  scope: string;
+  models?: ModeloMedio[];
+  description: string;
+  formula: string;
+  calculationSteps: string[];
+};
+
+function inferirModelosMedio(cursos: unknown[]): ModeloMedio[] {
+  const modelos = new Set<ModeloMedio>();
+
+  cursos.forEach((curso) => {
+    const item = curso as { type?: string; modelo?: string; anos_academicos?: string[] };
+    if (item.type !== "medio") return;
+    if (item.modelo === "liceu" || item.modelo === "tecnico") {
+      modelos.add(item.modelo);
+      return;
+    }
+    if (item.anos_academicos?.includes("4_ano_medio")) {
+      modelos.add("tecnico");
+    } else if (item.anos_academicos?.some((ano) => ano.includes("ano_medio"))) {
+      modelos.add("liceu");
+    }
+  });
+
+  return Array.from(modelos);
+}
+
+function labelModelosMedio(modelos?: ModeloMedio[]) {
+  if (!modelos || modelos.length === 0 || modelos.length > 1) return "Liceu/Técnico";
+  return modelos[0] === "liceu" ? "Liceu" : "Técnico";
+}
+
+function filtrarPorModelo(section: SchoolRuleSection, modelos?: ModeloMedio[]) {
+  if (!section.models || !modelos || modelos.length === 0) return true;
+  return section.models.some((modelo) => modelos.includes(modelo));
+}
+
+const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
   {
     title: "1.º ao 5.º Fundamental, 7.º e 8.º Fundamental",
     scope: "Anos acadêmicos com regra regular",
-    formula: "((([nota_professor,1_trimestre]+[prova_trimestral,1_trimestre])/2)+(([nota_professor,2_trimestre]+[prova_trimestral,2_trimestre])/2)+(([nota_professor,3_trimestre]+[prova_trimestral,3_trimestre])/2))/3",
-    description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria. A matéria fica aprovada quando a nota final atinge a nota mínima configurada no padrão escolar.",
+    formula: "Média anual = média dos 3 trimestres; nota mínima: 10 valores",
+    description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria.",
+    calculationSteps: [
+      "Média do trimestre = (nota do professor + prova trimestral) ÷ 2",
+      "Nota final da matéria = (média do 1.º trimestre + média do 2.º trimestre + média do 3.º trimestre) ÷ 3",
+      "A matéria fica aprovada quando a nota final é maior ou igual a 10 valores.",
+    ],
   },
   {
     title: "6.º e 9.º Fundamental",
     scope: "Anos acadêmicos com exame final e recurso",
-    formula: "avaliação regular; se reprovar, [exame_final,3_trimestre]; se ainda reprovar, [exame_recurso,3_trimestre]",
-    description: "Primeiro é aplicada a média regular anual. Se uma matéria ficar abaixo da mínima, o exame final passa a ser a nova etapa de cálculo dessa matéria; se continuar reprovada, o recurso pode recalcular apenas as matérias que ainda estão pendentes.",
+    formula: "Média regular; se necessário: exame final; se necessário: exame de recurso; nota mínima: 10 valores",
+    description: "Primeiro é aplicada a média regular anual. Se uma matéria ficar abaixo de 10 valores, o exame final passa a ser a nova etapa dessa matéria; se continuar reprovada, o recurso recalcula apenas as matérias ainda pendentes.",
+    calculationSteps: [
+      "1.ª etapa: usa a mesma média regular dos três trimestres.",
+      "2.ª etapa: matéria com menos de 10 valores pode ser reavaliada pelo exame final.",
+      "3.ª etapa: matéria ainda abaixo de 10 valores pode ser reavaliada pelo exame de recurso.",
+    ],
   },
   {
-    title: "1.º e 2.º Médio — modelo Liceu ou Técnico",
-    scope: "Anos acadêmicos médios com regra regular",
-    formula: "((([nota_professor,1_trimestre]+[prova_trimestral,1_trimestre])/2)+(([nota_professor,2_trimestre]+[prova_trimestral,2_trimestre])/2)+(([nota_professor,3_trimestre]+[prova_trimestral,3_trimestre])/2))/3",
-    description: "Tanto no Liceu como no Ensino Médio Técnico, estes anos usam a mesma regra regular por matéria: média trimestral entre nota do professor e prova trimestral, seguida da média anual.",
+    title: "1.º e 2.º Médio",
+    scope: "Ensino médio (Liceu/Técnico) com regra regular",
+    models: ["liceu", "tecnico"],
+    formula: "Média anual = média dos 3 trimestres; nota mínima: 10 valores",
+    description: "Nestes anos do Ensino médio, a regra é regular por matéria: média trimestral entre nota do professor e prova trimestral, seguida da média anual.",
+    calculationSteps: [
+      "Média do trimestre = (nota do professor + prova trimestral) ÷ 2",
+      "Nota final da matéria = (média do 1.º trimestre + média do 2.º trimestre + média do 3.º trimestre) ÷ 3",
+      "A matéria fica aprovada quando a nota final é maior ou igual a 10 valores.",
+    ],
   },
   {
-    title: "3.º Médio — modelo Liceu ou Técnico",
-    scope: "Ano acadêmico médio com exame final e recurso",
-    formula: "avaliação regular; se reprovar, [exame_final,3_trimestre]; se ainda reprovar, [exame_recurso,3_trimestre]",
-    description: "No 3.º ano, tanto para Liceu quanto para Ensino Médio Técnico, a regra regular pode acionar exame final e recurso. O recurso só recalcula matérias que reprovaram na etapa anterior.",
+    title: "3.º Médio",
+    scope: "Ensino médio (Liceu/Técnico) com exame final e recurso",
+    models: ["liceu", "tecnico"],
+    formula: "Média regular; se necessário: exame final; se necessário: exame de recurso; nota mínima: 10 valores",
+    description: "No 3.º ano do Ensino médio, a regra regular pode acionar exame final e recurso. O recurso recalcula somente matérias que reprovaram na etapa anterior.",
+    calculationSteps: [
+      "1.ª etapa: calcula a média regular dos três trimestres.",
+      "2.ª etapa: matérias abaixo de 10 valores podem ir a exame final.",
+      "3.ª etapa: matérias ainda abaixo de 10 valores podem ir a exame de recurso.",
+    ],
   },
   {
-    title: "4.º Médio — somente Ensino Médio Técnico",
-    scope: "Ano final técnico",
-    formula: "[nota_pap] >= 10",
-    description: "O 4.º ano existe apenas para cursos médios técnicos. A avaliação decisiva é a Prova de Aptidão Profissional (PAP): se a nota PAP for maior ou igual a 10, o estudante conclui; caso contrário, reprova no ano final técnico.",
+    title: "4.º Médio",
+    scope: "Ensino médio (Técnico) — ano final",
+    models: ["tecnico"],
+    formula: "PAP ≥ 10 valores",
+    description: "O 4.º ano existe apenas para cursos médios técnicos. A avaliação decisiva é a Prova de Aptidão Profissional (PAP).",
+    calculationSteps: [
+      "Nota final = nota da PAP.",
+      "Aprova e conclui o Ensino Médio Técnico quando a PAP é maior ou igual a 10 valores.",
+      "Reprova no ano final técnico quando a PAP fica abaixo de 10 valores.",
+    ],
   },
 ];
 
-function RuleFormulaBlock({ title, scope, formula, description }: { title: string; scope: string; formula: string; description: string }) {
+function RuleFormulaBlock({ title, scope, formula, description, calculationSteps }: SchoolRuleSection) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/60">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-gray-800 dark:text-white">{title}</p>
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400">{scope}</span>
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div className="border-b border-gray-100 bg-gradient-to-r from-brand-50 to-white px-4 py-3 dark:border-gray-800 dark:from-brand-900/20 dark:to-gray-900">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-gray-800 dark:text-white">{title}</p>
+          <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">{scope}</span>
+        </div>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{description}</p>
       </div>
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{description}</p>
-      <div className="mt-2 rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-200">
-        Fórmula: {formula}
+      <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.8fr)]">
+        <div className="space-y-2">
+          {calculationSteps.map((step, index) => (
+            <div key={step} className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/70">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">{index + 1}</span>
+              <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-200">{step}</p>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg border border-dashed border-brand-200 bg-brand-50/70 p-3 dark:border-brand-900/60 dark:bg-brand-900/10">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">Cálculo resumido</p>
+          <p className="mt-2 text-sm font-semibold leading-relaxed text-gray-800 dark:text-white">{formula}</p>
+        </div>
       </div>
     </div>
   );
@@ -236,7 +327,7 @@ function InfoCard({ title, children }: { title: string; children: React.ReactNod
   return <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"><p className="font-semibold text-gray-800 dark:text-white">{title}</p><div className="mt-2 space-y-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{children}</div></div>;
 }
 
-function InformacaoAvaliacaoFinal({ perfil, nivel }: { perfil: InfoPerfil; nivel?: string }) {
+function InformacaoAvaliacaoFinal({ perfil, nivel, modelosMedio }: { perfil: InfoPerfil; nivel?: string; modelosMedio?: ModeloMedio[] }) {
   const mostrarFundamental = perfil === "admin" || nivel === "fundamental" || nivel === "misto";
   const mostrarMedio = perfil === "admin" || nivel === "medio" || nivel === "misto";
   const mostrarSuperior = perfil === "admin" || perfil === "academia-superior" || nivel === "superior";
@@ -249,17 +340,20 @@ function InformacaoAvaliacaoFinal({ perfil, nivel }: { perfil: InfoPerfil; nivel
       </p>
     </div>
     <div className="grid gap-4 lg:grid-cols-3">
-      {mostrarFundamental && <InfoCard title="Ensino fundamental"><p>O sistema agrupa os anos acadêmicos que partilham a mesma regra para deixar claro qual cálculo será aplicado. Em cada matéria, a plataforma calcula a nota final pela fórmula da subsecção correspondente, compara com a nota mínima e guarda o resultado automaticamente.</p></InfoCard>}
-      {mostrarMedio && <InfoCard title="Ensino médio"><p>O ensino médio é apresentado por modelo: Liceu e Ensino Médio Técnico. O Liceu vai do 1.º ao 3.º ano; o Ensino Médio Técnico vai do 1.º ao 4.º ano, sendo o 4.º ano técnico decidido pela PAP.</p></InfoCard>}
+      {mostrarFundamental && <InfoCard title="Ensino fundamental"><p>O sistema agrupa os anos acadêmicos que partilham a mesma regra para deixar claro qual cálculo será aplicado. Em cada matéria, a plataforma calcula a nota final pela fórmula da subsecção correspondente, compara com 10 valores e guarda o resultado automaticamente.</p></InfoCard>}
+      {mostrarMedio && <InfoCard title="Ensino médio"><p>O ensino médio é apresentado como Ensino médio ({labelModelosMedio(modelosMedio)}). O Liceu vai do 1.º ao 3.º ano; o Ensino Médio Técnico vai do 1.º ao 4.º ano, sendo o 4.º ano técnico decidido pela PAP.</p></InfoCard>}
       {mostrarSuperior && <InfoCard title="Ensino superior"><p>A academia define as categorias de nota, a fórmula de cálculo, a nota mínima e quantas matérias podem ficar pendentes. Depois disso, a cada lançamento de nota, o sistema verifica se já consegue calcular a situação da matéria.</p><p>Exemplo simples de fórmula: ([prova_1]+[prova_2])/2. Se a regra tiver nova chance, ela só é usada quando o estudante reprova na etapa anterior.</p></InfoCard>}
     </div>
     {(mostrarFundamental || mostrarMedio) && (
-      <InfoCard title="Subsecções por anos acadêmicos e modelo">
+      <InfoCard title="Explicando cada modelo de avaliação">
         <div className="space-y-3">
           {SCHOOL_RULE_SECTIONS.filter((section) => {
-            const isMedio = section.title.includes("Médio");
-            return isMedio ? mostrarMedio : mostrarFundamental;
-          }).map((section) => <RuleFormulaBlock key={section.title} {...section} />)}
+            const isMedio = section.scope.includes("Ensino médio");
+            return isMedio ? mostrarMedio && filtrarPorModelo(section, modelosMedio) : mostrarFundamental;
+          }).map((section) => {
+            const scope = section.scope.replace("Liceu/Técnico", labelModelosMedio(modelosMedio));
+            return <RuleFormulaBlock key={section.title} {...section} scope={scope} />;
+          })}
         </div>
       </InfoCard>
     )}
