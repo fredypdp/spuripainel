@@ -147,6 +147,55 @@ const gerarDataNascimentoPorAnoAcademico = (anoAcademico?: string) => {
   return gerarDataNasc();
 };
 
+const criarPdfTeste = (nome: string) => {
+  const safeName = nome.replace(/[^a-z0-9_-]/gi, "_").toLowerCase();
+  const pdf = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF
+`;
+  return new File([pdf], `${safeName}.pdf`, { type: "application/pdf" });
+};
+
+const getCertificadoObrigatorio = (anoAcademico?: string): "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio" | null => {
+  if (anoAcademico === "7_ano_fundamental") return "certificado_6_ano_fundamental";
+  if (anoAcademico === "1_ano_medio") return "certificado_9_ano_fundamental";
+  if (anoAcademico === "1_ano_superior") return "certificado_ensino_medio";
+  return null;
+};
+
+const criarFormDataEstudante = (payload: Record<string, unknown>) => {
+  const form = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    form.append(key, String(value));
+  });
+
+  const anoAcademico = String(payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental || "");
+  const isSuperior = anoAcademico.endsWith("_ano_superior");
+
+  form.append("bi_estudante", criarPdfTeste(`bi_estudante_${payload.nome || "estudante"}`));
+  if (!isSuperior) {
+    form.append("bi_responsavel", criarPdfTeste(`bi_responsavel_${payload.nome || "responsavel"}`));
+  }
+
+  const certificado = getCertificadoObrigatorio(anoAcademico);
+  if (certificado) {
+    form.append(certificado, criarPdfTeste(`${certificado}_${payload.nome || "estudante"}`));
+  }
+
+  return form;
+};
+
 const toggleSelecionado = (lista: string[], valor: string) =>
   lista.includes(valor) ? lista.filter(item => item !== valor) : [...lista, valor];
 
@@ -542,12 +591,13 @@ export default function PageContent() {
     const url = apiUrl() + path;
     const token = tok || academia?.token || tokenStorage.get() || "";
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+      const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
       const r = await fetch(url, {
         method,
         headers,
-        body: body != null ? JSON.stringify(body) : undefined,
+        body: body == null ? undefined : isFormData ? body : JSON.stringify(body),
       });
       const data = await r.json().catch(() => ({}));
       return { ok: r.status >= 200 && r.status < 300, status: r.status, data };
@@ -983,7 +1033,13 @@ export default function PageContent() {
       : modo === "fundamental" ? (anosFundamentaisGeracao.length || 1)
       : 1;
     const totalEstudantes = cfg.qtd * fatorMultiplicador;
-    addLog(`Gerando ${totalEstudantes} estudante(s) via async (modo: ${modo})...`, "step");
+    addLog(`Gerando ${totalEstudantes} estudante(s) via multipart com PDFs (modo: ${modo})...`, "step");
+
+    const bilhetesGerados = new Set(estudantes.flatMap(e => [
+      e.bilhete_identidade,
+      e.bilhete_identidade_responsavel,
+    ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
+    const telefonesGerados = new Set<string>();
 
     const bilhetesGerados = new Set(estudantes.flatMap(e => [
       e.bilhete_identidade,
@@ -1063,39 +1119,29 @@ export default function PageContent() {
       return payload;
     });
 
-    const BATCH_MAX = 1000;
-    const lotes = Array.from({ length: Math.ceil(items.length / BATCH_MAX) }, (_, i) =>
-      items.slice(i * BATCH_MAX, (i + 1) * BATCH_MAX)
-    );
-
     let okTotal = 0;
     let errTotal = 0;
 
-    for (let i = 0; i < lotes.length; i++) {
+    addLog("  Enviando cadastros pelo endpoint multipart /academia/estudante/register com PDFs de teste gerados no navegador...", "info");
+
+    for (let i = 0; i < items.length; i++) {
       if (cancelRef.current) break;
-      const lote = lotes[i];
-      addLog(`  Enviando lote ${i + 1}/${lotes.length} (${lote.length} estudante(s))...`, "info");
+      const item = items[i];
+      const form = criarFormDataEstudante(item);
+      const { ok, data } = await callApi("POST", "/academia/estudante/register", form, academia.token);
 
-      const { ok, data } = await callApi("POST", "/academia/estudante/register/async", lote, academia.token);
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-        addLog(`  ✗ Erro no lote ${i + 1}: ${errMsg}`, "err");
-        return;
-      }
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err"); return; }
-      addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
-
-      const result = await acompanharJob(jobId, `Estudantes [lote ${i + 1}]`);
-      if (!result.timedOut) {
-        okTotal += result.ok;
-        errTotal += result.err;
+      if (ok) {
+        okTotal++;
+        const codigo = (data as any)?.data?.codigo_estudante || (data as any)?.codigo_estudante || "sem código retornado";
+        addLog(`  ✓ Est. ${i + 1}/${items.length}: ${item.nome} (${codigo})`, "dim");
+      } else {
+        errTotal++;
+        const errMsg = (data as any)?.details?.[0]?.message || (data as any)?.message || (data as any)?.error || "Erro ao cadastrar";
+        addLog(`  ✗ Est. ${i + 1}/${items.length}: ${item.nome} — ${errMsg}`, "err");
       }
     }
 
-    if (okTotal > 0 || errTotal > 0) {
-      addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 ? "ok" : "err");
-    }
+    addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
     await sleep(3000);
     await refreshData();
   };
@@ -2244,11 +2290,11 @@ export default function PageContent() {
 
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
-                  Criar {estudanteConfig.qtd} estudante(s) em lote
+                  Criar {estudanteConfig.qtd} estudante(s) com PDFs
                 </Btn>
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                Criação em lote — até 1000 estudantes por envio.
+                Criação sequencial via multipart/form-data — PDFs de teste são gerados automaticamente para os documentos obrigatórios.
               </p>
             </Section>
 
