@@ -378,7 +378,7 @@ export default function FaltasAdmin() {
       const resultados = await Promise.all(
         codsParaBuscar.map(async codigoNorm => {
           const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
-          const resposta = await consultasService.faltasEstudante(codigoOriginal, token);
+          const resposta = await consultasService.faltasEstudante(codigoOriginal, { token });
           return { codigoNorm, faltas: resposta?.faltas ?? [] };
         })
       );

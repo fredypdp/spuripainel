@@ -16,7 +16,6 @@ import type {
   EditarRegraAvaliacaoFinalRequest,
   ListarRegrasAvaliacaoFinalResponse,
   RegistrarFaltasRequest,
-  AtualizarFaltaRequest,
   CriarAdminRequest,
   DesativarRequest,
   AlterarSenhaRequest,
@@ -145,36 +144,6 @@ function prepareRegistrarFalta(data: RegistrarFaltasRequest): RegistrarFaltasReq
     quantidade: ensureQuantidadePositiva(data.quantidade, 'Quantidade')!,
     observacao: data.observacao?.trim() || undefined,
   };
-}
-
-function prepararAtualizacaoFalta(data: AtualizarFaltaRequest): AtualizarFaltaRequest {
-  const observacao = data.observacao?.trim();
-  if (!observacao) throw new Error('Observação é obrigatória para corrigir falta');
-  const payload: AtualizarFaltaRequest = {
-    ...data,
-    id: data.id?.trim(),
-    observacao,
-    data: ensureApiDate(data.data, 'Data da falta'),
-    quantidade: ensureQuantidadePositiva(data.quantidade, 'Quantidade'),
-    materia_disciplinar_id: data.materia_disciplinar_id?.trim(),
-  };
-
-  const possuiAlteracao =
-    payload.data !== undefined ||
-    payload.quantidade !== undefined ||
-    payload.materia_disciplinar_id !== undefined;
-
-  if (!possuiAlteracao) {
-    throw new Error('Informe pelo menos um campo para atualizar (data, matéria ou quantidade)');
-  }
-
-  return payload;
-}
-
-function prepararMotivoExclusao(motivo: string): string {
-  const motivoNormalizado = motivo?.trim();
-  if (!motivoNormalizado) throw new Error('Motivo é obrigatório para excluir falta');
-  return motivoNormalizado;
 }
 
 function appendMultiValueParam(qs: URLSearchParams, key: string, value?: string | string[]) {
@@ -542,11 +511,23 @@ export const consultasService = {
     );
   },
 
-  faltasEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<FaltasEstudanteResponse>(
-      `/faltas-estudante/${codigoEstudante}`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+  faltasEstudante: (
+    codigoEstudante: string,
+    params?: Omit<ListarFaltasParams, 'limit' | 'offset' | 'codigo_turma' | 'type' | 'token'> & { token?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
+    appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
+    appendMultiValueParam(qs, 'curso_id', params?.curso_id);
+    appendMultiValueParam(qs, 'periodo', params?.periodo);
+    appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
+    appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<FaltasEstudanteResponse>(
+      `/faltas-estudante/${codigoEstudante}${query}`,
+      { token: params?.token || tokenStorage.get() || undefined }
+    );
+  },
 
   avaliacoesEstudante: (codigoEstudante: string, token?: string) =>
     api.get<AvaliacoesEstudanteResponse>(
@@ -593,6 +574,7 @@ export const consultasService = {
     appendMultiValueParam(qs, 'periodo', params?.periodo);
     appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
     appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
+    appendMultiValueParam(qs, 'type', params?.type);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarFaltasResponse>(`/faltas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -730,24 +712,6 @@ export const academiaService = {
       '/academia/faltas-aluno',
       prepareRegistrarFalta(data),
       { token: token || tokenStorage.get() || undefined }
-    ),
-
-  atualizarFalta: (data: AtualizarFaltaRequest, token?: string) =>
-    api.put<{ message: string; id: string; codigo_estudante: string }>(
-      '/academia/atualizar-falta',
-      prepararAtualizacaoFalta(data),
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  deletarFalta: (faltaId: string, motivo: string, token?: string) =>
-    api.delete<{ message: string }>(
-      `/academia/falta/${faltaId}`,
-      {
-        token: token || tokenStorage.get() || undefined,
-        method: 'DELETE',
-        body: JSON.stringify({ motivo: prepararMotivoExclusao(motivo) }),
-        headers: { 'Content-Type': 'application/json' },
-      } as any
     ),
 
   // ── Avaliação Final ────────────────────────────────────────────────
@@ -1247,30 +1211,6 @@ export const academiaService = {
       '/academia/faltas-aluno/async',
       data.map(prepareRegistrarFalta),
       { token: token || tokenStorage.get() || undefined }
-    ),
-
-  atualizarFaltaBatchAsync: (data: AtualizarFaltaRequest[], token?: string) =>
-    api.put<AsyncBatchResponse>(
-      '/academia/atualizar-falta/async',
-      data.map(prepararAtualizacaoFalta),
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  deletarFaltaBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
-    api.delete<AsyncBatchResponse>(
-      '/academia/falta/async',
-      {
-        token: token || tokenStorage.get() || undefined,
-        method: 'DELETE',
-        body: JSON.stringify(
-          data.map((item) => ({
-            ...item,
-            id: item.id?.trim(),
-            motivo: prepararMotivoExclusao(item.motivo),
-          }))
-        ),
-        headers: { 'Content-Type': 'application/json' },
-      } as any
     ),
 
   // ── Async — cursos ────────────────────────────────────────────────

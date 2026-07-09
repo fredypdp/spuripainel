@@ -635,7 +635,7 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
   const load = useCallback(() => {
     if (estudante.codigo_estudante) {
       fetchNotas(estudante.codigo_estudante, token);
-      fetchFaltas(estudante.codigo_estudante, token);
+      fetchFaltas(estudante.codigo_estudante, { token });
     }
     fetchAval(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
