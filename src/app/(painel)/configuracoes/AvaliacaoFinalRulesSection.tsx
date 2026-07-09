@@ -181,6 +181,55 @@ export default function AvaliacaoFinalRulesSection() {
 }
 
 
+
+const SCHOOL_RULE_SECTIONS = [
+  {
+    title: "1.º ao 5.º Fundamental, 7.º e 8.º Fundamental",
+    scope: "Anos acadêmicos com regra regular",
+    formula: "((([nota_professor,1_trimestre]+[prova_trimestral,1_trimestre])/2)+(([nota_professor,2_trimestre]+[prova_trimestral,2_trimestre])/2)+(([nota_professor,3_trimestre]+[prova_trimestral,3_trimestre])/2))/3",
+    description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria. A matéria fica aprovada quando a nota final atinge a nota mínima configurada no padrão escolar.",
+  },
+  {
+    title: "6.º e 9.º Fundamental",
+    scope: "Anos acadêmicos com exame final e recurso",
+    formula: "avaliação regular; se reprovar, [exame_final,3_trimestre]; se ainda reprovar, [exame_recurso,3_trimestre]",
+    description: "Primeiro é aplicada a média regular anual. Se uma matéria ficar abaixo da mínima, o exame final passa a ser a nova etapa de cálculo dessa matéria; se continuar reprovada, o recurso pode recalcular apenas as matérias que ainda estão pendentes.",
+  },
+  {
+    title: "1.º e 2.º Médio — modelo Liceu ou Técnico",
+    scope: "Anos acadêmicos médios com regra regular",
+    formula: "((([nota_professor,1_trimestre]+[prova_trimestral,1_trimestre])/2)+(([nota_professor,2_trimestre]+[prova_trimestral,2_trimestre])/2)+(([nota_professor,3_trimestre]+[prova_trimestral,3_trimestre])/2))/3",
+    description: "Tanto no Liceu como no Ensino Médio Técnico, estes anos usam a mesma regra regular por matéria: média trimestral entre nota do professor e prova trimestral, seguida da média anual.",
+  },
+  {
+    title: "3.º Médio — modelo Liceu ou Técnico",
+    scope: "Ano acadêmico médio com exame final e recurso",
+    formula: "avaliação regular; se reprovar, [exame_final,3_trimestre]; se ainda reprovar, [exame_recurso,3_trimestre]",
+    description: "No 3.º ano, tanto para Liceu quanto para Ensino Médio Técnico, a regra regular pode acionar exame final e recurso. O recurso só recalcula matérias que reprovaram na etapa anterior.",
+  },
+  {
+    title: "4.º Médio — somente Ensino Médio Técnico",
+    scope: "Ano final técnico",
+    formula: "[nota_pap] >= 10",
+    description: "O 4.º ano existe apenas para cursos médios técnicos. A avaliação decisiva é a Prova de Aptidão Profissional (PAP): se a nota PAP for maior ou igual a 10, o estudante conclui; caso contrário, reprova no ano final técnico.",
+  },
+];
+
+function RuleFormulaBlock({ title, scope, formula, description }: { title: string; scope: string; formula: string; description: string }) {
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/60">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-gray-800 dark:text-white">{title}</p>
+        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400">{scope}</span>
+      </div>
+      <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{description}</p>
+      <div className="mt-2 rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-200">
+        Fórmula: {formula}
+      </div>
+    </div>
+  );
+}
+
 type InfoPerfil = "admin" | "estudante" | "academia-escola" | "academia-superior";
 
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -200,11 +249,21 @@ function InformacaoAvaliacaoFinal({ perfil, nivel }: { perfil: InfoPerfil; nivel
       </p>
     </div>
     <div className="grid gap-4 lg:grid-cols-3">
-      {mostrarFundamental && <InfoCard title="Ensino fundamental"><p>O sistema usa as notas do ano e fecha a média da matéria no fim do período. Em anos com exame, a nova nota entra na conta oficial e pode substituir a reprovação.</p><p>Em termos simples: juntam-se as notas previstas para a matéria, compara-se com a nota mínima e o resultado é guardado automaticamente.</p></InfoCard>}
-      {mostrarMedio && <InfoCard title="Ensino médio"><p>O funcionamento é parecido com o fundamental, mas os anos finais podem ter exame final e recurso. No 4.º ano técnico, a Prova de Aptidão Profissional é a avaliação decisiva.</p><p>A academia lança as notas certas; o sistema espera todas as notas necessárias e só então fecha cada matéria.</p></InfoCard>}
+      {mostrarFundamental && <InfoCard title="Ensino fundamental"><p>O sistema agrupa os anos acadêmicos que partilham a mesma regra para deixar claro qual cálculo será aplicado. Em cada matéria, a plataforma calcula a nota final pela fórmula da subsecção correspondente, compara com a nota mínima e guarda o resultado automaticamente.</p></InfoCard>}
+      {mostrarMedio && <InfoCard title="Ensino médio"><p>O ensino médio é apresentado por modelo: Liceu e Ensino Médio Técnico. O Liceu vai do 1.º ao 3.º ano; o Ensino Médio Técnico vai do 1.º ao 4.º ano, sendo o 4.º ano técnico decidido pela PAP.</p></InfoCard>}
       {mostrarSuperior && <InfoCard title="Ensino superior"><p>A academia define as categorias de nota, a fórmula de cálculo, a nota mínima e quantas matérias podem ficar pendentes. Depois disso, a cada lançamento de nota, o sistema verifica se já consegue calcular a situação da matéria.</p><p>Exemplo simples de fórmula: ([prova_1]+[prova_2])/2. Se a regra tiver nova chance, ela só é usada quando o estudante reprova na etapa anterior.</p></InfoCard>}
     </div>
-    {perfil === "admin" && <InfoCard title="O que o administrador precisa saber"><p>Nas escolas, as regras são fixas para manter o mesmo padrão entre academias: fundamental, médio regular, médio técnico, exame e recurso seguem o catálogo oficial. No ensino superior, cada academia tem liberdade para criar suas próprias regras e categorias, porque os cursos podem ter formas diferentes de avaliação.</p></InfoCard>}
+    {(mostrarFundamental || mostrarMedio) && (
+      <InfoCard title="Subsecções por anos acadêmicos e modelo">
+        <div className="space-y-3">
+          {SCHOOL_RULE_SECTIONS.filter((section) => {
+            const isMedio = section.title.includes("Médio");
+            return isMedio ? mostrarMedio : mostrarFundamental;
+          }).map((section) => <RuleFormulaBlock key={section.title} {...section} />)}
+        </div>
+      </InfoCard>
+    )}
+    {perfil === "admin" && <InfoCard title="O que o administrador precisa saber"><p>Nas escolas, as regras são fixas para manter o mesmo padrão entre academias: fundamental, Médio Liceu, Ensino Médio Técnico, exame e recurso seguem o catálogo oficial. No ensino superior, cada academia tem liberdade para criar suas próprias regras e categorias, porque os cursos podem ter formas diferentes de avaliação.</p></InfoCard>}
     {perfil === "estudante" && <InfoCard title="Como isso aparece para o estudante"><p>{nivel === "superior" ? "A sua academia escolhe as regras. Quando todas as notas da fórmula estiverem lançadas, o sistema calcula a nota final da matéria e mostra se você passou, ficou com pendência permitida ou reprovou." : "Você não precisa configurar nada. A escola lança as notas e o sistema calcula automaticamente se cada matéria atingiu a nota mínima."}</p></InfoCard>}
     {perfil === "academia-escola" && <InfoCard title="Configuração da escola"><p>Escolas não precisam criar regras nesta página. O padrão já vem pronto no sistema e acompanha os anos e cursos ativos da academia.</p></InfoCard>}
   </div>;
