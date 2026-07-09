@@ -1035,17 +1035,11 @@ export default function PageContent() {
     const totalEstudantes = cfg.qtd * fatorMultiplicador;
     addLog(`Gerando ${totalEstudantes} estudante(s) via multipart com PDFs (modo: ${modo})...`, "step");
 
-    const bilhetesGerados = new Set(estudantes.flatMap(e => [
+    const bilhetesUsadosCadastro = new Set(estudantes.flatMap(e => [
       e.bilhete_identidade,
       e.bilhete_identidade_responsavel,
     ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
-    const telefonesGerados = new Set<string>();
-
-    const bilhetesGerados = new Set(estudantes.flatMap(e => [
-      e.bilhete_identidade,
-      e.bilhete_identidade_responsavel,
-    ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
-    const telefonesGerados = new Set<string>();
+    const telefonesUsadosCadastro = new Set<string>();
 
     const items: any[] = Array.from({ length: totalEstudantes }, (_, idx) => {
       const { nome, genero } = gerarNome();
@@ -1108,12 +1102,12 @@ export default function PageContent() {
 
       const anoAcademico = payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental;
       payload.data_nascimento = gerarDataNascimentoPorAnoAcademico(anoAcademico);
-      payload.bilhete_identidade = gerarBilheteIdentidade(bilhetesGerados);
-      payload.telefone = gerarTelefoneAngola(telefonesGerados);
+      payload.bilhete_identidade = gerarBilheteIdentidade(bilhetesUsadosCadastro);
+      payload.telefone = gerarTelefoneAngola(telefonesUsadosCadastro);
 
       if (!payload.ano_superior) {
-        payload.bilhete_identidade_responsavel = gerarBilheteIdentidade(bilhetesGerados);
-        payload.telefone_responsavel = gerarTelefoneAngola(telefonesGerados);
+        payload.bilhete_identidade_responsavel = gerarBilheteIdentidade(bilhetesUsadosCadastro);
+        payload.telefone_responsavel = gerarTelefoneAngola(telefonesUsadosCadastro);
       }
 
       return payload;
