@@ -153,7 +153,6 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
     try {
       await definirAnoLetivo({
         ano_letivo: valorFormatado,
-        tipo: tipoAcademia,
       }, undefined, anoLetivoOficial || undefined);
       setSucesso(true);
       setAnoDeOverride(null);
@@ -434,7 +433,7 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
             {valorFormatado && (
               <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                 <Icon icon="mdi:arrow-right-thin" width="14px" />
-                Será enviado:{" "}
+                Será enviado como ano_letivo:{" "}
                 <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono">
                   {valorFormatado}
                 </code>
