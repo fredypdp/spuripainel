@@ -34,6 +34,19 @@ function getAnoLabel(value?: string) {
   return `${match[1]}º Ano ${nivel}`;
 }
 
+function getAnoAcademicoAnterior(value?: string | null) {
+  const match = value?.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return undefined;
+
+  const ano = Number(match[1]);
+  const nivel = match[2];
+
+  if (nivel === "fundamental") return ano > 1 ? `${ano - 1}_ano_fundamental` : undefined;
+  if (nivel === "medio") return ano === 1 ? "9_ano_fundamental" : `${ano - 1}_ano_medio`;
+  if (nivel === "superior") return ano === 1 ? "3_ano_medio" : `${ano - 1}_ano_superior`;
+  return undefined;
+}
+
 function anoOrder(value: string) {
   const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   const nivel = match?.[2] === "fundamental" ? 0 : match?.[2] === "medio" ? 1 : 2;
@@ -130,6 +143,10 @@ export default function MatriculaPublicPage() {
       }
     }
 
+    const anoAnterior = getAnoAcademicoAnterior(anoAtual);
+    const declaracaoAplicavel: DocumentoOpcao | null = anoAnterior
+      ? { key: "declaracao", label: `Declaração escolar do ${getAnoLabel(anoAnterior)}`, obrigatorio: false }
+      : null;
     let certificadoAplicavel: DocumentoOpcao | null = null;
     if (anoAtual === "7_ano_fundamental") {
       certificadoAplicavel = { key: "certificado_6_ano_fundamental", label: "Certificado da 6.ª classe", obrigatorio: !files.declaracao };
@@ -140,12 +157,16 @@ export default function MatriculaPublicPage() {
     }
 
     if (certificadoAplicavel) {
-      if (!files[certificadoAplicavel.key]) docs.push({ key: "declaracao", label: "Declaração da escola", obrigatorio: false });
+      if (declaracaoAplicavel && !files[certificadoAplicavel.key]) docs.push(declaracaoAplicavel);
       if (!files.declaracao) docs.push(certificadoAplicavel);
+    } else if (declaracaoAplicavel) {
+      docs.push({ ...declaracaoAplicavel, obrigatorio: true });
     }
 
     return docs;
   }, [anoSelecionado, files, form.bilhete_identidade, form.bilhete_identidade_responsavel]);
+
+  const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoSelecionado);
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
@@ -237,6 +258,7 @@ export default function MatriculaPublicPage() {
     if (current === 4) {
       const faltando = documentos.find((doc) => doc.obrigatorio && !files[doc.key]);
       if (faltando) return `Anexe o documento: ${faltando.label}.`;
+      if (files.declaracao && !declaracaoAnoAcademico) return "A declaração só pode ser enviada quando existe um ano acadêmico anterior imediato válido.";
     }
     return "";
   }
@@ -283,6 +305,7 @@ export default function MatriculaPublicPage() {
         telefone_responsavel: onlyDigits(form.telefone_responsavel ?? "") || undefined,
         bilhete_identidade: form.bilhete_identidade?.toUpperCase(),
         bilhete_identidade_responsavel: form.bilhete_identidade_responsavel?.toUpperCase(),
+        declaracao_ano_academico: files.declaracao ? declaracaoAnoAcademico : undefined,
         ...files,
       };
       const res = await solicitacaoMatriculaService.criar(payload);
@@ -329,6 +352,7 @@ export default function MatriculaPublicPage() {
     ["Email", form.email ?? "-"],
     ["BI estudante", form.bilhete_identidade ?? "-"],
     ["BI responsável", form.bilhete_identidade_responsavel ?? "-"],
+    ...(files.declaracao ? [["Ano da declaração", getAnoLabel(declaracaoAnoAcademico)]] : []),
   ];
 
   return (
@@ -435,6 +459,9 @@ export default function MatriculaPublicPage() {
           {step === 4 && (
             <section className="space-y-4">
               <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo pode ter até 10MB.`} />
+              {anoSelecionado === "1_ano_fundamental" && (
+                <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior."]} />
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
               </div>

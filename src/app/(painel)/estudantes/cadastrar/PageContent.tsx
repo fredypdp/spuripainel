@@ -62,6 +62,24 @@ function isBiValido(value?: string) { return !value || /^\d{9}[A-Z]{2}\d{3}$/.te
 function isAnoFundamental(v?: string | null) { return !!v && /^\d+_ano_fundamental$/.test(v); }
 function isAnoMedioValue(v?: string | null) { return !!v && /^\d+_ano_medio$/.test(v); }
 function isAnoSuperiorValue(v?: string | null) { return !!v && /^\d+_ano_superior$/.test(v); }
+function getAnoLabel(value?: string | null) {
+  if (!value) return '-';
+  const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return value.replace(/_/g, ' ');
+  const nivel = match[2] === 'medio' ? 'Médio' : match[2] === 'superior' ? 'Superior' : 'Fundamental';
+  return `${match[1]}º Ano ${nivel}`;
+}
+function getAnoAcademicoAnterior(value?: string | null) {
+  const match = value?.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return undefined;
+  const ano = Number(match[1]);
+  const nivel = match[2];
+
+  if (nivel === 'fundamental') return ano > 1 ? `${ano - 1}_ano_fundamental` : undefined;
+  if (nivel === 'medio') return ano === 1 ? '9_ano_fundamental' : `${ano - 1}_ano_medio`;
+  if (nivel === 'superior') return ano === 1 ? '3_ano_medio' : `${ano - 1}_ano_superior`;
+  return undefined;
+}
 
 // ─── Componente de Sucesso ────────────────────────────────────────────────────
 
@@ -247,6 +265,7 @@ export default function CadastrarEstudantePageContent() {
   };
 
   const cursosAtivos: Curso[] = dataCursos?.cursos?.filter((c: Curso) => c.status === 'ativo') ?? [];
+  const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoEscolarSelecionado);
   const documentos: DocumentoOpcao[] = (() => {
     const anoAtual = anoEscolarSelecionado ?? undefined;
     const estudanteSuperior = isSuperior || isAnoSuperior(anoAtual);
@@ -266,6 +285,10 @@ export default function CadastrarEstudantePageContent() {
       }
     }
 
+    const anoAnterior = getAnoAcademicoAnterior(anoAtual);
+    const declaracaoAplicavel: DocumentoOpcao | null = anoAnterior
+      ? { key: 'declaracao', label: `Declaração escolar do ${getAnoLabel(anoAnterior)}`, obrigatorio: false }
+      : null;
     let certificadoAplicavel: DocumentoOpcao | null = null;
     if (anoAtual === '7_ano_fundamental') {
       certificadoAplicavel = { key: 'certificado_6_ano_fundamental', label: documentLabels.certificado_6_ano_fundamental, obrigatorio: !declaracaoFile };
@@ -276,10 +299,12 @@ export default function CadastrarEstudantePageContent() {
     }
 
     if (certificadoAplicavel) {
-      if (!({ certificado_6_ano_fundamental: certificado6File, certificado_9_ano_fundamental: certificado9File, certificado_ensino_medio: certificadoMedioFile }[certificadoAplicavel.key as 'certificado_6_ano_fundamental' | 'certificado_9_ano_fundamental' | 'certificado_ensino_medio'])) {
-        docs.push({ key: 'declaracao', label: documentLabels.declaracao, obrigatorio: false });
+      if (declaracaoAplicavel && !({ certificado_6_ano_fundamental: certificado6File, certificado_9_ano_fundamental: certificado9File, certificado_ensino_medio: certificadoMedioFile }[certificadoAplicavel.key as 'certificado_6_ano_fundamental' | 'certificado_9_ano_fundamental' | 'certificado_ensino_medio'])) {
+        docs.push(declaracaoAplicavel);
       }
       if (!declaracaoFile) docs.push(certificadoAplicavel);
+    } else if (declaracaoAplicavel) {
+      docs.push({ ...declaracaoAplicavel, obrigatorio: true });
     }
 
     return docs;
@@ -365,6 +390,9 @@ export default function CadastrarEstudantePageContent() {
     documentos.forEach((doc) => {
       if (doc.obrigatorio && !getDocumentoFile(doc.key)) erros.push(`Anexe o documento: ${doc.label}`);
     });
+    if (declaracaoFile && !declaracaoAnoAcademico) {
+      erros.push('A declaração só pode ser enviada quando existe um ano acadêmico anterior imediato válido');
+    }
     setValidationErrors(erros);
     return erros.length === 0;
   };
@@ -417,6 +445,7 @@ export default function CadastrarEstudantePageContent() {
           : undefined,
       curso_superior_id:
         isSuperior && cursoSelecionado ? cursoSelecionado.id : undefined,
+      declaracao_ano_academico: declaracaoFile ? declaracaoAnoAcademico : undefined,
       bi_estudante: biEstudanteFile,
       bi_responsavel: biResponsavelFile,
       cedula_estudante: cedulaEstudanteFile,
@@ -627,6 +656,11 @@ export default function CadastrarEstudantePageContent() {
                     Envie os PDFs exigidos conforme o nível/ano acadêmico. Alternativas equivalentes deixam de ser solicitadas quando anexadas.
                   </p>
                 </div>
+                {anoEscolarSelecionado === '1_ano_fundamental' && (
+                  <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
+                    O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior.
+                  </div>
+                )}
                 {documentos.map((doc) => (
                   <DocumentUpload
                     key={doc.key}
