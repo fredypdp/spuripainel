@@ -1,53 +1,17 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
+import React, { useMemo, useState } from "react";
 import Alert from "@/components/ui/alert/Alert";
-import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';
 import { VerificarEmailComFrontend } from "@/lib/utils/email"
 
-const getUserFromCookie = (): MeuPerfilResponse | null => {
-  if (typeof window === 'undefined') return null;
-  
-  const userCookie = getCookie("user");
-  if (userCookie) {
-    try {
-      return JSON.parse(userCookie);
-    } catch (error) {
-      return null;
-    }
-  }
-  return null;
+type UserInfoCardProps = {
+  user: MeuPerfilResponse;
 };
 
-export default function UserInfoCard() {
-  const { isOpen, openModal, closeModal } = useModal();
-  const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-  const [mounted, setMounted] = useState(false);
+export default function UserInfoCard({ user }: UserInfoCardProps) {
   const [EnviandoEmailVerificacao, setEnviandoEmailVerificacao] = useState(false);
   const [EmailEnviado, setEmailEnviado] = useState(false);
   const [EmailErro, setEmailErro] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const interval = setInterval(() => {
-      const updatedUser = getUserFromCookie();
-      setUser(prev => {
-        if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
-          return updatedUser;
-        }
-        return prev;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [mounted]);
 
   const userName = useMemo(() => 
     user?.estudante?.nome || user?.academia?.nome || user?.admin?.nome || "",
@@ -122,12 +86,7 @@ export default function UserInfoCard() {
     }
   };
 
-  const handleSave = () => {
-    console.log("Saving changes...");
-    closeModal();
-  };
-
-  if (!mounted) {
+  if (!user) {
     return (
       <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -218,7 +177,6 @@ export default function UserInfoCard() {
               </div>
             )}
 
-            {/* Resto do código permanece igual... */}
             {userTelefone && (
               <div>
                 <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Telefone</p>
@@ -241,10 +199,6 @@ export default function UserInfoCard() {
           </div>
         </div>
       </div>
-
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
-        Modal content - implement edit form here
-      </Modal>
     </div>
   );
 }
