@@ -84,7 +84,6 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
       { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
-      { name: "Categorias de nota", path: "/configuracoes/categorias-nota" },
       { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
       { name: "Segurança", path: "/configuracoes/seguranca" },
     ],
@@ -188,7 +187,6 @@ export default function AppSidebar() {
           const academiaSettingsPaths = [
             "/configuracoes/ano-letivo",
             ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
-            "/configuracoes/categorias-nota",
             "/configuracoes/regras-avaliacao-final",
             "/configuracoes/seguranca",
           ];
@@ -196,8 +194,8 @@ export default function AppSidebar() {
             user?.tipo === "academia"
               ? academiaSettingsPaths
               : user?.tipo === "admin" && isFpp
-                ? ["/configuracoes/ano-letivo", "/configuracoes/seguranca"]
-                : ["/configuracoes/seguranca"],
+                ? ["/configuracoes/ano-letivo", "/configuracoes/regras-avaliacao-final", "/configuracoes/seguranca"]
+                : ["/configuracoes/regras-avaliacao-final", "/configuracoes/seguranca"],
           );
           return {
             ...item,
