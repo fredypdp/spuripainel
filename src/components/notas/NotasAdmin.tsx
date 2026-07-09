@@ -54,6 +54,17 @@ function labelNivel(v: string): string {
   return `${n}º Ano Superior`;
 }
 
+function formatCategoria(c: string): string {
+  const m: Record<string, string> = {
+    nota_professor: "Nota do professor",
+    prova_trimestral: "Prova do trimestre",
+    exame_final: "Exame final",
+    exame_recurso: "Exame de recurso",
+    nota_pap: "Prova de Aptidão Profissional",
+  };
+  return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+}
+
 function nomeProvinciaDeCodigo(codigo: string): string {
   return Provincias.find(p => p.codigo === codigo?.toUpperCase())?.nome ?? codigo;
 }
@@ -173,7 +184,7 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
 function TabelaNotasEscolar({ notas, estudantes, codigosTurma }: {
   notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[];
 }) {
-  const categoriasOrdem = Array.from(new Set(["nota_professor", "nota_escola", ...notas.map(n => n.categoria)]));
+  const categoriasOrdem = Array.from(new Set(["nota_professor", "prova_trimestral", "exame_final", "exame_recurso", "nota_pap", ...notas.map(n => n.categoria)]));
   if (codigosTurma.length === 0)
     return (
       <div className="text-center py-10 text-gray-400">
@@ -197,7 +208,7 @@ function TabelaNotasEscolar({ notas, estudantes, codigosTurma }: {
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
             {categoriasOrdem.map((cat) => (
-              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{cat}</th>
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{formatCategoria(cat)}</th>
             ))}
           </tr>
         </thead>
@@ -239,6 +250,7 @@ function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
       </div>
     );
 
+  const categoriasOrdem = Array.from(new Set(notas.map(n => n.categoria))).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
   const porEst = new Map<string, Nota[]>();
   notas.forEach(n => {
     const k = normCodigo(n.codigo_estudante);
@@ -253,27 +265,28 @@ function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP1</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP2</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Exame</th>
+            {categoriasOrdem.map((cat) => (
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{formatCategoria(cat)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {[...codigosTurma]
             .map(codigo => {
-              const ne   = porEst.get(codigo) ?? [];
-              const est  = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
+              const ne = porEst.get(codigo) ?? [];
+              const est = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
               const nome = est?.nome ?? ne[0]?.estudante_nome ?? "-";
-              return { codigo, nome, pp1: ne.find(n => n.categoria === "nota_pp1"), pp2: ne.find(n => n.categoria === "nota_pp2"), exame: ne.find(n => n.categoria === "nota_exame") };
+              return { codigo, nome, ne };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
-            .map(({ codigo, nome, pp1, pp2, exame }) => (
+            .map(({ codigo, nome, ne }) => (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
-                <td className={`px-4 py-3 text-right font-bold ${pp1   ? corNota(pp1.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp1   != null ? pp1.nota   : "—"}</td>
-                <td className={`px-4 py-3 text-right font-bold ${pp2   ? corNota(pp2.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp2   != null ? pp2.nota   : "—"}</td>
-                <td className={`px-4 py-3 text-right font-bold ${exame ? corNota(exame.nota) : "text-gray-300 dark:text-gray-600"}`}>{exame != null ? exame.nota : "—"}</td>
+                {categoriasOrdem.map((cat) => {
+                  const notaCat = ne.find(n => n.categoria === cat);
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaCat?.nota ?? "—"}</td>;
+                })}
               </tr>
             ))}
         </tbody>

@@ -48,7 +48,6 @@ import type {
   DefinirAnoLetivoGlobalResponse,
   AnoLetivoGlobalResponse,
   ListarAnosLetivosGlobalResponse,
-  AtualizarNotaRequest,
   CriarCategoriaNotaRequest,
   ListarCategoriasNotaResponse,
   ListarTurmasResponse,
@@ -552,6 +551,7 @@ export const consultasService = {
     appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
     appendMultiValueParam(qs, 'categoria', params?.categoria);
     appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
+    appendMultiValueParam(qs, 'type', params?.type);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarNotasResponse>(`/notas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -685,24 +685,6 @@ export const academiaService = {
       '/academia/notas-aluno',
       data,
       { token: token || tokenStorage.get() || undefined }
-    ),
-
-  atualizarNota: (data: AtualizarNotaRequest, token?: string) =>
-    api.put<{ message: string; nota_anterior: number; nota_nova: number; observacao: string }>(
-      '/academia/atualizar-nota',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  deletarNota: (notaId: string, motivo: string, token?: string) =>
-    api.delete<{ message: string }>(
-      `/academia/nota/${notaId}`,
-      {
-        token: token || tokenStorage.get() || undefined,
-        method: 'DELETE',
-        body: JSON.stringify({ motivo }),
-        headers: { 'Content-Type': 'application/json' },
-      } as any
     ),
 
   // ── Faltas ──────────────────────────────────────────────────────────
@@ -1186,23 +1168,6 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  atualizarNotaBatchAsync: (data: AtualizarNotaRequest[], token?: string) =>
-    api.put<AsyncBatchResponse>(
-      '/academia/atualizar-nota/async',
-      data,
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  deletarNotaBatchAsync: (data: { id: string; motivo: string }[], token?: string) =>
-    api.delete<AsyncBatchResponse>(
-      '/academia/nota/async',
-      {
-        token: token || tokenStorage.get() || undefined,
-        method: 'DELETE',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
-      } as any
-    ),
 
   // ── Async — faltas ────────────────────────────────────────────────
 

@@ -524,7 +524,7 @@ export interface ListarNotasParams {
   periodo?: string | string[];
   /** UUID da matéria disciplinar */
   materia_disciplinar_id?: string | string[];
-  /** Categoria da nota. Ex: 'nota_professor' | 'nota_escola' | 'nota_pp1' */
+  /** Categoria da nota. Ex: 'nota_professor' | 'prova_trimestral' | 'exame_final' */
   categoria?: string | string[];
   /**
    * Código da academia.
@@ -532,6 +532,8 @@ export interface ListarNotasParams {
    * Para academia autenticada: ignorado (sempre usa o próprio código).
    */
   codigo_academia?: string | string[];
+  /** Tipo de avaliação final, quando este filtro for usado pelo backend. */
+  type?: string | string[];
   /** Token JWT; usa tokenStorage.get() se omitido */
   token?: string;
 }
@@ -649,23 +651,18 @@ export interface ListarReprovacoesParams {
 export type TipoNota = 'escolar' | 'superior';
 
 export type CategoriaNotaEscolar =
-  | 'nota_escola'
-  | 'nota_professor';
+  | 'nota_professor'
+  | 'prova_trimestral'
+  | 'exame_final'
+  | 'exame_recurso'
+  | 'nota_pap';
 
-export type CategoriaNotaSuperiorFixa =
-  | 'nota_pp1'
-  | 'nota_pp2'
-  | 'nota_exame';
-
-export type CategoriaNota =
-  | CategoriaNotaEscolar
-  | CategoriaNotaSuperiorFixa
-  | string;
+export type CategoriaNota = CategoriaNotaEscolar | string;
 
 
 /**
  * Fórmula textual declarativa (`formula_textual_v1`) usada pelo backend para
- * avaliação final. Ex.: `([nota_escola,1_trimestre]+[nota_escola,2_trimestre])/2`.
+ * avaliação final. Ex.: `([nota_professor,1_trimestre]+[prova_trimestral,1_trimestre])/2`.
  */
 export type AvaliacaoFinalFormulaTextual = string;
 
@@ -777,11 +774,6 @@ export interface RegistrarNotasRequest {
   observacao?: string;
 }
 
-export interface AtualizarNotaRequest {
-  id: string;
-  nota_nova: number;
-  observacao: string;
-}
 
 export interface CriarCategoriaNotaRequest {
   codigo: string;

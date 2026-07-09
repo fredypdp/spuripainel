@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
   MeuPerfilResponse, Nota, Turma, EstudanteDetalhado, Curso,
-  TipoNota, RegistrarNotasRequest, AtualizarNotaRequest, CriarCategoriaNotaRequest,
+  TipoNota, RegistrarNotasRequest, CriarCategoriaNotaRequest,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -66,14 +66,18 @@ const PERIODOS_SUPERIOR = [
   { label: "2º Semestre", value: "2_semestre" },
 ];
 
-const CATEGORIAS_ESCOLAR        = [
-  { label: "Nota Escola",       value: "nota_escola" },
-  { label: "Nota do Professor", value: "nota_professor" },
+const ANOS_COM_NOTAS_REGULARES = [
+  "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
+  "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental",
+  "9_ano_fundamental", "1_ano_medio", "2_ano_medio", "3_ano_medio",
 ];
-const CATEGORIAS_FIXAS_SUPERIOR = [
-  { label: "PP1",   value: "nota_pp1"  },
-  { label: "PP2",   value: "nota_pp2"  },
-  { label: "Exame", value: "nota_exame" },
+const ANOS_COM_EXAME = ["6_ano_fundamental", "9_ano_fundamental", "3_ano_medio"];
+const CATEGORIAS_ESCOLAR = [
+  { label: "Nota do professor", value: "nota_professor", anos_academicos: ANOS_COM_NOTAS_REGULARES },
+  { label: "Prova do trimestre", value: "prova_trimestral", anos_academicos: ANOS_COM_NOTAS_REGULARES },
+  { label: "Exame final", value: "exame_final", anos_academicos: ANOS_COM_EXAME },
+  { label: "Exame de recurso", value: "exame_recurso", anos_academicos: ANOS_COM_EXAME },
+  { label: "Prova de Aptidão Profissional", value: "nota_pap", anos_academicos: ["4_ano_medio"] },
 ];
 
 const ANOS_FUNDAMENTAL = [
@@ -115,8 +119,11 @@ function corNota(n: number): string {
 
 function formatCategoria(c: string): string {
   const m: Record<string, string> = {
-    nota_escola: "Nota Escola", nota_professor: "Nota do Professor",
-    nota_pp1: "PP1", nota_pp2: "PP2", nota_exame: "Exame",
+    nota_professor: "Nota do professor",
+    prova_trimestral: "Prova do trimestre",
+    exame_final: "Exame final",
+    exame_recurso: "Exame de recurso",
+    nota_pap: "Prova de Aptidão Profissional",
   };
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
@@ -207,7 +214,7 @@ function CardBtn({ icon, title, subtitle, badge, onClick }: {
   );
 }
 
-// ─── Tabela escolar (nota_professor + nota_escola) ────────────────────────────
+// ─── Tabela escolar ───────────────────────────────────────────────────────────
 
 function TabelaNotasEscolar({
   notas,
@@ -218,7 +225,7 @@ function TabelaNotasEscolar({
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
 }) {
-  const categoriasOrdem = Array.from(new Set(["nota_professor", "nota_escola", ...notas.map(n => n.categoria)]));
+  const categoriasOrdem = Array.from(new Set(["nota_professor", "prova_trimestral", "exame_final", "exame_recurso", "nota_pap", ...notas.map(n => n.categoria)]));
 
   if (codigosTurma.length === 0) {
     return (
@@ -287,7 +294,7 @@ function TabelaNotasEscolar({
   );
 }
 
-// ─── Tabela superior (pp1 + pp2 + exame) ─────────────────────────────────────
+// ─── Tabela superior ──────────────────────────────────────────────────────────
 
 function TabelaNotasSuperior({
   notas,
@@ -298,6 +305,8 @@ function TabelaNotasSuperior({
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
 }) {
+  const categoriasOrdem = Array.from(new Set(notas.map(n => n.categoria))).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+
   if (codigosTurma.length === 0) {
     return (
       <div className="text-center py-10 text-gray-400">
@@ -321,35 +330,27 @@ function TabelaNotasSuperior({
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP1</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">PP2</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Exame</th>
+            {categoriasOrdem.map((cat) => (
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{formatCategoria(cat)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {[...codigosTurma]
             .map(codigo => {
               const notasEst = porEstudante.get(codigo) ?? [];
-              const est      = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
-              return {
-                codigo,
-                nome: est?.nome ?? "-",
-                pp1:   notasEst.find(n => n.categoria === "nota_pp1"),
-                pp2:   notasEst.find(n => n.categoria === "nota_pp2"),
-                exame: notasEst.find(n => n.categoria === "nota_exame"),
-              };
+              const est = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
+              return { codigo, nome: est?.nome ?? "-", notasEst };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
-            .map(({ codigo, nome, pp1, pp2, exame }) => (
-              <tr
-                key={codigo}
-                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors"
-              >
+            .map(({ codigo, nome, notasEst }) => (
+              <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
-                <td className={`px-4 py-3 text-right font-bold ${pp1   ? corNota(pp1.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp1   != null ? pp1.nota   : "—"}</td>
-                <td className={`px-4 py-3 text-right font-bold ${pp2   ? corNota(pp2.nota)   : "text-gray-300 dark:text-gray-600"}`}>{pp2   != null ? pp2.nota   : "—"}</td>
-                <td className={`px-4 py-3 text-right font-bold ${exame ? corNota(exame.nota) : "text-gray-300 dark:text-gray-600"}`}>{exame != null ? exame.nota : "—"}</td>
+                {categoriasOrdem.map((cat) => {
+                  const notaCat = notasEst.find(n => n.categoria === cat);
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaCat?.nota ?? "—"}</td>;
+                })}
               </tr>
             ))}
         </tbody>
@@ -360,12 +361,11 @@ function TabelaNotasSuperior({
 
 // ─── Modal de gestão de notas ─────────────────────────────────────────────────
 
-type ModalMode = "registrar" | "atualizar" | "deletar" | "categoria";
+type ModalMode = "registrar" | "categoria";
 
 function ModalGestao({
   isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLectivo,
-  estudantes, materias, categorias, anosAcademicosDisponiveis, onRegistrar, onAtualizar, onDeletar, onCriarCategoria,
-  todasNotas,
+  estudantes, materias, categorias, anosAcademicosDisponiveis, onRegistrar, onCriarCategoria,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -378,10 +378,7 @@ function ModalGestao({
   categorias: any[];
   anosAcademicosDisponiveis: string[];
   onRegistrar: (d: RegistrarNotasRequest) => Promise<void>;
-  onAtualizar: (d: AtualizarNotaRequest) => Promise<void>;
-  onDeletar: (notaId: string, motivo: string) => Promise<void>;
   onCriarCategoria: (d: CriarCategoriaNotaRequest) => Promise<void>;
-  todasNotas: Nota[];
 }) {
   const [mode, setMode]     = useState<ModalMode>("registrar");
   const [error, setError]   = useState<string | null>(null);
@@ -393,22 +390,11 @@ function ModalGestao({
   const [nota, setNota]             = useState<number | "">("");
   const [obs, setObs]               = useState("");
 
-  const [estAtualizar, setEstAtualizar]     = useState("");
-  const [notaId, setNotaId]                 = useState("");
-  const [notaNova, setNotaNova]             = useState<number | "">("");
-  const [obsAtualizar, setObsAtualizar]     = useState("");
-  const [notasEstudante, setNotasEstudante] = useState<Nota[]>([]);
-
-  const [estDeletar, setEstDeletar]           = useState("");
-  const [notaIdDeletar, setNotaIdDeletar]     = useState("");
-  const [motivoDeletar, setMotivoDeletar]     = useState("");
-  const [notasEstDeletar, setNotasEstDeletar] = useState<Nota[]>([]);
-
   const [nomeCateg, setNomeCateg] = useState("");
   const [descCateg, setDescCateg] = useState("");
   const [anosCateg, setAnosCateg] = useState<Set<string>>(new Set());
 
-  const CATS_FIXAS = isSuperior ? CATEGORIAS_FIXAS_SUPERIOR : CATEGORIAS_ESCOLAR;
+  const CATS_FIXAS = isSuperior ? [] : CATEGORIAS_ESCOLAR;
   const anoSelecionado = anoAcademicoDoEstudante(estudantes.find((estudante) => estudante.codigo_estudante === codigoEst));
   const todasCatsBase  = [
     ...CATS_FIXAS,
@@ -416,17 +402,19 @@ function ModalGestao({
   ];
   const todasCats = todasCatsBase.filter((cat: any) => !cat.anos_academicos?.length || !anoSelecionado || cat.anos_academicos.includes(anoSelecionado));
 
-  function notasDoEstudante(codigo: string): Nota[] {
-    return todasNotas.filter(n => n.codigo_estudante === codigo);
-  }
 
   async function handleRegistrar(e: React.FormEvent) {
-    e.preventDefault(); setError(null);
+    e.preventDefault();
+    setError(null);
     if (!codigoEst || !periodo || !materiaId || !categoria || nota === "") {
-      setError("Preencha todos os campos obrigatórios."); return;
+      setError("Preencha os campos obrigatórios.");
+      return;
     }
     const n = Number(nota);
-    if (isNaN(n) || n < 0 || n > 20) { setError("Nota deve estar entre 0 e 20."); return; }
+    if (Number.isNaN(n) || n < 0 || n > 20) {
+      setError("A nota deve estar entre 0 e 20.");
+      return;
+    }
     try {
       await onRegistrar({
         codigo_estudante: codigoEst,
@@ -438,37 +426,10 @@ function ModalGestao({
         observacao: obs || undefined,
       });
       onClose();
-    } catch (err: any) { setError(err?.message ?? "Erro ao registar nota."); }
-  }
-
-  function handleSelecionarEstAtualizar(codigo: string) {
-    setEstAtualizar(codigo); setNotaId(""); setNotaNova(""); setObsAtualizar("");
-    setNotasEstudante(notasDoEstudante(codigo));
-  }
-
-  async function handleAtualizar(e: React.FormEvent) {
-    e.preventDefault(); setError(null);
-    if (!notaId || notaNova === "" || !obsAtualizar) { setError("Preencha todos os campos."); return; }
-    const n = Number(notaNova);
-    if (isNaN(n) || n < 0 || n > 20) { setError("Nota deve estar entre 0 e 20."); return; }
-    try { await onAtualizar({ id: notaId, nota_nova: n, observacao: obsAtualizar }); onClose(); }
-    catch (err: any) { setError(err?.message ?? "Erro ao atualizar nota."); }
-  }
-
-  function handleSelecionarEstDeletar(codigo: string) {
-    setEstDeletar(codigo); setNotaIdDeletar(""); setMotivoDeletar("");
-    setNotasEstDeletar(notasDoEstudante(codigo));
-  }
-
-  async function handleDeletar(e: React.FormEvent) {
-    e.preventDefault(); setError(null);
-    if (!notaIdDeletar || !motivoDeletar.trim()) {
-      setError("Selecione a nota e informe o motivo da exclusão."); return;
+    } catch (err: any) {
+      setError(err?.message ?? "Não foi possível registar a nota.");
     }
-    try { await onDeletar(notaIdDeletar, motivoDeletar); onClose(); }
-    catch (err: any) { setError(err?.message ?? "Erro ao excluir nota."); }
   }
-
   async function handleCriarCategoria(e: React.FormEvent) {
     e.preventDefault(); setError(null);
     if (!nomeCateg) { setError("Nome é obrigatório."); return; }
@@ -497,8 +458,6 @@ function ModalGestao({
 
   const TABS: { key: ModalMode; label: string }[] = [
     { key: "registrar", label: "Registar" },
-    { key: "atualizar", label: "Atualizar" },
-    { key: "deletar",   label: "Excluir" },
     ...(isSuperior ? [{ key: "categoria" as ModalMode, label: "Categorias" }] : []),
   ];
 
@@ -511,7 +470,7 @@ function ModalGestao({
             onClick={() => { setMode(key); setError(null); }}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
               mode === key
-                ? key === "deletar" ? "bg-red-500 text-white" : "bg-brand-500 text-white"
+                ? "bg-brand-500 text-white"
                 : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             }`}
           >
@@ -610,114 +569,6 @@ function ModalGestao({
         </form>
       )}
 
-      {mode === "atualizar" && (
-        <form onSubmit={handleAtualizar} className="space-y-4">
-          <h4 className="font-semibold text-gray-900 dark:text-white">Atualizar Nota</h4>
-          <div>
-            <Label>Estudante *</Label>
-            <Dropdown
-              value={estAtualizar}
-              options={estudantes.map(e => ({ label: `${e.nome} (${e.codigo_estudante})`, value: e.codigo_estudante }))}
-              onChange={e => handleSelecionarEstAtualizar(e.value)}
-              placeholder="Selecione"
-              className="w-full"
-              filter
-            />
-          </div>
-          {estAtualizar && (
-            <div>
-              <Label>Nota a atualizar *</Label>
-              <Dropdown
-                value={notaId}
-                options={notasEstudante.map(n => ({
-                  label: `${n.materia_nome ?? n.materia_disciplinar_id} · ${PERIODOS_LABEL[n.periodo] ?? n.periodo} · ${formatCategoria(n.categoria)} → ${n.nota}`,
-                  value: n.id,
-                }))}
-                onChange={e => setNotaId(e.value)}
-                placeholder="Selecione"
-                className="w-full"
-                filter
-              />
-            </div>
-          )}
-          <div>
-            <Label>Nova nota (0–20) *</Label>
-            <Input
-              type="number"
-              min="0"
-              max="20"
-              step={0.01}
-              onChange={e => setNotaNova(e.target.value === "" ? "" : Number(e.target.value))}
-              placeholder="Ex: 14"
-            />
-          </div>
-          <div>
-            <Label>Justificação *</Label>
-            <Input onChange={e => setObsAtualizar(e.target.value)} placeholder="Obrigatório" />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-            >
-              Atualizar
-            </button>
-          </div>
-        </form>
-      )}
-
-      {mode === "deletar" && (
-        <form onSubmit={handleDeletar} className="space-y-4">
-          <h4 className="font-semibold text-gray-900 dark:text-white">Excluir Nota</h4>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            A nota é removida da projeção mas permanece no ledger para auditoria.
-          </p>
-          <div>
-            <Label>Estudante *</Label>
-            <Dropdown
-              value={estDeletar}
-              options={estudantes.map(e => ({ label: `${e.nome} (${e.codigo_estudante})`, value: e.codigo_estudante }))}
-              onChange={e => handleSelecionarEstDeletar(e.value)}
-              placeholder="Selecione"
-              className="w-full"
-              filter
-            />
-          </div>
-          {estDeletar && (
-            <div>
-              <Label>Nota a excluir *</Label>
-              <Dropdown
-                value={notaIdDeletar}
-                options={notasEstDeletar.map(n => ({
-                  label: `${n.materia_nome ?? n.materia_disciplinar_id} · ${PERIODOS_LABEL[n.periodo] ?? n.periodo} · ${formatCategoria(n.categoria)} → ${n.nota}`,
-                  value: n.id,
-                }))}
-                onChange={e => setNotaIdDeletar(e.value)}
-                placeholder="Selecione"
-                className="w-full"
-                filter
-              />
-            </div>
-          )}
-          <div>
-            <Label>Motivo da exclusão *</Label>
-            <Input
-              onChange={e => setMotivoDeletar(e.target.value)}
-              placeholder="Informe o motivo (obrigatório)"
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-            >
-              Excluir Nota
-            </button>
-          </div>
-        </form>
-      )}
 
       {mode === "categoria" && (
         <form onSubmit={handleCriarCategoria} className="space-y-4">
@@ -1018,20 +869,6 @@ export default function NotasAcademia() {
     showAlert("success", "Nota registada com sucesso.");
     const turmaAtual = (layer.type === "periodos" || layer.type === "notas") ? (layer as any).turma : null;
     if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
-  }
-
-  async function handleAtualizar(d: AtualizarNotaRequest) {
-    await academiaService.atualizarNota(d, token);
-    showAlert("success", "Nota atualizada com sucesso.");
-    const turmaAtual = (layer.type === "periodos" || layer.type === "notas") ? (layer as any).turma : null;
-    if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
-  }
-
-  async function handleDeletar(notaId: string, motivo: string) {
-    await academiaService.deletarNota(notaId, motivo, token);
-    const turmaAtual = (layer.type === "periodos" || layer.type === "notas") ? (layer as any).turma : null;
-    if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
-    showAlert("success", "Nota excluída com sucesso.");
   }
 
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
@@ -1598,10 +1435,7 @@ export default function NotasAcademia() {
         categorias={categorias}
         anosAcademicosDisponiveis={anosAcademicosDisponiveis}
         onRegistrar={handleRegistrar}
-        onAtualizar={handleAtualizar}
-        onDeletar={handleDeletar}
         onCriarCategoria={handleCriarCategoria}
-        todasNotas={todasNotas}
       />
     </div>
   );
