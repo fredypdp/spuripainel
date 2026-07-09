@@ -18,7 +18,19 @@ const sortAnosFundamental = (anos: string[]) =>
 const getApiErrorMessage = (error: any, fallback: string) => {
   const data = error?.data ?? error?.response?.data;
   const detail = data?.details?.[0];
-  return [detail?.message || data?.message || error?.message || fallback, data?.request_id ? `Request ID: ${data.request_id}` : undefined].filter(Boolean).join(" ");
+
+  if (detail?.field === "anos_academicos") {
+    if (detail.code === "estudantes_ativos_vinculados") return "Não foi possível remover este ano porque existem estudantes ativos nele.";
+    if (detail.code === "remocao_invalida") return "A academia precisa manter pelo menos um ano ativo.";
+    if (detail.code === "formato_invalido") return "Escolha apenas anos do 1º ao 9º ano fundamental.";
+    if (detail.code === "campo_obrigatorio") return "Selecione pelo menos um ano antes de continuar.";
+  }
+
+  if (detail?.field === "type" && detail.code === "nivel_incompativel") {
+    return "Esta opção está disponível apenas para escolas com ensino fundamental.";
+  }
+
+  return detail?.message || data?.message || error?.message || fallback;
 };
 
 export type AcademiaSettingsSection = "ano-letivo" | "anos-academicos" | "categorias-nota" | "regras-avaliacao-final" | "all";
@@ -108,7 +120,7 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
       const response = await academiaService.listarAnosAcademicos();
       setAnosFundamentais(sortAnosFundamental((response.academia?.anos_academicos ?? []).filter(ano => ano.includes("fundamental"))));
     } catch (error: any) {
-      setErroAnosFund(getApiErrorMessage(error, "Erro ao carregar anos acadêmicos fundamentais"));
+      setErroAnosFund(getApiErrorMessage(error, "Não foi possível carregar os anos disponíveis."));
     } finally {
       setLoadingAnosFund(false);
     }
@@ -123,7 +135,7 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
   };
 
   const alterarAnosFundamentais = async (modo: "add" | "remove", anos = anosFundSelecionados) => {
-    if (!anos.length) { setErroAnosFund("Selecione pelo menos um ano acadêmico fundamental."); return; }
+    if (!anos.length) { setErroAnosFund("Selecione pelo menos um ano antes de continuar."); return; }
     if (modo === "remove" && anosFundamentais.filter(ano => !anos.includes(ano)).length === 0) {
       setErroAnosFund("A academia deve manter ao menos um ano fundamental ativo.");
       return;
@@ -138,9 +150,9 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
         : await academiaService.removerAnosAcademicos(payload);
       setAnosFundamentais(sortAnosFundamental(response.anos_academicos ?? []));
       setAnosFundSelecionados([]);
-      setSucessoAnosFund(modo === "add" ? "Anos acadêmicos adicionados com sucesso." : "Anos acadêmicos removidos com sucesso.");
+      setSucessoAnosFund(modo === "add" ? "Anos adicionados com sucesso." : "Anos removidos com sucesso.");
     } catch (error: any) {
-      setErroAnosFund(getApiErrorMessage(error, "Erro ao alterar anos acadêmicos fundamentais"));
+      setErroAnosFund(getApiErrorMessage(error, "Não foi possível salvar a alteração."));
     } finally {
       setLoadingAnosFund(false);
     }
@@ -188,6 +200,8 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
   const showAnosFundamentais = section === "all" || section === "anos-academicos";
   const showCategorias = section === "all" || section === "categorias-nota";
   const showRegras = section === "all" || section === "regras-avaliacao-final";
+  const anosSelecionadosAtivos = anosFundSelecionados.filter(ano => anosFundamentais.includes(ano));
+  const anosSelecionadosNovos = anosFundSelecionados.filter(ano => !anosFundamentais.includes(ano));
 
   return (
     <div>
@@ -576,7 +590,7 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
                   Anos acadêmicos
                 </h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-                  Controle quais anos do ensino fundamental a academia oferece para novas turmas e matrículas. As alterações são feitas somente nos anos selecionados, preservando os registros já existentes. A lista ativa aparece em ordem crescente; se faltar algum ano, selecione-o em Anos que faltam e clique em Adicionar. Para remover, selecione um ano ativo na lista e clique em Remover.
+                  Escolha quais anos do ensino fundamental a escola oferece para novas turmas e matrículas. Ao adicionar, os anos escolhidos entram na lista. Ao remover, os registros antigos continuam guardados, mas o ano deixa de aparecer para novas atividades.
                 </p>
               </div>
               <button type="button" onClick={carregarAnosFundamentais} disabled={loadingAnosFund} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
@@ -592,8 +606,8 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
             )}
 
             <div className="mt-4">
-              <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Lista ativa em ordem crescente</p>
-              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Estes são os anos fundamentais atualmente disponíveis. Clique em um item da lista para marcá-lo para remoção.</p>
+              <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Anos disponíveis hoje</p>
+              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Clique em um ano desta lista se quiser removê-lo.</p>
               {loadingAnosFund ? (
                 <div className="h-12 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
               ) : anosFundamentais.length ? (
@@ -611,8 +625,8 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
 
             {ANOS_FUNDAMENTAL.some(ano => !anosFundamentais.includes(ano)) && (
               <div className="mt-4">
-                <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Anos que faltam</p>
-                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Estes botões aparecem somente quando a academia ainda não possui todos os anos fundamentais. Selecione os anos que deseja habilitar e use Adicionar.</p>
+                <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Anos que ainda podem ser adicionados</p>
+                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Clique nos anos que a escola também passará a oferecer.</p>
                 <div className="flex flex-wrap gap-2">
                   {ANOS_FUNDAMENTAL.filter(ano => !anosFundamentais.includes(ano)).map(ano => (
                     <button key={ano} type="button" onClick={() => toggleAnoFundamental(ano)} className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${anosFundSelecionados.includes(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
@@ -625,12 +639,12 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
 
             <div className="mt-4 flex flex-wrap gap-2">
               {ANOS_FUNDAMENTAL.some(ano => !anosFundamentais.includes(ano)) && (
-                <button type="button" onClick={() => alterarAnosFundamentais("add")} disabled={loadingAnosFund} className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">
-                  Adicionar
+                <button type="button" onClick={() => alterarAnosFundamentais("add", anosSelecionadosNovos)} disabled={loadingAnosFund || anosSelecionadosNovos.length === 0} className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">
+                  Adicionar selecionados
                 </button>
               )}
-              <button type="button" onClick={() => alterarAnosFundamentais("remove")} disabled={loadingAnosFund || anosFundamentais.length === 0} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                Remover
+              <button type="button" onClick={() => alterarAnosFundamentais("remove", anosSelecionadosAtivos)} disabled={loadingAnosFund || anosSelecionadosAtivos.length === 0} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                Remover selecionados
               </button>
             </div>
           </div>
