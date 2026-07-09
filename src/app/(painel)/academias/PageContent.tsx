@@ -567,7 +567,7 @@ function TabelaAcademias({
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível Escolar</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
-          <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Status</TableCell>
+          <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Situação</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
         </TableRow>
       </TableHeader>
@@ -1002,13 +1002,14 @@ export default function Academias() {
   const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao,     setMotivoDesativacao]     = useState('');
 
-  const isFpp   = !loadingUser && user?.tipo === 'admin' && user?.admin?.role === 'fpp';
   const isAdmin = !loadingUser && user?.tipo === 'admin';
+  const canCadastrarAcademia = isAdmin;
+  const canAlterarSituacaoAcademia = isAdmin && (user?.admin?.role === 'adm' || user?.admin?.role === 'fpp');
 
   const carregarLista = useCallback(async () => {
     try {
       const token = tokenStorage.get();
-      await carregarAcademias(token || undefined);
+      await carregarAcademias({ token: token || undefined });
       setCarregado(true);
     } catch {}
   }, [carregarAcademias]);
@@ -1018,7 +1019,7 @@ export default function Academias() {
     (async () => {
       try {
         const token = tokenStorage.get();
-        await carregarAcademias(token || undefined);
+        await carregarAcademias({ token: token || undefined });
         if (isMounted) setCarregado(true);
       } catch {}
     })();
@@ -1028,7 +1029,7 @@ export default function Academias() {
 
   useEffect(() => { setPaginaAtual(1); }, [dataAcademias, ordem]);
 
-  const academiasList       = dataAcademias?.academias ?? [];
+  const academiasList       = useMemo(() => dataAcademias?.academias ?? [], [dataAcademias]);
   const academiasOrdenadas  = useMemo(() => ordenarAcademias(academiasList, ordem), [academiasList, ordem]);
   const totalPaginas        = Math.ceil(academiasOrdenadas.length / ITEMS_POR_PAGINA);
   const academiasPaginadas  = useMemo(
@@ -1182,7 +1183,7 @@ export default function Academias() {
 
         {/* Header */}
         <div className="flex flex-wrap items-center gap-2">
-          {isFpp && (
+          {canCadastrarAcademia && (
             <Link
               href="/academias/cadastrar"
               className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-5 py-3.5 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
@@ -1222,7 +1223,7 @@ export default function Academias() {
         </div>
 
         {/* Barra de ações em lote */}
-        {isAdmin && selecionadas.size > 0 && (
+        {canAlterarSituacaoAcademia && selecionadas.size > 0 && (
           <BarraLote
             selecionadas={selecionadas}
             academiasList={academiasList}
@@ -1252,7 +1253,7 @@ export default function Academias() {
               <VistaEscalaAcademias
                 academias={academiasList}
                 ordem={ordem}
-                isAdmin={isAdmin}
+                isAdmin={canAlterarSituacaoAcademia}
                 carregandoAtivar={carregandoAtivar}
                 carregandoDesativar={carregandoDesativar}
                 onVerDetalhes={handleVerDetalhes}
@@ -1287,7 +1288,7 @@ export default function Academias() {
                 {!carregandoAcademias && carregado && (
                   <TabelaAcademias
                     academias={academiasPaginadas}
-                    isAdmin={isAdmin}
+                    isAdmin={canAlterarSituacaoAcademia}
                     carregandoAtivar={carregandoAtivar}
                     carregandoDesativar={carregandoDesativar}
                     onVerDetalhes={handleVerDetalhes}
@@ -1362,7 +1363,7 @@ export default function Academias() {
                   <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Situação</p>
                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(academiaSelecionada.status)}`}>
                     {academiaSelecionada.status}
                   </span>
@@ -1390,7 +1391,7 @@ export default function Academias() {
         {/* Modal Desativar individual */}
         <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
           <form onSubmit={handleDesativar}>
-            <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar Academia</h4>
+            <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Desativar academia</h4>
             {academiaParaDesativar && (
               <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                 <p className="text-sm text-yellow-800 dark:text-yellow-300">
@@ -1433,7 +1434,7 @@ export default function Academias() {
         <Modal isOpen={isDesativarLoteOpen} onClose={closeDesativarLoteModal} className="max-w-[520px] p-5 lg:p-10">
           <form onSubmit={handleDesativarLote}>
             <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">
-              Desativar Academias em Lote
+              Desativar academias selecionadas
             </h4>
             <div className="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-300">

@@ -12,6 +12,7 @@ interface InputProps {
   min?: string;
   max?: string;
   step?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   disabled?: boolean;
   success?: boolean;
   error?: boolean;
@@ -30,6 +31,7 @@ const Input: FC<InputProps> = ({
   min,
   max,
   step,
+  inputMode,
   disabled = false,
   success = false,
   error = false,
@@ -62,6 +64,7 @@ const Input: FC<InputProps> = ({
         min={min}
         max={max}
         step={step}
+        inputMode={inputMode}
         disabled={disabled}
         className={inputClasses}
       />
