@@ -1,83 +1,24 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "../ui/alert/Alert";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
-import { getCookie } from '@/lib/utils/cookies';
-import type { MeuPerfilResponse } from '@/types/api';
-import { EyeCloseIcon, EyeIcon } from "@/icons";
-
 import { useApi, perfilService, tokenStorage } from '@/lib/api';
-
-const getUserFromCookie = (): MeuPerfilResponse | null => {
-  if (typeof window === 'undefined') return null;
-  
-  const userCookie = getCookie("user");
-  if (userCookie) {
-    try {
-      return JSON.parse(userCookie);
-    } catch (error) {
-      return null;
-    }
-  }
-  return null;
-};
+import { EyeCloseIcon, EyeIcon } from "@/icons";
 
 export default function UserConfigCard() {
   const router = useRouter();
   const [verEditarSenha, setVerEditarSenha] = useState<boolean>(false);
   const [showSenhaAtual, setShowSenhaAtual] = useState(false);
   const [showSenhaNova, setShowSenhaNova] = useState(false);
-  const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-  const [mounted, setMounted] = useState(false);
   const [senhaAtual, setSenhaAtual] = useState('');
   const [senhaNova, setSenhaNova] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
   
   const { loading: alterandoSenha, error: erroAlterarSenha, execute: executeAlterarSenha } = useApi(perfilService.alterarSenha);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const interval = setInterval(() => {
-      const updatedUser = getUserFromCookie();
-      setUser(prev => {
-        if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
-          return updatedUser;
-        }
-        return prev;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [mounted]);
-
-  if (!mounted) {
-    return (
-      <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-4 w-full">
-            <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="space-y-2">
-                  <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                  <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
