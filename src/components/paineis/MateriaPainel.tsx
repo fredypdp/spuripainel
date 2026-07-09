@@ -326,7 +326,6 @@ function buildMateriaPayload(formData: MateriaFormData, incluirType: boolean): C
       ...(incluirType ? { type: "medio" as const } : {}),
       anos_academicos: formData.anos_academicos as AnoMedio[],
       curso_id: formData.curso_id ?? "",
-      ...(formData.pendencia_permitida ? { pendencia_permitida: true, ...(formData.pendencia_nivel_conclusao ? { pendencia_nivel_conclusao: formData.pendencia_nivel_conclusao as AnoMedio } : {}) } : {}),
     };
   }
   return {
@@ -463,12 +462,23 @@ export default function MateriaPainel() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nome.trim()) { showMsg("error", "Nome da matéria é obrigatório"); return; }
-    if (formData.anos_academicos.length === 0) { showMsg("error", "Selecione pelo menos um ano/nível"); return; }
-    if (formData.type !== "fundamental" && formData.anos_academicos.length !== 1) { showMsg("error", "Matérias de Médio ou Superior devem possuir exatamente um ano/nível do curso."); return; }
-    if (formData.type !== "fundamental" && !formData.curso_id) { showMsg("error", `Matérias do tipo ${formData.type === "medio" ? "Médio" : "Superior"} devem estar vinculadas a um curso`); return; }
-    if (formData.type === "superior" && !formData.periodo) { showMsg("error", "Selecione o período/semestre da matéria superior na criação."); return; }
+    if (!editingMateria) {
+      if (formData.anos_academicos.length === 0) { showMsg("error", "Selecione pelo menos um ano ou nível"); return; }
+      if (formData.type !== "fundamental" && formData.anos_academicos.length !== 1) { showMsg("error", "Selecione apenas um ano do curso para esta matéria."); return; }
+      if (formData.type !== "fundamental" && !formData.curso_id) { showMsg("error", `Selecione o curso desta matéria de ${formData.type === "medio" ? "Médio" : "Superior"}.`); return; }
+      if (formData.type === "superior" && !formData.periodo) { showMsg("error", "Selecione o semestre da matéria superior na criação."); return; }
+    }
     try {
-      if (editingMateria) { await executarAtualizarMateria(editingMateria.id, { nome: formData.nome }); showMsg("success", "Matéria atualizada com sucesso"); }
+      if (editingMateria) {
+        await executarAtualizarMateria(editingMateria.id, {
+          nome: formData.nome.trim(),
+          ...(editingMateria.type === "superior" ? {
+            pendencia_permitida: formData.pendencia_permitida,
+            pendencia_nivel_conclusao: formData.pendencia_permitida ? formData.pendencia_nivel_conclusao : undefined,
+          } : {}),
+        });
+        showMsg("success", "Matéria atualizada com sucesso");
+      }
       else {
         const payload = buildMateriaPayload(formData, isAcademiaMista());
         await executarCriarMateria(payload);
@@ -480,7 +490,7 @@ export default function MateriaPainel() {
 
   const handleEdit = (materia: Materia) => {
     setEditingMateria(materia);
-    setFormData({ nome: materia.nome, type: materia.type, anos_academicos: [], curso_id: undefined, periodo: undefined, pendencia_permitida: false, pendencia_nivel_conclusao: undefined });
+    setFormData({ nome: materia.nome, type: materia.type, anos_academicos: materia.anos_academicos ?? [], curso_id: materia.curso_id, periodo: materia.periodo, pendencia_permitida: !!materia.pendencia_permitida, pendencia_nivel_conclusao: materia.pendencia_nivel_conclusao });
     setShowForm(true);
   };
 
@@ -621,7 +631,7 @@ export default function MateriaPainel() {
                     </select>
                   </div>
                 )}
-                {formData.type !== "fundamental" && formData.curso_id && (
+                {formData.type === "superior" && formData.curso_id && (
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                       <input type="checkbox" checked={formData.pendencia_permitida} onChange={e => setFormData({ ...formData, pendencia_permitida: e.target.checked, pendencia_nivel_conclusao: e.target.checked ? formData.pendencia_nivel_conclusao : undefined })} />
@@ -638,6 +648,22 @@ export default function MateriaPainel() {
                   </div>
                 )}
               </>
+            )}
+            {editingMateria?.type === "superior" && (
+              <div className="grid gap-3 md:grid-cols-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input type="checkbox" checked={formData.pendencia_permitida} onChange={e => setFormData({ ...formData, pendencia_permitida: e.target.checked, pendencia_nivel_conclusao: e.target.checked ? formData.pendencia_nivel_conclusao : undefined })} />
+                  Permitir que o estudante conclua esta matéria depois
+                </label>
+                {formData.pendencia_permitida && (
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Até qual semestre
+                    <select value={formData.pendencia_nivel_conclusao ?? ""} onChange={e => setFormData({ ...formData, pendencia_nivel_conclusao: e.target.value || undefined })} className="mt-1 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
+                      <option value="">Sem limite definido</option>
+                      {getPendenciaNiveisDisponiveis().map(n => <option key={n} value={n}>{formatarPeriodoLabel(n)}</option>)}
+                    </select>
+                  </label>
+                )}
+              </div>
             )}
             <div className="flex gap-3 pt-4">
               <button type="submit" className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors">

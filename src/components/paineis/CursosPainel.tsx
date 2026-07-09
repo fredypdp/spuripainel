@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useApi, academiaService } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
-import type { AnoMedio, Curso, CursoType, MateriasChaveCursoAnoDTO, MeuPerfilResponse } from "@/types/api";
+import type { Curso, CursoType, MeuPerfilResponse } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -12,10 +12,7 @@ import { getCookie } from "@/lib/utils/cookies";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const gerarAnosMedio = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `${i + 1}_ano_medio`, label: `${i + 1}º Ano Médio` }));
-const gerarAnosSuperior = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `${i + 1}_ano_superior`, label: `${i + 1}º Ano Superior` }));
 const gerarSemestres = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `${i + 1}_semestre`, label: `${i + 1}º Semestre` }));
-const ANOS_MEDIO = gerarAnosMedio(3);
 
 const formatarNivelLabel = (nivel: string): string => {
   const m = nivel.match(/^(\d+)_ano_(medio|superior)$/);
@@ -23,18 +20,13 @@ const formatarNivelLabel = (nivel: string): string => {
   return nivel.replace(/_/g, " ");
 };
 
-const ordenarAnosMedio = (anos: string[]) =>
-  [...new Set(anos)].sort((a, b) => ANOS_MEDIO.findIndex(x => x.value === a) - ANOS_MEDIO.findIndex(x => x.value === b));
-
-const isSequenciaMedioValida = (anos: string[]) =>
-  anos.length > 0 && anos.every((ano, index) => ano === ANOS_MEDIO[index]?.value);
-
 const getApiErrorMessage = formatApiError;
 
 interface CursoFormData {
-  nome: string; type: CursoType; anos_academicos: string[];
-  numAnos: number; periodos: string[]; numSemestres: number;
-  materias_chave: MateriasChaveCursoAnoDTO[];
+  nome: string;
+  type: CursoType;
+  modelo: 'liceu' | 'tecnico';
+  numSemestres: number;
 }
 
 const getUserFromCookie = (): MeuPerfilResponse | null => {
@@ -144,8 +136,6 @@ export default function CursosPainel() {
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [viewTipoCurso, setViewTipoCurso] = useState<"medio" | "superior">("medio");
   const [secaoAberta, setSecaoAberta] = useState<Record<string, boolean>>({});
-  const [anosSelecionados, setAnosSelecionados] = useState<string[]>([]);
-  const [alterandoAnos, setAlterandoAnos] = useState<"add" | "remove" | null>(null);
 
   // Lote
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -161,7 +151,7 @@ export default function CursosPainel() {
     return user.academia.nivel === "superior" ? "superior" : "medio";
   };
 
-  const [formData, setFormData] = useState<CursoFormData>({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6, materias_chave: [] });
+  const [formData, setFormData] = useState<CursoFormData>({ nome: "", type: getDefaultType(), modelo: "liceu", numSemestres: 6 });
 
   const { execute: executarListarCursos, data: cursos, loading: ListandoCursos } = useApi(academiaService.listarCursos);
   const { execute: executarCriarCurso, loading: CriandoCurso } = useApi(academiaService.criarCurso);
@@ -169,41 +159,6 @@ export default function CursosPainel() {
   const { execute: executarAtivarCurso, error: erroAtivarCurso } = useApi(academiaService.ativarCurso);
   const { execute: executarDesativarCurso, error: erroDesativarCurso } = useApi(academiaService.desativarCurso);
   const { execute: executarDeletarCurso } = useApi(academiaService.deletarCurso);
-
-  const anosMedioDoFormulario = () => editingCurso?.type === "medio"
-    ? ordenarAnosMedio(formData.anos_academicos)
-    : gerarAnosMedio(formData.numAnos).map(a => a.value);
-
-  const atualizarMateriasChave = (ano: string, rawValue: string) => {
-    const ids = rawValue
-      .split(/[\n,;]+/)
-      .map(item => item.trim())
-      .filter(Boolean);
-    setFormData(prev => {
-      const semAno = prev.materias_chave.filter(item => item.ano_academico !== ano);
-      return {
-        ...prev,
-        materias_chave: [...semAno, { ano_academico: ano as AnoMedio, materias_chave: ids }],
-      };
-    });
-  };
-
-  const getMateriasChaveTexto = (ano: string) =>
-    formData.materias_chave.find(item => item.ano_academico === ano)?.materias_chave.join("\n") ?? "";
-
-  const prepararMateriasChaveMedio = (anos: string[]): MateriasChaveCursoAnoDTO[] => {
-    const normalizadas = anos.map((ano) => ({
-      ano_academico: ano as AnoMedio,
-      materias_chave: [...new Set(
-        formData.materias_chave.find(item => item.ano_academico === ano)?.materias_chave.map(id => id.trim()).filter(Boolean) ?? []
-      )],
-    }));
-    const incompleta = normalizadas.find(item => item.materias_chave.length === 0);
-    if (incompleta) {
-      throw new Error(`Informe pelo menos uma matéria-chave para ${formatarNivelLabel(incompleta.ano_academico)}.`);
-    }
-    return normalizadas;
-  };
 
   // nivel === 'escola' && nivel_escolar === 'misto' → academia mista
   const isAcademiaMista = () => user?.academia?.nivel === "escola" && user?.academia?.nivel_escolar === "misto";
@@ -283,16 +238,12 @@ export default function CursosPainel() {
     if (!formData.nome.trim()) { showAlert("error", "Nome do curso é obrigatório"); return; }
     try {
       if (editingCurso) {
-        const payloadAtualizacao = editingCurso.type === "medio"
-          ? { nome: formData.nome.trim(), materias_chave: prepararMateriasChaveMedio(ordenarAnosMedio(formData.anos_academicos)) }
-          : { nome: formData.nome.trim() };
-        await executarAtualizarCurso(editingCurso.id, payloadAtualizacao);
+        await executarAtualizarCurso(editingCurso.id, { nome: formData.nome.trim() });
         showAlert("success", "Dados cadastrais do curso atualizados com sucesso");
       } else {
-        const anosMedio = gerarAnosMedio(formData.numAnos).map(a => a.value);
         const payload = formData.type === "superior"
           ? { nome: formData.nome.trim(), type: "superior" as const, periodos: formData.numSemestres }
-          : { nome: formData.nome.trim(), type: "medio" as const, anos_academicos: anosMedio as AnoMedio[], materias_chave: prepararMateriasChaveMedio(anosMedio) };
+          : { nome: formData.nome.trim(), type: "medio" as const, modelo: formData.modelo };
         await executarCriarCurso(payload);
         showAlert("success", "Curso criado com sucesso");
       }
@@ -300,44 +251,9 @@ export default function CursosPainel() {
     } catch (error: unknown) { showAlert("error", getApiErrorMessage(error, "Erro ao salvar curso")); }
   };
 
-  const toggleAnoSelecionado = (ano: string) => {
-    setAnosSelecionados(prev => prev.includes(ano) ? prev.filter(item => item !== ano) : [...prev, ano]);
-  };
-
-  const handleAnosAcademicosCurso = async (modo: "add" | "remove") => {
-    if (!editingCurso || editingCurso.type !== "medio") return;
-    if (anosSelecionados.length === 0) { showAlert("error", "Selecione pelo menos um ano acadêmico do curso médio"); return; }
-    const atuais = editingCurso.anos_academicos ?? [];
-    const finais = modo === "add"
-      ? ordenarAnosMedio([...atuais, ...anosSelecionados])
-      : ordenarAnosMedio(atuais.filter(ano => !anosSelecionados.includes(ano)));
-    if (!isSequenciaMedioValida(finais)) {
-      showAlert("error", "Cursos médios devem manter sequência contínua, iniciada no 1º ano médio, sem lacunas e sem ficar vazios.");
-      return;
-    }
-    setAlterandoAnos(modo);
-    try {
-      const payload = { type: "medio" as const, curso_id: editingCurso.id, anos_academicos: ordenarAnosMedio(anosSelecionados) };
-      const response = modo === "add"
-        ? await academiaService.adicionarAnosAcademicos(payload)
-        : await academiaService.removerAnosAcademicos(payload);
-      const anosAtualizados = response.anos_academicos ?? finais;
-      setEditingCurso({ ...editingCurso, anos_academicos: anosAtualizados });
-      setFormData(prev => ({ ...prev, anos_academicos: anosAtualizados, numAnos: anosAtualizados.length || prev.numAnos }));
-      setAnosSelecionados([]);
-      showAlert("success", modo === "add" ? "Anos acadêmicos adicionados ao curso" : "Anos acadêmicos removidos do curso");
-      executarListarCursos();
-    } catch (error: unknown) {
-      showAlert("error", getApiErrorMessage(error, "Erro ao alterar anos acadêmicos do curso"));
-    } finally {
-      setAlterandoAnos(null);
-    }
-  };
-
   const handleEdit = (curso: Curso) => {
     setEditingCurso(curso);
-    setFormData({ nome: curso.nome, type: curso.type, anos_academicos: curso.anos_academicos, numAnos: curso.anos_academicos.length || 3, periodos: curso.periodos ?? [], numSemestres: curso.periodos?.length || 6, materias_chave: curso.materias_chave ?? [] });
-    setAnosSelecionados([]);
+    setFormData({ nome: curso.nome, type: curso.type, modelo: curso.modelo ?? "liceu", numSemestres: curso.periodos?.length || 6 });
     setShowForm(true);
   };
 
@@ -360,7 +276,7 @@ export default function CursosPainel() {
     } catch (e: unknown) { showAlert("error", getApiErrorMessage(e, "Erro ao deletar curso")); }
   };
 
-  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), anos_academicos: [], numAnos: 3, periodos: [], numSemestres: 6, materias_chave: [] }); setEditingCurso(null); setAnosSelecionados([]); setShowForm(false); };
+  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), modelo: "liceu", numSemestres: 6 }); setEditingCurso(null); setShowForm(false); };
   // tipo é imutável após criação; se academia.nivel === 'superior', forçar 'superior'
   const isTipoDisabled = () => !!editingCurso || user?.academia?.nivel === "superior";
   const listaCursos = cursos?.cursos ?? [];
@@ -398,56 +314,32 @@ export default function CursosPainel() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
-              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as CursoType, anos_academicos: [], materias_chave: [] })} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
+              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as CursoType })} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
                 <option value="medio">Ensino Médio</option>
                 <option value="superior">Ensino Superior</option>
               </select>
             </div>
             {formData.type === "medio" && !editingCurso && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Número de anos *
-                  <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(gera automaticamente: 1º…{formData.numAnos}º Médio)</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <button type="button" onClick={() => setFormData(p => ({ ...p, numAnos: Math.max(1, p.numAnos - 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">−</button>
-                  <span className="w-8 text-center font-semibold text-gray-900 dark:text-white">{formData.numAnos}</span>
-                  <button type="button" onClick={() => setFormData(p => ({ ...p, numAnos: Math.min(10, p.numAnos + 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">+</button>
-                  <div className="flex flex-wrap gap-1 ml-2">
-                    {gerarAnosMedio(formData.numAnos).map(a => (
-                      <span key={a.value} className="text-xs px-2 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded border border-brand-200 dark:border-brand-800">{a.label}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            {formData.type === "medio" && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-900/10">
-                <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Matérias-chave por ano acadêmico *</h4>
-                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-                  A API exige que todo curso médio tenha pelo menos uma matéria-chave para cada ano do curso. Informe os UUIDs das matérias médias ativas deste curso/ano, separados por vírgula ou uma por linha. Este campo pertence ao curso médio, não à regra de avaliação final.
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo do curso *</label>
+                <select
+                  value={formData.modelo}
+                  onChange={(e) => setFormData({ ...formData, modelo: e.target.value as CursoFormData["modelo"] })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="liceu">Liceu</option>
+                  <option value="tecnico">Técnico</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Esta escolha define automaticamente os anos do curso. Você não precisa informar códigos ou configurar anos manualmente.
                 </p>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {anosMedioDoFormulario().map(ano => (
-                    <label key={ano} className="block">
-                      <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">{formatarNivelLabel(ano)}</span>
-                      <textarea
-                        value={getMateriasChaveTexto(ano)}
-                        onChange={(e) => atualizarMateriasChave(ano, e.target.value)}
-                        rows={3}
-                        placeholder="uuid-materia-1\nuuid-materia-2"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                      />
-                    </label>
-                  ))}
-                </div>
               </div>
             )}
             {formData.type === "superior" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Número de semestres *
-                  <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(envia periodos numérico; anos superiores são derivados pela API)</span>
+                  <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(os anos serão calculados automaticamente)</span>
                 </label>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setFormData(p => ({ ...p, numSemestres: Math.max(1, p.numSemestres - 1) }))} className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">−</button>
@@ -462,53 +354,14 @@ export default function CursosPainel() {
               </div>
             )}
             {editingCurso?.type === "medio" && (
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                <div className="mb-3">
-                  <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Anos acadêmicos do curso médio</h4>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Defina quais anos este curso médio oferece para novas turmas e matrículas. As alterações são feitas somente nos anos selecionados, mantendo a ordem obrigatória 1º, 2º e 3º ano, sem lacunas. Clique nos anos desejados abaixo e depois escolha Adicionar selecionados ou Remover selecionados.
-                  </p>
-                </div>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {ANOS_MEDIO.map(ano => {
-                    const ativo = formData.anos_academicos.includes(ano.value);
-                    const selecionado = anosSelecionados.includes(ano.value);
-                    return (
-                      <button
-                        key={ano.value}
-                        type="button"
-                        onClick={() => toggleAnoSelecionado(ano.value)}
-                        className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                          selecionado
-                            ? "border-brand-500 bg-brand-500 text-white"
-                            : ativo
-                              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300"
-                              : "border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                        }`}
-                      >
-                        {ano.label}{ativo ? " · ativo" : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAnosAcademicosCurso("add")}
-                    disabled={!!alterandoAnos}
-                    className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                  >
-                    {alterandoAnos === "add" ? "Adicionando..." : "Adicionar selecionados"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAnosAcademicosCurso("remove")}
-                    disabled={!!alterandoAnos}
-                    className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {alterandoAnos === "remove" ? "Removendo..." : "Remover selecionados"}
-                  </button>
-                </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900/50 dark:bg-blue-900/10 dark:text-blue-200">
+                <p className="font-semibold">Anos do curso definidos automaticamente</p>
+                <p className="mt-1">
+                  Os anos do ensino médio são definidos pelo modelo escolhido na criação do curso. Nesta edição, altere apenas o nome do curso.
+                </p>
+                {editingCurso.modelo && (
+                  <p className="mt-2 text-xs">Modelo atual: {editingCurso.modelo === "tecnico" ? "Técnico" : "Liceu"}</p>
+                )}
               </div>
             )}
             {editingCurso?.type === "superior" && (
@@ -585,21 +438,9 @@ export default function CursosPainel() {
                   </div>
                 </div>
               )}
-              {curso.type === "medio" && (curso.materias_chave?.length ?? 0) > 0 && (
-                <div className="mb-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Matérias-chave por ano:</p>
-                  <div className="space-y-1">
-                    {curso.materias_chave?.map(item => (
-                      <div key={item.ano_academico} className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                        <span className="font-medium">{formatarNivelLabel(item.ano_academico)}:</span> {item.materias_chave.length} matéria(s)-chave
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               {curso.type === "superior" && (curso.periodos?.length ?? 0) > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Semestres retornados pela API:</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Semestres do curso:</p>
                   <div className="flex flex-wrap gap-1">
                     {curso.periodos?.map((n) => <span key={n} className="text-xs px-2 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded">{n.replace(/_/g, " ").replace(/^(\d+)/, "$1º")}</span>)}
                   </div>
