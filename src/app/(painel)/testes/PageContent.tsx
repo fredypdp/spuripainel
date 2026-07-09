@@ -1035,7 +1035,7 @@ export default function PageContent() {
     const totalEstudantes = cfg.qtd * fatorMultiplicador;
     addLog(`Gerando ${totalEstudantes} estudante(s) via multipart com PDFs (modo: ${modo})...`, "step");
 
-    const bilhetesUsadosCadastro = new Set(estudantes.flatMap(e => [
+    const bilhetesUsadosCadastro = new Set<string>(estudantes.flatMap(e => [
       e.bilhete_identidade,
       e.bilhete_identidade_responsavel,
     ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
