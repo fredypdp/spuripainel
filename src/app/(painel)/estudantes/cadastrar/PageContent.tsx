@@ -249,19 +249,17 @@ export default function CadastrarEstudantePageContent() {
   const cursosAtivos: Curso[] = dataCursos?.cursos?.filter((c: Curso) => c.status === 'ativo') ?? [];
   const documentos: DocumentoOpcao[] = (() => {
     const docs: DocumentoOpcao[] = [
-      { key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: !!bilheteIdentidade.trim() },
-      { key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: !isSuperior },
-      { key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: !bilheteIdentidade.trim() },
+      { key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: false },
+      { key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: false },
+      { key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: false },
       { key: 'declaracao', label: documentLabels.declaracao, obrigatorio: false },
     ];
     if (['7_ano_fundamental', '8_ano_fundamental', '9_ano_fundamental'].includes(anoEscolarSelecionado ?? '')) {
-      docs.push({ key: 'certificado_6_ano_fundamental', label: documentLabels.certificado_6_ano_fundamental, obrigatorio: !declaracaoFile });
+      docs.push({ key: 'certificado_6_ano_fundamental', label: documentLabels.certificado_6_ano_fundamental, obrigatorio: false });
     } else if (isAnoMedio(anoEscolarSelecionado)) {
-      docs.push({ key: 'certificado_9_ano_fundamental', label: documentLabels.certificado_9_ano_fundamental, obrigatorio: !declaracaoFile });
+      docs.push({ key: 'certificado_9_ano_fundamental', label: documentLabels.certificado_9_ano_fundamental, obrigatorio: false });
     } else if (isAnoSuperior(anoEscolarSelecionado)) {
-      docs.push({ key: 'certificado_ensino_medio', label: documentLabels.certificado_ensino_medio, obrigatorio: !declaracaoFile });
-    } else {
-      docs[3] = { ...docs[3], obrigatorio: true };
+      docs.push({ key: 'certificado_ensino_medio', label: documentLabels.certificado_ensino_medio, obrigatorio: false });
     }
     return docs;
   })();
@@ -570,7 +568,7 @@ export default function CadastrarEstudantePageContent() {
                 <div className="col-span-1 sm:col-span-2">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Documentos PDF</p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Anexe apenas PDF até 5MB. A lista mostra o tipo de documento e nunca o nome do ficheiro local.
+                    Os documentos são opcionais no cadastro direto. Se anexar, envie apenas PDF até 10MB.
                   </p>
                 </div>
                 {documentos.map((doc) => (
@@ -592,7 +590,7 @@ export default function CadastrarEstudantePageContent() {
                   <div className="grid gap-1 sm:grid-cols-2">
                     {documentos.map((doc) => (
                       <span key={doc.key} className="text-gray-600 dark:text-gray-300">
-                        {doc.label}: {getDocumentoFile(doc.key) ? <b className="text-green-600 dark:text-green-400">✓ verificado</b> : 'Não anexado'}
+                        {doc.label}: {getDocumentoFile(doc.key) ? <b className="text-green-600 dark:text-green-400">✓ pronto</b> : 'Não anexado'}
                       </span>
                     ))}
                   </div>

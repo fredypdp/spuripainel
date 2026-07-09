@@ -38,9 +38,9 @@ export type AnoMedio =
   | '1_ano_medio' | '2_ano_medio' | '3_ano_medio' | '4_ano_medio';
 
 /**
- * Períodos do ensino superior usados como escopo de avaliação final. Formato: [n]_semestre
+ * Anos do ensino superior. Formato: [n]_ano_superior
  */
-export type AnoSuperior = `${number}_semestre`;
+export type AnoSuperior = `${number}_ano_superior`;
 
 /** @deprecated Use AnoFundamental | AnoMedio | AnoSuperior separadamente. */
 export type AnoEscolar = AnoFundamental | AnoMedio;
@@ -211,7 +211,6 @@ export interface CriarSolicitacaoMatriculaRequest {
   curso_superior_id?: string;
   bi_estudante?: File;
   bi_responsavel?: File;
-  cedula?: File;
   cedula_estudante?: File;
   declaracao?: File;
   certificado_6_ano_fundamental?: File;
@@ -267,7 +266,7 @@ export interface SolicitacaoMatricula {
 }
 
 export interface ListarSolicitacoesMatriculaParams {
-  status?: SolicitacaoMatriculaStatus;
+  status?: SolicitacaoMatriculaStatus | SolicitacaoMatriculaStatus[];
   codigo_academia?: string;
   limit?: number;
   offset?: number;

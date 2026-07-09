@@ -382,7 +382,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Código da academia</label>
                 <input value={filtros.codigoAcademia} onChange={e => setFiltros({ ...filtros, codigoAcademia: e.target.value })}
-                  placeholder="Ex: LDA20261 ou CSV"
+                  placeholder="Ex: LDA20261. Para vários, separe por vírgula"
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
               </div>
             )}
@@ -429,7 +429,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Curso</label>
                 {isAdmin || cursosFiltrados.length === 0 ? (
                   <input value={filtros.cursoId} onChange={e => setFiltros({ ...filtros, cursoId: e.target.value })}
-                    placeholder="UUID do curso ou CSV"
+                    placeholder="Código do curso. Para vários, separe por vírgula"
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
                 ) : (
                   <select value={filtros.cursoId} onChange={e => setFiltros({ ...filtros, cursoId: e.target.value })}
@@ -443,7 +443,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Código da turma</label>
               <input value={filtros.codigoTurma} onChange={e => setFiltros({ ...filtros, codigoTurma: e.target.value })}
-                placeholder="Ex: TURMA-10A ou CSV"
+                placeholder="Ex: TURMA-10A. Para várias, separe por vírgula"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
             </div>
             <div>
@@ -455,7 +455,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             </div>
             {isAdmin && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status geral</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação geral</label>
                 <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
                   <option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
@@ -464,7 +464,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             )}
             {visibilidade.statusFundamental && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Fundamental</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no fundamental</label>
                 <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
                   <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
@@ -473,7 +473,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             )}
             {visibilidade.statusMedio && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Médio</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no médio</label>
                 <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
                   <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
@@ -482,7 +482,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             )}
             {visibilidade.statusSuperior && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status Superior</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no superior</label>
                 <select value={filtros.statusSuperior} onChange={e => setFiltros({ ...filtros, statusSuperior: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
                   <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
