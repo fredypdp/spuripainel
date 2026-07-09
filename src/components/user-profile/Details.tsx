@@ -1,22 +1,9 @@
 "use client";
-import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react";
-import { useModal } from "../../hooks/useModal";
-import { Modal } from "../ui/modal";
-import { getCookie } from '@/lib/utils/cookies';
+import React, { useState, useEffect, useMemo } from "react";
 import type { MeuPerfilResponse, Turma } from '@/types/api';
-import { useUserType } from '@/hooks/useRoutePermission';
 import { consultasService, tokenStorage } from '@/lib/api';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const getUserFromCookie = (): MeuPerfilResponse | null => {
-  if (typeof window === 'undefined') return null;
-  const userCookie = getCookie("user");
-  if (userCookie) {
-    try { return JSON.parse(userCookie); } catch { return null; }
-  }
-  return null;
-};
 
 function formatarAnoAcademico(ano: string): string {
   if (!ano) return '';
@@ -159,29 +146,13 @@ function TurmasEstudante({ codigoEstudante }: { codigoEstudante: string }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function Details() {
-  const { isAcademia, isEstudante } = useUserType();
-  const { isOpen, openModal, closeModal } = useModal();
+type DetailsProps = {
+  user: MeuPerfilResponse;
+};
 
-  const mounted = useSyncExternalStore(
-    (cb) => { cb(); return () => {}; },
-    () => true,
-    () => false,
-  );
-
-  const [user, setUser] = useState<MeuPerfilResponse | null>(() => getUserFromCookie());
-
-  useEffect(() => {
-    if (!mounted) return;
-    const interval = setInterval(() => {
-      const updatedUser = getUserFromCookie();
-      setUser((prev) => {
-        if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) return updatedUser;
-        return prev;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [mounted]);
+export default function Details({ user }: DetailsProps) {
+  const isAcademia = user.tipo === 'academia';
+  const isEstudante = user.tipo === 'estudante';
 
   // ── Dados derivados — Academia ──────────────────────────────────────────────
 
@@ -243,7 +214,6 @@ export default function Details() {
 
   // ── Guards ──────────────────────────────────────────────────────────────────
 
-  if (!mounted) return <Skeleton />;
   if (user?.tipo === 'admin') return null;
   if (isEstudante && !codigoAcademia) return null;
 
@@ -380,10 +350,6 @@ export default function Details() {
             </div>
           </div>
         </div>
-
-        <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
-          Modal content — implement edit form here
-        </Modal>
       </>
     );
   }
@@ -485,10 +451,6 @@ export default function Details() {
             </div>
           </div>
         </div>
-
-        <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
-          Modal content — implement edit form here
-        </Modal>
       </>
     );
   }
