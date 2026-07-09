@@ -40,6 +40,17 @@ function labelNivel(v: string, withSuffix = false): string {
   return base;
 }
 
+function labelMomento(type?: string): string {
+  if (!type) return "—";
+  const normalizado = type.toLowerCase();
+  if (normalizado.includes("recurso")) return "Nova chance";
+  if (normalizado.includes("exame")) return "Exame final";
+  if (normalizado.includes("pap")) return "Prova final";
+  if (normalizado.includes("final")) return "Avaliação final";
+  return type.replace(/_/g, " ").replace(/\b\w/g, letra => letra.toUpperCase());
+}
+
+
 function getUserFromCookie(): MeuPerfilResponse | null {
   if (typeof window === "undefined") return null;
   try { return JSON.parse(getCookie("user") ?? ""); } catch { return null; }
@@ -157,7 +168,15 @@ function StatsBar({ avaliacoes, anoLetivo }: { avaliacoes: AvaliacaoFinal[]; ano
 
 // ─── BadgeResultado ───────────────────────────────────────────────────────────
 
-function BadgeResultado({ aprovado }: { aprovado: boolean }) {
+function BadgeResultado({ aprovado, comPendencia }: { aprovado: boolean; comPendencia?: boolean }) {
+  if (aprovado && comPendencia) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <Icon icon="mdi:alert-circle" width={12} />Aprovado com matéria por concluir
+      </span>
+    );
+  }
+
   return aprovado ? (
     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
       <Icon icon="mdi:check-circle" width={12} />Aprovado
@@ -221,7 +240,7 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo }: {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800/70">
             <tr>
-              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", "Tipo", "Nota", "Próximo Nível", "Observação", "Data"].map(h => (
+              {["Nome do Estudante", "Código do Estudante", "Género", "Avaliação final", "Momento", "Nota", "Próximo Nível", "Observação", "Data"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -233,13 +252,13 @@ function TabelaEstudantes({ turma, avaliacoes, estudantes, anoLetivo }: {
                 <td className="px-4 py-3 text-gray-400 text-xs font-mono">{cod}</td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 capitalize">{est?.genero ?? "—"}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  {av ? <BadgeResultado aprovado={av.aprovado} /> : (
+                  {av ? <BadgeResultado aprovado={av.aprovado} comPendencia={av.aprovado_com_pendencia} /> : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                       <Icon icon="mdi:clock-outline" width={11} />Pendente
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{av?.type ?? "—"}</td>
+                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{labelMomento(av?.type)}</td>
                 <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{av?.nota_final ?? "—"}{av?.nota_minima_aprovacao ? ` / min. ${av.nota_minima_aprovacao}` : ""}</td>
                 <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                   {av ? (av.proximo_ano_academico ? labelNivel(av.proximo_ano_academico) : av.aprovado ? "Ciclo finalizado" : "Retido no nível") : "—"}

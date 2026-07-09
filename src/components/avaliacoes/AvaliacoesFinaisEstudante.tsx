@@ -30,6 +30,7 @@ function labelNivel(v: string): string {
 
 type TipoEnsino = "fundamental" | "medio" | "superior";
 
+
 function getTipoEnsino(nivel: string): TipoEnsino {
   if (nivel.includes("fundamental")) return "fundamental";
   if (nivel.includes("medio"))       return "medio";
@@ -74,7 +75,15 @@ function Breadcrumb({ crumbs }: { crumbs: { label: string; onClick?: () => void 
   );
 }
 
-function BadgeResultado({ aprovado }: { aprovado: boolean }) {
+function BadgeResultado({ aprovado, comPendencia }: { aprovado: boolean; comPendencia?: boolean }) {
+  if (aprovado && comPendencia) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <Icon icon="mdi:alert-circle" width={12} />Aprovado com matéria por concluir
+      </span>
+    );
+  }
+
   return aprovado ? (
     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
       <Icon icon="mdi:check-circle" width={12} />Aprovado
@@ -160,7 +169,7 @@ function TabelaCiclo({ avs, anoSel }: { avs: AvaliacaoFinal[]; anoSel: string })
               <td className="px-4 py-3 text-xs text-gray-400 font-mono">{idx + 1}</td>
               <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white whitespace-nowrap">{labelNivel(a.ano_academico_atual)}</td>
               <td className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-nowrap">{a.ano_lectivo.replace("_", "/")}</td>
-              <td className="px-4 py-3 whitespace-nowrap"><BadgeResultado aprovado={a.aprovado} /></td>
+              <td className="px-4 py-3 whitespace-nowrap"><BadgeResultado aprovado={a.aprovado} comPendencia={a.aprovado_com_pendencia} /></td>
               <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                 {a.proximo_ano_academico ? labelNivel(a.proximo_ano_academico) : a.aprovado ? "Ciclo finalizado" : "—"}
               </td>

@@ -473,11 +473,12 @@ export const consultasService = {
    */
   listarAvaliacoes: (params?: ListarAvaliacoesParams) => {
     const qs = new URLSearchParams();
-    if (params?.tipo_ensino)        qs.append('tipo_ensino',        params.tipo_ensino);
+    if (params?.nivel)              qs.append('nivel',              params.nivel);
     if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
     if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
     if (params?.codigo_turma)       qs.append('codigo_turma',       params.codigo_turma);
     if (params?.codigo_academia)    qs.append('codigo_academia',    params.codigo_academia);
+    if (params?.type)               qs.append('type',               params.type);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarAvaliacoesResponse>(`/avaliacoes${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -491,11 +492,12 @@ export const consultasService = {
    */
   listarAprovacoes: (params?: ListarAprovacoesParams) => {
     const qs = new URLSearchParams();
-    if (params?.tipo_ensino)        qs.append('tipo_ensino',        params.tipo_ensino);
+    if (params?.nivel)              qs.append('nivel',              params.nivel);
     if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
     if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
     if (params?.codigo_turma)       qs.append('codigo_turma',       params.codigo_turma);
     if (params?.codigo_academia)    qs.append('codigo_academia',    params.codigo_academia);
+    if (params?.type)               qs.append('type',               params.type);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarAprovacoesResponse>(`/aprovacoes${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -509,11 +511,12 @@ export const consultasService = {
    */
   listarReprovacoes: (params?: ListarReprovacoesParams) => {
     const qs = new URLSearchParams();
-    if (params?.tipo_ensino)        qs.append('tipo_ensino',        params.tipo_ensino);
+    if (params?.nivel)              qs.append('nivel',              params.nivel);
     if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
     if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
     if (params?.codigo_turma)       qs.append('codigo_turma',       params.codigo_turma);
     if (params?.codigo_academia)    qs.append('codigo_academia',    params.codigo_academia);
+    if (params?.type)               qs.append('type',               params.type);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarReprovacoesResponse>(`/reprovacoes${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
