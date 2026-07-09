@@ -367,7 +367,7 @@ export default function CadastrarAcademiaPageContent() {
 
               {/* Nome */}
               <div className="col-span-2">
-                <Label>Nome da academia *</Label>
+                <Label>Nome da instituição *</Label>
                 <Input
                   type="text"
                   placeholder="Ex: Escola Primária Ngola Kiluanje"
@@ -599,7 +599,7 @@ export default function CadastrarAcademiaPageContent() {
             {/* Nota informativa */}
             <div className="mt-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Informação:</strong> depois do cadastro, a academia fica aguardando ativação por um administrador ADM ou FPP.
+                <strong>Informação:</strong> depois do cadastro, a academia fica aguardando a ativação por um administrador.
                 A primeira senha será o <strong>código gerado automaticamente</strong>.
               </p>
             </div>
