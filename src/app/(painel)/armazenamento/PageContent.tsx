@@ -30,15 +30,23 @@ type QuotaErrorState = {
 const getQuotaErrorState = (e: unknown): QuotaErrorState => {
   if (e instanceof SpuriApiError) {
     return {
-      message: e.message || "Erro ao consultar quota",
+      message: e.message || "Não foi possível consultar o espaço usado",
       status: e.status,
       code: typeof e.data?.error === "string" ? e.data.error : undefined,
     };
   }
 
   return {
-    message: e instanceof Error ? e.message : "Erro ao consultar quota",
+    message: e instanceof Error ? e.message : "Não foi possível consultar o espaço usado",
   };
+};
+
+const getFriendlyErrorMessage = (erro: QuotaErrorState) => {
+  if (erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE") {
+    return "O sistema ainda não conseguiu ler os arquivos do armazenamento. Peça à equipa responsável para verificar a configuração.";
+  }
+
+  return erro.message;
 };
 
 const getFileSize = (file: AccountFileUsage) => file.size_human || formatBytes(file.size_bytes);
@@ -95,7 +103,7 @@ export default function PageContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Armazenamento</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Quota do Google Drive usada pela pasta raiz gerenciada pelo Spuri, com separação entre ficheiros de academias e ficheiros fora dos diretórios de academia.
+          Veja quanto espaço os documentos ocupam na pasta principal do Spuri e identifique o que pertence às academias ou está fora delas.
         </p>
       </div>
 
@@ -104,19 +112,14 @@ export default function PageContent() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-semibold">
               {erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE"
-                ? "Quota do Google Drive indisponível"
-                : "Erro ao consultar quota"}
+                ? "Consulta de espaço indisponível"
+                : "Não foi possível consultar o espaço usado"}
             </p>
-            {(erro.status || erro.code) && (
-              <span className="text-xs uppercase tracking-wide text-red-500 dark:text-red-300">
-                {[erro.status && `HTTP ${erro.status}`, erro.code].filter(Boolean).join(" · ")}
-              </span>
-            )}
           </div>
-          <p className="mt-2 leading-relaxed">{erro.message}</p>
+          <p className="mt-2 leading-relaxed">{getFriendlyErrorMessage(erro)}</p>
           {(erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE") && (
             <p className="mt-2 text-xs text-red-600 dark:text-red-300">
-              Verifique GOOGLE_DRIVE_CREDENTIALS_PATH ou GOOGLE_DRIVE_CREDENTIALS_JSON, GOOGLE_DRIVE_ROOT_FOLDER_ID e, em ambiente local, GOOGLE_DRIVE_QUOTA_LOCAL_ESTIMATE no backend.
+              A configuração do armazenamento precisa ser revista pela equipa responsável antes de esta informação ficar disponível.
             </p>
           )}
         </div>
@@ -126,7 +129,7 @@ export default function PageContent() {
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-sm uppercase text-gray-500 dark:text-gray-400">Provider: {quota.provider}</span>
+              <span className="text-sm uppercase text-gray-500 dark:text-gray-400">Origem dos arquivos: Google Drive</span>
               <span className="font-semibold text-gray-900 dark:text-white">{percentualUsado}% usado</span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
@@ -146,8 +149,8 @@ export default function PageContent() {
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {[
-                ["Gerido por academias", quota.managed_human || formatBytes(quota.managed_bytes)],
-                ["Fora das academias", quota.outside_academias_human || formatBytes(quota.outside_academias_bytes)],
+                ["Arquivos das academias", quota.managed_human || formatBytes(quota.managed_bytes)],
+                ["Outros arquivos na pasta", quota.outside_academias_human || formatBytes(quota.outside_academias_bytes)],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800">
                   <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
@@ -160,13 +163,13 @@ export default function PageContent() {
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ficheiros da pasta raiz Google Drive</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Arquivos na pasta principal</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Lista dos ficheiros retornados dentro da pasta raiz configurada no Google Drive, incluindo itens fora dos diretórios de academia.
+                  Lista dos arquivos encontrados na pasta principal do Spuri, incluindo os que ainda não estão ligados a uma academia.
                 </p>
               </div>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {accountFiles.length} ficheiro(s) · {managedFilesCount} de academia(s) · {outsideFilesCount} fora das academias
+                {accountFiles.length} arquivo(s) · {managedFilesCount} de academia(s) · {outsideFilesCount} fora das academias
               </span>
             </div>
 
@@ -176,8 +179,8 @@ export default function PageContent() {
                   <table className="min-w-full divide-y divide-gray-100 text-sm dark:divide-gray-800">
                     <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                       <tr>
-                        <th className="px-4 py-3 font-medium">Ficheiro</th>
-                        <th className="px-4 py-3 font-medium">Caminho</th>
+                        <th className="px-4 py-3 font-medium">Arquivo</th>
+                        <th className="px-4 py-3 font-medium">Localização</th>
                         <th className="px-4 py-3 font-medium">Origem</th>
                         <th className="px-4 py-3 text-right font-medium">Tamanho</th>
                       </tr>
@@ -189,7 +192,7 @@ export default function PageContent() {
                           <td className="max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400" title={file.path}>{file.path || "/"}</td>
                           <td className="px-4 py-3">
                             <span className={`rounded-full px-2 py-1 text-xs font-semibold ${file.managed ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300" : "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"}`}>
-                              {file.managed ? "Academia" : "Fora da academia"}
+                              {file.managed ? "Academia" : "Outro arquivo"}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">{getFileSize(file)}</td>
@@ -201,7 +204,7 @@ export default function PageContent() {
               </div>
             ) : (
               <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                Nenhum ficheiro da pasta raiz foi retornado pelo backend. Sem credenciais de produção, a estimativa local só aparece quando GOOGLE_DRIVE_QUOTA_LOCAL_ESTIMATE=true.
+                Nenhum arquivo foi encontrado na pasta principal. Se isto parecer incorreto, peça à equipa responsável para rever a configuração do armazenamento.
               </div>
             )}
           </div>
@@ -211,7 +214,7 @@ export default function PageContent() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Uso por academia</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Soma dos ficheiros encontrados em cada diretório de academia no storage.
+                  Total de arquivos encontrados na pasta de cada academia.
                 </p>
               </div>
               <span className="text-sm text-gray-500 dark:text-gray-400">{academias.length} academia(s)</span>
@@ -242,7 +245,7 @@ export default function PageContent() {
               </div>
             ) : (
               <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                Nenhum uso por academia foi retornado pelo backend. Em ambiente local, confirme se GOOGLE_DRIVE_QUOTA_LOCAL_ESTIMATE está ativado no servidor.
+                Ainda não há arquivos ligados às academias. Se isto parecer incorreto, peça à equipa responsável para rever a configuração do armazenamento.
               </div>
             )}
           </div>
