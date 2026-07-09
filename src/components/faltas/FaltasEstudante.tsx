@@ -1,6 +1,6 @@
 // src/components/faltas/FaltasEstudante.tsx
 "use client"
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { consultasService, tokenStorage, useApi } from "@/lib/api";
 import type { ApiDate, MeuPerfilResponse, Falta, Turma } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -121,22 +121,22 @@ export default function FaltasEstudante() {
 
   useEffect(() => {
     if (codigoEstudante) {
-      carregarFaltas(codigoEstudante, token);
+      carregarFaltas(codigoEstudante, { token });
       carregarTurmas(codigoEstudante, token);
     }
   }, [codigoEstudante]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const todasFaltas: Falta[] = faltasData?.faltas ?? [];
+  const todasFaltas: Falta[] = useMemo(() => faltasData?.faltas ?? [], [faltasData]);
   const todasTurmas: Turma[] = (historicoTurmas as any)?.turmas ?? [];
 
   // ── Resolução do nome da academia ─────────────────────────────────────────
   // FaltaDTO não inclui academia_nome, então usamos a academia_info do perfil
   // como fonte primária, com fallback para o código.
-  function resolverNomeAcademia(codigoAcademia: string): string {
+  const resolverNomeAcademia = useCallback((codigoAcademia: string): string => {
     const academiaInfo = user?.estudante?.academia_info ?? (user?.estudante as any)?.academia;
     if (academiaInfo?.codigo === codigoAcademia) return academiaInfo.nome;
     return codigoAcademia;
-  }
+  }, [user]);
 
   // Academias únicas a partir das faltas
   const academias = useMemo((): AcadInfo[] => {
@@ -150,7 +150,7 @@ export default function FaltasEstudante() {
       }
     });
     return Array.from(map.values());
-  }, [todasFaltas, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resolverNomeAcademia, todasFaltas]);
 
   function anosLetivosDaAcademia(codigoAcademia: string): string[] {
     return Array.from(

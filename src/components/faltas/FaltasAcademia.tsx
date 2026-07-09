@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import type {
-  ApiDate, MeuPerfilResponse, Falta, AtualizarFaltaRequest, RegistrarFaltasRequest,
+  ApiDate, MeuPerfilResponse, Falta, RegistrarFaltasRequest,
   Turma, Curso, EstudanteDetalhado,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -159,14 +159,10 @@ function TabelaFaltas({
   faltas,
   estudantesMap,
   codigosTurma,
-  onEditar,
-  onDeletar,
 }: {
   faltas: Falta[];
   estudantesMap: Map<string, string>;
   codigosTurma: string[];
-  onEditar: (f: Falta) => void;
-  onDeletar: (f: Falta) => void;
 }) {
   if (codigosTurma.length === 0 && faltas.length === 0) return (
     <div className="text-center py-10 text-gray-400">
@@ -188,7 +184,6 @@ function TabelaFaltas({
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th>
             <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Qtd</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th>
-            <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -220,24 +215,6 @@ function TabelaFaltas({
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                     {f.observacao || "—"}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => onEditar(f)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
-                        title="Editar"
-                      >
-                        <Icon icon="mdi:pencil" width={16} />
-                      </button>
-                      <button
-                        onClick={() => onDeletar(f)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="Excluir"
-                      >
-                        <Icon icon="mdi:delete-outline" width={16} />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               );
             })}
@@ -264,188 +241,11 @@ function TabelaFaltas({
                 <td className="px-4 py-3 text-gray-300 dark:text-gray-600">—</td>
                 <td className="px-4 py-3 text-center text-gray-300 dark:text-gray-600 font-bold">0</td>
                 <td className="px-4 py-3 text-gray-300 dark:text-gray-600">Sem faltas</td>
-                <td className="px-4 py-3 text-center text-gray-300 dark:text-gray-600">—</td>
               </tr>
             ))}
         </tbody>
       </table>
     </div>
-  );
-}
-
-// ─── Modal Excluir Falta ──────────────────────────────────────────────────────
-
-function ModalExcluirFalta({
-  isOpen,
-  nomeEstudante,
-  onConfirm,
-  onClose,
-}: {
-  isOpen: boolean;
-  nomeEstudante: string;
-  onConfirm: (motivo: string) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [motivo, setMotivo]   = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-
-  async function handle(e: React.FormEvent) {
-    e.preventDefault();
-    if (!motivo.trim()) { setError("Motivo é obrigatório"); return; }
-    setLoading(true);
-    try { await onConfirm(motivo); onClose(); }
-    catch (err: any) { setError(err?.message ?? "Erro ao excluir falta"); setLoading(false); }
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[480px] p-5 lg:p-7">
-      <form onSubmit={handle} className="space-y-4">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-            <Icon icon="mdi:delete-outline" width={22} className="text-red-600 dark:text-red-400" />
-          </div>
-          <div>
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white">Excluir Falta</h4>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Excluir falta de{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-200">{nomeEstudante}</span>?
-              O registo permanece no ledger para auditoria.
-            </p>
-          </div>
-        </div>
-        {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-            {error}
-          </div>
-        )}
-        <div>
-          <Label>Motivo da exclusão *</Label>
-          <Input
-            type="text"
-            placeholder="Informe o motivo (obrigatório)"
-            onChange={e => setMotivo(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2 justify-end">
-          <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-          <button
-            type="submit"
-            disabled={loading || !motivo.trim()}
-            className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Excluindo..." : "Excluir Falta"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-// ─── Modal Editar Falta ───────────────────────────────────────────────────────
-// A matéria não é editável aqui — herda da matéria selecionada nos botões inline
-
-function ModalEditarFalta({
-  isOpen,
-  falta,
-  nomeEstudante,
-  materiaNome,
-  onConfirm,
-  onClose,
-}: {
-  isOpen: boolean;
-  falta: Falta;
-  nomeEstudante: string;
-  materiaNome: string;
-  onConfirm: (data: AtualizarFaltaRequest) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [dataFalta, setDataFalta]   = useState<ApiDate>(falta.data);
-  const [quantidade, setQuantidade] = useState(falta.quantidade.toString());
-  const [observacao, setObservacao] = useState(falta.observacao || "");
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const qtd = parseInt(quantidade);
-    if (isNaN(qtd) || qtd < 1) { setError("Quantidade deve ser no mínimo 1"); return; }
-    const observacaoNormalizada = observacao.trim();
-    if (!observacaoNormalizada) { setError("Observação é obrigatória para editar falta"); return; }
-    setLoading(true);
-    try {
-      await onConfirm({
-        id: falta.id,
-        data: dataFalta || undefined,
-        // materia_disciplinar_id não é alterado — mantém a matéria original da falta
-        quantidade: qtd,
-        observacao: observacaoNormalizada,
-      });
-      onClose();
-    } catch (err: any) {
-      setError(err?.message ?? "Erro ao atualizar falta");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[480px] p-5 lg:p-8">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="mb-2">
-          <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">Editar Falta</h4>
-          <div className="flex flex-col gap-0.5 mt-1">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Estudante:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{nomeEstudante}</span>
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Matéria:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{materiaNome}</span>
-            </p>
-          </div>
-        </div>
-        {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-            {error}
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Quantidade *</Label>
-            <Input
-              type="number"
-              min="1"
-              defaultValue={quantidade}
-              onChange={e => setQuantidade(e.target.value)}
-            />
-          </div>
-          <DatePicker
-            id={`edit-falta-data-${falta.id}`}
-            label="Data da Falta"
-            placeholder="Selecione"
-            defaultDate={dataFalta}
-            onChange={dates => {
-              if (dates?.length) setDataFalta(toApiDateFromLocalDate(dates[0]));
-            }}
-          />
-        </div>
-        <div>
-          <Label>Observação *</Label>
-          <Input
-            type="text"
-            placeholder="Justifique a correção"
-            defaultValue={observacao}
-            onChange={e => setObservacao(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-3 justify-end mt-6">
-          <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-          <Button disabled={loading}>{loading ? "Salvando..." : "Salvar Alterações"}</Button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
@@ -591,8 +391,6 @@ export default function FaltasAcademia() {
   const [alert, setAlert]                           = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [faltasPorEstudante, setFaltasPorEstudante] = useState<Record<string, Falta[]>>({});
   const [carregandoFaltas, setCarregandoFaltas]     = useState(false);
-  const [editingFalta, setEditingFalta]             = useState<Falta | null>(null);
-  const [deletingFalta, setDeletingFalta]           = useState<Falta | null>(null);
   const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
 
   // Matéria selecionada nos botões inline — análogo ao materiaSelecionada do NotasAcademia
@@ -605,8 +403,6 @@ export default function FaltasAcademia() {
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
   const { data: dataAnosLetivosLista,                        execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);
   const { execute: executarRegistrar }                                                      = useApi(academiaService.registrarFaltas);
-  const { execute: executarAtualizar }                                                      = useApi(academiaService.atualizarFalta);
-  const { execute: executarDeletar }                                                        = useApi(academiaService.deletarFalta);
 
   const { isOpen, openModal, closeModal } = useModal();
   const materias = useMemo(
@@ -658,7 +454,7 @@ export default function FaltasAcademia() {
     } else {
       setMateriaSelecionada(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [layer, materias]);
 
   // ─── dados derivados ────────────────────────────────────────────────────────
@@ -731,7 +527,7 @@ export default function FaltasAcademia() {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async codigoNorm => {
           const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
-          const resposta = await consultasService.faltasEstudante(codigoOriginal, token);
+          const resposta = await consultasService.faltasEstudante(codigoOriginal, { token });
           return { codigoNorm, faltas: resposta?.faltas ?? [] };
         })
       );
@@ -789,22 +585,6 @@ export default function FaltasAcademia() {
   async function handleRegistrar(data: RegistrarFaltasRequest) {
     await executarRegistrar(data, token);
     showAlert("success", "Falta registrada com sucesso.");
-    const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
-    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
-  }
-
-  async function handleAtualizar(data: AtualizarFaltaRequest) {
-    await executarAtualizar(data, token);
-    showAlert("success", "Falta atualizada com sucesso.");
-    setEditingFalta(null);
-    const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
-    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
-  }
-
-  async function handleDeletar(faltaId: string, motivo: string) {
-    await executarDeletar(faltaId, motivo, token);
-    showAlert("success", "Falta excluída com sucesso.");
-    setDeletingFalta(null);
     const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
     if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
   }
@@ -995,8 +775,6 @@ export default function FaltasAcademia() {
             faltas={faltas}
             estudantesMap={estudantesMap}
             codigosTurma={codigosTurma}
-            onEditar={setEditingFalta}
-            onDeletar={setDeletingFalta}
           />
         ) : null}
       </div>
@@ -1270,10 +1048,6 @@ export default function FaltasAcademia() {
 
   // ─── render ───────────────────────────────────────────────────────────────
 
-  // Helper de lookup de nome — usa o map normalizado
-  const getNome = (codigo: string) =>
-    estudantesMap.get(normCodigoEstudante(codigo)) ?? codigo;
-
   return (
     <div className="space-y-6">
       {alert && (
@@ -1281,28 +1055,6 @@ export default function FaltasAcademia() {
           variant={alert.variant}
           title={alert.variant === "success" ? "Sucesso" : "Erro"}
           message={alert.message}
-        />
-      )}
-
-      {/* Modal excluir */}
-      {deletingFalta && (
-        <ModalExcluirFalta
-          isOpen={!!deletingFalta}
-          nomeEstudante={getNome(deletingFalta.codigo_estudante)}
-          onConfirm={motivo => handleDeletar(deletingFalta.id, motivo)}
-          onClose={() => setDeletingFalta(null)}
-        />
-      )}
-
-      {/* Modal editar — matéria vem do estado materiaSelecionada */}
-      {editingFalta && (
-        <ModalEditarFalta
-          isOpen={!!editingFalta}
-          falta={editingFalta}
-          nomeEstudante={getNome(editingFalta.codigo_estudante)}
-          materiaNome={materiaSelecionada?.nome ?? "—"}
-          onConfirm={handleAtualizar}
-          onClose={() => setEditingFalta(null)}
         />
       )}
 

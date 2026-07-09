@@ -134,7 +134,6 @@ export type {
   DeletarCursoResponse,
   StatusEscolarFundamental,
   StatusEscolarMedio,
-  AtualizarFaltaRequest,
   TipoEnsino,
   SolicitacaoMatriculaStatus,
   DocumentosObrigatorios,

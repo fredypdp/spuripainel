@@ -329,7 +329,6 @@ export interface StorageQuotaResponse {
 
 export interface RegistrarFaltasRequest {
   codigo_estudante: string;
-  ano_academico?: string;
   data: ApiDate;
   materia_disciplinar_id: string;
   quantidade: number;
@@ -564,6 +563,8 @@ export interface ListarFaltasParams {
    * Para academia autenticada: ignorado (sempre usa o próprio código).
    */
   codigo_academia?: string | string[];
+  /** Filtro `type` aceito por GET /faltas. */
+  type?: string | string[];
   /** Token JWT; usa tokenStorage.get() se omitido */
   token?: string;
 }
@@ -779,14 +780,6 @@ export interface RegistrarNotasRequest {
 export interface AtualizarNotaRequest {
   id: string;
   nota_nova: number;
-  observacao: string;
-}
-
-export interface AtualizarFaltaRequest {
-  id: string;
-  data?: ApiDate;
-  materia_disciplinar_id?: string;
-  quantidade?: number;
   observacao: string;
 }
 
