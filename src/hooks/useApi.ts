@@ -1,7 +1,7 @@
 // src/hooks/useApi.ts
 
 import { useState, useCallback, useEffect } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { formatApiError } from '@/lib/api/client';
 
 interface UseApiState<T> {
   data: T | null;
@@ -16,7 +16,7 @@ interface UseApiReturn<T> extends UseApiState<T> {
 
 /**
  * Hook para gerenciar requisições à API
- * ✅ Simplesmente usa error.message - a extração já foi feita na API
+ * Usa o envelope de erro padronizado da API através de formatApiError.
  * 
  * @example
  * ```tsx
@@ -48,8 +48,7 @@ export function useApi<T, Args extends any[]>(
         setState({ data: result, loading: false, error: null });
         return result;
       } catch (err) {
-        // ✅ SIMPLIFICADO: error.message já contém a melhor mensagem disponível
-        const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro desconhecido';
+        const errorMessage = formatApiError(err, 'Ocorreu um erro desconhecido');
         
         setState({ data: null, loading: false, error: errorMessage });
         throw err;
@@ -89,18 +88,21 @@ export function useApiQuery<T>(
   }
 ): UseApiReturn<T> & { refetch: () => Promise<void> } {
   const { data, loading, error, execute, reset } = useApi(apiFunction);
+  const onSuccess = options?.onSuccess;
+  const onError = options?.onError;
   
   // Estabilizar refetch para evitar loops infinitos
   const refetch = useCallback(async () => {
     try {
       const result = await execute();
-      if (result && options?.onSuccess) {
-        options.onSuccess(result);
+      if (result && onSuccess) {
+        onSuccess(result);
       }
     } catch (err) {
-      // Error já foi tratado no execute
+      const errorMessage = formatApiError(err, 'Ocorreu um erro desconhecido');
+      onError?.(errorMessage);
     }
-  }, [execute, options?.onSuccess]);
+  }, [execute, onSuccess, onError]);
 
   // Auto-execute on mount if enabled (apenas uma vez)
   useEffect(() => {
