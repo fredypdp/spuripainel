@@ -83,6 +83,8 @@ export interface CriarEscolaRequest {
   nivel: 'escola';
   type: AcademiaType;
   nome: string;
+  nif: string;
+  alvara: File;
   provincia: string;
   endereco: string;
   telefone?: string;
@@ -102,6 +104,8 @@ export interface CriarUniversidadeRequest {
   nivel: 'superior';
   type: AcademiaType;
   nome: string;
+  nif: string;
+  alvara: File;
   provincia: string;
   endereco: string;
   telefone?: string;

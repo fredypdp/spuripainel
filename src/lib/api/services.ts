@@ -1526,12 +1526,31 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  registrarAcademia: (data: CriarEscolaRequest | CriarUniversidadeRequest, token?: string) =>
-    api.post<{ message: string; codigo_academia: string; data: { codigo_academia: string; id: string; nome: string; provincia: string } }>(
+  registrarAcademia: (data: CriarEscolaRequest | CriarUniversidadeRequest, token?: string) => {
+    const formData = new FormData();
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+
+      if (typeof File !== 'undefined' && value instanceof File) {
+        formData.append(key, value);
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => formData.append(key, String(item)));
+        return;
+      }
+
+      formData.append(key, String(value));
+    });
+
+    return api.postForm<{ message: string; codigo_academia: string; data: { codigo_academia: string; id: string; nome: string; nif: string; provincia: string } }>(
       '/dominis/academia/register',
-      data,
+      formData,
       { token: token || tokenStorage.get() || undefined }
-    ),
+    );
+  },
 
   ativarAcademia: (codigoAcademia: string, token?: string) =>
     api.put<{ message: string }>(
