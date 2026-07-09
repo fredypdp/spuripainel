@@ -80,13 +80,8 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
-    path: '/configuracoes/categorias-nota',
-    allowedTypes: ['academia'],
-    redirectIfUnauthorized: '/',
-  },
-  {
     path: '/configuracoes/regras-avaliacao-final',
-    allowedTypes: ['academia'],
+    allowedTypes: ['admin', 'academia', 'estudante'],
     redirectIfUnauthorized: '/',
   },
   {

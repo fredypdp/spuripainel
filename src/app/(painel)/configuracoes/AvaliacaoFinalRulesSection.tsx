@@ -5,6 +5,7 @@ import { academiaService } from "@/lib/api/services";
 import { useApi } from "@/hooks/useApi";
 import { useUserType } from "@/hooks/useRoutePermission";
 import Icon from "@/components/ui/Icon";
+import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
 import type { CategoriaNotaItem, CriarRegraAvaliacaoFinalRequest, RegraAvaliacaoFinal, TipoEnsino } from "@/types/api";
 
 const ESCOLAR_PERIODOS = ["1_trimestre", "2_trimestre", "3_trimestre"];
@@ -51,12 +52,10 @@ function formulaText(items: FormulaItem[]) {
 }
 
 
-function categoriaAtendeEscopo(categoria: CategoriaNotaItem, nivel: TipoEnsino, anosSelecionados: Set<string>) {
+function categoriaAtendeEscopo(categoria: CategoriaNotaItem, nivel: TipoEnsino) {
   if (categoria.status !== "ativo") return false;
-  if (!categoria.anos_academicos?.length) return false;
-  if (nivel === "superior") return categoria.anos_academicos.some((ano) => ano.includes("superior") || ano.includes("semestre"));
-  if (anosSelecionados.size > 0) return categoria.anos_academicos.some((ano) => anosSelecionados.has(ano));
-  return categoria.anos_academicos.some((ano) => ano.includes(nivel));
+  if (nivel === "superior") return true;
+  return categoria.anos_academicos?.some((ano) => ano.includes(nivel)) ?? false;
 }
 
 function formatEscopoRegra(regra: RegraAvaliacaoFinal) {
@@ -70,7 +69,7 @@ function formatEscopoRegra(regra: RegraAvaliacaoFinal) {
 }
 
 export default function AvaliacaoFinalRulesSection() {
-  const { user } = useUserType();
+  const { isAcademia, isAdmin, isEstudante, user } = useUserType();
   const academia = user?.academia;
   const isSuperior = academia?.nivel === "superior";
   const tipoFixo = "superior";
@@ -80,7 +79,6 @@ export default function AvaliacaoFinalRulesSection() {
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [notaMinima, setNotaMinima] = useState("");
-  const [anos, setAnos] = useState<Set<string>>(new Set());
   const [limitePendentes, setLimitePendentes] = useState("0");
   const [notaDespertadora, setNotaDespertadora] = useState("");
   const [dependencia, setDependencia] = useState("");
@@ -92,39 +90,27 @@ export default function AvaliacaoFinalRulesSection() {
 
   const { data: regrasData, loading, execute: listarRegras } = useApi(academiaService.listarRegrasAvaliacaoFinal);
   const { data: categoriasData, execute: listarCategorias } = useApi(academiaService.listarCategoriasNota);
-  const { data: cursosData, execute: listarCursos } = useApi(academiaService.listarCursos);
   const { loading: criando, error, execute: criarRegra } = useApi(academiaService.criarRegraAvaliacaoFinal);
   const { loading: deletando, execute: deletarRegra } = useApi(academiaService.deletarRegraAvaliacaoFinal);
 
   useEffect(() => {
-    if (!isSuperior) return;
+    if (!isAcademia || !isSuperior) return;
     listarRegras().catch(() => undefined);
     listarCategorias().catch(() => undefined);
-    listarCursos().catch(() => undefined);
-  }, [isSuperior, listarRegras, listarCategorias, listarCursos]);
-  const cursosAtivos = useMemo(() => (cursosData?.cursos ?? []).filter((c) => c.status === "ativo"), [cursosData]);
-  const cursosSuperior = useMemo(() => cursosAtivos.filter((c) => c.type === "superior"), [cursosAtivos]);
-  const opcoesNiveis = useMemo(() => {
-    return sortNiveis(cursosSuperior.flatMap((c) => c.periodos ?? []));
-  }, [cursosSuperior]);
+  }, [isAcademia, isSuperior, listarRegras, listarCategorias]);
 
-  const periodosFormula = useMemo(() => tipoSelecionado === "superior" ? [...anos] : ESCOLAR_PERIODOS, [anos, tipoSelecionado]);
+  const periodosFormula = useMemo(() => tipoSelecionado === "superior" ? [] : ESCOLAR_PERIODOS, [tipoSelecionado]);
   const categoriasDisponiveis = useMemo(() => {
     return (categoriasData?.categorias ?? [])
-      .filter((categoria) => categoriaAtendeEscopo(categoria, tipoSelecionado, anos))
+      .filter((categoria) => categoriaAtendeEscopo(categoria, tipoSelecionado))
       .map((categoria) => categoria.codigo);
-  }, [anos, categoriasData, tipoSelecionado]);
+  }, [categoriasData, tipoSelecionado]);
   const categoriasEnvolvidas = useMemo(() => [...new Set(formulaItems.filter((i): i is Extract<FormulaItem, { kind: "ref" }> => i.kind === "ref").map((i) => i.categoria))], [formulaItems]);
   const formula = formulaText(formulaItems);
   const ultimoItem = formulaItems[formulaItems.length - 1];
   const parentesesAbertos = formulaItems.reduce((total, item) => item.kind === "paren" ? total + (item.value === "(" ? 1 : -1) : total, 0);
   const precisaValor = formulaItems.length === 0 || ultimoItem?.kind === "op" || (ultimoItem?.kind === "paren" && ultimoItem.value === "(");
   const podeFecharParenteses = !precisaValor && parentesesAbertos > 0;
-
-  function toggleAno(value: string) {
-    setAnos((prev) => { const next = new Set(prev); next.has(value) ? next.delete(value) : next.add(value); return next; });
-    setFormulaItems([]); setDraftPeriodo("");
-  }
 
   function addRef() {
     if (!precisaValor || !draftCategoria || (tipoSelecionado !== "superior" && !draftPeriodo)) return;
@@ -159,37 +145,67 @@ export default function AvaliacaoFinalRulesSection() {
     await listarRegras();
   }
 
+
+  if (isAdmin) {
+    return <InformacaoAvaliacaoFinal perfil="admin" />;
+  }
+
+  if (isEstudante) {
+    const estudante = user?.estudante;
+    const nivelEstudante = estudante?.semestre_atual || estudante?.curso_superior_id || estudante?.status_superior === "em_andamento" ? "superior" : estudante?.ano_escolar_medio ? "medio" : "fundamental";
+    return <InformacaoAvaliacaoFinal perfil="estudante" nivel={nivelEstudante} />;
+  }
+
   const regras = regrasData?.regras ?? [];
   const escopoOk = true;
   const limiteOk = limitePendentes !== "" && Number(limitePendentes) >= 0;
   const canSubmit = !!type.trim() && !!nome.trim() && !!notaMinima && Number(notaMinima) > 0 && escopoOk && limiteOk && !!formula && categoriasEnvolvidas.length > 0 && !precisaValor;
 
   if (!isSuperior) {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-900/20">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-amber-800 dark:text-amber-300">
-          <Icon icon="mdi:function-variant" width="18px" />
-          Regras fixas do sistema
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm text-amber-700 dark:text-amber-300">
-          Na versão 2.1.0, escolas não criam, editam nem removem regras de avaliação final por endpoint.
-          O backend aplica automaticamente o padrão escolar fixo conforme as categorias oficiais do ano acadêmico.
-        </p>
-      </div>
-    );
+    const nivelAcademia = academia?.nivel_escolar === "medio" ? "medio" : academia?.nivel_escolar === "misto" ? "misto" : "fundamental";
+    return <InformacaoAvaliacaoFinal perfil="academia-escola" nivel={nivelAcademia} />;
   }
 
-  return <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+  return <div className="space-y-6"><InformacaoAvaliacaoFinal perfil="academia-superior" /><div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
     <div className="mb-5"><h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10"><Icon icon="mdi:function-variant" width="16px" className="text-brand-500" /></span>Regras para automação de avaliação final</h2><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">Configure como a academia decide se o estudante foi aprovado ou precisa de uma nova chance no fim do período. Depois que todas as notas usadas na regra forem lançadas, o sistema calcula automaticamente a nota final pela fórmula, compara com a nota mínima e registra o resultado, sem decisão manual.</p></div>
     <div className="grid gap-6 lg:grid-cols-2">
       <div><p className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Regras ativas</p>{loading ? <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" /> : regras.length === 0 ? <div className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">Nenhuma regra configurada.</div> : <div className="space-y-2">{regras.map((r) => <div key={r.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-brand-50 px-2 py-0.5 text-sm font-semibold text-brand-600 dark:bg-brand-900/20 dark:text-brand-300">{r.type}</span><span className="text-sm font-semibold text-gray-800 dark:text-white">{r.nome}</span><span className="text-sm text-gray-400">{labelTipo(r.nivel)}</span><button type="button" disabled={deletando} onClick={async () => { if (window.confirm("Inativar esta regra? As dependentes em cadeia também podem ser afetadas.")) { await deletarRegra(r.id); await listarRegras(); } }} className="ml-auto rounded-full border border-red-200 px-2 py-0.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20">Inativar</button></div><p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{formatEscopoRegra(r)} · mínimo {r.nota_minima_aprovacao} · categorias extraídas: {r.categorias_envolvidas.join(", ")}</p><p className="mt-1 text-sm text-gray-400">{labelFormula(r.formula)}{r.aplica_se_reprovado_em_type ? ` · depende de reprovação em ${r.aplica_se_reprovado_em_type}` : " · regra raiz"}</p></div>)}</div>}</div>
       <form onSubmit={submit} className="space-y-4">
         <h3 className="text-base font-semibold text-gray-800 dark:text-white">Criar nova regra de avaliação final</h3>
         <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"><p className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">1. Identificação da regra</p><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200"><span className="block text-sm font-medium text-gray-500">Tipo de academia</span>{labelTipo(tipoSelecionado)}</div><label className="text-sm font-medium text-gray-600 dark:text-gray-300">Nome da regra<input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Avaliação final" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label><label className="text-sm font-medium text-gray-600 dark:text-gray-300">Tipo de regra (código)<input value={type} onChange={(e) => setType(e.target.value.replace(/[^A-Za-z0-9_ ]/g, ""))} placeholder="Ex.: avaliacao_final" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label><label className="text-sm font-medium text-gray-600 dark:text-gray-300">Nota mínima de aprovação<input type="number" min={1} value={notaMinima} onChange={(e) => setNotaMinima(e.target.value)} placeholder="Ex.: 10" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label><label className="text-sm font-medium text-gray-600 dark:text-gray-300">Limite de matérias pendentes<input type="number" min={0} value={limitePendentes} onChange={(e) => setLimitePendentes(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label></div><label className="mt-3 block text-sm font-medium text-gray-600 dark:text-gray-300">Descrição<textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Explique quando essa será aplicada" rows={2} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label><label className="mt-3 block text-sm font-medium text-gray-600 dark:text-gray-300">Dependência<p className="mt-1 text-sm font-normal leading-relaxed text-gray-500 dark:text-gray-400">Use a dependência para ligar uma tentativa à anterior. Regras dependentes não enviam nota despertadora.</p><select value={dependencia} onChange={(e) => setDependencia(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"><option value="">Regra raiz (primeira avaliação)</option>{regras.filter(r => r.nivel === tipoSelecionado).map(r => <option key={r.id} value={r.type}>Só aplicar se reprovar em {r.type}</option>)}</select></label>{!dependencia && <label className="mt-3 block text-sm font-medium text-gray-600 dark:text-gray-300">Nota despertadora<select value={notaDespertadora} onChange={(e) => setNotaDespertadora(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"><option value="">Sem disparo por categoria</option>{categoriasDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}</select></label>}</div>
-        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"><p className="mb-2 text-sm font-semibold text-gray-800 dark:text-white">2. Escopo acadêmico</p><div className="flex flex-wrap gap-2">{opcoesNiveis.map(n => <button type="button" key={n} onClick={() => toggleAno(n)} className={`rounded-full border px-3 py-1.5 text-sm ${anos.has(n) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>{labelNivel(n)}</button>)}</div>{tipoSelecionado === "superior" && <p className="mt-2 text-sm text-gray-500">Regras superiores não enviam <code>anos_academicos</code>; os semestres selecionados aqui servem apenas para ajudar a montar a fórmula e o preview.</p>}</div>
-        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"><p className="text-sm font-semibold text-gray-800 dark:text-white">3. Fórmula guiada</p><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Monte a conta passo a passo, adicionando uma nota ou número e depois escolhendo a operação desejada. O sistema extrai automaticamente as categorias usadas na fórmula e calcula a nota final assim que todas as notas necessárias forem lançadas.</p><div className="mt-3 rounded-lg bg-gray-50 p-3 font-mono text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">{formula || "A fórmula aparecerá aqui conforme você adicionar notas, números e operações."}</div>{precisaValor ? <div className="mt-3 space-y-3"><div className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_auto]"><label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Categoria da nota<select value={draftCategoria} onChange={(e) => setDraftCategoria(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"><option value="">{categoriasDisponiveis.length === 0 ? "Nenhuma categoria configurada para o escopo" : "Categoria da nota"}</option>{categoriasDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Período<select value={draftPeriodo} onChange={(e) => setDraftPeriodo(e.target.value)} disabled={tipoSelecionado === "superior" || periodosFormula.length === 0} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white"><option value="">{tipoSelecionado === "superior" ? "Inferido pela matéria" : "Período"}</option>{periodosFormula.map(p => <option key={p} value={p}>{labelPeriodo(p)}</option>)}</select></label><button type="button" onClick={addRef} disabled={!draftCategoria || (tipoSelecionado !== "superior" && !draftPeriodo)} className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-500 px-3 text-sm font-medium text-white disabled:opacity-50">Adicionar nota</button></div><div className="grid items-end gap-2 sm:grid-cols-[1fr_auto]"><label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Número constante<input type="number" min={0} step="0.01" value={draftConstante} onChange={(e) => setDraftConstante(e.target.value)} placeholder="Número constante" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label><button type="button" onClick={addConstante} disabled={!draftConstante} className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200">Adicionar número</button></div></div> : <div className="mt-3 flex flex-wrap gap-2">{["+", "-", "*", "/"].map(op => <button type="button" key={op} onClick={() => setFormulaItems((prev) => [...prev, { kind: "op", op: op as "+" | "-" | "*" | "/" }])} className="h-10 w-10 rounded-lg bg-brand-50 text-lg font-bold text-brand-600 dark:bg-brand-900/20 dark:text-brand-300">{op}</button>)}</div>}<div className="mt-3 flex gap-2"><button type="button" onClick={() => setFormulaItems((prev) => prev.slice(0, -1))} className="text-sm font-medium text-gray-500 hover:text-gray-700">Desfazer último item</button><button type="button" onClick={() => setFormulaItems([])} className="text-sm font-medium text-red-500 hover:text-red-600">Limpar fórmula</button></div></div>
+        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"><p className="text-sm font-semibold text-gray-800 dark:text-white">2. Fórmula guiada</p><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Monte a conta passo a passo, adicionando uma nota ou número e depois escolhendo a operação desejada. O sistema extrai automaticamente as categorias usadas na fórmula e calcula a nota final assim que todas as notas necessárias forem lançadas.</p><div className="mt-3 rounded-lg bg-gray-50 p-3 font-mono text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">{formula || "A fórmula aparecerá aqui conforme você adicionar notas, números e operações."}</div>{precisaValor ? <div className="mt-3 space-y-3"><div className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_auto]"><label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Categoria da nota<select value={draftCategoria} onChange={(e) => setDraftCategoria(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"><option value="">{categoriasDisponiveis.length === 0 ? "Nenhuma categoria configurada para o escopo" : "Categoria da nota"}</option>{categoriasDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Período<select value={draftPeriodo} onChange={(e) => setDraftPeriodo(e.target.value)} disabled={tipoSelecionado === "superior" || periodosFormula.length === 0} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white"><option value="">{tipoSelecionado === "superior" ? "Inferido pela matéria" : "Período"}</option>{periodosFormula.map(p => <option key={p} value={p}>{labelPeriodo(p)}</option>)}</select></label><button type="button" onClick={addRef} disabled={!draftCategoria || (tipoSelecionado !== "superior" && !draftPeriodo)} className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-500 px-3 text-sm font-medium text-white disabled:opacity-50">Adicionar nota</button></div><div className="grid items-end gap-2 sm:grid-cols-[1fr_auto]"><label className="block text-sm font-medium text-gray-600 dark:text-gray-300">Número constante<input type="number" min={0} step="0.01" value={draftConstante} onChange={(e) => setDraftConstante(e.target.value)} placeholder="Número constante" className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label><button type="button" onClick={addConstante} disabled={!draftConstante} className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200">Adicionar número</button></div></div> : <div className="mt-3 flex flex-wrap gap-2">{["+", "-", "*", "/"].map(op => <button type="button" key={op} onClick={() => setFormulaItems((prev) => [...prev, { kind: "op", op: op as "+" | "-" | "*" | "/" }])} className="h-10 w-10 rounded-lg bg-brand-50 text-lg font-bold text-brand-600 dark:bg-brand-900/20 dark:text-brand-300">{op}</button>)}</div>}<div className="mt-3 flex gap-2"><button type="button" onClick={() => setFormulaItems((prev) => prev.slice(0, -1))} className="text-sm font-medium text-gray-500 hover:text-gray-700">Desfazer último item</button><button type="button" onClick={() => setFormulaItems([])} className="text-sm font-medium text-red-500 hover:text-red-600">Limpar fórmula</button></div></div>
         <button type="submit" disabled={criando || !canSubmit} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">{criando ? "A criar..." : "Criar regra"}</button>{(error || sucesso) && <p className={`text-sm ${sucesso ? "text-green-600" : "text-red-600"}`}>{sucesso || error}</p>}
       </form>
     </div>
+  </div><AcademiaCategoriesSection /></div>;
+}
+
+
+type InfoPerfil = "admin" | "estudante" | "academia-escola" | "academia-superior";
+
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"><p className="font-semibold text-gray-800 dark:text-white">{title}</p><div className="mt-2 space-y-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{children}</div></div>;
+}
+
+function InformacaoAvaliacaoFinal({ perfil, nivel }: { perfil: InfoPerfil; nivel?: string }) {
+  const mostrarFundamental = perfil === "admin" || nivel === "fundamental" || nivel === "misto";
+  const mostrarMedio = perfil === "admin" || nivel === "medio" || nivel === "misto";
+  const mostrarSuperior = perfil === "admin" || perfil === "academia-superior" || nivel === "superior";
+
+  return <div className="space-y-4">
+    <div className="rounded-2xl border border-brand-100 bg-brand-50 p-6 dark:border-brand-900/40 dark:bg-brand-900/10">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white"><Icon icon="mdi:function-variant" width="18px" className="text-brand-500" />Regras de avaliação final</h2>
+      <p className="mt-2 max-w-4xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+        A avaliação final é calculada automaticamente quando as notas necessárias são lançadas. O sistema olha para cada matéria, faz a conta definida para aquele nível e decide se a nota ficou suficiente ou se o estudante precisa de uma nova oportunidade.
+      </p>
+    </div>
+    <div className="grid gap-4 lg:grid-cols-3">
+      {mostrarFundamental && <InfoCard title="Ensino fundamental"><p>O sistema usa as notas do ano e fecha a média da matéria no fim do período. Em anos com exame, a nova nota entra na conta oficial e pode substituir a reprovação.</p><p>Em termos simples: juntam-se as notas previstas para a matéria, compara-se com a nota mínima e o resultado é guardado automaticamente.</p></InfoCard>}
+      {mostrarMedio && <InfoCard title="Ensino médio"><p>O funcionamento é parecido com o fundamental, mas os anos finais podem ter exame final e recurso. No 4.º ano técnico, a Prova de Aptidão Profissional é a avaliação decisiva.</p><p>A academia lança as notas certas; o sistema espera todas as notas necessárias e só então fecha cada matéria.</p></InfoCard>}
+      {mostrarSuperior && <InfoCard title="Ensino superior"><p>A academia define as categorias de nota, a fórmula de cálculo, a nota mínima e quantas matérias podem ficar pendentes. Depois disso, a cada lançamento de nota, o sistema verifica se já consegue calcular a situação da matéria.</p><p>Exemplo simples de fórmula: ([prova_1]+[prova_2])/2. Se a regra tiver nova chance, ela só é usada quando o estudante reprova na etapa anterior.</p></InfoCard>}
+    </div>
+    {perfil === "admin" && <InfoCard title="O que o administrador precisa saber"><p>Nas escolas, as regras são fixas para manter o mesmo padrão entre academias: fundamental, médio regular, médio técnico, exame e recurso seguem o catálogo oficial. No ensino superior, cada academia tem liberdade para criar suas próprias regras e categorias, porque os cursos podem ter formas diferentes de avaliação.</p></InfoCard>}
+    {perfil === "estudante" && <InfoCard title="Como isso aparece para o estudante"><p>{nivel === "superior" ? "A sua academia escolhe as regras. Quando todas as notas da fórmula estiverem lançadas, o sistema calcula a nota final da matéria e mostra se você passou, ficou com pendência permitida ou reprovou." : "Você não precisa configurar nada. A escola lança as notas e o sistema calcula automaticamente se cada matéria atingiu a nota mínima."}</p></InfoCard>}
+    {perfil === "academia-escola" && <InfoCard title="Configuração da escola"><p>Escolas não precisam criar regras nesta página. O padrão já vem pronto no sistema e acompanha os anos e cursos ativos da academia.</p></InfoCard>}
   </div>;
 }

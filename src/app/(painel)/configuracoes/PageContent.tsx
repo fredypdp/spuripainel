@@ -7,18 +7,17 @@ import Icon from "@/components/ui/Icon";
 import AcademiaSection, { type AcademiaSettingsSection } from "./AcademiaSection";
 import AdminSection from "./AdminSection";
 import PasswordSettingsCard from "./PasswordSettingsCard";
+import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
 
 type SettingsSection =
   | "ano-letivo"
   | "anos-academicos"
-  | "categorias-nota"
   | "regras-avaliacao-final"
   | "seguranca";
 
 const PAGE_TITLES: Record<SettingsSection, string> = {
   "ano-letivo": "Ano Letivo",
   "anos-academicos": "Anos acadêmicos",
-  "categorias-nota": "Categorias de nota",
   "regras-avaliacao-final": "Regras de avaliação final",
   seguranca: "Segurança",
 };
@@ -55,6 +54,15 @@ export default function PageContent({ section }: { section: SettingsSection }) {
             </p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (section === "regras-avaliacao-final" && (isAcademia || isAdmin || isEstudante)) {
+    return (
+      <div>
+        <PageBreadcrumb pageTitle={pageTitle} />
+        <AvaliacaoFinalRulesSection />
       </div>
     );
   }
