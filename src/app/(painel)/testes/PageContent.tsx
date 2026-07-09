@@ -36,6 +36,8 @@ interface Estudante {
   ano_superior?: string;
   curso_medio_id?: string;
   curso_superior_id?: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_responsavel?: string;
   total_notas?: number;
   total_faltas?: number;
 }
@@ -121,6 +123,77 @@ const gerarNome = () => {
 const gerarDataNasc = (minAge = 8, maxAge = 25) => {
   const dias = rnd(minAge, maxAge) * 365 + rnd(0, 364);
   return new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+};
+const gerarTelefoneAngola = (usados: Set<string>) => {
+  let telefone = "";
+  do {
+    telefone = `${pick(["91", "92", "93", "94", "95", "99"])}${rnd(1000000, 9999999)}`;
+  } while (usados.has(telefone));
+  usados.add(telefone);
+  return telefone;
+};
+const gerarBilheteIdentidade = (usados: Set<string>) => {
+  let bilhete = "";
+  do {
+    bilhete = `${rnd(100000000, 999999999)}${pick(["LA", "BO", "UE", "MO", "BE"])}${String(rnd(0, 999)).padStart(3, "0")}`;
+  } while (usados.has(bilhete.toLowerCase()));
+  usados.add(bilhete.toLowerCase());
+  return bilhete;
+};
+const gerarDataNascimentoPorAnoAcademico = (anoAcademico?: string) => {
+  if (anoAcademico?.endsWith("_ano_superior")) return gerarDataNasc(18, 35);
+  if (anoAcademico?.endsWith("_ano_medio")) return gerarDataNasc(14, 22);
+  if (anoAcademico?.endsWith("_ano_fundamental")) return gerarDataNasc(6, 16);
+  return gerarDataNasc();
+};
+
+const criarPdfTeste = (nome: string) => {
+  const safeName = nome.replace(/[^a-z0-9_-]/gi, "_").toLowerCase();
+  const pdf = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF
+`;
+  return new File([pdf], `${safeName}.pdf`, { type: "application/pdf" });
+};
+
+const getCertificadoObrigatorio = (anoAcademico?: string): "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio" | null => {
+  if (anoAcademico === "7_ano_fundamental") return "certificado_6_ano_fundamental";
+  if (anoAcademico === "1_ano_medio") return "certificado_9_ano_fundamental";
+  if (anoAcademico === "1_ano_superior") return "certificado_ensino_medio";
+  return null;
+};
+
+const criarFormDataEstudante = (payload: Record<string, unknown>) => {
+  const form = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    form.append(key, String(value));
+  });
+
+  const anoAcademico = String(payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental || "");
+  const isSuperior = anoAcademico.endsWith("_ano_superior");
+
+  form.append("bi_estudante", criarPdfTeste(`bi_estudante_${payload.nome || "estudante"}`));
+  if (!isSuperior) {
+    form.append("bi_responsavel", criarPdfTeste(`bi_responsavel_${payload.nome || "responsavel"}`));
+  }
+
+  const certificado = getCertificadoObrigatorio(anoAcademico);
+  if (certificado) {
+    form.append(certificado, criarPdfTeste(`${certificado}_${payload.nome || "estudante"}`));
+  }
+
+  return form;
 };
 
 const toggleSelecionado = (lista: string[], valor: string) =>
@@ -518,12 +591,13 @@ export default function PageContent() {
     const url = apiUrl() + path;
     const token = tok || academia?.token || tokenStorage.get() || "";
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+      const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
       const r = await fetch(url, {
         method,
         headers,
-        body: body != null ? JSON.stringify(body) : undefined,
+        body: body == null ? undefined : isFormData ? body : JSON.stringify(body),
       });
       const data = await r.json().catch(() => ({}));
       return { ok: r.status >= 200 && r.status < 300, status: r.status, data };
@@ -918,6 +992,31 @@ export default function PageContent() {
       ? anosSuperior.filter(a => cfg.anosSuperiorSelecionados.includes(a))
       : anosSuperior;
 
+    if (modo === "fundamental" && anosFSelecionados.length === 0) {
+      addLog("Não há anos fundamentais disponíveis para cadastrar estudantes conforme a documentação.", "warn");
+      return;
+    }
+    if (modo === "medio" && (!cursoMedioAlvo || anosMedioSelecionados.length === 0)) {
+      addLog("Selecione/crie um curso médio ativo com anos acadêmicos antes de cadastrar estudantes do médio.", "warn");
+      return;
+    }
+    if (modo === "superior" && (!cursoSuperiorAlvo || anosSuperiorSelecionados.length === 0)) {
+      addLog("Selecione/crie um curso superior ativo com anos acadêmicos antes de cadastrar estudantes do superior.", "warn");
+      return;
+    }
+    if (modo === "misto") {
+      const qtdFundamental = Math.floor(cfg.qtd * cfg.pctFundamental / 100);
+      const qtdMedio = cfg.qtd - qtdFundamental;
+      if (qtdFundamental > 0 && anosFSelecionados.length === 0) {
+        addLog("A geração mista inclui fundamental, mas não há anos fundamentais disponíveis.", "warn");
+        return;
+      }
+      if (qtdMedio > 0 && (!cursoMedioAlvo || anosMedioSelecionados.length === 0)) {
+        addLog("A geração mista inclui médio, mas falta curso médio ativo com anos acadêmicos.", "warn");
+        return;
+      }
+    }
+
     const anosFundamentaisGeracao = cfg.anoFundamental === "random" && cfg.anosFundamentalSelecionados.length > 0
       ? ordenarAnosAcademicos(anosFSelecionados)
       : [];
@@ -934,15 +1033,19 @@ export default function PageContent() {
       : modo === "fundamental" ? (anosFundamentaisGeracao.length || 1)
       : 1;
     const totalEstudantes = cfg.qtd * fatorMultiplicador;
-    addLog(`Gerando ${totalEstudantes} estudante(s) via async (modo: ${modo})...`, "step");
+    addLog(`Gerando ${totalEstudantes} estudante(s) via multipart com PDFs (modo: ${modo})...`, "step");
+
+    const bilhetesUsadosCadastro = new Set(estudantes.flatMap(e => [
+      e.bilhete_identidade,
+      e.bilhete_identidade_responsavel,
+    ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
+    const telefonesUsadosCadastro = new Set<string>();
 
     const items: any[] = Array.from({ length: totalEstudantes }, (_, idx) => {
       const { nome, genero } = gerarNome();
       const payload: any = {
         nome,
         genero,
-        data_nascimento: gerarDataNasc(),
-        bilhete_identidade: `${rnd(100000000, 999999999)}LA0${rnd(10, 99)}`,
       };
 
       if (modo === "superior") {
@@ -997,42 +1100,42 @@ export default function PageContent() {
         }
       }
 
+      const anoAcademico = payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental;
+      payload.data_nascimento = gerarDataNascimentoPorAnoAcademico(anoAcademico);
+      payload.bilhete_identidade = gerarBilheteIdentidade(bilhetesUsadosCadastro);
+      payload.telefone = gerarTelefoneAngola(telefonesUsadosCadastro);
+
+      if (!payload.ano_superior) {
+        payload.bilhete_identidade_responsavel = gerarBilheteIdentidade(bilhetesUsadosCadastro);
+        payload.telefone_responsavel = gerarTelefoneAngola(telefonesUsadosCadastro);
+      }
+
       return payload;
     });
-
-    const BATCH_MAX = 1000;
-    const lotes = Array.from({ length: Math.ceil(items.length / BATCH_MAX) }, (_, i) =>
-      items.slice(i * BATCH_MAX, (i + 1) * BATCH_MAX)
-    );
 
     let okTotal = 0;
     let errTotal = 0;
 
-    for (let i = 0; i < lotes.length; i++) {
+    addLog("  Enviando cadastros pelo endpoint multipart /academia/estudante/register com PDFs de teste gerados no navegador...", "info");
+
+    for (let i = 0; i < items.length; i++) {
       if (cancelRef.current) break;
-      const lote = lotes[i];
-      addLog(`  Enviando lote ${i + 1}/${lotes.length} (${lote.length} estudante(s))...`, "info");
+      const item = items[i];
+      const form = criarFormDataEstudante(item);
+      const { ok, data } = await callApi("POST", "/academia/estudante/register", form, academia.token);
 
-      const { ok, data } = await callApi("POST", "/academia/estudante/register/async", lote, academia.token);
-      if (!ok) {
-        const errMsg = (data as any)?.message || (data as any)?.error || "Erro ao submeter";
-        addLog(`  ✗ Erro no lote ${i + 1}: ${errMsg}`, "err");
-        return;
-      }
-      const jobId = (data as any)?.job_id;
-      if (!jobId) { addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err"); return; }
-      addLog(`  Job ${jobId} criado — ${(data as any)?.total_items} estudante(s) na fila`, "info");
-
-      const result = await acompanharJob(jobId, `Estudantes [lote ${i + 1}]`);
-      if (!result.timedOut) {
-        okTotal += result.ok;
-        errTotal += result.err;
+      if (ok) {
+        okTotal++;
+        const codigo = (data as any)?.data?.codigo_estudante || (data as any)?.codigo_estudante || "sem código retornado";
+        addLog(`  ✓ Est. ${i + 1}/${items.length}: ${item.nome} (${codigo})`, "dim");
+      } else {
+        errTotal++;
+        const errMsg = (data as any)?.details?.[0]?.message || (data as any)?.message || (data as any)?.error || "Erro ao cadastrar";
+        addLog(`  ✗ Est. ${i + 1}/${items.length}: ${item.nome} — ${errMsg}`, "err");
       }
     }
 
-    if (okTotal > 0 || errTotal > 0) {
-      addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 ? "ok" : "err");
-    }
+    addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
     await sleep(3000);
     await refreshData();
   };
@@ -2181,11 +2284,11 @@ export default function PageContent() {
 
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
-                  Criar {estudanteConfig.qtd} estudante(s) em lote
+                  Criar {estudanteConfig.qtd} estudante(s) com PDFs
                 </Btn>
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                Criação em lote — até 1000 estudantes por envio.
+                Criação sequencial via multipart/form-data — PDFs de teste são gerados automaticamente para os documentos obrigatórios.
               </p>
             </Section>
 
