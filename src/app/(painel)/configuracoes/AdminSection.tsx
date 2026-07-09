@@ -638,7 +638,7 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
             Ano letivo oficial global
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Responsabilidade do admin FPP: definir a referência inicial obrigatória por tipo. O ano deve ser informado no formato YYYY_YYYY; depois disso, o global evolui automaticamente quando as academias finalizam seus anos letivos e ficam alinhadas.
+            Responsabilidade do admin FPP: definir a referência inicial obrigatória por tipo. Depois disso, o global evolui automaticamente quando as academias finalizam seus anos letivos e ficam alinhadas.
           </p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold ${isFPP ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
@@ -712,7 +712,7 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
               Períodos fixos e finalizações de ano letivo por tipo
             </h3>
             <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-              Os períodos são fixos e imutáveis na API: escolar usa 09_07 e superior usa 10_07. Estes valores validam faltas, bloqueiam finalizações fora da janela permitida e calculam o intervalo real de datas de cada ano letivo.
+              Os períodos são fixos e imutáveis no sistema. Eles validam faltas, bloqueiam finalizações fora da janela permitida e calculam o intervalo real de datas de cada ano letivo.
             </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -729,11 +729,11 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
                     <span className="rounded-full bg-white px-2.5 py-1 text-sm font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-300">{totalFinalizacoes} finalização(ões)</span>
                   </div>
                   <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Período fixo da API</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Período fixo do sistema</p>
                     <p className="mt-1 text-lg font-semibold text-gray-800 dark:text-white">
-                      {formatPeriodoAnoLetivo(periodos[type])} <code className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-sm dark:bg-gray-800">{periodos[type] || "—"}</code>
+                      {formatPeriodoAnoLetivo(periodos[type])}
                     </p>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Imutável; não há envio manual de período nesta tela.</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Imutável; não há alteração manual de período nesta tela.</p>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg bg-white p-3 dark:bg-gray-900/60">
