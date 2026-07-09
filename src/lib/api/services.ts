@@ -1022,7 +1022,7 @@ export const academiaService = {
     ),
 
   atualizarCurso: (cursoId: string, data: AtualizarCursoRequest, token?: string) =>
-    api.put<{ message: string; data?: Curso; nome: string; type?: string; anos_academicos?: string[]; materias_chave?: Curso['materias_chave']; periodos?: string[] }>(
+    api.put<{ message: string; data?: Curso; nome: string; type?: string; modelo?: Curso['modelo']; anos_academicos?: string[]; periodos?: string[] }>(
       `/academia/curso/${cursoId}/dados`,
       data,
       { token: token || tokenStorage.get() || undefined }

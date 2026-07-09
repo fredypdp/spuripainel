@@ -350,10 +350,8 @@ export interface MateriasChaveCursoAnoDTO {
 export type CriarCursoMedioRequest = {
   nome: string;
   type: 'medio';
-  /** Obrigatório para médio; sequência contínua iniciada em 1_ano_medio. */
-  anos_academicos: AnoMedio[];
-  /** Obrigatório para médio: um item não vazio por ano acadêmico do curso. */
-  materias_chave: MateriasChaveCursoAnoDTO[];
+  /** Modelo do curso médio. O backend usa essa escolha para montar os anos automaticamente. */
+  modelo: 'liceu' | 'tecnico';
 };
 
 export type CriarCursoSuperiorRequest = {
@@ -367,8 +365,6 @@ export type CriarCursoRequest = CriarCursoMedioRequest | CriarCursoSuperiorReque
 
 export type AtualizarCursoRequest = {
   nome?: string;
-  /** Permitido apenas para cursos médios; não manipula anos acadêmicos. */
-  materias_chave?: MateriasChaveCursoAnoDTO[];
 };
 
 export type CriarMateriaFundamentalRequest = {
@@ -389,8 +385,8 @@ export type CriarMateriaMedioRequest = {
   anos_academicos: AnoMedio[];
   curso_id: string;
   periodo?: never;
-  pendencia_permitida?: boolean;
-  pendencia_nivel_conclusao?: AnoMedio;
+  pendencia_permitida?: never;
+  pendencia_nivel_conclusao?: never;
 };
 
 export type CriarMateriaSuperiorRequest = {
@@ -412,6 +408,10 @@ export type CriarMateriaRequest =
 
 export interface AtualizarMateriaRequest {
   nome?: string;
+  /** Apenas matérias superiores podem aceitar pendência. */
+  pendencia_permitida?: boolean;
+  /** Apenas matérias superiores: semestre limite para concluir a pendência. */
+  pendencia_nivel_conclusao?: string;
 }
 
 export interface AtualizarDadosPessoaisEstudanteRequest {
@@ -964,9 +964,8 @@ export interface Curso {
   id: string;
   nome: string;
   type: CursoType;
+  modelo?: 'liceu' | 'tecnico';
   anos_academicos: string[];
-  /** Apenas médio: configuração curricular usada pela avaliação final do Médio. */
-  materias_chave?: MateriasChaveCursoAnoDTO[];
   periodos?: string[];
   codigo_academia: string;
   status: 'ativo' | 'inativo' | 'deletado';
