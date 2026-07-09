@@ -49,7 +49,6 @@ function toAnoOptions(anos?: string[]): AnoOpcao[] {
 function isFundamental(ano?: string) { return !!ano && ano.includes("fundamental"); }
 function isMedio(ano?: string) { return !!ano && ano.includes("medio"); }
 function isSuperior(ano?: string) { return !!ano && ano.includes("superior"); }
-function fileName(file?: File) { return file ? "✓ anexado" : "Não anexado"; }
 
 export default function MatriculaPublicPage() {
   const [step, setStep] = useState<StepId>(0);
@@ -113,24 +112,36 @@ export default function MatriculaPublicPage() {
   }, [academiaFundamental, academiaMedia, academiaMista, academiaSuperior, anosFundamental, curso, cursosMedio]);
 
   const documentos = useMemo<DocumentoOpcao[]>(() => {
-    const docs: DocumentoOpcao[] = [
-      { key: "bi_estudante", label: "Bilhete de identidade do estudante", obrigatorio: !!form.bilhete_identidade?.trim() },
-      { key: "bi_responsavel", label: "Bilhete de identidade do responsável", obrigatorio: !isSuperior(anoSelecionado ?? undefined) },
-      { key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !form.bilhete_identidade?.trim() },
-      { key: "declaracao", label: "Declaração", obrigatorio: false },
-    ];
+    const anoAtual = anoSelecionado ?? undefined;
+    const estudantePrecisaResponsavel = !isSuperior(anoAtual);
+    const temBilheteEstudante = !!form.bilhete_identidade?.trim();
+    const docs: DocumentoOpcao[] = [];
 
-    if (anoSelecionado && ["7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental"].includes(anoSelecionado)) {
-      docs.push({ key: "certificado_6_ano_fundamental", label: "Certificado da 6.ª classe", obrigatorio: !files.declaracao });
-    } else if (anoSelecionado && isMedio(anoSelecionado)) {
-      docs.push({ key: "certificado_9_ano_fundamental", label: "Certificado da 9.ª classe", obrigatorio: !files.declaracao });
-    } else if (anoSelecionado && isSuperior(anoSelecionado)) {
-      docs.push({ key: "certificado_ensino_medio", label: "Certificado do ensino médio", obrigatorio: !files.declaracao });
-    } else {
-      docs[3] = { ...docs[3], obrigatorio: true };
+    if (temBilheteEstudante) {
+      docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
     }
+
+    if (estudantePrecisaResponsavel) {
+      docs.push(
+        { key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: true },
+        { key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante }
+      );
+    }
+
+    let certificadoAplicavel: DocumentoOpcao | null = null;
+    if (anoAtual && ["7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental"].includes(anoAtual)) {
+      certificadoAplicavel = { key: "certificado_6_ano_fundamental", label: "Certificado da 6.ª classe", obrigatorio: !files.declaracao };
+    } else if (anoAtual && isMedio(anoAtual)) {
+      certificadoAplicavel = { key: "certificado_9_ano_fundamental", label: "Certificado da 9.ª classe", obrigatorio: !files.declaracao };
+    } else if (anoAtual && isSuperior(anoAtual)) {
+      certificadoAplicavel = { key: "certificado_ensino_medio", label: "Certificado do ensino médio", obrigatorio: !files.declaracao };
+    }
+
+    docs.push({ key: "declaracao", label: "Declaração da escola", obrigatorio: !certificadoAplicavel || !files[certificadoAplicavel.key] });
+    if (certificadoAplicavel) docs.push(certificadoAplicavel);
+
     return docs;
-  }, [anoSelecionado, files.declaracao, form.bilhete_identidade]);
+  }, [anoSelecionado, files, form.bilhete_identidade]);
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
@@ -395,7 +406,7 @@ export default function MatriculaPublicPage() {
 
           {step === 4 && (
             <section className="space-y-4">
-              <StepTitle title="5. Anexar documentos" description={`Mostrando apenas documentos exigidos para ${getAnoLabel(anoSelecionado ?? undefined)}.`} />
+              <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo pode ter até 10MB.`} />
               <div className="grid gap-3 sm:grid-cols-2">
                 {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setFiles((prev) => ({ ...prev, [doc.key]: file })); }} />)}
               </div>
@@ -406,7 +417,7 @@ export default function MatriculaPublicPage() {
             <section className="space-y-4">
               <StepTitle title="6. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação." />
               <div className="grid gap-2 sm:grid-cols-2">{resumo.map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>)}</div>
-              <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {files[doc.key] ? "✓ verificado" : "Não anexado"}</p>)}</div></div>
+              <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {files[doc.key] ? "✓ anexado" : doc.obrigatorio ? "Ainda falta" : "Não anexado"}</p>)}</div></div>
               {sucesso && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-500/10 dark:text-green-300">{sucesso}</p>}
             </section>
           )}
