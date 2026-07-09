@@ -285,6 +285,10 @@ export default function CadastrarEstudantePageContent() {
       }
     }
 
+    const anoAnterior = getAnoAcademicoAnterior(anoAtual);
+    const declaracaoAplicavel: DocumentoOpcao | null = anoAnterior
+      ? { key: 'declaracao', label: `Declaração escolar do ${getAnoLabel(anoAnterior)}`, obrigatorio: false }
+      : null;
     let certificadoAplicavel: DocumentoOpcao | null = null;
     if (anoAtual === '7_ano_fundamental') {
       certificadoAplicavel = { key: 'certificado_6_ano_fundamental', label: documentLabels.certificado_6_ano_fundamental, obrigatorio: !declaracaoFile };
@@ -295,10 +299,12 @@ export default function CadastrarEstudantePageContent() {
     }
 
     if (certificadoAplicavel) {
-      if (!({ certificado_6_ano_fundamental: certificado6File, certificado_9_ano_fundamental: certificado9File, certificado_ensino_medio: certificadoMedioFile }[certificadoAplicavel.key as 'certificado_6_ano_fundamental' | 'certificado_9_ano_fundamental' | 'certificado_ensino_medio'])) {
-        docs.push({ key: 'declaracao', label: documentLabels.declaracao, obrigatorio: false });
+      if (declaracaoAplicavel && !({ certificado_6_ano_fundamental: certificado6File, certificado_9_ano_fundamental: certificado9File, certificado_ensino_medio: certificadoMedioFile }[certificadoAplicavel.key as 'certificado_6_ano_fundamental' | 'certificado_9_ano_fundamental' | 'certificado_ensino_medio'])) {
+        docs.push(declaracaoAplicavel);
       }
       if (!declaracaoFile) docs.push(certificadoAplicavel);
+    } else if (declaracaoAplicavel) {
+      docs.push({ ...declaracaoAplicavel, obrigatorio: true });
     }
 
     return docs;
@@ -653,11 +659,6 @@ export default function CadastrarEstudantePageContent() {
                 {anoEscolarSelecionado === '1_ano_fundamental' && (
                   <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
                     O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior.
-                  </div>
-                )}
-                {declaracaoAnoAcademico && (
-                  <div className="col-span-1 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 sm:col-span-2">
-                    Se optar por enviar declaração, ela deve comprovar exatamente o <strong>{getAnoLabel(declaracaoAnoAcademico)}</strong>. Esse valor será enviado automaticamente como <strong>declaracao_ano_academico</strong>.
                   </div>
                 )}
                 {documentos.map((doc) => (
