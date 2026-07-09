@@ -573,8 +573,8 @@ export interface ListarFaltasParams {
  * Proteção: autenticado (qualquer tipo)
  */
 export interface ListarAvaliacoesParams {
-  /** 'fundamental' | 'medio' | 'superior' */
-  tipo_ensino?: TipoEnsino;
+  /** Filtro oficial atual da API: 'fundamental' | 'medio' | 'superior'. */
+  nivel?: TipoEnsino;
   /** Ex: '2025_2026' */
   ano_letivo?: string;
   /** Ano académico/semestre em que o estudante foi re/aprovado. Ex: '3_ano_fundamental' ou '2_semestre' */
@@ -598,8 +598,8 @@ export interface ListarAvaliacoesParams {
  * Proteção: autenticado (qualquer tipo)
  */
 export interface ListarAprovacoesParams {
-  /** 'fundamental' | 'medio' | 'superior' */
-  tipo_ensino?: TipoEnsino;
+  /** Filtro oficial atual da API: 'fundamental' | 'medio' | 'superior'. */
+  nivel?: TipoEnsino;
   /** Ex: '2025_2026' */
   ano_letivo?: string;
   /** Ano académico/semestre em que o estudante foi aprovado. Ex: '3_ano_fundamental' ou '2_semestre' */
@@ -623,8 +623,8 @@ export interface ListarAprovacoesParams {
  * Proteção: autenticado (qualquer tipo)
  */
 export interface ListarReprovacoesParams {
-  /** 'fundamental' | 'medio' | 'superior' */
-  tipo_ensino?: TipoEnsino;
+  /** Filtro oficial atual da API: 'fundamental' | 'medio' | 'superior'. */
+  nivel?: TipoEnsino;
   /** Ex: '2025_2026' */
   ano_letivo?: string;
   /** Ano académico/semestre em que o estudante foi reprovado. Ex: '3_ano_fundamental' ou '2_semestre' */
@@ -923,6 +923,17 @@ export interface AprovacaoAno {
  * Avaliação final — projecção projection_avaliacao_final.
  * Campos alinhados com AvaliacaoFinalDTO do backend.
  */
+
+export interface AvaliacaoFinalResultadoMateria {
+  materia_id: string;
+  nota_final: number;
+  aprovado: boolean;
+  type: string;
+  formula_snapshot?: AvaliacaoFinalFormulaTextual;
+  regra_avaliacao_final_id?: string;
+  pendencia_permitida?: boolean;
+}
+
 export interface AvaliacaoFinal {
   id: string;
   event_id: string;
@@ -941,6 +952,8 @@ export interface AvaliacaoFinal {
   regra_avaliacao_final_id?: string;
   formula_snapshot?: AvaliacaoFinalFormulaTextual;
   aplica_se_reprovado_em_type?: string | null;
+  aprovado_com_pendencia?: boolean;
+  resultados_materias?: AvaliacaoFinalResultadoMateria[];
   observacao?: string;
   registered_at: string;
   version: number;
