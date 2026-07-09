@@ -294,6 +294,29 @@ export default function MatriculaPublicPage() {
     }
   }
 
+  function setDocumentoFile(key: FileKey, file?: File) {
+    if (file && key === "cedula_estudante") setField("bilhete_identidade", "");
+
+    setFiles((prev) => {
+      const next = { ...prev, [key]: file };
+
+      if (file && key === "bi_estudante") delete next.cedula_estudante;
+      if (file && key === "cedula_estudante") {
+        delete next.bi_estudante;
+      }
+      if (file && key === "declaracao") {
+        delete next.certificado_6_ano_fundamental;
+        delete next.certificado_9_ano_fundamental;
+        delete next.certificado_ensino_medio;
+      }
+      if (file && (key === "certificado_6_ano_fundamental" || key === "certificado_9_ano_fundamental" || key === "certificado_ensino_medio")) {
+        delete next.declaracao;
+      }
+
+      return next;
+    });
+  }
+
   const resumo = [
     ["Instituição", academia ? `${academia.nome} (${academia.codigo_academia})` : "-"],
     ["Curso", curso?.nome ?? "Não se aplica"],
@@ -392,7 +415,7 @@ export default function MatriculaPublicPage() {
                 <div className="sm:col-span-2"><Label>Nome completo *</Label><Input placeholder="Nome completo do estudante" defaultValue={form.nome} onChange={(e) => setField("nome", e.target.value)} /></div>
                 <div><Label>Gênero *</Label><div className="flex gap-2">{(["masculino", "feminino"] as Genero[]).map((item) => <button key={item} type="button" onClick={() => setField("genero", item)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${form.genero === item ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{item === "masculino" ? "Masculino" : "Feminino"}</button>)}</div></div>
                 <BirthDateInput id="matricula-data-nascimento" required value={form.data_nascimento} onChange={(value) => setField("data_nascimento", value)} />
-                <div><Label>Bilhete de Identidade do estudante</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade", e.target.value)} hint="Use 9 números, 2 letras e 3 números." /></div>
+                <div><Label>Bilhete de Identidade do estudante</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} hint="Use 9 números, 2 letras e 3 números." /></div>
                 <div><Label>Bilhete de Identidade do responsável</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório fora do ensino superior." /></div>
               </div>
             </section>
@@ -413,7 +436,7 @@ export default function MatriculaPublicPage() {
             <section className="space-y-4">
               <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo pode ter até 10MB.`} />
               <div className="grid gap-3 sm:grid-cols-2">
-                {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setFiles((prev) => ({ ...prev, [doc.key]: file })); }} />)}
+                {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
               </div>
             </section>
           )}

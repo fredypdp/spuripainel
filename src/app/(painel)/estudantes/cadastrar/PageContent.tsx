@@ -295,6 +295,16 @@ export default function CadastrarEstudantePageContent() {
     certificado_ensino_medio: certificadoMedioFile,
   }[key]);
 
+  const limparDocumentos = () => {
+    setBiEstudanteFile(undefined);
+    setBiResponsavelFile(undefined);
+    setCedulaEstudanteFile(undefined);
+    setDeclaracaoFile(undefined);
+    setCertificado6File(undefined);
+    setCertificado9File(undefined);
+    setCertificadoMedioFile(undefined);
+  };
+
   const setDocumentoFile = (key: FileKey, file?: File) => {
     const setters: Record<FileKey, (file?: File) => void> = {
       bi_estudante: setBiEstudanteFile,
@@ -305,7 +315,22 @@ export default function CadastrarEstudantePageContent() {
       certificado_9_ano_fundamental: setCertificado9File,
       certificado_ensino_medio: setCertificadoMedioFile,
     };
+
     setters[key](file);
+
+    if (file && key === 'bi_estudante') setCedulaEstudanteFile(undefined);
+    if (file && key === 'cedula_estudante') {
+      setBiEstudanteFile(undefined);
+      setBilheteIdentidade('');
+    }
+    if (file && key === 'declaracao') {
+      setCertificado6File(undefined);
+      setCertificado9File(undefined);
+      setCertificadoMedioFile(undefined);
+    }
+    if (file && (key === 'certificado_6_ano_fundamental' || key === 'certificado_9_ano_fundamental' || key === 'certificado_ensino_medio')) {
+      setDeclaracaoFile(undefined);
+    }
   };
 
 
@@ -510,6 +535,7 @@ export default function CadastrarEstudantePageContent() {
                       setCursoSelecionado(cursosAtivos.find((curso) => curso.id === value) ?? null);
                       if (isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)) {
                         setAnoEscolarSelecionado(null);
+                        limparDocumentos();
                       }
                     }}
                     searchable
@@ -525,7 +551,10 @@ export default function CadastrarEstudantePageContent() {
                 <SmartSelect
                   value={anoEscolarSelecionado ?? ''}
                   options={getAnosDisponiveis()}
-                  onChange={(value) => setAnoEscolarSelecionado(value || null)}
+                  onChange={(value) => {
+                    setAnoEscolarSelecionado(value || null);
+                    limparDocumentos();
+                  }}
                   searchable
                   placeholder={
                     deveMostrarCurso() && !cursoSelecionado
@@ -572,7 +601,10 @@ export default function CadastrarEstudantePageContent() {
                   type="text"
                   placeholder="Ex: 123456789012AB"
                   value={bilheteIdentidade}
-                  onChange={e => setBilheteIdentidade(normalizeBi(e.target.value))}
+                  onChange={e => {
+                    setBilheteIdentidade(normalizeBi(e.target.value));
+                    setCedulaEstudanteFile(undefined);
+                  }}
                   disabled={carregandoCadastro}
                 />
               </div>
