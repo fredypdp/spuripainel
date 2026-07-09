@@ -197,6 +197,7 @@ function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteReque
     curso_medio_id: data.curso_medio_id ?? null,
     ano_superior: data.ano_superior ?? null,
     curso_superior_id: data.curso_superior_id ?? null,
+    declaracao_ano_academico: data.declaracao_ano_academico?.trim() || undefined,
   };
 
   return payload;

@@ -140,6 +140,8 @@ export interface CriarEstudanteRequest {
   curso_medio_id?: string | null;
   ano_superior?: string | null;
   curso_superior_id?: string | null;
+  /** Obrigatório quando `declaracao` for enviada; deve ser o ano acadêmico imediatamente anterior. */
+  declaracao_ano_academico?: string;
   bi_estudante?: File;
   bi_responsavel?: File;
   cedula_estudante?: File;
@@ -216,6 +218,8 @@ export interface CriarSolicitacaoMatriculaRequest {
   curso_medio_id?: string;
   ano_superior?: string;
   curso_superior_id?: string;
+  /** Obrigatório quando `declaracao` for enviada; deve ser o ano acadêmico imediatamente anterior. */
+  declaracao_ano_academico?: string;
   bi_estudante?: File;
   bi_responsavel?: File;
   cedula_estudante?: File;
