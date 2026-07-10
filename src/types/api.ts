@@ -237,13 +237,9 @@ export interface CriarSolicitacaoMatriculaResponse {
 }
 
 export interface SolicitacaoMatriculaDocumento {
-  path?: string;
+  path: string;
   file_url?: string;
   download_url?: string;
-  nome?: string;
-  url?: string;
-  content_type?: string;
-  tamanho_bytes?: number;
 }
 
 export interface SolicitacaoMatricula {
@@ -265,7 +261,7 @@ export interface SolicitacaoMatricula {
   ano_superior?: string;
   curso_superior_id?: string;
   curso_superior_nome?: string;
-  documentos?: Record<string, SolicitacaoMatriculaDocumento | string>;
+  documentos?: Record<string, SolicitacaoMatriculaDocumento>;
   status: SolicitacaoMatriculaStatus;
   codigo_estudante_gerado?: string;
   motivo_reprovacao?: string;
@@ -317,7 +313,7 @@ export interface AccountFileUsage {
 }
 
 export interface StorageQuotaResponse {
-  provider: string;
+  provider: 'mega' | 'local' | string;
   total_bytes: number;
   used_bytes: number;
   available_bytes: number;

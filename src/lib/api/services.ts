@@ -1,7 +1,7 @@
 // src/lib/api/services.ts
 // Rotas alinhadas à documentação da API em src/docs/Documentação.md — versão 2.1.1
 
-import { api, tokenStorage } from './client';
+import { api, fetchApiBlob, tokenStorage } from './client';
 import type { AsyncBatchResponse } from '@/lib/api/job-service';
 import type {
   AuthResponse,
@@ -669,6 +669,12 @@ export const academiaService = {
     api.put<MensagemResponse>(
       `/academia/solicitacao-matricula/${encodeURIComponent(codigo)}/reprovar`,
       { motivo_reprovacao: data.motivo_reprovacao?.trim() },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  baixarDocumentoSolicitacaoMatricula: (codigo: string, campo: string, token?: string) =>
+    fetchApiBlob(
+      `/documentos/solicitacoes-matricula/${encodeURIComponent(codigo)}/${encodeURIComponent(campo)}/download`,
       { token: token || tokenStorage.get() || undefined }
     ),
 

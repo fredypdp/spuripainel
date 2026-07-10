@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { academiaService, adminService } from "@/lib/api/services";
 import { useUserType } from "@/hooks/useRoutePermission";
-import type { SolicitacaoMatricula, SolicitacaoMatriculaDocumento, SolicitacaoMatriculaStatus } from "@/types/api";
+import type { SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
 const statusOptions: Array<SolicitacaoMatriculaStatus | ""> = ["", "pendente", "aprovada", "reprovada"];
@@ -37,9 +37,19 @@ function anoOrder(value: string) {
   return nivelOrder * 100 + Number(match[1]);
 }
 
-function documentoUrl(value: SolicitacaoMatriculaDocumento | string) {
-  if (typeof value === "string") return value;
-  return value.file_url || value.download_url || value.url || value.path;
+function documentoNome(campo: string) {
+  return `${docLabels[campo] || campo}.pdf`;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 function formatDate(value?: string) {
   if (!value) return "-";
@@ -61,6 +71,7 @@ export default function PageContent() {
   const [motivo, setMotivo] = useState<Record<string, string>>({});
   const [anoSelecionado, setAnoSelecionado] = useState<string | null>(null);
   const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState<string | null>(null);
+  const [documentoBaixando, setDocumentoBaixando] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -101,6 +112,18 @@ export default function PageContent() {
   );
 
   async function aprovar(codigo: string) { await academiaService.aprovarSolicitacaoMatricula(codigo); await carregar(); }
+  async function baixarDocumento(codigo: string, campo: string) {
+    setDocumentoBaixando(`${codigo}:${campo}`);
+    setErro("");
+    try {
+      const blob = await academiaService.baixarDocumentoSolicitacaoMatricula(codigo, campo);
+      downloadBlob(blob, documentoNome(campo));
+    } catch (e: any) {
+      setErro(e?.message ?? "Não foi possível baixar o documento.");
+    } finally {
+      setDocumentoBaixando(null);
+    }
+  }
   async function reprovar(codigo: string) {
     const m = motivo[codigo]?.trim();
     if (!m) return alert("Informe o motivo da reprovação.");
@@ -176,7 +199,7 @@ export default function PageContent() {
             <Info label="BI responsável" value={solicitacao.bilhete_identidade_responsavel || "-"} />
             <Info label="Criada em" value={formatDateTime(solicitacao.created_at)} />
           </div>
-          {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const url = documentoUrl(value); return url ? <a key={key} href={url} target="_blank" rel="noreferrer" className="rounded-full border border-gray-200 px-3 py-1 text-xs text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300">{docLabels[key] || key}</a> : <span key={key} className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-500 dark:border-gray-700">{docLabels[key] || key}</span>; })}</div></div>}
+          {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><p className="mb-2 text-xs text-gray-500">Downloads são feitos pelas rotas autenticadas do backend, sem abrir links privados do storage.</p><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const disabled = documentoBaixando === `${solicitacao.codigo_solicitacao}:${key}` || !value?.path; return <button key={key} type="button" disabled={disabled} onClick={() => baixarDocumento(solicitacao.codigo_solicitacao, key)} title={value?.path || undefined} className="rounded-full border border-gray-200 px-3 py-1 text-xs text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-brand-300">{documentoBaixando === `${solicitacao.codigo_solicitacao}:${key}` ? "Baixando..." : docLabels[key] || key}</button>; })}</div></div>}
           {!isAdmin && solicitacao.status === "pendente" && <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button onClick={() => aprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white">Aprovar e criar estudante</button><input placeholder="Motivo da reprovação" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onChange={(e) => setMotivo((p) => ({ ...p, [solicitacao.codigo_solicitacao]: e.target.value }))} /><button onClick={() => reprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white">Reprovar</button></div>}
         </section>
       )}
