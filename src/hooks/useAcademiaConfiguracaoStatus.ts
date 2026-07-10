@@ -55,8 +55,12 @@ function byCourseYearCoverage(cursos: Curso[], predicate: (curso: Curso, ano: st
   return escopos.length > 0 && escopos.every(({ curso, ano }) => predicate(curso, ano));
 }
 
-function byFundamentalYearCoverage(anos: string[], predicate: (ano: string) => boolean) {
+function byAcademicYearCoverage(anos: string[], predicate: (ano: string) => boolean) {
   return anos.length > 0 && anos.every(predicate);
+}
+
+function hasStudentInTurma(turma?: Turma) {
+  return Boolean(turma && (turma.estudantes ?? []).length > 0);
 }
 
 function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string): ConfiguracaoGuiaStep[] {
@@ -87,21 +91,24 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string): Conf
       }), "Cobertura exigida por curso, ano superior e semestre."),
       base("categorias-superiores", "Criar categorias de nota", "Configure categorias para todos os anos superiores em uso.", "/configuracoes/regras-avaliacao-final", byCourseYearCoverage(cursosSuperiores, (_curso, ano) => categorias.some((c) => intersects(c.anos_academicos, [ano]))), "Cobertura exigida por ano superior."),
       base("regras-superiores", "Criar regras de avaliação final", "Cadastre ao menos uma regra superior ativa.", "/configuracoes/regras-avaliacao-final", regras.some((r) => (r as any).nivel === "superior" || (r as any).type), `${regras.length} regra(s) ativa(s).`),
-      base("estudantes", "Cadastrar ou aprovar estudantes", "Tenha ao menos um estudante ativo na academia.", "/estudantes/cadastrar", estudantes.length > 0, `${estudantes.length} estudante(s) encontrado(s).`),
+      base("estudantes", "Cadastrar ou aprovar solicitações de matrícula", "Tenha ao menos um estudante ativo na academia.", "/estudantes/cadastrar", estudantes.length > 0, `${estudantes.length} estudante(s) encontrado(s).`),
       base("turmas-superiores", "Criar turmas superiores", "Crie turmas ativas para cada ano de curso superior.", "/gerenciamento/turmas", byCourseYearCoverage(cursosSuperiores, (curso, ano) => turmas.some((t) => t.curso_id === curso.id && t.nivel === ano)), "Cobertura exigida por curso e ano superior."),
-      base("estudantes-turmas", "Adicionar estudantes às turmas", "Vincule pelo menos um estudante a uma turma.", "/gerenciamento/turmas", turmas.some((t) => (t.estudantes ?? []).length > 0), "Ao menos uma turma deve ter estudante vinculado."),
+      base("estudantes-turmas", "Adicionar estudantes às turmas", "Vincule pelo menos um estudante a uma turma de cada ano.", "/gerenciamento/turmas", byCourseYearCoverage(cursosSuperiores, (curso, ano) => hasStudentInTurma(turmas.find((t) => t.curso_id === curso.id && t.nivel === ano))), "Cobertura exigida por curso e ano acadêmico."),
     ]);
   } else {
     const isFundamental = nivelEscolar === "fundamental" || nivelEscolar === "misto";
     const isMedio = nivelEscolar === "medio" || nivelEscolar === "misto";
     if (isFundamental) steps.push(base("anos-fundamentais", "Cadastrar anos fundamentais", "Informe os anos fundamentais ofertados.", "/configuracoes/anos-academicos", fundamentalYears.length > 0, `${fundamentalYears.length} ano(s) fundamental(is) ofertado(s).`));
     if (isMedio) steps.push(base("cursos-medios", "Criar cursos médios", "Cadastre os cursos médios e seus modelos.", "/gerenciamento/cursos", cursosMedios.length > 0, `${cursosMedios.length} curso(s) médio(s) ativo(s).`));
-    if (isFundamental) steps.push(base("materias-fundamentais", "Criar matérias fundamentais", "Garanta matérias para cada ano fundamental ofertado.", "/gerenciamento/materias-disciplinares", byFundamentalYearCoverage(fundamentalYears, (ano) => materias.some((m) => m.type === "fundamental" && intersects(m.anos_academicos, [ano]))), "Cobertura exigida por ano fundamental."));
+    if (isFundamental) steps.push(base("materias-fundamentais", "Criar matérias disciplinares", "Garanta matérias disciplinares para cada ano acadêmico ofertado.", "/gerenciamento/materias-disciplinares", byAcademicYearCoverage(fundamentalYears, (ano) => materias.some((m) => m.type === "fundamental" && intersects(m.anos_academicos, [ano]))), "Cobertura exigida por ano acadêmico."));
     if (isMedio) steps.push(base("materias-medias", "Criar matérias médias", "Garanta matérias para cada ano de cada curso médio.", "/gerenciamento/materias-disciplinares", byCourseYearCoverage(cursosMedios, (curso, ano) => materias.some((m) => m.type === "medio" && m.curso_id === curso.id && intersects(m.anos_academicos, [ano]))), "Cobertura exigida por curso e ano médio."));
-    steps.push(base("estudantes", "Cadastrar ou aprovar estudantes", "Tenha ao menos um estudante ativo na academia.", "/estudantes/cadastrar", estudantes.length > 0, `${estudantes.length} estudante(s) encontrado(s).`));
-    if (isFundamental) steps.push(base("turmas-fundamentais", "Criar turmas fundamentais", "Crie turmas ativas para cada ano fundamental.", "/gerenciamento/turmas", byFundamentalYearCoverage(fundamentalYears, (ano) => turmas.some((t) => !t.curso_id && t.nivel === ano)), "Cobertura exigida por ano fundamental."));
+    steps.push(base("estudantes", "Cadastrar ou aprovar solicitações de matrícula", "Tenha ao menos um estudante ativo na academia.", "/estudantes/cadastrar", estudantes.length > 0, `${estudantes.length} estudante(s) encontrado(s).`));
+    if (isFundamental) steps.push(base("turmas-fundamentais", "Criar turmas", "Crie turmas ativas para cada ano acadêmico.", "/gerenciamento/turmas", byAcademicYearCoverage(fundamentalYears, (ano) => turmas.some((t) => !t.curso_id && t.nivel === ano)), "Cobertura exigida por ano acadêmico."));
     if (isMedio) steps.push(base("turmas-medias", "Criar turmas médias", "Crie turmas ativas para cada ano de cada curso médio.", "/gerenciamento/turmas", byCourseYearCoverage(cursosMedios, (curso, ano) => turmas.some((t) => t.curso_id === curso.id && t.nivel === ano)), "Cobertura exigida por curso e ano médio."));
-    steps.push(base("estudantes-turmas", "Adicionar estudantes às turmas", "Vincule pelo menos um estudante a uma turma.", "/gerenciamento/turmas", turmas.some((t) => (t.estudantes ?? []).length > 0), "Ao menos uma turma deve ter estudante vinculado."));
+    steps.push(base("estudantes-turmas", "Adicionar estudantes às turmas", "Vincule pelo menos um estudante a uma turma de cada ano.", "/gerenciamento/turmas", [
+      !isFundamental || byAcademicYearCoverage(fundamentalYears, (ano) => hasStudentInTurma(turmas.find((t) => !t.curso_id && t.nivel === ano))),
+      !isMedio || byCourseYearCoverage(cursosMedios, (curso, ano) => hasStudentInTurma(turmas.find((t) => t.curso_id === curso.id && t.nivel === ano))),
+    ].every(Boolean), "Cobertura exigida por ano acadêmico."));
   }
 
   let previousCompleted = true;
@@ -160,11 +167,6 @@ export function useAcademiaConfiguracaoStatus() {
   }, [isAcademia, nivel, nivelEscolar]);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => {
-    const onFocus = () => reload();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [reload]);
 
   const steps = useMemo(() => buildSteps(raw, nivel, nivelEscolar), [raw, nivel, nivelEscolar]);
   const completedCount = steps.filter((step) => step.completed).length;
