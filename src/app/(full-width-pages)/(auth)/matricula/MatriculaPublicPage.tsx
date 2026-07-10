@@ -361,7 +361,7 @@ export default function MatriculaPublicPage() {
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Fazer matrícula</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Preencha os dados em poucos passos e revise antes de enviar.</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Preencha os dados em poucos passos; os PDFs serão enviados ao armazenamento definitivo da instituição após a validação da API.</p>
           </div>
           <Link href="/login" className="text-sm font-medium text-brand-500 hover:text-brand-600">Voltar</Link>
         </div>
@@ -458,7 +458,7 @@ export default function MatriculaPublicPage() {
 
           {step === 4 && (
             <section className="space-y-4">
-              <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo pode ter até 10MB.`} />
+              <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo deve ser PDF válido e pode ter até 10MB.`} />
               {anoSelecionado === "1_ano_fundamental" && (
                 <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior."]} />
               )}
@@ -470,7 +470,7 @@ export default function MatriculaPublicPage() {
 
           {step === 5 && (
             <section className="space-y-4">
-              <StepTitle title="6. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação." />
+              <StepTitle title="6. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação. A API guardará os documentos no storage da academia e retornará o código de acompanhamento." />
               <div className="grid gap-2 sm:grid-cols-2">{resumo.map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>)}</div>
               <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {files[doc.key] ? "✓ anexado" : doc.obrigatorio ? "Ainda falta" : "Não anexado"}</p>)}</div></div>
               {sucesso && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-500/10 dark:text-green-300">{sucesso}</p>}

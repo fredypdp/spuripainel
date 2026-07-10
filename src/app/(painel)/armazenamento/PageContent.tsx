@@ -43,7 +43,7 @@ const getQuotaErrorState = (e: unknown): QuotaErrorState => {
 
 const getFriendlyErrorMessage = (erro: QuotaErrorState) => {
   if (erro.status === 503 || erro.code === "SERVICE_UNAVAILABLE") {
-    return "O sistema ainda não conseguiu ler os arquivos do armazenamento. Peça à equipa responsável para verificar a configuração.";
+    return "O backend informou que a quota detalhada do storage está indisponível ou não é suportada pelo provider ativo. Peça à equipa responsável para verificar a configuração.";
   }
 
   return erro.message;
@@ -103,7 +103,7 @@ export default function PageContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Armazenamento</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Veja quanto espaço os documentos ocupam na pasta principal do Spuri e identifique o que pertence às academias ou está fora delas.
+          Veja quanto espaço os documentos ocupam no provider ativo de arquivos e identifique o que pertence às academias ou está fora delas.
         </p>
       </div>
 
@@ -129,7 +129,7 @@ export default function PageContent() {
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-sm uppercase text-gray-500 dark:text-gray-400">Origem dos arquivos: Google Drive</span>
+              <span className="text-sm uppercase text-gray-500 dark:text-gray-400">Provider de arquivos: {quota.provider?.toUpperCase() || "Storage"}</span>
               <span className="font-semibold text-gray-900 dark:text-white">{percentualUsado}% usado</span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
@@ -150,7 +150,7 @@ export default function PageContent() {
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {[
                 ["Arquivos das academias", quota.managed_human || formatBytes(quota.managed_bytes)],
-                ["Outros arquivos na pasta", quota.outside_academias_human || formatBytes(quota.outside_academias_bytes)],
+                ["Arquivos fora das academias", quota.outside_academias_human || formatBytes(quota.outside_academias_bytes)],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800">
                   <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
@@ -165,7 +165,7 @@ export default function PageContent() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Arquivos na pasta principal</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Lista dos arquivos encontrados na pasta principal do Spuri, incluindo os que ainda não estão ligados a uma academia.
+                  Lista dos arquivos conhecidos pelo provider ativo, incluindo os que ainda não estão ligados a uma academia.
                 </p>
               </div>
               <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -204,7 +204,7 @@ export default function PageContent() {
               </div>
             ) : (
               <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                Nenhum arquivo foi encontrado na pasta principal. Se isto parecer incorreto, peça à equipa responsável para rever a configuração do armazenamento.
+                Nenhum arquivo foi encontrado pelo provider ativo. Se isto parecer incorreto, peça à equipa responsável para rever a configuração do armazenamento.
               </div>
             )}
           </div>

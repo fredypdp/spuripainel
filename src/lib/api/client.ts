@@ -28,6 +28,7 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'RATE_LIMIT'
+  | 'SERVICE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
   | 'ERROR';
 
@@ -178,6 +179,44 @@ async function fetchApi<T>(
   }
 
   return response.json();
+}
+
+
+export async function fetchApiBlob(endpoint: string, options: FetchOptions = {}): Promise<Blob> {
+  const { token, ...fetchOptions } = options;
+  const headers: Record<string, string> = {
+    ...(fetchOptions.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const baseUrl = getApiBaseUrl();
+
+  if (!baseUrl) {
+    throw new Error('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env');
+  }
+
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    ...fetchOptions,
+    method: fetchOptions.method ?? 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    let errorData: ApiErrorEnvelope | undefined;
+
+    try {
+      errorData = asApiErrorEnvelope(await response.json());
+    } catch {
+      errorData = undefined;
+    }
+
+    throw new SpuriApiError(response.status, response.statusText, errorData);
+  }
+
+  return response.blob();
 }
 
 // Métodos HTTP convenientes
