@@ -338,6 +338,21 @@ export default function CadastrarEstudantePageContent() {
     certificado_ensino_medio: certificadoMedioFile,
   }[key]);
 
+  const certificadoAlternativoKey = documentos.find((doc) =>
+    doc.key === 'certificado_6_ano_fundamental' ||
+    doc.key === 'certificado_9_ano_fundamental' ||
+    doc.key === 'certificado_ensino_medio'
+  )?.key;
+  const mostrarAlternativaDocumentoEstudante = documentos.some((doc) => doc.key === 'bi_estudante') && documentos.some((doc) => doc.key === 'cedula_estudante');
+  const mostrarAlternativaAcademica = documentos.some((doc) => doc.key === 'declaracao') && !!certificadoAlternativoKey;
+  const documentosSemAlternativas = documentos.filter((doc) => {
+    if (mostrarAlternativaDocumentoEstudante && (doc.key === 'bi_estudante' || doc.key === 'cedula_estudante')) return false;
+    if (mostrarAlternativaAcademica && (doc.key === 'declaracao' || doc.key === certificadoAlternativoKey)) return false;
+    return true;
+  });
+  const documentosEstudanteAlternativos = documentos.filter((doc) => doc.key === 'bi_estudante' || doc.key === 'cedula_estudante');
+  const documentosAcademicosAlternativos = documentos.filter((doc) => doc.key === 'declaracao' || doc.key === certificadoAlternativoKey);
+
   const limparDocumentos = () => {
     setBiEstudanteFile(undefined);
     setBiResponsavelFile(undefined);
@@ -703,7 +718,7 @@ export default function CadastrarEstudantePageContent() {
                       O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante.
                     </div>
                   )}
-                  {documentos.map((doc) => (
+                  {documentosSemAlternativas.map((doc) => (
                     <DocumentUpload
                       key={doc.key}
                       id={`estudante-${doc.key}`}
@@ -717,6 +732,48 @@ export default function CadastrarEstudantePageContent() {
                       }}
                     />
                   ))}
+                  {mostrarAlternativaDocumentoEstudante && (
+                    <div className="col-span-1 grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">
+                        Documento do estudante: escolha uma das duas opções abaixo.
+                      </p>
+                      {documentosEstudanteAlternativos.map((doc) => (
+                        <DocumentUpload
+                          key={doc.key}
+                          id={`estudante-${doc.key}`}
+                          label={doc.label}
+                          required={doc.obrigatorio}
+                          file={getDocumentoFile(doc.key)}
+                          onChange={(file, error) => {
+                            setDocumentoFile(doc.key, file);
+                            if (error) setValidationErrors([error]);
+                            else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {mostrarAlternativaAcademica && (
+                    <div className="col-span-1 grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">
+                        Comprovativo acadêmico: escolha uma das duas opções abaixo.
+                      </p>
+                      {documentosAcademicosAlternativos.map((doc) => (
+                        <DocumentUpload
+                          key={doc.key}
+                          id={`estudante-${doc.key}`}
+                          label={doc.label}
+                          required={doc.obrigatorio}
+                          file={getDocumentoFile(doc.key)}
+                          onChange={(file, error) => {
+                            setDocumentoFile(doc.key, file);
+                            if (error) setValidationErrors([error]);
+                            else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

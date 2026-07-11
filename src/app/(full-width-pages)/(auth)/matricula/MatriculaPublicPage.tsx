@@ -175,6 +175,21 @@ export default function MatriculaPublicPage() {
   const estudantePrimeiroFundamental = anoSelecionado === "1_ano_fundamental";
   const estudanteEscolarSelecionado = !!anoSelecionado && !estudanteSuperiorSelecionado;
 
+  const certificadoAlternativoKey = documentos.find((doc) =>
+    doc.key === "certificado_6_ano_fundamental" ||
+    doc.key === "certificado_9_ano_fundamental" ||
+    doc.key === "certificado_ensino_medio"
+  )?.key;
+  const mostrarAlternativaDocumentoEstudante = documentos.some((doc) => doc.key === "bi_estudante") && documentos.some((doc) => doc.key === "cedula_estudante");
+  const mostrarAlternativaAcademica = documentos.some((doc) => doc.key === "declaracao") && !!certificadoAlternativoKey;
+  const documentosSemAlternativas = documentos.filter((doc) => {
+    if (mostrarAlternativaDocumentoEstudante && (doc.key === "bi_estudante" || doc.key === "cedula_estudante")) return false;
+    if (mostrarAlternativaAcademica && (doc.key === "declaracao" || doc.key === certificadoAlternativoKey)) return false;
+    return true;
+  });
+  const documentosEstudanteAlternativos = documentos.filter((doc) => doc.key === "bi_estudante" || doc.key === "cedula_estudante");
+  const documentosAcademicosAlternativos = documentos.filter((doc) => doc.key === "declaracao" || doc.key === certificadoAlternativoKey);
+
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
   }
@@ -483,7 +498,19 @@ export default function MatriculaPublicPage() {
                 <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante."]} />
               )}
               <div className="grid gap-3 sm:grid-cols-2">
-                {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                {documentosSemAlternativas.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                {mostrarAlternativaDocumentoEstudante && (
+                  <div className="grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">Documento do estudante: escolha uma das duas opções abaixo.</p>
+                    {documentosEstudanteAlternativos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                  </div>
+                )}
+                {mostrarAlternativaAcademica && (
+                  <div className="grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">Comprovativo acadêmico: escolha uma das duas opções abaixo.</p>
+                    {documentosAcademicosAlternativos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                  </div>
+                )}
               </div>
             </section>
           )}
