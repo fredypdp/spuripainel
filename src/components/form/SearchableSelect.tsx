@@ -26,7 +26,7 @@ type SearchableSelectProps<T extends string = string> = {
   noOptionsMessage?: SelectProps<SearchableSelectOption<T>, false>["noOptionsMessage"];
 };
 
-const styles: StylesConfig<SearchableSelectOption<string>, false, GroupBase<SearchableSelectOption<string>>> = {
+const createStyles = <T extends string>(): StylesConfig<SearchableSelectOption<T>, false, GroupBase<SearchableSelectOption<T>>> => ({
   control: (base, state) => ({
     ...base,
     minHeight: "2.75rem",
@@ -53,7 +53,7 @@ const styles: StylesConfig<SearchableSelectOption<string>, false, GroupBase<Sear
     color: state.isSelected ? "#ffffff" : "var(--select-fg, #1f2937)",
   }),
   indicatorSeparator: () => ({ display: "none" }),
-};
+});
 
 export default function SearchableSelect<T extends string = string>({
   value,
@@ -72,6 +72,7 @@ export default function SearchableSelect<T extends string = string>({
 }: SearchableSelectProps<T>) {
   const selectedOption = useMemo(() => options.find((option) => option.value === value) ?? null, [options, value]);
   const normalizedOptions = useMemo(() => options.map((option) => ({ ...option, isDisabled: option.isDisabled ?? option.disabled })), [options]);
+  const styles = useMemo(() => createStyles<T>(), []);
 
   return (
     <div className="space-y-1 [--select-bg:#fff] [--select-fg:#1f2937] [--select-border:#d1d5db] [--select-placeholder:#9ca3af] [--select-menu-bg:#fff] [--select-option-hover:#f3f4f6] dark:[--select-bg:#111827] dark:[--select-fg:#fff] dark:[--select-border:#374151] dark:[--select-placeholder:#6b7280] dark:[--select-menu-bg:#111827] dark:[--select-option-hover:#1f2937]">
@@ -86,7 +87,7 @@ export default function SearchableSelect<T extends string = string>({
         isDisabled={isDisabled ?? disabled}
         isClearable={isClearable}
         isSearchable={searchable ?? isSearchable}
-        styles={styles as StylesConfig<SearchableSelectOption<T>, false>}
+        styles={styles}
         aria-invalid={!!error}
         noOptionsMessage={noOptionsMessage ?? (() => "Nenhuma opção encontrada")}
       />
