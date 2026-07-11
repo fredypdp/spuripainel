@@ -59,6 +59,14 @@ function normalizePhone(value: string) { return onlyDigits(value).slice(0, 9); }
 function maskTelefone(value: string) { return normalizePhone(value).replace(/(\d{3})(?=\d)/g, '$1 ').trim(); }
 function normalizeBi(value: string) { return value.replace(/[^0-9a-z]/gi, '').toUpperCase().slice(0, 14); }
 function isBiValido(value?: string) { return !value || /^\d{9}[A-Z]{2}\d{3}$/.test(value); }
+function isBeforeToday(value?: string) {
+  if (!value) return false;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+}
 function anoOrder(value: string) {
   const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   const nivel = match?.[2] === 'fundamental' ? 0 : match?.[2] === 'medio' ? 1 : 2;
@@ -286,8 +294,8 @@ export default function CadastrarEstudantePageContent() {
       if (anoAtual === '1_ano_fundamental') {
         docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: true });
       } else {
-        if (!cedulaEstudanteFile && (temBiEstudanteTexto || biEstudanteFile)) {
-          docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
+        if (!cedulaEstudanteFile) {
+          docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: temBiEstudanteTexto || !!biEstudanteFile });
         }
         if (!biEstudanteFile) {
           docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: !temBiEstudanteTexto });
@@ -373,6 +381,8 @@ export default function CadastrarEstudantePageContent() {
     const erros: string[] = [];
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
+    else if (!isBeforeToday(dataNascimento)) erros.push('Data de nascimento deve ser anterior à data atual');
+    if (!genero) erros.push('Gênero é obrigatório');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
     if (isEstudanteSuperior(anoEscolarSelecionado) && !bilheteIdentidade.trim()) {
       erros.push('BI do estudante é obrigatório no ensino superior');
@@ -395,6 +405,12 @@ export default function CadastrarEstudantePageContent() {
     if (deveMostrarCurso() && cursoSelecionado && anoEscolarSelecionado && !cursoSelecionado.anos_academicos.includes(anoEscolarSelecionado)) {
       erros.push('O curso selecionado não possui o ano acadêmico escolhido');
     }
+    if (cursoSelecionado && isAnoMedio(anoEscolarSelecionado) && cursoSelecionado.type !== 'medio') {
+      erros.push('O curso selecionado deve ser do tipo médio');
+    }
+    if (cursoSelecionado && isAnoSuperior(anoEscolarSelecionado) && cursoSelecionado.type !== 'superior') {
+      erros.push('O curso selecionado deve ser do tipo superior');
+    }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       erros.push('E-mail inválido');
     }
@@ -403,6 +419,14 @@ export default function CadastrarEstudantePageContent() {
     if (telefone.trim() && telefoneResponsavel.trim() && normalizePhone(telefone) === normalizePhone(telefoneResponsavel)) erros.push('Os telefones do estudante e do responsável não podem ser iguais');
     if (anoEscolarSelecionado !== '1_ano_fundamental' && !isBiValido(bilheteIdentidade)) erros.push('BI do estudante deve usar o formato 123456789LA041');
     if (!isBiValido(bilheteResponsavel)) erros.push('BI do responsável deve usar o formato 123456789LA041');
+    if (bilheteIdentidade.trim() && !biEstudanteFile) erros.push('Anexe o documento: Bilhete de identidade do estudante');
+    if (bilheteResponsavel.trim() && !biResponsavelFile) erros.push('Anexe o documento: Bilhete de identidade do responsável');
+    if (!isEstudanteSuperior(anoEscolarSelecionado) && anoEscolarSelecionado !== '1_ano_fundamental') {
+      const temBiEstudanteCompleto = !!bilheteIdentidade.trim() && !!biEstudanteFile;
+      const temCedulaEstudante = !!cedulaEstudanteFile;
+      if (temBiEstudanteCompleto && temCedulaEstudante) erros.push('Anexe apenas BI do estudante ou cédula do estudante, nunca os dois');
+      if (!temBiEstudanteCompleto && !temCedulaEstudante) erros.push('Anexe o BI do estudante com o número informado ou a cédula do estudante');
+    }
     documentos.forEach((doc) => {
       if (doc.obrigatorio && !getDocumentoFile(doc.key)) erros.push(`Anexe o documento: ${doc.label}`);
     });
