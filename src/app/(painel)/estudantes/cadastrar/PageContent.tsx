@@ -693,43 +693,33 @@ export default function CadastrarEstudantePageContent() {
               </div>
 
               {/* Documentos */}
-              <div className="col-span-2 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:grid-cols-2">
-                <div className="col-span-1 sm:col-span-2">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Documentos PDF</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Envie os PDFs exigidos conforme o nível/ano acadêmico. Alternativas equivalentes deixam de ser solicitadas quando anexadas.
-                  </p>
-                </div>
-                {anoEscolarSelecionado === '1_ano_fundamental' && (
-                  <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
-                    O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante; não exige BI, declaração nem certificado acadêmico anterior.
+              {anoEscolarSelecionado && (
+                <div className="col-span-2 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:grid-cols-2">
+                  <div className="col-span-1 sm:col-span-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Documentos</p>
                   </div>
-                )}
-                {documentos.map((doc) => (
-                  <DocumentUpload
-                    key={doc.key}
-                    id={`estudante-${doc.key}`}
-                    label={doc.label}
-                    required={doc.obrigatorio}
-                    file={getDocumentoFile(doc.key)}
-                    onChange={(file, error) => {
-                      setDocumentoFile(doc.key, file);
-                      if (error) setValidationErrors([error]);
-                      else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
-                    }}
-                  />
-                ))}
-                <div className="col-span-1 rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-900 sm:col-span-2">
-                  <p className="mb-2 font-medium text-gray-700 dark:text-gray-300">Documentos anexados</p>
-                  <div className="grid gap-1 sm:grid-cols-2">
-                    {documentos.map((doc) => (
-                      <span key={doc.key} className="text-gray-600 dark:text-gray-300">
-                        {doc.label}: {getDocumentoFile(doc.key) ? <b className="text-green-600 dark:text-green-400">✓ pronto</b> : 'Não anexado'}
-                      </span>
-                    ))}
-                  </div>
+                  {anoEscolarSelecionado === '1_ano_fundamental' && (
+                    <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
+                      O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante.
+                    </div>
+                  )}
+                  {documentos.map((doc) => (
+                    <DocumentUpload
+                      key={doc.key}
+                      id={`estudante-${doc.key}`}
+                      label={doc.label}
+                      required={doc.obrigatorio}
+                      file={getDocumentoFile(doc.key)}
+                      onChange={(file, error) => {
+                        setDocumentoFile(doc.key, file);
+                        if (error) setValidationErrors([error]);
+                        else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
+                      }}
+                    />
+                  ))}
                 </div>
-              </div>            </div>
+              )}
+            </div>
 
             {/* Erros de validação */}
             {validationErrors.length > 0 && (
