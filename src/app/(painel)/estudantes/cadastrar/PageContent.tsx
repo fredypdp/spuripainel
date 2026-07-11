@@ -59,6 +59,11 @@ function normalizePhone(value: string) { return onlyDigits(value).slice(0, 9); }
 function maskTelefone(value: string) { return normalizePhone(value).replace(/(\d{3})(?=\d)/g, '$1 ').trim(); }
 function normalizeBi(value: string) { return value.replace(/[^0-9a-z]/gi, '').toUpperCase().slice(0, 14); }
 function isBiValido(value?: string) { return !value || /^\d{9}[A-Z]{2}\d{3}$/.test(value); }
+function anoOrder(value: string) {
+  const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  const nivel = match?.[2] === 'fundamental' ? 0 : match?.[2] === 'medio' ? 1 : 2;
+  return nivel * 100 + Number(match?.[1] ?? 0);
+}
 function isAnoFundamental(v?: string | null) { return !!v && /^\d+_ano_fundamental$/.test(v); }
 function isAnoMedioValue(v?: string | null) { return !!v && /^\d+_ano_medio$/.test(v); }
 function isAnoSuperiorValue(v?: string | null) { return !!v && /^\d+_ano_superior$/.test(v); }
@@ -192,6 +197,7 @@ export default function CadastrarEstudantePageContent() {
 
   const isAnoMedio = isAnoMedioValue;
   const isAnoSuperior = isAnoSuperiorValue;
+  const isEstudanteSuperior = (ano?: string | null) => isSuperior || isAnoSuperior(ano);
 
   // Carrega cursos quando necessário
   useEffect(() => {
@@ -222,7 +228,7 @@ export default function CadastrarEstudantePageContent() {
 
   const getAnosMedioFromCurso = (): AnoEscolar[] => {
     if (!cursoSelecionado?.anos_academicos) return [];
-    return (cursoSelecionado.anos_academicos as string[]).map((v: string) => {
+    return (cursoSelecionado.anos_academicos as string[]).filter(isAnoMedioValue).sort((a, b) => anoOrder(a) - anoOrder(b)).map((v: string) => {
       const m = v.match(/^(\d+)_ano_medio$/);
       return { value: v, label: m ? `${m[1]}º Ano Médio` : v.replace(/_/g, ' ') };
     });
@@ -231,7 +237,7 @@ export default function CadastrarEstudantePageContent() {
   const getAnosDisponiveis = (): AnoEscolar[] => {
     if (isSuperior) {
       if (!cursoSelecionado?.anos_academicos) return [];
-      return cursoSelecionado.anos_academicos.map((v: string) => {
+      return cursoSelecionado.anos_academicos.filter(isAnoSuperiorValue).sort((a, b) => anoOrder(a) - anoOrder(b)).map((v: string) => {
         const m = v.match(/^(\d+)_ano_superior$/);
         return { value: v, label: m ? `${m[1]}º Ano` : v.replace(/_/g, ' ') };
       });
@@ -268,20 +274,24 @@ export default function CadastrarEstudantePageContent() {
   const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoEscolarSelecionado);
   const documentos: DocumentoOpcao[] = (() => {
     const anoAtual = anoEscolarSelecionado ?? undefined;
-    const estudanteSuperior = isSuperior || isAnoSuperior(anoAtual);
+    const estudanteSuperior = isEstudanteSuperior(anoAtual);
     const temBiEstudanteTexto = !!bilheteIdentidade.trim();
     const docs: DocumentoOpcao[] = [];
 
     if (estudanteSuperior) {
       docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
-      if (bilheteResponsavel.trim() || biResponsavelFile) docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: false });
+      if (bilheteResponsavel.trim() || biResponsavelFile) docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: !!bilheteResponsavel.trim() });
     } else {
       docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: true });
-      if (!cedulaEstudanteFile && (temBiEstudanteTexto || biEstudanteFile)) {
-        docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
-      }
-      if (!biEstudanteFile) {
-        docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: !temBiEstudanteTexto });
+      if (anoAtual === '1_ano_fundamental') {
+        docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: true });
+      } else {
+        if (!cedulaEstudanteFile && (temBiEstudanteTexto || biEstudanteFile)) {
+          docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
+        }
+        if (!biEstudanteFile) {
+          docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: !temBiEstudanteTexto });
+        }
       }
     }
 
@@ -364,20 +374,26 @@ export default function CadastrarEstudantePageContent() {
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
-    if (isSuperior && !bilheteIdentidade.trim()) {
+    if (isEstudanteSuperior(anoEscolarSelecionado) && !bilheteIdentidade.trim()) {
       erros.push('BI do estudante é obrigatório no ensino superior');
     }
-    if (!isSuperior && !bilheteResponsavel.trim()) {
+    if (!isEstudanteSuperior(anoEscolarSelecionado) && !bilheteResponsavel.trim()) {
       erros.push('BI do responsável é obrigatório para estudantes escolares');
     }
-    if (!telefone.trim() && !telefoneResponsavel.trim()) {
-      erros.push('Informe pelo menos um telefone do estudante ou do responsável');
+    if (isEstudanteSuperior(anoEscolarSelecionado) && !telefone.trim()) {
+      erros.push('Telefone do estudante é obrigatório no ensino superior');
+    }
+    if (!isEstudanteSuperior(anoEscolarSelecionado) && !telefoneResponsavel.trim()) {
+      erros.push('Telefone do responsável é obrigatório para estudantes escolares');
     }
     if (bilhetesIdentidadeIguais()) {
       erros.push('O BI do estudante não pode ser igual ao BI do responsável');
     }
     if (deveMostrarCurso() && !cursoSelecionado) {
       erros.push('Para este nível, o curso é obrigatório');
+    }
+    if (deveMostrarCurso() && cursoSelecionado && anoEscolarSelecionado && !cursoSelecionado.anos_academicos.includes(anoEscolarSelecionado)) {
+      erros.push('O curso selecionado não possui o ano acadêmico escolhido');
     }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       erros.push('E-mail inválido');
@@ -444,7 +460,7 @@ export default function CadastrarEstudantePageContent() {
           ? cursoSelecionado.id
           : undefined,
       curso_superior_id:
-        isSuperior && cursoSelecionado ? cursoSelecionado.id : undefined,
+        isAnoSuperior(anoEscolarSelecionado) && cursoSelecionado ? cursoSelecionado.id : undefined,
       declaracao_ano_academico: declaracaoFile ? declaracaoAnoAcademico : undefined,
       bi_estudante: biEstudanteFile,
       bi_responsavel: biResponsavelFile,
@@ -559,7 +575,7 @@ export default function CadastrarEstudantePageContent() {
                   </Label>
                   <SmartSelect
                     value={cursoSelecionado?.id ?? ''}
-                    options={cursosAtivos.map((curso) => ({ value: curso.id, label: `${curso.nome} (${curso.type})` }))}
+                    options={cursosAtivos.filter((curso) => isSuperior ? curso.type === 'superior' : curso.type === 'medio').map((curso) => ({ value: curso.id, label: `${curso.nome} (${curso.type})` }))}
                     onChange={(value) => {
                       setCursoSelecionado(cursosAtivos.find((curso) => curso.id === value) ?? null);
                       if (isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)) {
@@ -582,6 +598,7 @@ export default function CadastrarEstudantePageContent() {
                   options={getAnosDisponiveis()}
                   onChange={(value) => {
                     setAnoEscolarSelecionado(value || null);
+                    if (value === '1_ano_fundamental') setBilheteIdentidade('');
                     limparDocumentos();
                   }}
                   searchable
@@ -625,20 +642,21 @@ export default function CadastrarEstudantePageContent() {
 
               {/* Bilhetes */}
               <div className="col-span-2 sm:col-span-1">
-                <Label>Bilhete do Estudante</Label>
+                <Label>Bilhete de Identidade do estudante{isEstudanteSuperior(anoEscolarSelecionado) ? ' *' : ' (opcional)'}</Label>
                 <Input
                   type="text"
-                  placeholder="Ex: 123456789012AB"
+                  placeholder="Ex: 123456789LA041"
                   value={bilheteIdentidade}
                   onChange={e => {
                     setBilheteIdentidade(normalizeBi(e.target.value));
-                    setCedulaEstudanteFile(undefined);
+                    if (anoEscolarSelecionado !== '1_ano_fundamental') setCedulaEstudanteFile(undefined);
                   }}
-                  disabled={carregandoCadastro}
+                  disabled={carregandoCadastro || anoEscolarSelecionado === '1_ano_fundamental'}
+                  hint={anoEscolarSelecionado === '1_ano_fundamental' ? 'No 1.º Ano Fundamental, envie apenas a cédula do estudante.' : isEstudanteSuperior(anoEscolarSelecionado) ? 'Obrigatório no ensino superior.' : 'Opcional para escola; se preencher, anexe também o BI do estudante.'}
                 />
               </div>
               <div className="col-span-2 sm:col-span-1">
-                <Label>Bilhete do Responsável</Label>
+                <Label>Bilhete de Identidade do responsável{isEstudanteSuperior(anoEscolarSelecionado) ? ' (opcional)' : ' *'}</Label>
                 <Input
                   type="text"
                   placeholder="Ex: 123456789012AB"
@@ -658,7 +676,7 @@ export default function CadastrarEstudantePageContent() {
                 </div>
                 {anoEscolarSelecionado === '1_ano_fundamental' && (
                   <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
-                    O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior.
+                    O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante; não exige BI, declaração nem certificado acadêmico anterior.
                   </div>
                 )}
                 {documentos.map((doc) => (
