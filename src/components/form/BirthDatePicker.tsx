@@ -25,30 +25,36 @@ type BirthDatePickerProps = {
 
 const colors = {
   light: {
-    bg: "#fff",
-    popperBg: "#fff",
+    bg: "#ffffff",
+    popperBg: "#ffffff",
     text: "#1f2937",
     muted: "#6b7280",
+    disabledText: "#9ca3af",
     placeholder: "#9ca3af",
     border: "#d1d5db",
-    hover: "#f9fafb",
-    selected: "rgb(var(--color-brand-500, 70 95 255))",
-    selectedHover: "rgb(var(--color-brand-600, 54 79 199))",
-    focusBorder: "rgb(var(--color-brand-300, 156 163 175))",
+    hover: "#f3f4f6",
+    selected: "#eef2ff",
+    selectedHover: "#e0e7ff",
+    todayBorder: "rgb(var(--color-brand-500, 70 95 255))",
+    focusBorder: "rgb(var(--color-brand-500, 70 95 255))",
     focusRing: "rgb(var(--color-brand-500, 70 95 255) / 0.1)",
+    error: "#ef4444",
   },
   dark: {
     bg: "#111827",
     popperBg: "#111827",
     text: "rgba(255, 255, 255, 0.9)",
     muted: "#9ca3af",
-    placeholder: "rgba(255, 255, 255, 0.3)",
+    disabledText: "rgba(255, 255, 255, 0.38)",
+    placeholder: "rgba(255, 255, 255, 0.45)",
     border: "#374151",
     hover: "#1f2937",
-    selected: "rgb(var(--color-brand-500, 70 95 255))",
-    selectedHover: "rgb(var(--color-brand-600, 54 79 199))",
-    focusBorder: "rgb(var(--color-brand-800, 70 95 255))",
-    focusRing: "rgb(var(--color-brand-500, 70 95 255) / 0.1)",
+    selected: "#1e3a8a",
+    selectedHover: "#1d4ed8",
+    todayBorder: "rgb(var(--color-brand-400, 96 165 250))",
+    focusBorder: "rgb(var(--color-brand-500, 70 95 255))",
+    focusRing: "rgb(var(--color-brand-500, 70 95 255) / 0.16)",
+    error: "#ef4444",
   },
 } as const;
 
@@ -61,7 +67,7 @@ function toIsoDate(value: Dayjs | null) {
 }
 
 export default function BirthDatePicker({ id, label = "Data de nascimento", value, onChange, required, disabled, error }: BirthDatePickerProps) {
-  const today = dayjs().startOf("day");
+  const today = React.useMemo(() => dayjs().startOf("day"), []);
   const { theme } = useTheme();
   const palette = colors[theme];
 
@@ -79,6 +85,63 @@ export default function BirthDatePicker({ id, label = "Data de nascimento", valu
       ),
     [palette, theme],
   );
+
+  const sharedPickerSx = {
+    color: palette.text,
+    backgroundColor: palette.popperBg,
+    "& *": {
+      color: palette.text,
+      borderColor: palette.border,
+    },
+    "& .MuiPaper-root, & .MuiPickersLayout-root, & .MuiDateCalendar-root, & .MuiDayCalendar-root, & .MuiMonthCalendar-root, & .MuiYearCalendar-root": {
+      backgroundColor: palette.popperBg,
+      backgroundImage: "none",
+      color: palette.text,
+    },
+    "& .MuiPaper-root": {
+      border: `1px solid ${palette.border}`,
+      borderRadius: "0.75rem",
+    },
+    "& .MuiPickersCalendarHeader-root, & .MuiPickersCalendarHeader-labelContainer, & .MuiPickersCalendarHeader-label, & .MuiDayCalendar-header, & .MuiDayCalendar-weekContainer": {
+      backgroundColor: palette.popperBg,
+      color: palette.text,
+    },
+    "& .MuiDayCalendar-weekDayLabel, & .MuiPickersYear-yearButton, & .MuiPickersMonth-monthButton": {
+      color: palette.text,
+    },
+    "& .MuiPickersArrowSwitcher-button, & .MuiPickersCalendarHeader-switchViewButton, & .MuiIconButton-root": {
+      color: palette.text,
+      backgroundColor: "transparent",
+      "& svg, & .MuiSvgIcon-root": { color: palette.text },
+      "&:hover": { backgroundColor: palette.hover, color: palette.text },
+      "&.Mui-disabled": { color: palette.disabledText, "& svg, & .MuiSvgIcon-root": { color: palette.disabledText } },
+    },
+    "& .MuiPickersDay-root": {
+      backgroundColor: "transparent",
+      color: palette.text,
+      "&:hover, &:focus": { backgroundColor: palette.hover, color: palette.text },
+      "&.MuiPickersDay-today": { borderColor: palette.todayBorder, color: palette.text },
+      "&.Mui-selected, &.Mui-selected:focus, &.Mui-selected:hover": {
+        backgroundColor: palette.selected,
+        color: palette.text,
+      },
+      "&.Mui-selected:hover": { backgroundColor: palette.selectedHover },
+      "&.Mui-disabled": { backgroundColor: "transparent", color: palette.disabledText, opacity: 1 },
+    },
+    "& .MuiPickersYear-yearButton:hover, & .MuiPickersMonth-monthButton:hover": {
+      backgroundColor: palette.hover,
+      color: palette.text,
+    },
+    "& .MuiPickersYear-yearButton.Mui-selected, & .MuiPickersMonth-monthButton.Mui-selected, & .MuiPickersYear-yearButton.Mui-selected:focus, & .MuiPickersMonth-monthButton.Mui-selected:focus, & .MuiPickersYear-yearButton.Mui-selected:hover, & .MuiPickersMonth-monthButton.Mui-selected:hover": {
+      backgroundColor: palette.selected,
+      color: palette.text,
+    },
+    "& .MuiDialogActions-root, & .MuiPickersActionBar-root": {
+      backgroundColor: palette.popperBg,
+      color: palette.text,
+      "& .MuiButton-root": { color: palette.text },
+    },
+  };
 
   return (
     <div>
@@ -100,15 +163,18 @@ export default function BirthDatePicker({ id, label = "Data de nascimento", valu
                 helperText: error,
                 placeholder: "dd/mm/aaaa",
                 sx: {
+                  backgroundColor: palette.bg,
+                  color: palette.text,
                   "& .MuiInputBase-root": {
                     height: "2.75rem",
                     borderRadius: "0.5rem",
-                    backgroundColor: palette.bg,
-                    color: palette.text,
+                    backgroundColor: disabled ? palette.hover : palette.bg,
+                    color: disabled ? palette.disabledText : palette.text,
                     boxShadow: "var(--shadow-theme-xs)",
                   },
                   "& .MuiInputBase-input": {
-                    color: palette.text,
+                    color: disabled ? palette.disabledText : palette.text,
+                    WebkitTextFillColor: disabled ? palette.disabledText : palette.text,
                     fontSize: "0.875rem",
                     padding: "0 0.75rem",
                     "&::placeholder": {
@@ -117,53 +183,24 @@ export default function BirthDatePicker({ id, label = "Data de nascimento", valu
                     },
                   },
                   "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: error ? "#ef4444" : palette.border,
+                    borderColor: error ? palette.error : palette.border,
                   },
                   "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline, & .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                    borderColor: error ? "#ef4444" : palette.focusBorder,
+                    borderColor: error ? palette.error : palette.focusBorder,
                   },
                   "& .MuiOutlinedInput-root.Mui-focused": {
                     boxShadow: `0 0 0 3px ${palette.focusRing}`,
                   },
-                  "& .MuiSvgIcon-root": { color: palette.text },
+                  "& .MuiInputAdornment-root, & .MuiIconButton-root, & .MuiSvgIcon-root": {
+                    color: disabled ? palette.disabledText : palette.text,
+                  },
+                  "& .MuiIconButton-root:hover": { backgroundColor: palette.hover },
                   "& .MuiFormHelperText-root": { marginLeft: 0 },
                 },
               },
-              popper: {
-                sx: {
-                  "& .MuiPaper-root": {
-                    backgroundColor: palette.popperBg,
-                    backgroundImage: "none",
-                    color: palette.text,
-                    border: `1px solid ${palette.border}`,
-                    borderRadius: "0.75rem",
-                  },
-                  "& .MuiPickersCalendarHeader-root, & .MuiPickersCalendarHeader-label, & .MuiDayCalendar-weekDayLabel, & .MuiPickersYear-yearButton, & .MuiPickersMonth-monthButton": {
-                    color: palette.text,
-                  },
-                  "& .MuiPickersArrowSwitcher-button, & .MuiPickersCalendarHeader-switchViewButton": {
-                    color: palette.text,
-                    "&:hover": { backgroundColor: palette.hover },
-                  },
-                  "& .MuiPickersDay-root": {
-                    color: palette.text,
-                    "&:hover": { backgroundColor: palette.hover },
-                    "&.Mui-selected": {
-                      backgroundColor: palette.selected,
-                      color: "#fff",
-                      "&:hover, &:focus": { backgroundColor: palette.selectedHover },
-                    },
-                    "&.MuiPickersDay-today": { borderColor: palette.selected },
-                    "&.Mui-disabled": { color: palette.muted, opacity: 0.45 },
-                  },
-                  "& .MuiPickersYear-yearButton:hover, & .MuiPickersMonth-monthButton:hover": { backgroundColor: palette.hover },
-                  "& .MuiPickersYear-yearButton.Mui-selected, & .MuiPickersMonth-monthButton.Mui-selected": {
-                    backgroundColor: palette.selected,
-                    color: "#fff",
-                    "&:hover, &:focus": { backgroundColor: palette.selectedHover },
-                  },
-                },
-              },
+              popper: { sx: sharedPickerSx },
+              desktopPaper: { sx: sharedPickerSx },
+              mobilePaper: { sx: sharedPickerSx },
             }}
           />
         </LocalizationProvider>
