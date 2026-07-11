@@ -10,9 +10,9 @@ import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import BirthDateInput from "@/components/form/BirthDateInput";
+import BirthDatePicker from "@/components/form/BirthDatePicker";
 import DocumentUpload from "@/components/form/DocumentUpload";
-import SmartSelect from "@/components/form/SmartSelect";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import type { Genero, Curso } from '@/types/api';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -597,7 +597,7 @@ export default function CadastrarEstudantePageContent() {
 
               {/* Data de Nascimento */}
               <div className="col-span-2 sm:col-span-1">
-                <BirthDateInput
+                <BirthDatePicker
                   id="data-nascimento-cadastrar"
                   label="Data de nascimento"
                   required
@@ -612,7 +612,7 @@ export default function CadastrarEstudantePageContent() {
                   <Label>
                     Curso {(isSuperior || nivelEscolar === 'medio') ? '* (Obrigatório)' : '(Opcional)'}
                   </Label>
-                  <SmartSelect
+                  <SearchableSelect
                     value={cursoSelecionado?.id ?? ''}
                     options={cursosAtivos.filter((curso) => isSuperior ? curso.type === 'superior' : curso.type === 'medio').map((curso) => ({ value: curso.id, label: `${curso.nome} (${curso.type})` }))}
                     onChange={(value) => {
@@ -632,7 +632,7 @@ export default function CadastrarEstudantePageContent() {
               {/* Ano Escolar */}
               <div className="col-span-2 sm:col-span-1">
                 <Label>Ano Escolar *</Label>
-                <SmartSelect
+                <SearchableSelect
                   value={anoEscolarSelecionado ?? ''}
                   options={getAnosDisponiveis()}
                   onChange={(value) => {
