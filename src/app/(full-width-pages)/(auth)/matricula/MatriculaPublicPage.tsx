@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Input from "@/components/form/input/InputField";
-import SmartSelect from "@/components/form/SmartSelect";
-import BirthDateInput from "@/components/form/BirthDateInput";
+import SearchableSelect from "@/components/form/SearchableSelect";
+import BirthDatePicker from "@/components/form/BirthDatePicker";
 import DocumentUpload from "@/components/form/DocumentUpload";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
@@ -416,7 +416,7 @@ export default function MatriculaPublicPage() {
           {step === 0 && (
             <section className="space-y-4">
               <StepTitle title="1. Escolher a instituição" description="Pesquise na lista pública ou informe o código da instituição." />
-              <SmartSelect
+              <SearchableSelect
                 value={academia?.codigo_academia ?? ""}
                 options={academias.map((item) => ({ value: item.codigo_academia, label: `${item.nome} · ${item.provincia}` }))}
                 onChange={(value) => selecionarAcademia(academias.find((item) => item.codigo_academia === value) ?? null)}
@@ -441,18 +441,18 @@ export default function MatriculaPublicPage() {
                 {(academiaSuperior || academiaMedia) && (
                   <div className="sm:col-span-2">
                     <Label>Curso *</Label>
-                    <SmartSelect value={curso?.id ?? ""} options={cursosDisponiveis.map((item) => ({ value: item.id, label: item.nome }))} onChange={(value) => handleCursoChange(cursosDisponiveis.find((item) => item.id === value) ?? null)} searchable placeholder="Selecione o curso" />
+                    <SearchableSelect value={curso?.id ?? ""} options={cursosDisponiveis.map((item) => ({ value: item.id, label: item.nome }))} onChange={(value) => handleCursoChange(cursosDisponiveis.find((item) => item.id === value) ?? null)} searchable placeholder="Selecione o curso" />
                   </div>
                 )}
                 {academiaMista && (
                   <div className="sm:col-span-2">
                     <Label>Curso médio (se for matrícula no médio)</Label>
-                    <SmartSelect value={curso?.id ?? ""} options={cursosMedio.map((item) => ({ value: item.id, label: item.nome }))} onChange={(value) => handleCursoChange(cursosMedio.find((item) => item.id === value) ?? null)} searchable placeholder="Selecione somente se o ano for do médio" />
+                    <SearchableSelect value={curso?.id ?? ""} options={cursosMedio.map((item) => ({ value: item.id, label: item.nome }))} onChange={(value) => handleCursoChange(cursosMedio.find((item) => item.id === value) ?? null)} searchable placeholder="Selecione somente se o ano for do médio" />
                   </div>
                 )}
                 <div className="sm:col-span-2">
                   <Label>Ano acadêmico *</Label>
-                  <SmartSelect
+                  <SearchableSelect
                     value={anoSelecionado ?? ""}
                     options={anosDisponiveis}
                     onChange={(value) => handleAnoChange(value)}
@@ -471,7 +471,7 @@ export default function MatriculaPublicPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2"><Label>Nome completo *</Label><Input placeholder="Nome completo do estudante" defaultValue={form.nome} onChange={(e) => setField("nome", e.target.value)} /></div>
                 <div><Label>Gênero *</Label><div className="flex gap-2">{(["masculino", "feminino"] as Genero[]).map((item) => <button key={item} type="button" onClick={() => setField("genero", item)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${form.genero === item ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{item === "masculino" ? "Masculino" : "Feminino"}</button>)}</div></div>
-                <BirthDateInput id="matricula-data-nascimento" required value={form.data_nascimento} onChange={(value) => setField("data_nascimento", value)} />
+                <BirthDatePicker id="matricula-data-nascimento" required value={form.data_nascimento} onChange={(value) => setField("data_nascimento", value)} />
                 {!estudantePrimeiroFundamental && (
                   <div><Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} hint={estudanteEscolarSelecionado ? "Opcional para escola; se preencher, anexe também o BI do estudante." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."} /></div>
                 )}

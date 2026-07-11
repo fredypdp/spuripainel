@@ -34,7 +34,13 @@
     "react-dropzone": "^14.3.8",
     "swiper": "^11.2.10",
     "tailwind-merge": "^2.6.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.6",
+    "@mui/x-date-pickers": "^8.17.0",
+    "dayjs": "^1.11.19",
+    "react-select": "^5.10.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
