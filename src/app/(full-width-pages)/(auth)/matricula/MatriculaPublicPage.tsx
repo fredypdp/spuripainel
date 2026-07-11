@@ -135,11 +135,15 @@ export default function MatriculaPublicPage() {
       if (form.bilhete_identidade_responsavel?.trim() || files.bi_responsavel) docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: !!form.bilhete_identidade_responsavel?.trim() });
     } else {
       docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: true });
-      if (!files.cedula_estudante && (temBilheteEstudante || files.bi_estudante)) {
-        docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
-      }
-      if (!files.bi_estudante) {
-        docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante });
+      if (anoAtual === "1_ano_fundamental") {
+        docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: true });
+      } else {
+        if (!files.cedula_estudante && (temBilheteEstudante || files.bi_estudante)) {
+          docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
+        }
+        if (!files.bi_estudante) {
+          docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante });
+        }
       }
     }
 
@@ -167,6 +171,9 @@ export default function MatriculaPublicPage() {
   }, [anoSelecionado, files, form.bilhete_identidade, form.bilhete_identidade_responsavel]);
 
   const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoSelecionado);
+  const estudanteSuperiorSelecionado = isSuperior(anoSelecionado ?? undefined);
+  const estudantePrimeiroFundamental = anoSelecionado === "1_ano_fundamental";
+  const estudanteEscolarSelecionado = !!anoSelecionado && !estudanteSuperiorSelecionado;
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
@@ -217,6 +224,7 @@ export default function MatriculaPublicPage() {
     setFiles({});
     setForm((prev) => ({
       ...prev,
+      bilhete_identidade: value === "1_ano_fundamental" ? undefined : prev.bilhete_identidade,
       ano_escolar_fundamental: isFundamental(value) ? value : undefined,
       ano_escolar_medio: isMedio(value) ? value : undefined,
       ano_superior: isSuperior(value) ? value : undefined,
@@ -440,7 +448,7 @@ export default function MatriculaPublicPage() {
                 <div className="sm:col-span-2"><Label>Nome completo *</Label><Input placeholder="Nome completo do estudante" defaultValue={form.nome} onChange={(e) => setField("nome", e.target.value)} /></div>
                 <div><Label>Gênero *</Label><div className="flex gap-2">{(["masculino", "feminino"] as Genero[]).map((item) => <button key={item} type="button" onClick={() => setField("genero", item)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${form.genero === item ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{item === "masculino" ? "Masculino" : "Feminino"}</button>)}</div></div>
                 <BirthDateInput id="matricula-data-nascimento" required value={form.data_nascimento} onChange={(value) => setField("data_nascimento", value)} />
-                <div><Label>Bilhete de Identidade do estudante</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} hint="Use 9 números, 2 letras e 3 números." /></div>
+                <div><Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); if (!estudantePrimeiroFundamental) setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} disabled={estudantePrimeiroFundamental} hint={estudantePrimeiroFundamental ? "No 1.º Ano Fundamental, envie apenas a cédula do estudante." : estudanteEscolarSelecionado ? "Opcional para escola; se preencher, anexe também o BI do estudante." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."} /></div>
                 <div><Label>Bilhete de Identidade do responsável</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório fora do ensino superior." /></div>
               </div>
             </section>
@@ -461,7 +469,7 @@ export default function MatriculaPublicPage() {
             <section className="space-y-4">
               <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo deve ser PDF válido e pode ter até 10MB.`} />
               {anoSelecionado === "1_ano_fundamental" && (
-                <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental não exige declaração nem certificado acadêmico anterior."]} />
+                <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante; não exige BI, declaração nem certificado acadêmico anterior."]} />
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
