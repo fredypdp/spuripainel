@@ -138,8 +138,8 @@ export default function MatriculaPublicPage() {
       if (anoAtual === "1_ano_fundamental") {
         docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: true });
       } else {
-        if (!files.cedula_estudante && (temBilheteEstudante || files.bi_estudante)) {
-          docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
+        if (!files.cedula_estudante) {
+          docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: temBilheteEstudante || !!files.bi_estudante });
         }
         if (!files.bi_estudante) {
           docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante });
@@ -174,6 +174,21 @@ export default function MatriculaPublicPage() {
   const estudanteSuperiorSelecionado = isSuperior(anoSelecionado ?? undefined);
   const estudantePrimeiroFundamental = anoSelecionado === "1_ano_fundamental";
   const estudanteEscolarSelecionado = !!anoSelecionado && !estudanteSuperiorSelecionado;
+
+  const certificadoAlternativoKey = documentos.find((doc) =>
+    doc.key === "certificado_6_ano_fundamental" ||
+    doc.key === "certificado_9_ano_fundamental" ||
+    doc.key === "certificado_ensino_medio"
+  )?.key;
+  const mostrarAlternativaDocumentoEstudante = documentos.some((doc) => doc.key === "bi_estudante") && documentos.some((doc) => doc.key === "cedula_estudante");
+  const mostrarAlternativaAcademica = documentos.some((doc) => doc.key === "declaracao") && !!certificadoAlternativoKey;
+  const documentosSemAlternativas = documentos.filter((doc) => {
+    if (mostrarAlternativaDocumentoEstudante && (doc.key === "bi_estudante" || doc.key === "cedula_estudante")) return false;
+    if (mostrarAlternativaAcademica && (doc.key === "declaracao" || doc.key === certificadoAlternativoKey)) return false;
+    return true;
+  });
+  const documentosEstudanteAlternativos = documentos.filter((doc) => doc.key === "bi_estudante" || doc.key === "cedula_estudante");
+  const documentosAcademicosAlternativos = documentos.filter((doc) => doc.key === "declaracao" || doc.key === certificadoAlternativoKey);
 
   function setField(key: keyof CriarSolicitacaoMatriculaRequest, value: string) {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
@@ -250,6 +265,7 @@ export default function MatriculaPublicPage() {
       if (!form.nome?.trim()) return "Informe o nome completo.";
       if (!form.genero) return "Selecione o gênero.";
       if (!form.data_nascimento) return "Informe a data de nascimento.";
+      if (!isBeforeToday(form.data_nascimento)) return "A data de nascimento deve ser anterior à data atual.";
       if (isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade?.trim()) return "Informe o Bilhete de Identidade do estudante para o ensino superior.";
       if (!estudantePrimeiroFundamental && form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
       if (!isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
@@ -267,6 +283,14 @@ export default function MatriculaPublicPage() {
     if (current === 4) {
       const faltando = documentos.find((doc) => doc.obrigatorio && !files[doc.key]);
       if (faltando) return `Anexe o documento: ${faltando.label}.`;
+      if (form.bilhete_identidade?.trim() && !files.bi_estudante) return "Anexe o BI do estudante informado.";
+      if (form.bilhete_identidade_responsavel?.trim() && !files.bi_responsavel) return "Anexe o BI do responsável informado.";
+      if (!isSuperior(anoSelecionado ?? undefined) && anoSelecionado !== "1_ano_fundamental") {
+        const temBiEstudanteCompleto = !!form.bilhete_identidade?.trim() && !!files.bi_estudante;
+        const temCedulaEstudante = !!files.cedula_estudante;
+        if (temBiEstudanteCompleto && temCedulaEstudante) return "Anexe apenas BI do estudante ou cédula do estudante, nunca os dois.";
+        if (!temBiEstudanteCompleto && !temCedulaEstudante) return "Anexe o BI do estudante com o número informado ou a cédula do estudante.";
+      }
       if (files.declaracao && !declaracaoAnoAcademico) return "A declaração só pode ser enviada quando existe um ano acadêmico anterior imediato válido.";
     }
     return "";
@@ -469,19 +493,31 @@ export default function MatriculaPublicPage() {
 
           {step === 4 && (
             <section className="space-y-4">
-              <StepTitle title="5. Anexar documentos" description={`Anexe os PDFs pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}. Cada arquivo deve ser PDF válido e pode ter até 10MB.`} />
+              <StepTitle title="5. Anexar documentos" description={`Anexe os documentos pedidos para ${getAnoLabel(anoSelecionado ?? undefined)}.`} />
               {anoSelecionado === "1_ano_fundamental" && (
-                <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante; não exige BI, declaração nem certificado acadêmico anterior."]} />
+                <InfoCard title="Comprovativo acadêmico anterior dispensado" lines={["O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante."]} />
               )}
               <div className="grid gap-3 sm:grid-cols-2">
-                {documentos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                {documentosSemAlternativas.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                {mostrarAlternativaDocumentoEstudante && (
+                  <div className="grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">Documento do estudante: escolha uma das duas opções abaixo.</p>
+                    {documentosEstudanteAlternativos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                  </div>
+                )}
+                {mostrarAlternativaAcademica && (
+                  <div className="grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">Comprovativo acadêmico: escolha uma das duas opções abaixo.</p>
+                    {documentosAcademicosAlternativos.map((doc) => <DocumentUpload key={doc.key} id={`matricula-${doc.key}`} label={doc.label} required={doc.obrigatorio} file={files[doc.key]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }} />)}
+                  </div>
+                )}
               </div>
             </section>
           )}
 
           {step === 5 && (
             <section className="space-y-4">
-              <StepTitle title="6. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação. A API guardará os documentos no storage da academia e retornará o código de acompanhamento." />
+              <StepTitle title="6. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação." />
               <div className="grid gap-2 sm:grid-cols-2">{resumo.map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>)}</div>
               <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {files[doc.key] ? "✓ anexado" : doc.obrigatorio ? "Ainda falta" : "Não anexado"}</p>)}</div></div>
               {sucesso && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-500/10 dark:text-green-300">{sucesso}</p>}
@@ -501,6 +537,15 @@ export default function MatriculaPublicPage() {
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function isBeforeToday(value?: string) {
+  if (!value) return false;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
 }
 
 function maskTelefoneAngola(value: string) {

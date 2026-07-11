@@ -59,6 +59,14 @@ function normalizePhone(value: string) { return onlyDigits(value).slice(0, 9); }
 function maskTelefone(value: string) { return normalizePhone(value).replace(/(\d{3})(?=\d)/g, '$1 ').trim(); }
 function normalizeBi(value: string) { return value.replace(/[^0-9a-z]/gi, '').toUpperCase().slice(0, 14); }
 function isBiValido(value?: string) { return !value || /^\d{9}[A-Z]{2}\d{3}$/.test(value); }
+function isBeforeToday(value?: string) {
+  if (!value) return false;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+}
 function anoOrder(value: string) {
   const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   const nivel = match?.[2] === 'fundamental' ? 0 : match?.[2] === 'medio' ? 1 : 2;
@@ -286,8 +294,8 @@ export default function CadastrarEstudantePageContent() {
       if (anoAtual === '1_ano_fundamental') {
         docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: true });
       } else {
-        if (!cedulaEstudanteFile && (temBiEstudanteTexto || biEstudanteFile)) {
-          docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
+        if (!cedulaEstudanteFile) {
+          docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: temBiEstudanteTexto || !!biEstudanteFile });
         }
         if (!biEstudanteFile) {
           docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: !temBiEstudanteTexto });
@@ -329,6 +337,21 @@ export default function CadastrarEstudantePageContent() {
     certificado_9_ano_fundamental: certificado9File,
     certificado_ensino_medio: certificadoMedioFile,
   }[key]);
+
+  const certificadoAlternativoKey = documentos.find((doc) =>
+    doc.key === 'certificado_6_ano_fundamental' ||
+    doc.key === 'certificado_9_ano_fundamental' ||
+    doc.key === 'certificado_ensino_medio'
+  )?.key;
+  const mostrarAlternativaDocumentoEstudante = documentos.some((doc) => doc.key === 'bi_estudante') && documentos.some((doc) => doc.key === 'cedula_estudante');
+  const mostrarAlternativaAcademica = documentos.some((doc) => doc.key === 'declaracao') && !!certificadoAlternativoKey;
+  const documentosSemAlternativas = documentos.filter((doc) => {
+    if (mostrarAlternativaDocumentoEstudante && (doc.key === 'bi_estudante' || doc.key === 'cedula_estudante')) return false;
+    if (mostrarAlternativaAcademica && (doc.key === 'declaracao' || doc.key === certificadoAlternativoKey)) return false;
+    return true;
+  });
+  const documentosEstudanteAlternativos = documentos.filter((doc) => doc.key === 'bi_estudante' || doc.key === 'cedula_estudante');
+  const documentosAcademicosAlternativos = documentos.filter((doc) => doc.key === 'declaracao' || doc.key === certificadoAlternativoKey);
 
   const limparDocumentos = () => {
     setBiEstudanteFile(undefined);
@@ -373,6 +396,8 @@ export default function CadastrarEstudantePageContent() {
     const erros: string[] = [];
     if (!nome.trim()) erros.push('Nome do estudante é obrigatório');
     if (!dataNascimento) erros.push('Data de nascimento é obrigatória');
+    else if (!isBeforeToday(dataNascimento)) erros.push('Data de nascimento deve ser anterior à data atual');
+    if (!genero) erros.push('Gênero é obrigatório');
     if (!anoEscolarSelecionado) erros.push('Ano escolar é obrigatório');
     if (isEstudanteSuperior(anoEscolarSelecionado) && !bilheteIdentidade.trim()) {
       erros.push('BI do estudante é obrigatório no ensino superior');
@@ -395,6 +420,12 @@ export default function CadastrarEstudantePageContent() {
     if (deveMostrarCurso() && cursoSelecionado && anoEscolarSelecionado && !cursoSelecionado.anos_academicos.includes(anoEscolarSelecionado)) {
       erros.push('O curso selecionado não possui o ano acadêmico escolhido');
     }
+    if (cursoSelecionado && isAnoMedio(anoEscolarSelecionado) && cursoSelecionado.type !== 'medio') {
+      erros.push('O curso selecionado deve ser do tipo médio');
+    }
+    if (cursoSelecionado && isAnoSuperior(anoEscolarSelecionado) && cursoSelecionado.type !== 'superior') {
+      erros.push('O curso selecionado deve ser do tipo superior');
+    }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       erros.push('E-mail inválido');
     }
@@ -403,6 +434,14 @@ export default function CadastrarEstudantePageContent() {
     if (telefone.trim() && telefoneResponsavel.trim() && normalizePhone(telefone) === normalizePhone(telefoneResponsavel)) erros.push('Os telefones do estudante e do responsável não podem ser iguais');
     if (anoEscolarSelecionado !== '1_ano_fundamental' && !isBiValido(bilheteIdentidade)) erros.push('BI do estudante deve usar o formato 123456789LA041');
     if (!isBiValido(bilheteResponsavel)) erros.push('BI do responsável deve usar o formato 123456789LA041');
+    if (bilheteIdentidade.trim() && !biEstudanteFile) erros.push('Anexe o documento: Bilhete de identidade do estudante');
+    if (bilheteResponsavel.trim() && !biResponsavelFile) erros.push('Anexe o documento: Bilhete de identidade do responsável');
+    if (!isEstudanteSuperior(anoEscolarSelecionado) && anoEscolarSelecionado !== '1_ano_fundamental') {
+      const temBiEstudanteCompleto = !!bilheteIdentidade.trim() && !!biEstudanteFile;
+      const temCedulaEstudante = !!cedulaEstudanteFile;
+      if (temBiEstudanteCompleto && temCedulaEstudante) erros.push('Anexe apenas BI do estudante ou cédula do estudante, nunca os dois');
+      if (!temBiEstudanteCompleto && !temCedulaEstudante) erros.push('Anexe o BI do estudante com o número informado ou a cédula do estudante');
+    }
     documentos.forEach((doc) => {
       if (doc.obrigatorio && !getDocumentoFile(doc.key)) erros.push(`Anexe o documento: ${doc.label}`);
     });
@@ -669,43 +708,75 @@ export default function CadastrarEstudantePageContent() {
               </div>
 
               {/* Documentos */}
-              <div className="col-span-2 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:grid-cols-2">
-                <div className="col-span-1 sm:col-span-2">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Documentos PDF</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Envie os PDFs exigidos conforme o nível/ano acadêmico. Alternativas equivalentes deixam de ser solicitadas quando anexadas.
-                  </p>
-                </div>
-                {anoEscolarSelecionado === '1_ano_fundamental' && (
-                  <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
-                    O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante; não exige BI, declaração nem certificado acadêmico anterior.
+              {anoEscolarSelecionado && (
+                <div className="col-span-2 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:grid-cols-2">
+                  <div className="col-span-1 sm:col-span-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Documentos</p>
                   </div>
-                )}
-                {documentos.map((doc) => (
-                  <DocumentUpload
-                    key={doc.key}
-                    id={`estudante-${doc.key}`}
-                    label={doc.label}
-                    required={doc.obrigatorio}
-                    file={getDocumentoFile(doc.key)}
-                    onChange={(file, error) => {
-                      setDocumentoFile(doc.key, file);
-                      if (error) setValidationErrors([error]);
-                      else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
-                    }}
-                  />
-                ))}
-                <div className="col-span-1 rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-900 sm:col-span-2">
-                  <p className="mb-2 font-medium text-gray-700 dark:text-gray-300">Documentos anexados</p>
-                  <div className="grid gap-1 sm:grid-cols-2">
-                    {documentos.map((doc) => (
-                      <span key={doc.key} className="text-gray-600 dark:text-gray-300">
-                        {doc.label}: {getDocumentoFile(doc.key) ? <b className="text-green-600 dark:text-green-400">✓ pronto</b> : 'Não anexado'}
-                      </span>
-                    ))}
-                  </div>
+                  {anoEscolarSelecionado === '1_ano_fundamental' && (
+                    <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
+                      O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante.
+                    </div>
+                  )}
+                  {documentosSemAlternativas.map((doc) => (
+                    <DocumentUpload
+                      key={doc.key}
+                      id={`estudante-${doc.key}`}
+                      label={doc.label}
+                      required={doc.obrigatorio}
+                      file={getDocumentoFile(doc.key)}
+                      onChange={(file, error) => {
+                        setDocumentoFile(doc.key, file);
+                        if (error) setValidationErrors([error]);
+                        else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
+                      }}
+                    />
+                  ))}
+                  {mostrarAlternativaDocumentoEstudante && (
+                    <div className="col-span-1 grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">
+                        Documento do estudante: escolha uma das duas opções abaixo.
+                      </p>
+                      {documentosEstudanteAlternativos.map((doc) => (
+                        <DocumentUpload
+                          key={doc.key}
+                          id={`estudante-${doc.key}`}
+                          label={doc.label}
+                          required={doc.obrigatorio}
+                          file={getDocumentoFile(doc.key)}
+                          onChange={(file, error) => {
+                            setDocumentoFile(doc.key, file);
+                            if (error) setValidationErrors([error]);
+                            else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {mostrarAlternativaAcademica && (
+                    <div className="col-span-1 grid gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:col-span-2 sm:grid-cols-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 sm:col-span-2">
+                        Comprovativo acadêmico: escolha uma das duas opções abaixo.
+                      </p>
+                      {documentosAcademicosAlternativos.map((doc) => (
+                        <DocumentUpload
+                          key={doc.key}
+                          id={`estudante-${doc.key}`}
+                          label={doc.label}
+                          required={doc.obrigatorio}
+                          file={getDocumentoFile(doc.key)}
+                          onChange={(file, error) => {
+                            setDocumentoFile(doc.key, file);
+                            if (error) setValidationErrors([error]);
+                            else setValidationErrors((prev) => prev.filter((item) => !item.includes(doc.label)));
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>            </div>
+              )}
+            </div>
 
             {/* Erros de validação */}
             {validationErrors.length > 0 && (
