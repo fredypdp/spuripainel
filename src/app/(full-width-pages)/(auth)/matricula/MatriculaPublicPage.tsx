@@ -132,7 +132,7 @@ export default function MatriculaPublicPage() {
 
     if (estudanteSuperior) {
       docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
-      if (form.bilhete_identidade_responsavel?.trim() || files.bi_responsavel) docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: false });
+      if (form.bilhete_identidade_responsavel?.trim() || files.bi_responsavel) docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: !!form.bilhete_identidade_responsavel?.trim() });
     } else {
       docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: true });
       if (!files.cedula_estudante && (temBilheteEstudante || files.bi_estudante)) {
@@ -249,7 +249,8 @@ export default function MatriculaPublicPage() {
       if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_responsavel)) return "O BI do estudante não pode ser igual ao BI do responsável.";
     }
     if (current === 3) {
-      if (!form.telefone?.trim() && !form.telefone_responsavel?.trim()) return "Informe pelo menos um telefone do estudante ou do responsável.";
+      if (isSuperior(anoSelecionado ?? undefined) && !form.telefone?.trim()) return "Informe o telefone do estudante para o ensino superior.";
+      if (!isSuperior(anoSelecionado ?? undefined) && !form.telefone_responsavel?.trim()) return "Informe o telefone do responsável para estudantes escolares.";
       if (form.telefone && onlyDigits(form.telefone).length !== 9) return "Telefone do estudante deve ter exatamente 9 dígitos locais.";
       if (form.telefone_responsavel && onlyDigits(form.telefone_responsavel).length !== 9) return "Telefone do responsável deve ter exatamente 9 dígitos locais.";
       if (form.telefone && form.telefone_responsavel && onlyDigits(form.telefone) === onlyDigits(form.telefone_responsavel)) return "Os telefones do estudante e do responsável não podem ser iguais.";
