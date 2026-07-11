@@ -401,7 +401,7 @@ export default function CadastrarEstudantePageContent() {
     if (telefone.trim() && normalizePhone(telefone).length !== 9) erros.push('Telefone do estudante deve ter exatamente 9 dígitos locais');
     if (telefoneResponsavel.trim() && normalizePhone(telefoneResponsavel).length !== 9) erros.push('Telefone do responsável deve ter exatamente 9 dígitos locais');
     if (telefone.trim() && telefoneResponsavel.trim() && normalizePhone(telefone) === normalizePhone(telefoneResponsavel)) erros.push('Os telefones do estudante e do responsável não podem ser iguais');
-    if (!isBiValido(bilheteIdentidade)) erros.push('BI do estudante deve usar o formato 123456789LA041');
+    if (anoEscolarSelecionado !== '1_ano_fundamental' && !isBiValido(bilheteIdentidade)) erros.push('BI do estudante deve usar o formato 123456789LA041');
     if (!isBiValido(bilheteResponsavel)) erros.push('BI do responsável deve usar o formato 123456789LA041');
     documentos.forEach((doc) => {
       if (doc.obrigatorio && !getDocumentoFile(doc.key)) erros.push(`Anexe o documento: ${doc.label}`);
@@ -443,7 +443,7 @@ export default function CadastrarEstudantePageContent() {
       email: email.trim() || undefined,
       telefone: normalizePhone(telefone) || undefined,
       telefone_responsavel: normalizePhone(telefoneResponsavel) || undefined,
-      bilhete_identidade: bilheteIdentidade.trim().toUpperCase() || undefined,
+      bilhete_identidade: anoEscolarSelecionado === '1_ano_fundamental' ? undefined : bilheteIdentidade.trim().toUpperCase() || undefined,
       bilhete_identidade_responsavel: bilheteResponsavel.trim().toUpperCase() || undefined,
       ano_escolar_fundamental:
         isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)
@@ -641,20 +641,22 @@ export default function CadastrarEstudantePageContent() {
               </div>
 
               {/* Bilhetes */}
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Bilhete de Identidade do estudante{isEstudanteSuperior(anoEscolarSelecionado) ? ' *' : ' (opcional)'}</Label>
-                <Input
-                  type="text"
-                  placeholder="Ex: 123456789LA041"
-                  value={bilheteIdentidade}
-                  onChange={e => {
-                    setBilheteIdentidade(normalizeBi(e.target.value));
-                    if (anoEscolarSelecionado !== '1_ano_fundamental') setCedulaEstudanteFile(undefined);
-                  }}
-                  disabled={carregandoCadastro || anoEscolarSelecionado === '1_ano_fundamental'}
-                  hint={anoEscolarSelecionado === '1_ano_fundamental' ? 'No 1.º Ano Fundamental, envie apenas a cédula do estudante.' : isEstudanteSuperior(anoEscolarSelecionado) ? 'Obrigatório no ensino superior.' : 'Opcional para escola; se preencher, anexe também o BI do estudante.'}
-                />
-              </div>
+              {anoEscolarSelecionado !== '1_ano_fundamental' && (
+                <div className="col-span-2 sm:col-span-1">
+                  <Label>Bilhete de Identidade do estudante{isEstudanteSuperior(anoEscolarSelecionado) ? ' *' : ' (opcional)'}</Label>
+                  <Input
+                    type="text"
+                    placeholder="Ex: 123456789LA041"
+                    value={bilheteIdentidade}
+                    onChange={e => {
+                      setBilheteIdentidade(normalizeBi(e.target.value));
+                      setCedulaEstudanteFile(undefined);
+                    }}
+                    disabled={carregandoCadastro}
+                    hint={isEstudanteSuperior(anoEscolarSelecionado) ? 'Obrigatório no ensino superior.' : 'Opcional para escola; se preencher, anexe também o BI do estudante.'}
+                  />
+                </div>
+              )}
               <div className="col-span-2 sm:col-span-1">
                 <Label>Bilhete de Identidade do responsável{isEstudanteSuperior(anoEscolarSelecionado) ? ' (opcional)' : ' *'}</Label>
                 <Input

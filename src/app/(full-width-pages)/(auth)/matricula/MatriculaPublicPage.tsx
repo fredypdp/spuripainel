@@ -251,7 +251,7 @@ export default function MatriculaPublicPage() {
       if (!form.genero) return "Selecione o gênero.";
       if (!form.data_nascimento) return "Informe a data de nascimento.";
       if (isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade?.trim()) return "Informe o Bilhete de Identidade do estudante para o ensino superior.";
-      if (form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
+      if (!estudantePrimeiroFundamental && form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
       if (!isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
       if (form.bilhete_identidade_responsavel && !isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
       if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_responsavel)) return "O BI do estudante não pode ser igual ao BI do responsável.";
@@ -312,7 +312,7 @@ export default function MatriculaPublicPage() {
         curso_superior_id: isSuperior(anoSelecionado) ? curso?.id : undefined,
         telefone: onlyDigits(form.telefone ?? "") || undefined,
         telefone_responsavel: onlyDigits(form.telefone_responsavel ?? "") || undefined,
-        bilhete_identidade: form.bilhete_identidade?.toUpperCase(),
+        bilhete_identidade: estudantePrimeiroFundamental ? undefined : form.bilhete_identidade?.toUpperCase(),
         bilhete_identidade_responsavel: form.bilhete_identidade_responsavel?.toUpperCase(),
         declaracao_ano_academico: files.declaracao ? declaracaoAnoAcademico : undefined,
         ...files,
@@ -448,7 +448,9 @@ export default function MatriculaPublicPage() {
                 <div className="sm:col-span-2"><Label>Nome completo *</Label><Input placeholder="Nome completo do estudante" defaultValue={form.nome} onChange={(e) => setField("nome", e.target.value)} /></div>
                 <div><Label>Gênero *</Label><div className="flex gap-2">{(["masculino", "feminino"] as Genero[]).map((item) => <button key={item} type="button" onClick={() => setField("genero", item)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${form.genero === item ? "border-brand-500 bg-brand-500 text-white" : "border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{item === "masculino" ? "Masculino" : "Feminino"}</button>)}</div></div>
                 <BirthDateInput id="matricula-data-nascimento" required value={form.data_nascimento} onChange={(value) => setField("data_nascimento", value)} />
-                <div><Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); if (!estudantePrimeiroFundamental) setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} disabled={estudantePrimeiroFundamental} hint={estudantePrimeiroFundamental ? "No 1.º Ano Fundamental, envie apenas a cédula do estudante." : estudanteEscolarSelecionado ? "Opcional para escola; se preencher, anexe também o BI do estudante." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."} /></div>
+                {!estudantePrimeiroFundamental && (
+                  <div><Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} hint={estudanteEscolarSelecionado ? "Opcional para escola; se preencher, anexe também o BI do estudante." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."} /></div>
+                )}
                 <div><Label>Bilhete de Identidade do responsável</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório fora do ensino superior." /></div>
               </div>
             </section>
