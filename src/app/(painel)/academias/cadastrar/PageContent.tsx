@@ -9,7 +9,8 @@ import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import { Dropdown } from 'primereact/dropdown';
+import DocumentUpload from "@/components/form/DocumentUpload";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import type { AcademiaType, NivelEscolar } from '@/types/api';
 import { Provincias } from '@/types/api';
 
@@ -371,7 +372,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Input
                   type="text"
                   placeholder="Ex: Escola Primária Ngola Kiluanje"
-                  defaultValue={nomeAcademia}
+                  value={nomeAcademia}
                   onChange={(e) => setNomeAcademia(e.target.value)}
                   disabled={carregandoCadastro}
                 />
@@ -383,7 +384,7 @@ export default function CadastrarAcademiaPageContent() {
                   type="text"
                   inputMode="numeric"
                   placeholder="10 números"
-                  defaultValue={nif}
+                  value={nif}
                   onChange={(e) => setNif(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   disabled={carregandoCadastro}
                 />
@@ -392,35 +393,34 @@ export default function CadastrarAcademiaPageContent() {
 
               <div className="col-span-2 sm:col-span-1">
                 <Label>Alvará em PDF *</Label>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(e) => setAlvara(e.target.files?.[0] ?? null)}
-                  disabled={carregandoCadastro}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:file:bg-white/[0.06] dark:file:text-gray-300"
+                <DocumentUpload
+                  id="academia-alvara"
+                  label="Alvará"
+                  required
+                  file={alvara ?? undefined}
+                  onChange={(file, error) => {
+                    setAlvara(file ?? null);
+                    if (error) setValidationErrors([error]);
+                    else setValidationErrors((prev) => prev.filter((item) => !item.toLowerCase().includes('alvará') && !item.toLowerCase().includes('ficheiro')));
+                  }}
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Envie o documento em PDF com até 10 MB.</p>
               </div>
 
               {/* Nível da academia: 'escola' | 'superior'
                   optionValue="value" → armazena a string primitiva, não o objeto */}
               <div className="col-span-2 sm:col-span-1">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Tipo de instituição *
-                </span>
-                <Dropdown
-                  value={nivelAcademia || null}
-                  onChange={(e) => {
-                    setNivelAcademia(e.value as 'escola' | 'superior');
+                <Label>Tipo de instituição *</Label>
+                <SearchableSelect
+                  value={nivelAcademia}
+                  onChange={(value) => {
+                    setNivelAcademia(value as 'escola' | 'superior' | '');
                     // Resetar campos dependentes ao mudar o nível
                     setNivelEscolar('');
                     setAnosAcademicosSelecionados([]);
                   }}
-                  options={NIVEL_ACADEMIA_OPCOES}
-                  optionLabel="nome"
-                  optionValue="value"
+                  options={NIVEL_ACADEMIA_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))}
                   placeholder="Escola ou Superior"
-                  className="w-full"
+                  searchable
                   disabled={carregandoCadastro}
                 />
               </div>
@@ -428,17 +428,13 @@ export default function CadastrarAcademiaPageContent() {
               {/* Natureza: 'public' | 'private'
                   optionValue="value" → armazena a string primitiva, não o objeto */}
               <div className="col-span-2 sm:col-span-1">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Natureza *
-                </span>
-                <Dropdown
-                  value={academiaType || null}
-                  onChange={(e) => setAcademiaType(e.value as AcademiaType)}
-                  options={NATUREZA_OPCOES}
-                  optionLabel="nome"
-                  optionValue="value"
+                <Label>Natureza *</Label>
+                <SearchableSelect
+                  value={academiaType}
+                  onChange={(value) => setAcademiaType(value as AcademiaType | '')}
+                  options={NATUREZA_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))}
                   placeholder="Pública ou Privada"
-                  className="w-full"
+                  searchable
                   disabled={carregandoCadastro}
                 />
               </div>
@@ -448,20 +444,16 @@ export default function CadastrarAcademiaPageContent() {
                   optionValue="value" → armazena a string primitiva */}
               {nivelAcademia === 'escola' && (
                 <div className="col-span-2 sm:col-span-1">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                    Nível escolar *
-                  </span>
-                  <Dropdown
-                    value={nivelEscolar || null}
-                    onChange={(e) => {
-                      setNivelEscolar(e.value as NivelEscolar);
+                  <Label>Nível escolar *</Label>
+                  <SearchableSelect
+                    value={nivelEscolar}
+                    onChange={(value) => {
+                      setNivelEscolar(value as NivelEscolar | '');
                       setAnosAcademicosSelecionados([]);
                     }}
-                    options={NIVEL_ESCOLAR_OPCOES}
-                    optionLabel="nome"
-                    optionValue="value"
+                    options={NIVEL_ESCOLAR_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))}
                     placeholder="Fundamental, Médio ou Misto"
-                    className="w-full"
+                    searchable
                     disabled={carregandoCadastro}
                   />
                 </div>
@@ -470,20 +462,15 @@ export default function CadastrarAcademiaPageContent() {
               {/* Província — optionValue="codigo" envia o CÓDIGO (ex: 'LUA', 'BGO')
                   que é o que a API espera, não o nome por extenso */}
               <div className="col-span-2 sm:col-span-1">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Província *
-                </span>
-                <Dropdown
-                  value={provinciaCodigo || null}
-                  onChange={(e) => setProvinciaCodigo(e.value as string)}
-                  options={Provincias}
-                  optionLabel="nome"
-                  optionValue="codigo"
-                  filter
+                <Label>Província *</Label>
+                <SearchableSelect
+                  value={provinciaCodigo}
+                  onChange={setProvinciaCodigo}
+                  options={Provincias.map((provincia) => ({ value: provincia.codigo, label: provincia.nome }))}
+                  searchable
                   placeholder="Selecione a província"
-                  className="w-full"
                   disabled={carregandoCadastro}
-                  emptyFilterMessage="Nenhuma província encontrada"
+                  noOptionsMessage={() => 'Nenhuma província encontrada'}
                 />
               </div>
 
@@ -493,7 +480,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Input
                   type="text"
                   placeholder="+244 900 000 000"
-                  defaultValue={numeroTelefone}
+                  value={numeroTelefone}
                   onChange={(e) => setNumeroTelefone(e.target.value)}
                   disabled={carregandoCadastro}
                 />
@@ -505,7 +492,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Input
                   type="email"
                   placeholder="email@academia.ao"
-                  defaultValue={email}
+                  value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={carregandoCadastro}
                 />
@@ -517,7 +504,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Input
                   type="text"
                   placeholder="Rua, Bairro, Município"
-                  defaultValue={endereco}
+                  value={endereco}
                   onChange={(e) => setEndereco(e.target.value)}
                   disabled={carregandoCadastro}
                 />
@@ -529,7 +516,7 @@ export default function CadastrarAcademiaPageContent() {
                 <Input
                   type="text"
                   placeholder="https://academia.ao"
-                  defaultValue={website}
+                  value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   disabled={carregandoCadastro}
                 />
