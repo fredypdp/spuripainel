@@ -306,16 +306,16 @@ export default function AvaliacoesFinaisAcademia() {
 
   // Carrega avaliações para um ano letivo específico (ou todos se vazio)
   const recarregarAvaliacoes = useCallback((anoLetivo?: string) => {
-    carregarAvaliacoes({ ano_letivo: anoLetivo || undefined, token });
+    carregarAvaliacoes({ ano_letivo: anoLetivo || undefined, token, limit: 100 });
   }, [carregarAvaliacoes, token]);
 
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes(token);
+    carregarEstudantes({ token, limit: 100 });
     buscarAnoLetivo(token);
     // Primeiro carrega sem filtro para descobrir anos disponíveis
-    carregarAvaliacoes({ token });
+    carregarAvaliacoes({ token, limit: 100 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

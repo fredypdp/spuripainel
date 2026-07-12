@@ -249,7 +249,7 @@ function DashboardAdmin({ user }: { user: MeuPerfilResponse }) {
 
   const load = useCallback(() => {
     fetchAcademias({ token });
-    fetchEstudantes(token);
+    fetchEstudantes({ token, limit: 1 });
     fetchNotas({ token, limit: 1 });
     fetchFaltas({ token, limit: 1 });
     // eslint-disable-next-line react-hooks/exhaustive-deps

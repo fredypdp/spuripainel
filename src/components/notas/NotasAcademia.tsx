@@ -655,7 +655,7 @@ export default function NotasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes(token);
+    carregarEstudantes({ token, limit: 100 });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);
