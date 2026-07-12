@@ -40,7 +40,7 @@ export default function LoginForm() {
 
       if (result) {
         tokenStorage.setWithType(result.token, result.type);
-        router.push("/");
+        router.push("/painel");
       }
     } catch {
       // Erro já tratado pelo useApi e exposto em erroLogin

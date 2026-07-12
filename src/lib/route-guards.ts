@@ -166,8 +166,13 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
   {
     path: '/',
+    allowedTypes: 'public',
+    redirectIfUnauthorized: '/painel',
+  },
+  {
+    path: '/painel',
     allowedTypes: 'authenticated',
-    redirectIfUnauthorized: '/login',
+    redirectIfUnauthorized: '/',
   },
 ];
 
@@ -193,7 +198,7 @@ export function checkRoutePermission(
 
   if (!routeConfig) {
     if (!isAuthenticated) {
-      return { allowed: false, redirectTo: '/login' };
+      return { allowed: false, redirectTo: '/' };
     }
     return { allowed: true };
   }
