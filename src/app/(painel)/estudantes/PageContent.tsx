@@ -1066,6 +1066,7 @@ export default function Estudantes() {
     const filtrosPermitidos = sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin);
     await carregarEstudantesRef.current({
       token: token || undefined,
+      limit: 100,
       genero: filtrosPermitidos.genero || undefined,
       idade_min: filtrosPermitidos.idadeMin ? Number(filtrosPermitidos.idadeMin) : undefined,
       idade_max: filtrosPermitidos.idadeMax ? Number(filtrosPermitidos.idadeMax) : undefined,
@@ -1089,7 +1090,7 @@ export default function Estudantes() {
     let mounted = true;
     (async () => {
       const token = tokenStorage.get();
-      await carregarEstudantesRef.current({ token: token || undefined });
+      await carregarEstudantesRef.current({ token: token || undefined, limit: 100 });
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };

@@ -511,7 +511,7 @@ export interface RegistrarAprovacaoAnoRequest {
  * Proteção: admin ou academia
  */
 export interface ListarNotasParams {
-  /** Paginação: padrão 50, máximo 1000 */
+  /** Paginação: padrão 50, máximo 100 */
   limit?: number;
   /** Paginação: padrão 0 */
   offset?: number;
@@ -546,7 +546,7 @@ export interface ListarNotasParams {
  * Proteção: admin ou academia
  */
 export interface ListarFaltasParams {
-  /** Paginação: padrão 50, máximo 1000 */
+  /** Paginação: padrão 50, máximo 100 */
   limit?: number;
   /** Paginação: padrão 0 */
   offset?: number;
@@ -579,6 +579,10 @@ export interface ListarFaltasParams {
  * Proteção: autenticado (qualquer tipo)
  */
 export interface ListarAvaliacoesParams {
+  /** Paginação: padrão 50, máximo 100 */
+  limit?: number;
+  /** Paginação: padrão 0 */
+  offset?: number;
   /** Filtro oficial atual da API: 'fundamental' | 'medio' | 'superior'. */
   nivel?: TipoEnsino;
   /** Ex: '2025_2026' */
@@ -1199,6 +1203,9 @@ export interface AprovacoesEstudanteResponse {
 export interface ListarAvaliacoesResponse {
   avaliacoes: AvaliacaoFinal[];
   total: number;
+  total_geral?: number;
+  limit?: number;
+  offset?: number;
 }
 
 /** GET /avaliacoes-estudante/:codigo */
@@ -1491,6 +1498,9 @@ export interface ConsultarAcademiasResponse {
 export interface ConsultarEstudantesResponse {
   estudantes: EstudanteDetalhado[];
   total: number;
+  total_geral?: number;
+  limit?: number;
+  offset?: number;
   tipo_usuario: UserType;
   codigo_academia?: string;
   nome_academia?: string;

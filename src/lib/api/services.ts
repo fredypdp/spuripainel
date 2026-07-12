@@ -101,6 +101,12 @@ import type {
 } from '@/types/api';
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const GET_PAGE_LIMIT_MAX = 100;
+
+function appendPageParams(qs: URLSearchParams, params?: { limit?: number; offset?: number }) {
+  if (params?.limit !== undefined) qs.append('limit', String(Math.min(Math.max(1, params.limit), GET_PAGE_LIMIT_MAX)));
+  if (params?.offset !== undefined) qs.append('offset', String(Math.max(0, params.offset)));
+}
 
 const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
 const ACADEMIA_DEFINIR_ANO_LETIVO_ENDPOINT = '/academia/definir-ano-letivo';
@@ -387,6 +393,8 @@ export const consultasService = {
 
   listarEstudantes: (params?: {
     token?: string;
+    limit?: number;
+    offset?: number;
     genero?: string | string[];
     idade_min?: number;
     idade_max?: number;
@@ -405,6 +413,7 @@ export const consultasService = {
     com_turma?: boolean;
   }) => {
     const qs = new URLSearchParams();
+    appendPageParams(qs, params);
     appendMultiValueParam(qs, 'genero', params?.genero);
     if (params?.idade_min !== undefined) qs.append('idade_min', String(params.idade_min));
     if (params?.idade_max !== undefined) qs.append('idade_max', String(params.idade_max));
@@ -435,6 +444,7 @@ export const consultasService = {
    */
   listarAvaliacoes: (params?: ListarAvaliacoesParams) => {
     const qs = new URLSearchParams();
+    appendPageParams(qs, params);
     if (params?.nivel)              qs.append('nivel',              params.nivel);
     if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
     if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
@@ -535,8 +545,7 @@ export const consultasService = {
    */
   listarNotas: (params?: ListarNotasParams) => {
     const qs = new URLSearchParams();
-    if (params?.limit)                  qs.append('limit',                  params.limit.toString());
-    if (params?.offset)                 qs.append('offset',                 params.offset.toString());
+    appendPageParams(qs, params);
     appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
     appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
     appendMultiValueParam(qs, 'curso_id', params?.curso_id);
@@ -559,8 +568,7 @@ export const consultasService = {
    */
   listarFaltas: (params?: ListarFaltasParams) => {
     const qs = new URLSearchParams();
-    if (params?.limit)                  qs.append('limit',                  params.limit.toString());
-    if (params?.offset)                 qs.append('offset',                 params.offset.toString());
+    appendPageParams(qs, params);
     appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
     appendMultiValueParam(qs, 'ano_academico', params?.ano_academico);
     appendMultiValueParam(qs, 'curso_id', params?.curso_id);

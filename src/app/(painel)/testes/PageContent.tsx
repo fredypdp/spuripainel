@@ -615,7 +615,7 @@ export default function PageContent() {
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
-      callApi("GET", "/estudantes", undefined, tok),
+      callApi("GET", "/estudantes?limit=100", undefined, tok),
       callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
 
@@ -1274,7 +1274,7 @@ export default function PageContent() {
     logPrefix: string
   ): Promise<Set<string>> => {
     const notasExistentes = new Set<string>();
-    const LIMIT = 1000;
+    const LIMIT = 100;
     let offset = 0;
     let totalGeral = 0;
     let pagina = 1;
@@ -1334,7 +1334,7 @@ export default function PageContent() {
     logPrefix: string
   ): Promise<Set<string>> => {
     const faltasExistentes = new Set<string>();
-    const LIMIT = 1000;
+    const LIMIT = 100;
     let offset = 0;
     let totalGeral = 0;
     let pagina = 1;

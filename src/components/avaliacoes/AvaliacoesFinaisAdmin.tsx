@@ -371,13 +371,13 @@ export default function AvaliacoesFinaisAdmin() {
   useEffect(() => {
     carregarAcads({ token });
     // Descobrir anos letivos globais
-    consultasService.listarAvaliacoes({ token }).then(res => {
+    consultasService.listarAvaliacoes({ token, limit: 100 }).then(res => {
       const anos = Array.from(new Set((res?.avaliacoes ?? []).map(a => a.ano_lectivo).filter(Boolean))).sort();
       setAnosGlobais(anos);
       if (anos.length > 0) setAnoLetivoGlobal(anos[0]);
     }).catch(() => {});
     // Carregar avaliações (sem filtro inicialmente para stats das províncias)
-    carregarAvaliacoes({ token });
+    carregarAvaliacoes({ token, limit: 100 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -410,7 +410,7 @@ export default function AvaliacoesFinaisAdmin() {
   const entrarNaAcademia = useCallback(async (acad: AcadInfo) => {
     setLoadingAnosAcad(true);
     try {
-      const res = await consultasService.listarAvaliacoes({ codigo_academia: acad.codigo_academia, token });
+      const res = await consultasService.listarAvaliacoes({ codigo_academia: acad.codigo_academia, token, limit: 100 });
       const avs  = res?.avaliacoes ?? [];
       const anos = Array.from(new Set(avs.map(a => a.ano_lectivo).filter(Boolean))).sort();
       setAnosAcademia(anos);
@@ -418,9 +418,9 @@ export default function AvaliacoesFinaisAdmin() {
       setAnoLetivoAcademia(anoInicial);
       // Carrega filtrado pelo primeiro ano letivo
       if (anoInicial) {
-        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: anoInicial, token });
+        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: anoInicial, token, limit: 100 });
       } else {
-        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, token });
+        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, token, limit: 100 });
       }
     } finally {
       setLoadingAnosAcad(false);
@@ -430,7 +430,7 @@ export default function AvaliacoesFinaisAdmin() {
   // Quando muda o ano letivo dentro da academia
   const onChangeAnoAcademia = useCallback(async (acad: AcadInfo, ano: string) => {
     setAnoLetivoAcademia(ano);
-    await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: ano || undefined, token });
+    await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: ano || undefined, token, limit: 100 });
   }, [carregarAvaliacoes, token]);
 
   function buildCrumbs() {
@@ -464,7 +464,7 @@ export default function AvaliacoesFinaisAdmin() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma província para explorar as academias</p>
           </div>
-          <AnoLetivoSelector anosDisponiveis={anosGlobais} anoSelecionado={anoLetivoGlobal} onChange={v => { setAnoLetivoGlobal(v); carregarAvaliacoes({ ano_letivo: v || undefined, token }); }} />
+          <AnoLetivoSelector anosDisponiveis={anosGlobais} anoSelecionado={anoLetivoGlobal} onChange={v => { setAnoLetivoGlobal(v); carregarAvaliacoes({ ano_letivo: v || undefined, token, limit: 100 }); }} />
         </div>
         <StatsBar avaliacoes={todasAvaliacoes} />
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
