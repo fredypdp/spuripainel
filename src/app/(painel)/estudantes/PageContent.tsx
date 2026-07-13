@@ -9,6 +9,7 @@ import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/ap
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ITEMS_POR_PAGINA = 50;
@@ -143,7 +144,19 @@ function getStatusBadgeClass(status: string) {
     case 'ativo':      return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
     case 'inativo':    return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
     case 'finalizado': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+    case 'pendente_documentos': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
     default:           return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+  }
+}
+
+function formatarStatusEstudante(status: string): string {
+  switch (status?.toLowerCase()) {
+    case 'pendente_documentos': return 'Pendente de documentos';
+    case 'ativo': return 'Ativo';
+    case 'inativo': return 'Inativo';
+    case 'arquivado': return 'Arquivado';
+    case 'finalizado': return 'Finalizado';
+    default: return status ? status.replace(/_/g, ' ') : '-';
   }
 }
 
@@ -227,59 +240,24 @@ const OPCOES_ORDEM: { key: OrdemEstudantes; label: string; icon: string }[] = [
   { key: 'cadastro_asc',  label: 'Mais antigos',        icon: 'mdi:clock-check-outline'          },
 ];
 
-// ─── BotaoOrdenar ─────────────────────────────────────────────────────────────
+// ─── SelectOrdenar ────────────────────────────────────────────────────────────
 
-function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
+function SelectOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
   opcoes: { key: T; label: string; icon: string }[]; ordemAtual: T; onSelecionar: (k: T) => void;
 }) {
-  const [aberto, setAberto] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const labelAtual = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
-
-  const handleToggle = () => {
-    if (!aberto && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX });
-    }
-    setAberto(p => !p);
-  };
-
-  useEffect(() => {
-    if (!aberto) return;
-    const close = () => setAberto(false);
-    document.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', close, true); };
-  }, [aberto]);
-
-  const menu = aberto && typeof document !== 'undefined' && (
-    <div onMouseDown={e => e.stopPropagation()}
-      style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 220 }}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1">
-      {opcoes.map(op => (
-        <button key={op.key} onClick={() => { onSelecionar(op.key); setAberto(false); }}
-          className={`flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors ${ordemAtual === op.key
-            ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium'
-            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05]'}`}>
-          <Icon icon={op.icon} width={16} className="flex-shrink-0" />
-          {op.label}
-          {ordemAtual === op.key && <Icon icon="mdi:check" width={14} className="ml-auto text-brand-500" />}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
-    <>
-      <button ref={btnRef} onClick={handleToggle}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-        <Icon icon="mdi:sort" width={16} />
-        {labelAtual}
-        <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={14} className="text-gray-400" />
-      </button>
-      {menu}
-    </>
+    <div className="min-w-[230px]">
+      <SearchableSelect
+        value={ordemAtual}
+        options={opcoes.map(opcao => ({ value: opcao.key, label: opcao.label }))}
+        onChange={(value) => { if (value) onSelecionar(value); }}
+        placeholder="Ordenar estudantes"
+        isSearchable={false}
+        isClearable={false}
+        inputId="ordenar-estudantes"
+        name="ordenar-estudantes"
+      />
+    </div>
   );
 }
 
@@ -547,7 +525,7 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, onAdicionarDocum
               <TableCell className="whitespace-nowrap px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{est.email || '-'}</TableCell>
               {isAdmin && <TableCell className="whitespace-nowrap px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{academias?.[est.codigo_academia ?? ''] ?? est.codigo_academia ?? '-'}</TableCell>}
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(est.status)}`}>{est.status || '-'}</span>
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(est.status)}`}>{formatarStatusEstudante(est.status)}</span>
               </TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
                 {String(est.status) === 'pendente_documentos' && onAdicionarDocumentacao ? (
@@ -842,6 +820,26 @@ const DOCUMENT_LABELS: Record<string, string> = {
 };
 const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
 
+type DocumentoEstudanteEntrada = Record<string, unknown> | string | null | undefined;
+
+function documentoTemArquivo(documento: DocumentoEstudanteEntrada): boolean {
+  if (!documento) return false;
+  if (typeof documento === 'string') return documento.trim().length > 0;
+  return Boolean(documento.path || documento.file_url || documento.download_url);
+}
+
+function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[string, DocumentoEstudanteEntrada]> {
+  return Object.entries((estudante.documentos ?? {}) as Record<string, DocumentoEstudanteEntrada>)
+    .filter(([, documento]) => documentoTemArquivo(documento));
+}
+
+function labelContextoEstudante(contexto: string): string {
+  if (contexto === 'fundamental') return 'Ensino Fundamental';
+  if (contexto === 'medio') return 'Ensino Médio';
+  return 'Ensino Superior';
+}
+
+
 function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, academiaNivel?: string, nivelEscolar?: string) {
   if (!isAdmin && academiaNivel === 'superior') return 'superior';
   if (!isAdmin && academiaNivel === 'escola' && nivelEscolar === 'medio') return 'medio';
@@ -851,44 +849,114 @@ function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, a
   return 'fundamental';
 }
 
+
+function BotaoVoltarEstudantes({ onVoltar }: { onVoltar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onVoltar}
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300"
+    >
+      <Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes
+    </button>
+  );
+}
+
 function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar }: {
   estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void;
 }) {
-  const contexto = getContextoEstudante(estudante, isAdmin, academiaNivel, nivelEscolar);
-  const ano = contexto === 'fundamental' ? estudante.ano_escolar_fundamental : contexto === 'medio' ? estudante.ano_escolar_medio : estudante.ano_superior;
-  const statusContexto = contexto === 'fundamental' ? estudante.status_escolar_fundamental : contexto === 'medio' ? estudante.status_escolar_medio : estudante.status_superior;
-  const cursoId = contexto === 'medio' ? estudante.curso_medio_id : contexto === 'superior' ? estudante.curso_superior_id : undefined;
+  const [estudanteConsultado, setEstudanteConsultado] = useState<EstudanteDetalhado>(estudante);
+  const [carregandoDocumentos, setCarregandoDocumentos] = useState(false);
+  const [erroDocumentos, setErroDocumentos] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      setCarregandoDocumentos(true);
+      setErroDocumentos('');
+      try {
+        const token = tokenStorage.get();
+        const resposta = await consultasService.estudante(estudante.codigo_estudante, token || undefined);
+        if (mounted) setEstudanteConsultado(resposta.estudante);
+      } catch (err: any) {
+        if (mounted) setErroDocumentos(err?.message || 'Não foi possível atualizar os documentos deste estudante.');
+      } finally {
+        if (mounted) setCarregandoDocumentos(false);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [estudante.codigo_estudante]);
+
+  const contexto = getContextoEstudante(estudanteConsultado, isAdmin, academiaNivel, nivelEscolar);
+  const ano = contexto === 'fundamental' ? estudanteConsultado.ano_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.ano_escolar_medio : estudanteConsultado.ano_superior;
+  const statusContexto = contexto === 'fundamental' ? estudanteConsultado.status_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.status_escolar_medio : estudanteConsultado.status_superior;
+  const cursoId = contexto === 'medio' ? estudanteConsultado.curso_medio_id : contexto === 'superior' ? estudanteConsultado.curso_superior_id : undefined;
   const curso = cursoId ? cursos.find(c => c.id === cursoId)?.nome ?? cursoId : undefined;
-  const documentos = Object.entries(((estudante as any).documentos ?? {}) as Record<string, unknown>).filter(([, doc]) => Boolean(doc));
+  const documentos = listarDocumentosDisponiveis(estudanteConsultado);
+  const nivelLabel = labelContextoEstudante(contexto);
 
   return (
     <div className="space-y-5">
-      <button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button>
+      <BotaoVoltarEstudantes onVoltar={onVoltar} />
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">{estudante.nome}</h3><p className="mt-1 text-sm text-gray-500">{estudante.codigo_estudante} · {contexto === 'fundamental' ? 'Ensino Fundamental' : contexto === 'medio' ? 'Ensino Médio' : 'Ensino Superior'}</p></div>
-          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">{estudanteConsultado.nome}</h3>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-200 dark:ring-brand-400/30">
+                <Icon icon="mdi:identifier" width={14} /> {estudanteConsultado.codigo_estudante}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/15 dark:text-sky-100 dark:ring-sky-300/30">
+                <Icon icon="mdi:school-outline" width={14} /> {nivelLabel}
+              </span>
+            </div>
+          </div>
+          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudanteConsultado.status)}`}>{formatarStatusEstudante(estudanteConsultado.status)}</span>
         </div>
       </div>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Informações do vínculo atual</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="Ano/Nível atual" value={ano ? formatAnoAcademico(ano) : '-'} />
         {curso && <DetailItem label="Curso" value={curso} />}
-        {contexto === 'superior' && <DetailItem label="Semestre atual" value={estudante.semestre_atual ?? '-'} />}
+        {contexto === 'superior' && <DetailItem label="Semestre atual" value={estudanteConsultado.semestre_atual ?? '-'} />}
         <DetailItem label="Estado no contexto" value={statusContexto?.replace(/_/g, ' ') || '-'} className="capitalize" />
-        {isAdmin && <DetailItem label="Academia" value={estudante.codigo_academia || '-'} />}
+        {isAdmin && <DetailItem label="Academia" value={estudanteConsultado.codigo_academia || '-'} />}
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação e contactos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DetailItem label="Género" value={estudante.genero || '-'} className="capitalize" />
-        <DetailItem label="Nascimento" value={`${formatarDataNasc(estudante.data_nascimento)}${estudante.data_nascimento ? ` (${calcularIdade(estudante.data_nascimento)} anos)` : ''}`} />
-        <DetailItem label="Telefone" value={estudante.telefone || (estudante as any).telefone_responsavel || '-'} />
-        {isAdmin && <DetailItem label="E-mail" value={estudante.email || '-'} />}
-        {isAdmin && <DetailItem label="BI estudante" value={estudante.bilhete_identidade || '-'} />}
-        {isAdmin && <DetailItem label="BI responsável" value={estudante.bilhete_identidade_responsavel || '-'} />}
+        <DetailItem label="Género" value={estudanteConsultado.genero || '-'} className="capitalize" />
+        <DetailItem label="Nascimento" value={`${formatarDataNasc(estudanteConsultado.data_nascimento)}${estudanteConsultado.data_nascimento ? ` (${calcularIdade(estudanteConsultado.data_nascimento)} anos)` : ''}`} />
+        <DetailItem label="Telefone" value={estudanteConsultado.telefone || (estudanteConsultado as any).telefone_responsavel || '-'} />
+        {isAdmin && <DetailItem label="E-mail" value={estudanteConsultado.email || '-'} />}
+        {isAdmin && <DetailItem label="BI estudante" value={estudanteConsultado.bilhete_identidade || '-'} />}
+        {isAdmin && <DetailItem label="BI responsável" value={estudanteConsultado.bilhete_identidade_responsavel || '-'} />}
       </div></section>
-      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos disponíveis</h4>
-        {documentos.length === 0 ? <p className="text-sm text-gray-500">Nenhum documento disponível para este estudante.</p> : <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{documentos.map(([campo]) => <a key={campo} href="#" onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudante.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-400"><Icon icon="mdi:file-pdf-box" width={18} /> {DOCUMENT_LABELS[campo] ?? campo}</a>)}</div>}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">Documentos disponíveis</h4>
+          {carregandoDocumentos && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-300"><span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" /> Atualizando documentos...</span>}
+        </div>
+        {erroDocumentos && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{erroDocumentos}</p>}
+        {documentos.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
+            Nenhum documento foi encontrado nos dados atuais deste estudante. Se o upload foi feito recentemente, aguarde a atualização da consulta ou tente abrir esta tela novamente.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {documentos.map(([campo]) => (
+              <a
+                key={campo}
+                href="#"
+                onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
+              >
+                <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
+              </a>
+            ))}
+          </div>
+        )}
       </section>
-      {isAdmin && <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Auditoria</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><DetailItem label="Criado em" value={formatarDataISO(estudante.created_at)} /><DetailItem label="Atualizado em" value={formatarDataISO(estudante.updated_at)} /></div></section>}
+      {isAdmin && <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Auditoria</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><DetailItem label="Criado em" value={formatarDataISO(estudanteConsultado.created_at)} /><DetailItem label="Atualizado em" value={formatarDataISO(estudanteConsultado.updated_at)} /></div></section>}
     </div>
   );
 }
@@ -899,8 +967,78 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
   const [erro, setErro] = useState('');
   const enviados = new Set(Object.keys(((estudante as any).documentos ?? {}) as Record<string, unknown>));
   const camposPendentes = DOCUMENT_FIELDS.filter(campo => !enviados.has(campo));
-  const handleSubmit = async () => { setErro(''); setLoading(true); try { await academiaService.adicionarDocumentosEstudante(estudante.codigo_estudante, files); onConcluido(); } catch (err: any) { setErro(err?.message || 'Falha ao adicionar documentação.'); } finally { setLoading(false); } };
-  return <div className="space-y-5"><button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button><div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]"><h3 className="text-xl font-semibold text-gray-900 dark:text-white">Adicionar documentação</h3><p className="mt-1 text-sm text-gray-500 capitalize">{estudante.nome} · {estudante.codigo_estudante}</p></div>{erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{erro}</div>}<section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A API validará quais documentos são obrigatórios para ativar este estudante.</p><div className="grid grid-cols-1 gap-4 md:grid-cols-2">{camposPendentes.map(campo => <label key={campo} className="block rounded-lg border border-gray-200 p-3 dark:border-gray-700"><span className="mb-2 block text-sm font-medium text-gray-800 dark:text-white/90">{DOCUMENT_LABELS[campo]}</span><input type="file" accept="application/pdf,.pdf" onChange={e => setFiles(prev => ({ ...prev, [campo]: e.target.files?.[0] }))} className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-brand-600" /></label>)}</div><div className="mt-5 flex justify-end gap-2"><Button size="sm" variant="outline" onClick={onVoltar}>Cancelar</Button><Button size="sm" variant="primary" onClick={handleSubmit} disabled={loading || !Object.values(files).some(Boolean)}>{loading ? 'Enviando...' : 'Adicionar documentação'}</Button></div></section></div>;
+  const possuiArquivoSelecionado = Object.values(files).some(Boolean);
+
+  const handleSubmit = async () => {
+    setErro('');
+    setLoading(true);
+    try {
+      await academiaService.adicionarDocumentosEstudante(estudante.codigo_estudante, files);
+      onConcluido();
+    } catch (err: any) {
+      setErro(err?.message || 'Falha ao adicionar documentação.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <BotaoVoltarEstudantes onVoltar={onVoltar} />
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Adicionar documentação</h3>
+            <p className="mt-1 text-sm text-gray-500 capitalize">{estudante.nome} · {estudante.codigo_estudante}</p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            <Icon icon="mdi:file-clock-outline" width={14} /> Documentos pendentes
+          </span>
+        </div>
+      </div>
+
+      {erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{erro}</div>}
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
+        <p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A API validará quais documentos são obrigatórios para ativar este estudante.</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {camposPendentes.map(campo => (
+            <label key={campo} className="block rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4 transition hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10">
+              <span className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-white/90">
+                <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo]}
+              </span>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                disabled={loading}
+                onChange={e => setFiles(prev => ({ ...prev, [campo]: e.target.files?.[0] }))}
+                className="block w-full cursor-pointer text-sm text-gray-500 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-brand-500 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:file:cursor-not-allowed dark:text-gray-400"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onVoltar}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <Icon icon="mdi:close" width={18} /> Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !possuiArquivoSelecionado}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400"
+          >
+            {loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Enviando...</> : <><Icon icon="mdi:cloud-upload-outline" width={18} /> Adicionar documentação</>}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function DetailItem({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) {
@@ -1039,7 +1177,7 @@ export default function Estudantes() {
               {vistaEscala ? 'Vista Tabela' : 'Vista em Escala'}
             </button>
           )}
-          {carregado && <BotaoOrdenar opcoes={OPCOES_ORDEM} ordemAtual={ordem} onSelecionar={setOrdem} />}
+          {carregado && <SelectOrdenar opcoes={OPCOES_ORDEM} ordemAtual={ordem} onSelecionar={setOrdem} />}
           {dataEstudantes && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
               <span className="font-medium">{vistaEscala ? totalGeral : totalFiltrado}</span>
