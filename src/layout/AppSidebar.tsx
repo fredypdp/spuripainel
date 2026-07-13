@@ -25,7 +25,7 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="flowbite:grid-outline" />,
     name: "Painel",
-    path: "/",
+    path: "/painel",
   },
   {
     icon: <Icon width="24px" icon="ix:user-profile" />,
@@ -423,7 +423,7 @@ export default function AppSidebar() {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link href="/">
+        <Link href="/painel">
           {isExpanded || isHovered || isMobileOpen ? (
             <>
               <Image
