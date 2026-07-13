@@ -649,6 +649,24 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  adicionarDocumentosEstudante: (codigoEstudante: string, documentos: Record<string, File | undefined>, token?: string) => {
+    const formData = new FormData();
+    Object.entries(documentos).forEach(([campo, file]) => {
+      if (file) formData.append(campo, file);
+    });
+    return api.postForm<{ codigo_estudante: string; status: string; documentos?: Record<string, unknown> }>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/documentos`,
+      formData,
+      { token: token || tokenStorage.get() || undefined }
+    );
+  },
+
+  baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
+    fetchApiBlob(
+      `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   // ── Solicitações de matrícula ────────────────────────────────────
 
   listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string) => {
