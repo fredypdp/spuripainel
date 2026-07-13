@@ -50,7 +50,7 @@ export type StatusEscolar            = 'inativo' | 'em_andamento' | 'finalizado'
 export type StatusEscolarFundamental = StatusEscolar;
 export type StatusEscolarMedio       = StatusEscolar;
 export type StatusSuperior           = 'inativo' | 'em_andamento' | 'finalizado';
-export type StatusGeralEstudante     = 'inativo' | 'ativo' | 'arquivado';
+export type StatusGeralEstudante     = 'inativo' | 'ativo' | 'arquivado' | 'pendente_documentos';
 export type StatusGeral              = StatusGeralEstudante;
 
 /**
