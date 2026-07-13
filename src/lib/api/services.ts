@@ -650,6 +650,18 @@ function normalizarDocumentoEndpoint(downloadUrl: string, prefixoPermitido: stri
 }
 
 export const documentosService = {
+  baixarAlvaraAcademia: (codigoAcademia: string, token?: string) =>
+    fetchApiBlob(
+      `/documentos/academias/${encodeURIComponent(codigoAcademia)}/alvara/download`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  baixarAlvaraAcademiaPorUrl: (downloadUrl: string, token?: string) =>
+    fetchApiBlob(
+      normalizarDocumentoEndpoint(downloadUrl, '/documentos/academias/'),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
     fetchApiBlob(
       `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download`,
@@ -659,6 +671,18 @@ export const documentosService = {
   baixarDocumentoEstudantePorUrl: (downloadUrl: string, token?: string) =>
     fetchApiBlob(
       normalizarDocumentoEndpoint(downloadUrl, '/documentos/estudantes/'),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  baixarDocumentoSolicitacaoMatricula: (codigoSolicitacao: string, campo: string, token?: string) =>
+    fetchApiBlob(
+      `/documentos/solicitacoes-matricula/${encodeURIComponent(codigoSolicitacao)}/${encodeURIComponent(campo)}/download`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  baixarDocumentoSolicitacaoMatriculaPorUrl: (downloadUrl: string, token?: string) =>
+    fetchApiBlob(
+      normalizarDocumentoEndpoint(downloadUrl, '/documentos/solicitacoes-matricula/'),
       { token: token || tokenStorage.get() || undefined }
     ),
 };
@@ -729,10 +753,7 @@ export const academiaService = {
     ),
 
   baixarDocumentoSolicitacaoMatricula: (codigo: string, campo: string, token?: string) =>
-    fetchApiBlob(
-      `/documentos/solicitacoes-matricula/${encodeURIComponent(codigo)}/${encodeURIComponent(campo)}/download`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    documentosService.baixarDocumentoSolicitacaoMatricula(codigo, campo, token),
 
   // ── Notas ──────────────────────────────────────────────────────────
 
