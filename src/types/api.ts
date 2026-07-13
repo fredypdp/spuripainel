@@ -70,6 +70,8 @@ export type Genero      = 'masculino' | 'feminino';
 
 export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
 export type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada';
+export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
+export type JobEventType = 'job_enqueued' | 'job_progress' | 'job_done' | 'job_failed';
 /** Date-only ISO string (YYYY-MM-DD), correspondente ao tipo `date` na documentação da API. */
 export type ApiDate = string;
 
@@ -117,6 +119,14 @@ export interface CriarUniversidadeRequest {
   cursos?: string[];
 }
 
+
+export interface AnoLetivoItem {
+  ano_letivo: string;
+  tipo: 'escolar' | 'superior';
+  definido_por: string;
+  definido_em: string;
+}
+
 export interface LoginRequest {
   usuario: string;
   senha: string;
@@ -127,7 +137,7 @@ export interface CriarEstudanteRequest {
   /** Obrigatório. "masculino" | "feminino" */
   genero: Genero;
   /** Obrigatório. Formato ISO: "YYYY-MM-DD". */
-  data_nascimento: string;
+  data_nascimento: ApiDate;
   email?: string;
   telefone?: string;
   telefone_responsavel?: string;
@@ -206,7 +216,7 @@ export interface CriarSolicitacaoMatriculaRequest {
   codigo_academia: string;
   nome: string;
   genero: Genero;
-  data_nascimento: string;
+  data_nascimento: ApiDate;
   email?: string;
   telefone?: string;
   telefone_responsavel?: string;
@@ -249,7 +259,7 @@ export interface SolicitacaoMatricula {
   academia_nome?: string;
   nome: string;
   genero: Genero;
-  data_nascimento: string;
+  data_nascimento: ApiDate;
   email?: string;
   telefone?: string;
   bilhete_identidade?: string;
@@ -428,7 +438,7 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
-  data_nascimento?: string;
+  data_nascimento?: ApiDate;
 }
 
 export interface AtualizarDadosAcademicosEstudanteRequest {
@@ -1065,12 +1075,13 @@ export interface EstudanteDetalhado {
   email?: string;
   telefone?: string;
   telefone_responsavel?: string;
-  email_responsavel?: string;
+  telefone_verificado: boolean;
+  telefone_responsavel_verificado: boolean;
   email_verificado: boolean;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;
   genero: Genero;
-  data_nascimento: string;
+  data_nascimento: ApiDate;
   codigo_academia?: string;
   status: StatusGeral;
   status_escolar_fundamental: StatusEscolar;
@@ -1106,6 +1117,7 @@ export interface AcademiaDetalhada {
   provincia: string;
   endereco: string;
   telefone?: string;
+  telefone_verificado: boolean;
   email?: string;
   email_verificado: boolean;
   website?: string;
@@ -1113,14 +1125,15 @@ export interface AcademiaDetalhada {
   anos_academicos?: string[];
   status: string;
   cursos: string[];
+  motivo_desativacao?: string;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
   total_estudantes: number;
   version: number;
   ano_letivo?: string;
   tipo_ano_letivo?: 'escolar' | 'superior';
   ano_letivo_ativado_em?: string;
-  anos_letivos_lista?: Array<{ ano_letivo: string; tipo: 'escolar' | 'superior'; definido_por: string; definido_em: string }>;
+  anos_letivos_lista: AnoLetivoItem[];
   documentos_obrigatorios?: DocumentosObrigatorios;
 }
 
@@ -1128,10 +1141,16 @@ export interface AdminDetalhado {
   id: string;
   nome: string;
   email: string;
-  email_verificado: boolean;
-  role: AdminType;
+  role: AdminRole;
   status: string;
+  email_verificado: boolean;
+  telefone?: string;
+  telefone_verificado: boolean;
+  created_by?: string;
+  total_acoes_realizadas?: number;
   created_at: string;
+  updated_at: string;
+  version: number;
 }
 
 // ── Respostas de listagem ─────────────────────────────────────────────────────
