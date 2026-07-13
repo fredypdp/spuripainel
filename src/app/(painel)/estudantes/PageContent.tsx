@@ -5,7 +5,7 @@ import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
-import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
+import { ConsultarEstudanteResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
@@ -830,7 +830,8 @@ const DOCUMENT_LABELS: Record<string, string> = {
 };
 const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
 
-type DocumentoEstudanteEntrada = Record<string, unknown> | string | null | undefined;
+type DocumentoEstudanteEntrada = { download_url?: unknown; file_url?: unknown; path?: unknown } | string | null | undefined;
+type EstudanteDetalhes = ConsultarEstudanteResponse['estudante'];
 
 function documentoTemArquivo(documento: DocumentoEstudanteEntrada): boolean {
   if (!documento) return false;
@@ -843,21 +844,19 @@ function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[stri
     .filter(([, documento]) => documentoTemArquivo(documento));
 }
 
+
+function getDocumentoDownloadUrl(documento: DocumentoEstudanteEntrada): string | undefined {
+  if (!documento || typeof documento === 'string') return undefined;
+  return typeof documento.download_url === 'string' && documento.download_url.trim()
+    ? documento.download_url
+    : undefined;
+}
+
 function labelContextoEstudante(contexto: string): string {
   if (contexto === 'fundamental') return 'Ensino Fundamental';
   if (contexto === 'medio') return 'Ensino Médio';
   return 'Ensino Superior';
 }
-
-function valorCampoEstudante(estudante: EstudanteDetalhado, ...campos: string[]): string {
-  for (const campo of campos) {
-    const valor = (estudante as unknown as Record<string, unknown>)[campo];
-    if (typeof valor === 'string' && valor.trim()) return valor;
-    if (typeof valor === 'number') return String(valor);
-  }
-  return '-';
-}
-
 
 function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, academiaNivel?: string, nivelEscolar?: string) {
   if (!isAdmin && academiaNivel === 'superior') return 'superior';
@@ -884,24 +883,25 @@ function BotaoVoltarEstudantes({ onVoltar }: { onVoltar: () => void }) {
 function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar }: {
   estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void;
 }) {
-  const [estudanteConsultado, setEstudanteConsultado] = useState<EstudanteDetalhado>(estudante);
-  const [carregandoDocumentos, setCarregandoDocumentos] = useState(false);
-  const [erroDocumentos, setErroDocumentos] = useState('');
+  const [estudanteConsultado, setEstudanteConsultado] = useState<EstudanteDetalhes>(estudante);
+  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
+  const [erroDetalhes, setErroDetalhes] = useState('');
+  const [erroDocumento, setErroDocumento] = useState('');
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      setCarregandoDocumentos(true);
-      setErroDocumentos('');
+      setCarregandoDetalhes(true);
+      setErroDetalhes('');
       try {
         const token = tokenStorage.get();
         const resposta = await consultasService.estudante(estudante.codigo_estudante, token || undefined);
         if (mounted) setEstudanteConsultado(resposta.estudante);
       } catch (err: any) {
-        if (mounted) setErroDocumentos(err?.message || 'Não foi possível atualizar os documentos deste estudante.');
+        if (mounted) setErroDetalhes(err?.message || 'Não foi possível consultar os detalhes deste estudante.');
       } finally {
-        if (mounted) setCarregandoDocumentos(false);
+        if (mounted) setCarregandoDetalhes(false);
       }
     })();
 
@@ -912,15 +912,28 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const ano = contexto === 'fundamental' ? estudanteConsultado.ano_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.ano_escolar_medio : estudanteConsultado.ano_superior;
   const statusContexto = contexto === 'fundamental' ? estudanteConsultado.status_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.status_escolar_medio : estudanteConsultado.status_superior;
   const cursoId = contexto === 'medio' ? estudanteConsultado.curso_medio_id : contexto === 'superior' ? estudanteConsultado.curso_superior_id : undefined;
-  const curso = cursoId ? cursos.find(c => c.id === cursoId)?.nome ?? cursoId : undefined;
+  const curso = contexto === 'medio'
+    ? estudanteConsultado.curso_medio?.nome ?? (cursoId ? cursos.find(c => c.id === cursoId)?.nome ?? cursoId : undefined)
+    : contexto === 'superior'
+      ? estudanteConsultado.curso_superior?.nome ?? (cursoId ? cursos.find(c => c.id === cursoId)?.nome ?? cursoId : undefined)
+      : undefined;
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
-  const handleAbrirDocumento = async (campo: string) => {
-    const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo);
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const handleAbrirDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
+    setErroDocumento('');
+    try {
+      const token = tokenStorage.get();
+      const downloadUrl = getDocumentoDownloadUrl(documento);
+      const blob = downloadUrl
+        ? await documentosService.baixarDocumentoEstudantePorUrl(downloadUrl, token || undefined)
+        : await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err: any) {
+      setErroDocumento(err?.message || 'Não foi possível abrir este documento pela rota autenticada de documentos.');
+    }
   };
 
   return (
@@ -958,26 +971,28 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Contatos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="E-mail do estudante" value={estudanteConsultado.email || '-'} />
         <DetailItem label="Telefone do estudante" value={estudanteConsultado.telefone || '-'} />
-        <DetailItem label="E-mail do responsável" value={valorCampoEstudante(estudanteConsultado, 'email_responsavel', 'responsavel_email')} />
-        <DetailItem label="Telefone do responsável" value={valorCampoEstudante(estudanteConsultado, 'telefone_responsavel', 'responsavel_telefone')} />
+        <DetailItem label="Telefone do responsável" value={estudanteConsultado.telefone_responsavel || '-'} />
+        <DetailItem label="Telefone estudante verificado" value={estudanteConsultado.telefone_verificado ? 'Sim' : 'Não'} />
+        <DetailItem label="Telefone responsável verificado" value={estudanteConsultado.telefone_responsavel_verificado ? 'Sim' : 'Não'} />
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">Documentos disponíveis</h4>
-          {carregandoDocumentos && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-300"><span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" /> Atualizando documentos...</span>}
+          {carregandoDetalhes && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-300"><span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" /> Atualizando dados...</span>}
         </div>
-        {erroDocumentos && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{erroDocumentos}</p>}
+        {erroDetalhes && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{erroDetalhes}</p>}
+        {erroDocumento && <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}
         {documentos.length === 0 ? (
           <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
             Nenhum documento foi encontrado nos dados atuais deste estudante. Se o upload foi feito recentemente, aguarde a atualização da consulta ou tente abrir esta tela novamente.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {documentos.map(([campo]) => (
+            {documentos.map(([campo, documento]) => (
               <a
                 key={campo}
                 href="#"
-                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo); }}
+                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo, documento); }}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
               >
                 <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
