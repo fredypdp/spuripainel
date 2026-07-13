@@ -9,6 +9,7 @@ import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/ap
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ITEMS_POR_PAGINA = 50;
@@ -143,7 +144,19 @@ function getStatusBadgeClass(status: string) {
     case 'ativo':      return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
     case 'inativo':    return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
     case 'finalizado': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+    case 'pendente_documentos': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
     default:           return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+  }
+}
+
+function formatarStatusEstudante(status: string): string {
+  switch (status?.toLowerCase()) {
+    case 'pendente_documentos': return 'Pendente de documentos';
+    case 'ativo': return 'Ativo';
+    case 'inativo': return 'Inativo';
+    case 'arquivado': return 'Arquivado';
+    case 'finalizado': return 'Finalizado';
+    default: return status ? status.replace(/_/g, ' ') : '-';
   }
 }
 
@@ -233,20 +246,18 @@ function SelectOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
   opcoes: { key: T; label: string; icon: string }[]; ordemAtual: T; onSelecionar: (k: T) => void;
 }) {
   return (
-    <label className="relative inline-flex items-center">
-      <span className="sr-only">Ordenar estudantes</span>
-      <Icon icon="mdi:sort" width={16} className="pointer-events-none absolute left-3 text-gray-500 dark:text-gray-400" />
-      <select
+    <div className="min-w-[230px]">
+      <SearchableSelect
         value={ordemAtual}
-        onChange={(event) => onSelecionar(event.target.value as T)}
-        className="h-10 min-w-[210px] appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-9 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-      >
-        {opcoes.map(opcao => (
-          <option key={opcao.key} value={opcao.key}>{opcao.label}</option>
-        ))}
-      </select>
-      <Icon icon="mdi:chevron-down" width={16} className="pointer-events-none absolute right-3 text-gray-400" />
-    </label>
+        options={opcoes.map(opcao => ({ value: opcao.key, label: opcao.label }))}
+        onChange={(value) => { if (value) onSelecionar(value); }}
+        placeholder="Ordenar estudantes"
+        isSearchable={false}
+        isClearable={false}
+        inputId="ordenar-estudantes"
+        name="ordenar-estudantes"
+      />
+    </div>
   );
 }
 
@@ -514,7 +525,7 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, onAdicionarDocum
               <TableCell className="whitespace-nowrap px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{est.email || '-'}</TableCell>
               {isAdmin && <TableCell className="whitespace-nowrap px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{academias?.[est.codigo_academia ?? ''] ?? est.codigo_academia ?? '-'}</TableCell>}
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(est.status)}`}>{est.status || '-'}</span>
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(est.status)}`}>{formatarStatusEstudante(est.status)}</span>
               </TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
                 {String(est.status) === 'pendente_documentos' && onAdicionarDocumentacao ? (
@@ -838,6 +849,19 @@ function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, a
   return 'fundamental';
 }
 
+
+function BotaoVoltarEstudantes({ onVoltar }: { onVoltar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onVoltar}
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300"
+    >
+      <Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes
+    </button>
+  );
+}
+
 function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar }: {
   estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void;
 }) {
@@ -875,7 +899,7 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
 
   return (
     <div className="space-y-5">
-      <button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button>
+      <BotaoVoltarEstudantes onVoltar={onVoltar} />
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -889,7 +913,7 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
               </span>
             </div>
           </div>
-          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudanteConsultado.status)}`}>{estudanteConsultado.status}</span>
+          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudanteConsultado.status)}`}>{formatarStatusEstudante(estudanteConsultado.status)}</span>
         </div>
       </div>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Informações do vínculo atual</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -960,13 +984,7 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={onVoltar}
-        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300"
-      >
-        <Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes
-      </button>
+      <BotaoVoltarEstudantes onVoltar={onVoltar} />
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -995,7 +1013,7 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
                 accept="application/pdf,.pdf"
                 disabled={loading}
                 onChange={e => setFiles(prev => ({ ...prev, [campo]: e.target.files?.[0] }))}
-                className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-500 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-400"
+                className="block w-full cursor-pointer text-sm text-gray-500 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-brand-500 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:file:cursor-not-allowed dark:text-gray-400"
               />
             </label>
           ))}
