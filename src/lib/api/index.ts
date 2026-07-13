@@ -12,6 +12,7 @@ export {
   consultasService,
   eventSourcingService,
   estudanteService,
+  documentosService,
   academiaService,
   adminService,
   solicitacaoMatriculaService,

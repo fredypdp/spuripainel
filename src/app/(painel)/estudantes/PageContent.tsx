@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
+import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
@@ -49,6 +49,7 @@ interface FiltrosState {
   status: string; statusFundamental: string; statusMedio: string; statusSuperior: string;
   turno: string; codigoTurma: string; comTurma: string;
   semestreAtual: string; cursoId: string; codigoAcademia: string;
+  statusDocumentos: string;
 }
 
 interface VisibilidadeFiltros {
@@ -113,6 +114,7 @@ const FILTROS_INICIAIS: FiltrosState = {
   status: '', statusFundamental: '', statusMedio: '', statusSuperior: '',
   turno: '', codigoTurma: '', comTurma: '',
   semestreAtual: '', cursoId: '', codigoAcademia: '',
+  statusDocumentos: '',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -212,6 +214,7 @@ function aplicarFiltros(lista: EstudanteDetalhado[], filtros: FiltrosState): Est
 
     if (!filtroAceitaValor(filtros.genero, estudante.genero)) return false;
     if (!filtroAceitaValor(filtros.status, estudante.status)) return false;
+    if (filtros.statusDocumentos === 'pendente_documentos' && estudante.status !== 'pendente_documentos') return false;
     if (!filtroAceitaValor(filtros.anoFundamental, estudante.ano_escolar_fundamental)) return false;
     if (!filtroAceitaValor(filtros.anoMedio, estudante.ano_escolar_medio)) return false;
     if (!filtroAceitaValor(filtros.anoSuperior, estudante.ano_superior)) return false;
@@ -421,6 +424,13 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Documentos</label>
+              <select value={filtros.statusDocumentos} onChange={e => setFiltros({ ...filtros, statusDocumentos: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
+                <option value="">Todos</option><option value="pendente_documentos">Pendentes</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Vínculo de turma</label>
               <select value={filtros.comTurma} onChange={e => setFiltros({ ...filtros, comTurma: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
@@ -432,7 +442,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação geral</label>
                 <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
+                  <option value="">Todos</option><option value="ativo">Ativo</option><option value="pendente_documentos">Pendente de documentos</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
                 </select>
               </div>
             )}
@@ -839,6 +849,15 @@ function labelContextoEstudante(contexto: string): string {
   return 'Ensino Superior';
 }
 
+function valorCampoEstudante(estudante: EstudanteDetalhado, ...campos: string[]): string {
+  for (const campo of campos) {
+    const valor = (estudante as unknown as Record<string, unknown>)[campo];
+    if (typeof valor === 'string' && valor.trim()) return valor;
+    if (typeof valor === 'number') return String(valor);
+  }
+  return '-';
+}
+
 
 function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, academiaNivel?: string, nivelEscolar?: string) {
   if (!isAdmin && academiaNivel === 'superior') return 'superior';
@@ -897,6 +916,13 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
+  const handleAbrirDocumento = async (campo: string) => {
+    const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
   return (
     <div className="space-y-5">
       <BotaoVoltarEstudantes onVoltar={onVoltar} />
@@ -920,16 +946,20 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
         <DetailItem label="Ano/Nível atual" value={ano ? formatAnoAcademico(ano) : '-'} />
         {curso && <DetailItem label="Curso" value={curso} />}
         {contexto === 'superior' && <DetailItem label="Semestre atual" value={estudanteConsultado.semestre_atual ?? '-'} />}
-        <DetailItem label="Estado no contexto" value={statusContexto?.replace(/_/g, ' ') || '-'} className="capitalize" />
+        <DetailItem label="Estado acadêmico" value={statusContexto?.replace(/_/g, ' ') || '-'} className="capitalize" />
         {isAdmin && <DetailItem label="Academia" value={estudanteConsultado.codigo_academia || '-'} />}
       </div></section>
-      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação e contactos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="Género" value={estudanteConsultado.genero || '-'} className="capitalize" />
         <DetailItem label="Nascimento" value={`${formatarDataNasc(estudanteConsultado.data_nascimento)}${estudanteConsultado.data_nascimento ? ` (${calcularIdade(estudanteConsultado.data_nascimento)} anos)` : ''}`} />
-        <DetailItem label="Telefone" value={estudanteConsultado.telefone || (estudanteConsultado as any).telefone_responsavel || '-'} />
-        {isAdmin && <DetailItem label="E-mail" value={estudanteConsultado.email || '-'} />}
-        {isAdmin && <DetailItem label="BI estudante" value={estudanteConsultado.bilhete_identidade || '-'} />}
-        {isAdmin && <DetailItem label="BI responsável" value={estudanteConsultado.bilhete_identidade_responsavel || '-'} />}
+        <DetailItem label="BI estudante" value={estudanteConsultado.bilhete_identidade || '-'} />
+        <DetailItem label="BI responsável" value={estudanteConsultado.bilhete_identidade_responsavel || '-'} />
+      </div></section>
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Contatos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <DetailItem label="E-mail do estudante" value={estudanteConsultado.email || '-'} />
+        <DetailItem label="Telefone do estudante" value={estudanteConsultado.telefone || '-'} />
+        <DetailItem label="E-mail do responsável" value={valorCampoEstudante(estudanteConsultado, 'email_responsavel', 'responsavel_email')} />
+        <DetailItem label="Telefone do responsável" value={valorCampoEstudante(estudanteConsultado, 'telefone_responsavel', 'responsavel_telefone')} />
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -947,7 +977,7 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
               <a
                 key={campo}
                 href="#"
-                onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }}
+                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo); }}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
               >
                 <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
@@ -965,7 +995,7 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
   const [files, setFiles] = useState<Record<string, File | undefined>>({});
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
-  const enviados = new Set(Object.keys(((estudante as any).documentos ?? {}) as Record<string, unknown>));
+  const enviados = new Set(listarDocumentosDisponiveis(estudante).map(([campo]) => campo));
   const camposPendentes = DOCUMENT_FIELDS.filter(campo => !enviados.has(campo));
   const possuiArquivoSelecionado = Object.values(files).some(Boolean);
 
