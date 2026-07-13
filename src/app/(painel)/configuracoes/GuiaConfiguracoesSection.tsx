@@ -4,6 +4,13 @@ import Link from "next/link";
 import Icon from "@/components/ui/Icon";
 import { useAcademiaConfiguracaoStatus } from "@/hooks/useAcademiaConfiguracaoStatus";
 
+const stepRouteReferences: Record<string, { href: string; label: string }[]> = {
+  estudantes: [
+    { href: "/estudantes/cadastrar", label: "Cadastrar estudante" },
+    { href: "/solicitacoes-matricula", label: "Aprovar solicitações de matrícula" },
+  ],
+};
+
 export default function GuiaConfiguracoesSection() {
   const { steps, completedCount, totalCount, nextStep, loading, error, retry } = useAcademiaConfiguracaoStatus();
   const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -52,6 +59,7 @@ export default function GuiaConfiguracoesSection() {
         {steps.map((step, index) => {
           const icon = step.completed ? "mdi:check-circle" : step.unlocked ? "mdi:circle-outline" : "mdi:lock-outline";
           const iconColor = step.completed ? "text-green-500" : step.current ? "text-brand-500" : "text-gray-400";
+          const routeReferences = stepRouteReferences[step.id] ?? [];
           const card = (
             <li className={`rounded-2xl border p-4 transition sm:p-5 ${step.current ? "border-brand-300 bg-brand-50/60 dark:border-brand-700 dark:bg-brand-900/10" : "border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"} ${!step.unlocked ? "opacity-75" : ""}`}>
               <div className="flex gap-4">
@@ -63,12 +71,39 @@ export default function GuiaConfiguracoesSection() {
                   </div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{step.description}</p>
                   <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{step.details}</p>
-                  {step.unlocked && !step.completed && <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-500">Abrir configuração <Icon icon="mdi:open-in-new" className="h-4 w-4" /></span>}
+                  {routeReferences.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {routeReferences.map((route) => step.unlocked ? (
+                        <Link
+                          key={route.href}
+                          href={route.href}
+                          className="inline-flex items-center gap-1 rounded-full border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                        >
+                          {route.label}
+                          <span className="font-mono text-[11px] text-brand-400">{route.href}</span>
+                          <Icon icon="mdi:open-in-new" className="h-3.5 w-3.5" />
+                        </Link>
+                      ) : (
+                        <span
+                          key={route.href}
+                          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-400 dark:border-gray-800"
+                        >
+                          {route.label}
+                          <span className="font-mono text-[11px]">{route.href}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {step.unlocked && !step.completed && routeReferences.length === 0 && <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-500">Abrir configuração <Icon icon="mdi:open-in-new" className="h-4 w-4" /></span>}
                   {!step.unlocked && <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-gray-400"><Icon icon="mdi:lock-outline" className="h-4 w-4" /> Conclua os passos anteriores para liberar</span>}
                 </div>
               </div>
             </li>
           );
+          if (routeReferences.length > 0) {
+            return <div key={step.id}>{card}</div>;
+          }
+
           return step.unlocked ? <Link key={step.id} href={step.href}>{card}</Link> : <div key={step.id}>{card}</div>;
         })}
       </ol>
