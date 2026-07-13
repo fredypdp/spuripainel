@@ -1082,6 +1082,7 @@ export interface EstudanteDetalhado {
   curso_superior_id?: string;
   total_notas?: number;
   total_faltas?: number;
+  documentos?: Record<string, SolicitacaoMatriculaDocumento | Record<string, unknown> | string | null | undefined>;
   created_at: string;
   updated_at: string;
   version: number;

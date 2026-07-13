@@ -809,6 +809,26 @@ const DOCUMENT_LABELS: Record<string, string> = {
 };
 const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
 
+type DocumentoEstudanteEntrada = Record<string, unknown> | string | null | undefined;
+
+function documentoTemArquivo(documento: DocumentoEstudanteEntrada): boolean {
+  if (!documento) return false;
+  if (typeof documento === 'string') return documento.trim().length > 0;
+  return Boolean(documento.path || documento.file_url || documento.download_url);
+}
+
+function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[string, DocumentoEstudanteEntrada]> {
+  return Object.entries((estudante.documentos ?? {}) as Record<string, DocumentoEstudanteEntrada>)
+    .filter(([, documento]) => documentoTemArquivo(documento));
+}
+
+function labelContextoEstudante(contexto: string): string {
+  if (contexto === 'fundamental') return 'Ensino Fundamental';
+  if (contexto === 'medio') return 'Ensino Médio';
+  return 'Ensino Superior';
+}
+
+
 function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, academiaNivel?: string, nivelEscolar?: string) {
   if (!isAdmin && academiaNivel === 'superior') return 'superior';
   if (!isAdmin && academiaNivel === 'escola' && nivelEscolar === 'medio') return 'medio';
@@ -821,41 +841,98 @@ function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, a
 function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar }: {
   estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void;
 }) {
-  const contexto = getContextoEstudante(estudante, isAdmin, academiaNivel, nivelEscolar);
-  const ano = contexto === 'fundamental' ? estudante.ano_escolar_fundamental : contexto === 'medio' ? estudante.ano_escolar_medio : estudante.ano_superior;
-  const statusContexto = contexto === 'fundamental' ? estudante.status_escolar_fundamental : contexto === 'medio' ? estudante.status_escolar_medio : estudante.status_superior;
-  const cursoId = contexto === 'medio' ? estudante.curso_medio_id : contexto === 'superior' ? estudante.curso_superior_id : undefined;
+  const [estudanteConsultado, setEstudanteConsultado] = useState<EstudanteDetalhado>(estudante);
+  const [carregandoDocumentos, setCarregandoDocumentos] = useState(false);
+  const [erroDocumentos, setErroDocumentos] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      setCarregandoDocumentos(true);
+      setErroDocumentos('');
+      try {
+        const token = tokenStorage.get();
+        const resposta = await consultasService.estudante(estudante.codigo_estudante, token || undefined);
+        if (mounted) setEstudanteConsultado(resposta.estudante);
+      } catch (err: any) {
+        if (mounted) setErroDocumentos(err?.message || 'Não foi possível atualizar os documentos deste estudante.');
+      } finally {
+        if (mounted) setCarregandoDocumentos(false);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [estudante.codigo_estudante]);
+
+  const contexto = getContextoEstudante(estudanteConsultado, isAdmin, academiaNivel, nivelEscolar);
+  const ano = contexto === 'fundamental' ? estudanteConsultado.ano_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.ano_escolar_medio : estudanteConsultado.ano_superior;
+  const statusContexto = contexto === 'fundamental' ? estudanteConsultado.status_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.status_escolar_medio : estudanteConsultado.status_superior;
+  const cursoId = contexto === 'medio' ? estudanteConsultado.curso_medio_id : contexto === 'superior' ? estudanteConsultado.curso_superior_id : undefined;
   const curso = cursoId ? cursos.find(c => c.id === cursoId)?.nome ?? cursoId : undefined;
-  const documentos = Object.entries(((estudante as any).documentos ?? {}) as Record<string, unknown>).filter(([, doc]) => Boolean(doc));
+  const documentos = listarDocumentosDisponiveis(estudanteConsultado);
+  const nivelLabel = labelContextoEstudante(contexto);
 
   return (
     <div className="space-y-5">
       <button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button>
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">{estudante.nome}</h3><p className="mt-1 text-sm text-gray-500">{estudante.codigo_estudante} · {contexto === 'fundamental' ? 'Ensino Fundamental' : contexto === 'medio' ? 'Ensino Médio' : 'Ensino Superior'}</p></div>
-          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">{estudanteConsultado.nome}</h3>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 ring-1 ring-brand-100 dark:bg-brand-500/15 dark:text-brand-200 dark:ring-brand-400/30">
+                <Icon icon="mdi:identifier" width={14} /> {estudanteConsultado.codigo_estudante}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100 dark:bg-sky-400/15 dark:text-sky-100 dark:ring-sky-300/30">
+                <Icon icon="mdi:school-outline" width={14} /> {nivelLabel}
+              </span>
+            </div>
+          </div>
+          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudanteConsultado.status)}`}>{estudanteConsultado.status}</span>
         </div>
       </div>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Informações do vínculo atual</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="Ano/Nível atual" value={ano ? formatAnoAcademico(ano) : '-'} />
         {curso && <DetailItem label="Curso" value={curso} />}
-        {contexto === 'superior' && <DetailItem label="Semestre atual" value={estudante.semestre_atual ?? '-'} />}
+        {contexto === 'superior' && <DetailItem label="Semestre atual" value={estudanteConsultado.semestre_atual ?? '-'} />}
         <DetailItem label="Estado no contexto" value={statusContexto?.replace(/_/g, ' ') || '-'} className="capitalize" />
-        {isAdmin && <DetailItem label="Academia" value={estudante.codigo_academia || '-'} />}
+        {isAdmin && <DetailItem label="Academia" value={estudanteConsultado.codigo_academia || '-'} />}
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação e contactos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DetailItem label="Género" value={estudante.genero || '-'} className="capitalize" />
-        <DetailItem label="Nascimento" value={`${formatarDataNasc(estudante.data_nascimento)}${estudante.data_nascimento ? ` (${calcularIdade(estudante.data_nascimento)} anos)` : ''}`} />
-        <DetailItem label="Telefone" value={estudante.telefone || (estudante as any).telefone_responsavel || '-'} />
-        {isAdmin && <DetailItem label="E-mail" value={estudante.email || '-'} />}
-        {isAdmin && <DetailItem label="BI estudante" value={estudante.bilhete_identidade || '-'} />}
-        {isAdmin && <DetailItem label="BI responsável" value={estudante.bilhete_identidade_responsavel || '-'} />}
+        <DetailItem label="Género" value={estudanteConsultado.genero || '-'} className="capitalize" />
+        <DetailItem label="Nascimento" value={`${formatarDataNasc(estudanteConsultado.data_nascimento)}${estudanteConsultado.data_nascimento ? ` (${calcularIdade(estudanteConsultado.data_nascimento)} anos)` : ''}`} />
+        <DetailItem label="Telefone" value={estudanteConsultado.telefone || (estudanteConsultado as any).telefone_responsavel || '-'} />
+        {isAdmin && <DetailItem label="E-mail" value={estudanteConsultado.email || '-'} />}
+        {isAdmin && <DetailItem label="BI estudante" value={estudanteConsultado.bilhete_identidade || '-'} />}
+        {isAdmin && <DetailItem label="BI responsável" value={estudanteConsultado.bilhete_identidade_responsavel || '-'} />}
       </div></section>
-      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos disponíveis</h4>
-        {documentos.length === 0 ? <p className="text-sm text-gray-500">Nenhum documento disponível para este estudante.</p> : <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{documentos.map(([campo]) => <a key={campo} href="#" onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudante.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-400"><Icon icon="mdi:file-pdf-box" width={18} /> {DOCUMENT_LABELS[campo] ?? campo}</a>)}</div>}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">Documentos disponíveis</h4>
+          {carregandoDocumentos && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-300"><span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" /> Atualizando documentos...</span>}
+        </div>
+        {erroDocumentos && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{erroDocumentos}</p>}
+        {documentos.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
+            Nenhum documento foi encontrado nos dados atuais deste estudante. Se o upload foi feito recentemente, aguarde a atualização da consulta ou tente abrir esta tela novamente.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {documentos.map(([campo]) => (
+              <a
+                key={campo}
+                href="#"
+                onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
+              >
+                <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
+              </a>
+            ))}
+          </div>
+        )}
       </section>
-      {isAdmin && <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Auditoria</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><DetailItem label="Criado em" value={formatarDataISO(estudante.created_at)} /><DetailItem label="Atualizado em" value={formatarDataISO(estudante.updated_at)} /></div></section>}
+      {isAdmin && <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Auditoria</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><DetailItem label="Criado em" value={formatarDataISO(estudanteConsultado.created_at)} /><DetailItem label="Atualizado em" value={formatarDataISO(estudanteConsultado.updated_at)} /></div></section>}
     </div>
   );
 }
