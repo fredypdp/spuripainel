@@ -227,59 +227,26 @@ const OPCOES_ORDEM: { key: OrdemEstudantes; label: string; icon: string }[] = [
   { key: 'cadastro_asc',  label: 'Mais antigos',        icon: 'mdi:clock-check-outline'          },
 ];
 
-// ─── BotaoOrdenar ─────────────────────────────────────────────────────────────
+// ─── SelectOrdenar ────────────────────────────────────────────────────────────
 
-function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
+function SelectOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
   opcoes: { key: T; label: string; icon: string }[]; ordemAtual: T; onSelecionar: (k: T) => void;
 }) {
-  const [aberto, setAberto] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const labelAtual = opcoes.find(o => o.key === ordemAtual)?.label ?? 'Ordenar';
-
-  const handleToggle = () => {
-    if (!aberto && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX });
-    }
-    setAberto(p => !p);
-  };
-
-  useEffect(() => {
-    if (!aberto) return;
-    const close = () => setAberto(false);
-    document.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', close, true); };
-  }, [aberto]);
-
-  const menu = aberto && typeof document !== 'undefined' && (
-    <div onMouseDown={e => e.stopPropagation()}
-      style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 220 }}
-      className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1">
-      {opcoes.map(op => (
-        <button key={op.key} onClick={() => { onSelecionar(op.key); setAberto(false); }}
-          className={`flex items-center gap-2 w-full px-4 py-2 text-sm transition-colors ${ordemAtual === op.key
-            ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium'
-            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.05]'}`}>
-          <Icon icon={op.icon} width={16} className="flex-shrink-0" />
-          {op.label}
-          {ordemAtual === op.key && <Icon icon="mdi:check" width={14} className="ml-auto text-brand-500" />}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
-    <>
-      <button ref={btnRef} onClick={handleToggle}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-        <Icon icon="mdi:sort" width={16} />
-        {labelAtual}
-        <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={14} className="text-gray-400" />
-      </button>
-      {menu}
-    </>
+    <label className="relative inline-flex items-center">
+      <span className="sr-only">Ordenar estudantes</span>
+      <Icon icon="mdi:sort" width={16} className="pointer-events-none absolute left-3 text-gray-500 dark:text-gray-400" />
+      <select
+        value={ordemAtual}
+        onChange={(event) => onSelecionar(event.target.value as T)}
+        className="h-10 min-w-[210px] appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-9 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+      >
+        {opcoes.map(opcao => (
+          <option key={opcao.key} value={opcao.key}>{opcao.label}</option>
+        ))}
+      </select>
+      <Icon icon="mdi:chevron-down" width={16} className="pointer-events-none absolute right-3 text-gray-400" />
+    </label>
   );
 }
 
@@ -899,8 +866,84 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
   const [erro, setErro] = useState('');
   const enviados = new Set(Object.keys(((estudante as any).documentos ?? {}) as Record<string, unknown>));
   const camposPendentes = DOCUMENT_FIELDS.filter(campo => !enviados.has(campo));
-  const handleSubmit = async () => { setErro(''); setLoading(true); try { await academiaService.adicionarDocumentosEstudante(estudante.codigo_estudante, files); onConcluido(); } catch (err: any) { setErro(err?.message || 'Falha ao adicionar documentação.'); } finally { setLoading(false); } };
-  return <div className="space-y-5"><button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button><div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]"><h3 className="text-xl font-semibold text-gray-900 dark:text-white">Adicionar documentação</h3><p className="mt-1 text-sm text-gray-500 capitalize">{estudante.nome} · {estudante.codigo_estudante}</p></div>{erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{erro}</div>}<section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A API validará quais documentos são obrigatórios para ativar este estudante.</p><div className="grid grid-cols-1 gap-4 md:grid-cols-2">{camposPendentes.map(campo => <label key={campo} className="block rounded-lg border border-gray-200 p-3 dark:border-gray-700"><span className="mb-2 block text-sm font-medium text-gray-800 dark:text-white/90">{DOCUMENT_LABELS[campo]}</span><input type="file" accept="application/pdf,.pdf" onChange={e => setFiles(prev => ({ ...prev, [campo]: e.target.files?.[0] }))} className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-brand-600" /></label>)}</div><div className="mt-5 flex justify-end gap-2"><Button size="sm" variant="outline" onClick={onVoltar}>Cancelar</Button><Button size="sm" variant="primary" onClick={handleSubmit} disabled={loading || !Object.values(files).some(Boolean)}>{loading ? 'Enviando...' : 'Adicionar documentação'}</Button></div></section></div>;
+  const possuiArquivoSelecionado = Object.values(files).some(Boolean);
+
+  const handleSubmit = async () => {
+    setErro('');
+    setLoading(true);
+    try {
+      await academiaService.adicionarDocumentosEstudante(estudante.codigo_estudante, files);
+      onConcluido();
+    } catch (err: any) {
+      setErro(err?.message || 'Falha ao adicionar documentação.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <button
+        type="button"
+        onClick={onVoltar}
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300"
+      >
+        <Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes
+      </button>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Adicionar documentação</h3>
+            <p className="mt-1 text-sm text-gray-500 capitalize">{estudante.nome} · {estudante.codigo_estudante}</p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            <Icon icon="mdi:file-clock-outline" width={14} /> Documentos pendentes
+          </span>
+        </div>
+      </div>
+
+      {erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{erro}</div>}
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
+        <p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A API validará quais documentos são obrigatórios para ativar este estudante.</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {camposPendentes.map(campo => (
+            <label key={campo} className="block rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4 transition hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10">
+              <span className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-white/90">
+                <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo]}
+              </span>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                disabled={loading}
+                onChange={e => setFiles(prev => ({ ...prev, [campo]: e.target.files?.[0] }))}
+                className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-500 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-400"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onVoltar}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <Icon icon="mdi:close" width={18} /> Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !possuiArquivoSelecionado}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400"
+          >
+            {loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Enviando...</> : <><Icon icon="mdi:cloud-upload-outline" width={18} /> Adicionar documentação</>}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function DetailItem({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) {
@@ -1039,7 +1082,7 @@ export default function Estudantes() {
               {vistaEscala ? 'Vista Tabela' : 'Vista em Escala'}
             </button>
           )}
-          {carregado && <BotaoOrdenar opcoes={OPCOES_ORDEM} ordemAtual={ordem} onSelecionar={setOrdem} />}
+          {carregado && <SelectOrdenar opcoes={OPCOES_ORDEM} ordemAtual={ordem} onSelecionar={setOrdem} />}
           {dataEstudantes && (
             <div className="flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] rounded-lg">
               <span className="font-medium">{vistaEscala ? totalGeral : totalFiltrado}</span>
