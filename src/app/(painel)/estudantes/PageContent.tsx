@@ -841,13 +841,6 @@ function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[stri
 }
 
 
-function getDocumentoDownloadUrl(documento: DocumentoEstudanteEntrada): string | undefined {
-  if (!documento || typeof documento === 'string') return undefined;
-  return typeof documento.download_url === 'string' && documento.download_url.trim()
-    ? documento.download_url
-    : undefined;
-}
-
 function labelContextoEstudante(contexto: string): string {
   if (contexto === 'fundamental') return 'Ensino Fundamental';
   if (contexto === 'medio') return 'Ensino Médio';
@@ -931,15 +924,12 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
-  const handleAbrirDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
+  const handleAbrirDocumento = async (campo: string) => {
     setErroDocumento('');
     setCarregandoDocumento(campo);
     try {
       const token = tokenStorage.get();
-      const downloadUrl = getDocumentoDownloadUrl(documento);
-      const blob = downloadUrl
-        ? await documentosService.baixarDocumentoEstudantePorUrl(downloadUrl, token || undefined)
-        : await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+      const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
       const url = URL.createObjectURL(blob);
       setDocumentoAberto(atual => {
         if (atual?.url) URL.revokeObjectURL(atual.url);
