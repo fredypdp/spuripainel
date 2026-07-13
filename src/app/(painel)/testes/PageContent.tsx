@@ -147,6 +147,43 @@ const gerarDataNascimentoPorAnoAcademico = (anoAcademico?: string) => {
   return gerarDataNasc();
 };
 
+const criarPdfTeste = (nome: string) => new File([
+  new Blob([
+    "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n190\n%%EOF\n",
+  ], { type: "application/pdf" }),
+], `${nome}.pdf`, { type: "application/pdf" });
+
+const anoAnteriorAcademico = (anoAcademico?: string) => {
+  const match = anoAcademico?.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
+  if (!match) return undefined;
+  const numero = Number(match[1]);
+  const nivel = match[2];
+  if (nivel === "fundamental" && numero > 1) return `${numero - 1}_ano_fundamental`;
+  if (nivel === "medio" && numero > 1) return `${numero - 1}_ano_medio`;
+  if (nivel === "superior" && numero > 1) return `${numero - 1}_ano_superior`;
+  if (nivel === "medio" && numero === 1) return "9_ano_fundamental";
+  if (nivel === "superior" && numero === 1) return "3_ano_medio";
+  return undefined;
+};
+
+const camposDocumentaisObrigatorios = (payload: Record<string, any>) => {
+  const campos: string[] = [];
+  const anoAcademico = payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental;
+
+  if (payload.ano_superior) {
+    campos.push("bi_estudante");
+    if (payload.ano_superior === "1_ano_superior") campos.push("certificado_ensino_medio");
+    else if (anoAnteriorAcademico(anoAcademico)) campos.push("declaracao");
+    return campos;
+  }
+
+  campos.push(payload.bilhete_identidade ? "bi_estudante" : "cedula_estudante", "bi_responsavel");
+  if (payload.ano_escolar_fundamental === "7_ano_fundamental") campos.push("certificado_6_ano_fundamental");
+  else if (payload.ano_escolar_medio === "1_ano_medio") campos.push("certificado_9_ano_fundamental");
+  else if (anoAcademico && anoAcademico !== "1_ano_fundamental" && anoAnteriorAcademico(anoAcademico)) campos.push("declaracao");
+  return campos;
+};
+
 const toggleSelecionado = (lista: string[], valor: string) =>
   lista.includes(valor) ? lista.filter(item => item !== valor) : [...lista, valor];
 
@@ -466,6 +503,7 @@ export default function PageContent() {
     cursoSuperiorId: "random",
     modoPrincipal: "fundamental" as "fundamental" | "medio",
     pctFundamental: 60,
+    comArquivos: false,
   });
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -1064,10 +1102,14 @@ export default function PageContent() {
         payload.telefone_responsavel = gerarTelefoneAngola(telefonesUsadosCadastro);
       }
 
+      if (camposDocumentaisObrigatorios(payload).includes("declaracao")) {
+        payload.declaracao_ano_academico = anoAnteriorAcademico(anoAcademico);
+      }
+
       return payload;
     });
 
-    const CHUNK_SIZE_ESTUDANTE = 1000;
+    const CHUNK_SIZE_ESTUDANTE = 100;
     const chunks = Array.from({ length: Math.ceil(items.length / CHUNK_SIZE_ESTUDANTE) }, (_, i) =>
       items.slice(i * CHUNK_SIZE_ESTUDANTE, (i + 1) * CHUNK_SIZE_ESTUDANTE)
     );
@@ -1076,7 +1118,7 @@ export default function PageContent() {
     let errTotal = 0;
 
     addLog(
-      `  Enviando ${items.length} cadastro(s) em ${chunks.length} job(s) pelo endpoint /academia/estudante/register/async...`,
+      `  Enviando ${items.length} cadastro(s) em ${chunks.length} lote(s) pelo endpoint /academia/estudante/register/async (${cfg.comArquivos ? "multipart com arquivos" : "JSON sem arquivos"})...`,
       "info"
     );
 
@@ -1084,31 +1126,48 @@ export default function PageContent() {
       if (cancelRef.current) break;
 
       const chunk = chunks[i];
-      const label = chunks.length > 1 ? `Estudantes [lote ${i + 1}/${chunks.length}]` : "Estudantes";
       addLog(`  📦 Submetendo lote ${i + 1}/${chunks.length} — ${chunk.length} estudante(s)...`, "info");
 
-      const { ok, data } = await callApi("POST", "/academia/estudante/register/async", chunk, academia.token);
+      let body: unknown;
+      if (cfg.comArquivos) {
+        const form = new FormData();
+        form.append("com_arquivo", "true");
+        const estudantesComCodigo = chunk.map((item, index) => ({
+          ...item,
+          codigo_temporario: `tmp-${Date.now()}-${i + 1}-${index + 1}`,
+        }));
+        form.append("estudantes", JSON.stringify(estudantesComCodigo));
+        estudantesComCodigo.forEach((item) => {
+          camposDocumentaisObrigatorios(item).forEach((campo) => {
+            form.append(`${item.codigo_temporario}.${campo}`, criarPdfTeste(`${item.codigo_temporario}-${campo}`));
+          });
+        });
+        body = form;
+      } else {
+        body = { com_arquivo: false, estudantes: chunk };
+      }
+
+      const { ok, data, status } = await callApi("POST", "/academia/estudante/register/async", body, academia.token);
+      const sucesso = Number((data as any)?.sucesso ?? 0);
+      const total = Number((data as any)?.total ?? chunk.length);
+      const falhas = Number((data as any)?.falhas ?? (ok ? Math.max(total - sucesso, 0) : chunk.length));
+
       if (!ok) {
         errTotal += chunk.length;
-        const errMsg = (data as any)?.details?.[0]?.message || (data as any)?.message || (data as any)?.error || "Erro ao cadastrar lote";
+        const errMsg = (data as any)?.details?.[0]?.message || (data as any)?.message || (data as any)?.error || `Erro ao cadastrar lote (HTTP ${status})`;
         addLog(`  ✗ Erro ao submeter lote ${i + 1}: ${errMsg}`, "err");
         continue;
       }
 
-      const jobId = (data as any)?.job_id || (data as any)?.id;
-      if (!jobId) {
-        errTotal += chunk.length;
-        addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err");
-        continue;
-      }
-
-      addLog(`  Job ${jobId} criado — ${chunk.length} estudante(s) na fila`, "dim");
-      const result = await acompanharJob(jobId, label);
-      okTotal += result.ok;
-      errTotal += result.err;
+      okTotal += sucesso;
+      errTotal += falhas;
+      addLog(`  ✓ Lote ${i + 1}: ${sucesso} sucesso(s), ${falhas} falha(s)`, falhas > 0 ? "warn" : "ok");
+      ((data as any)?.items || []).filter((item: any) => !item.sucesso).slice(0, 8).forEach((item: any, idx: number) => {
+        addLog(`    • ${item.codigo_temporario || item.codigo_estudante || item.nome || `item #${idx + 1}`}: ${item.erro || item.message || "Falha sem detalhe retornado"}`, "warn");
+      });
     }
 
-    addLog(`Estudantes (jobs): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
+    addLog(`Estudantes (lotes): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
     await sleep(3000);
     await refreshData();
   };
@@ -2100,6 +2159,15 @@ export default function PageContent() {
                   step={10}
                   onChange={v => setEstudanteConfig(p => ({ ...p, qtd: v }))}
                 />
+                <Field label="Contrato documental">
+                  <Sel
+                    value={estudanteConfig.comArquivos ? "com" : "sem"}
+                    onChange={e => setEstudanteConfig(p => ({ ...p, comArquivos: e.target.value === "com" }))}
+                  >
+                    <option value="sem">Sem arquivos (JSON; pendente_documentos)</option>
+                    <option value="com">Com arquivos (multipart; ativo)</option>
+                  </Sel>
+                </Field>
               </Row>
 
               {(modo === "fundamental" || modo === "misto") && (
@@ -2245,11 +2313,11 @@ export default function PageContent() {
 
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
-                  Criar {estudanteConfig.qtd} estudante(s) em lote
+                  Criar {estudanteConfig.qtd} estudante(s) em lote {estudanteConfig.comArquivos ? "com arquivos" : "sem arquivos"}
                 </Btn>
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                Criação assíncrona via /academia/estudante/register/async. O status acadêmico inicial é definido pelo backend, conforme a API.
+                Criação em massa via /academia/estudante/register/async: JSON usa com_arquivo=false e deixa status pendente_documentos; multipart usa com_arquivo=true, codigo_temporario e PDFs obrigatórios.
               </p>
             </Section>
 
