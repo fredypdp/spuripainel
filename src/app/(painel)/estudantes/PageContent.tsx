@@ -1,18 +1,14 @@
 // src/app/(painel)/estudantes/PageContent.tsx
 "use client"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
-import { Modal } from "@/components/ui/modal";
-import { useModal } from "@/hooks/useModal";
 import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
-import Checkbox from "@/components/form/input/Checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ITEMS_POR_PAGINA = 50;
@@ -257,7 +253,7 @@ function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
     return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', close, true); };
   }, [aberto]);
 
-  const menu = aberto && typeof document !== 'undefined' && createPortal(
+  const menu = aberto && typeof document !== 'undefined' && (
     <div onMouseDown={e => e.stopPropagation()}
       style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 220 }}
       className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1">
@@ -271,7 +267,7 @@ function BotaoOrdenar<T extends string>({ opcoes, ordemAtual, onSelecionar }: {
           {ordemAtual === op.key && <Icon icon="mdi:check" width={14} className="ml-auto text-brand-500" />}
         </button>
       ))}
-    </div>, document.body
+    </div>
   );
 
   return (
@@ -504,110 +500,11 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
   );
 }
 
-// ─── ModalResultadoLote ───────────────────────────────────────────────────────
-
-function ModalResultadoLote({ isOpen, onClose, items, titulo, progresso }: {
-  isOpen: boolean; onClose: () => void; items: BatchJobItem[]; titulo: string; progresso: number;
-}) {
-  const total = items.length;
-  const ok    = items.filter(i => i.status === 'success').length;
-  const err   = items.filter(i => i.status === 'error').length;
-  const pending = items.filter(i => i.status === 'pending').length;
-  const done = progresso >= 100 || pending === 0;
-  return (
-    <Modal isOpen={isOpen} onClose={done ? onClose : () => {}} showCloseButton={done} className="max-w-[560px] p-5 lg:p-8">
-      <div>
-        <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90 mb-4">{titulo}</h4>
-        {!done && (
-          <div className="mb-4">
-            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1"><span>Processando…</span><span>{progresso}%</span></div>
-            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="p-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.05] rounded-xl text-center">
-            <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{total}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total</div>
-          </div>
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-center">
-            <div className="text-2xl font-bold text-green-700 dark:text-green-400">{ok}</div>
-            <div className="text-xs text-green-600 dark:text-green-500 mt-0.5">Sucesso</div>
-          </div>
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-center">
-            <div className="text-2xl font-bold text-red-700 dark:text-red-400">{err}</div>
-            <div className="text-xs text-red-600 dark:text-red-500 mt-0.5">Falhas</div>
-          </div>
-        </div>
-        <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-lg border border-gray-200 dark:border-white/[0.05] p-2">
-          {items.map((item, i) => (
-            <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm ${
-              item.status === 'success' ? 'bg-green-50 dark:bg-green-900/10'
-              : item.status === 'error' ? 'bg-red-50 dark:bg-red-900/10'
-              : 'bg-gray-50 dark:bg-white/[0.02]'}`}>
-              {item.status === 'pending' && <span className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin flex-shrink-0" />}
-              {item.status === 'success' && <Icon icon="mdi:check-circle" width={16} className="text-green-500 flex-shrink-0" />}
-              {item.status === 'error'   && <Icon icon="mdi:close-circle" width={16} className="text-red-500 flex-shrink-0" />}
-              <div className="min-w-0 flex-1">
-                <span className="font-medium text-gray-800 dark:text-white/90 truncate block">{item.nome}</span>
-                {item.message && <span className="text-xs text-red-600 dark:text-red-400 truncate block">{item.message}</span>}
-              </div>
-              <span className="text-xs text-gray-400 font-mono flex-shrink-0">{item.codigo}</span>
-            </div>
-          ))}
-        </div>
-        {done && <div className="flex justify-end mt-5"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>}
-      </div>
-    </Modal>
-  );
-}
-
-// ─── BarraLote ────────────────────────────────────────────────────────────────
-
-type AcaoEstudanteLote = 'matricular_fundamental' | 'interromper_fundamental';
-
-function BarraLote({ selecionadas, onLimpar, onExecutarAcao, carregando }: {
-  selecionadas: Set<string>; onLimpar: () => void;
-  onExecutarAcao: (acao: AcaoEstudanteLote) => void; carregando: boolean;
-}) {
-  if (selecionadas.size === 0) return null;
-  const count = selecionadas.size;
-  return (
-    <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold">{count}</span>
-        <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
-          estudante{count !== 1 ? 's' : ''} selecionado{count !== 1 ? 's' : ''}
-        </span>
-      </div>
-      <div className="hidden sm:block w-px h-5 bg-brand-200 dark:bg-brand-700 flex-shrink-0" />
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-shrink-0">Acontecimentos:</span>
-        <Button size="sm" variant="success" disabled={carregando} onClick={() => onExecutarAcao('matricular_fundamental')} startIcon={<Icon icon="mdi:school-outline" width={15} />}>
-          {carregando ? '...' : 'Matricular no fundamental'}
-        </Button>
-        <Button size="sm" variant="warning" disabled={carregando} onClick={() => onExecutarAcao('interromper_fundamental')} startIcon={<Icon icon="mdi:pause-circle-outline" width={15} />}>
-          {carregando ? '...' : 'Interromper fundamental'}
-        </Button>
-      </div>
-      <button onClick={onLimpar}
-        className="ml-auto p-1.5 rounded-lg text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors flex-shrink-0"
-        title="Limpar seleção">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
 // ─── TabelaEstudantes ─────────────────────────────────────────────────────────
 
-function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selecionadas, onToggle, onToggleTodos, mostrarSelecao }: {
+function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, onAdicionarDocumentacao, academias }: {
   estudantes: EstudanteDetalhado[]; isAdmin: boolean; onVerDetalhes: (e: EstudanteDetalhado) => void;
-  academias?: Record<string, string>; selecionadas?: Set<string>; onToggle?: (codigo: string) => void;
-  onToggleTodos?: (todos: EstudanteDetalhado[]) => void; mostrarSelecao?: boolean;
+  onAdicionarDocumentacao?: (e: EstudanteDetalhado) => void; academias?: Record<string, string>;
 }) {
   if (estudantes.length === 0) return (
     <div className="flex flex-col items-center justify-center py-12 text-gray-400">
@@ -616,25 +513,12 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
     </div>
   );
 
-  const todasSelecionadas   = mostrarSelecao && estudantes.length > 0 && estudantes.every(e => selecionadas?.has(e.codigo_estudante));
-  const algumasSelecionadas = mostrarSelecao && estudantes.some(e => selecionadas?.has(e.codigo_estudante));
 
   return (
     <div className="overflow-x-auto">
       <Table className="w-full">
         <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
           <TableRow>
-            {mostrarSelecao && (
-              <TableCell isHeader className="px-4 py-3 w-10">
-                <div onClick={e => e.stopPropagation()}>
-                  <Checkbox
-                    checked={!!todasSelecionadas}
-                    indeterminate={algumasSelecionadas && !todasSelecionadas}
-                    onChange={() => onToggleTodos?.(estudantes)}
-                  />
-                </div>
-              </TableCell>
-            )}
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nome</TableCell>
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Código</TableCell>
             <TableCell isHeader className="whitespace-nowrap px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Género</TableCell>
@@ -647,17 +531,7 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
         </TableHeader>
         <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
           {estudantes.map(est => (
-            <TableRow key={est.codigo_estudante} className={`hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selecionadas?.has(est.codigo_estudante) ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}>
-              {mostrarSelecao && (
-                <TableCell className="px-4 py-3 w-10">
-                  <div onClick={e => e.stopPropagation()}>
-                    <Checkbox
-                      checked={!!selecionadas?.has(est.codigo_estudante)}
-                      onChange={() => onToggle?.(est.codigo_estudante)}
-                    />
-                  </div>
-                </TableCell>
-              )}
+            <TableRow key={est.codigo_estudante} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
               <TableCell className="max-w-[180px] capitalize truncate px-4 py-3 text-gray-900 dark:text-white text-start text-theme-sm font-medium">{est.nome || '-'}</TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400 font-mono text-xs">{est.codigo_estudante || '-'}</TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
@@ -676,7 +550,11 @@ function TabelaEstudantes({ estudantes, isAdmin, onVerDetalhes, academias, selec
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(est.status)}`}>{est.status || '-'}</span>
               </TableCell>
               <TableCell className="whitespace-nowrap px-4 py-3 text-start text-theme-sm">
-                <Button size="sm" variant="outline" onClick={() => onVerDetalhes(est)}>Ver detalhes</Button>
+                {String(est.status) === 'pendente_documentos' && onAdicionarDocumentacao ? (
+                  <Button size="sm" variant="primary" onClick={() => onAdicionarDocumentacao(est)}>Adicionar documentação</Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => onVerDetalhes(est)}>Ver mais</Button>
+                )}
               </TableCell>
             </TableRow>
           ))}
@@ -951,69 +829,78 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
   return null;
 }
 
-// ─── ModalDetalhes ────────────────────────────────────────────────────────────
+// ─── TelaDetalhes ─────────────────────────────────────────────────────────────
 
-function ModalDetalhes({ estudante, onClose }: { estudante: EstudanteDetalhado; onClose: () => void }) {
-  const anoAtual = estudante.ano_escolar_fundamental || estudante.ano_escolar_medio || estudante.ano_superior;
-  const cursoAtual = estudante.curso_medio_id || estudante.curso_superior_id || "-";
+const DOCUMENT_LABELS: Record<string, string> = {
+  bi_estudante: 'BI do estudante',
+  bi_responsavel: 'BI do responsável',
+  cedula_estudante: 'Cédula do estudante',
+  declaracao: 'Declaração',
+  certificado_6_ano_fundamental: 'Certificado da 6ª classe',
+  certificado_9_ano_fundamental: 'Certificado da 9ª classe',
+  certificado_ensino_medio: 'Certificado do ensino médio',
+};
+const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
+
+function getContextoEstudante(estudante: EstudanteDetalhado, isAdmin: boolean, academiaNivel?: string, nivelEscolar?: string) {
+  if (!isAdmin && academiaNivel === 'superior') return 'superior';
+  if (!isAdmin && academiaNivel === 'escola' && nivelEscolar === 'medio') return 'medio';
+  if (!isAdmin && academiaNivel === 'escola' && nivelEscolar === 'fundamental') return 'fundamental';
+  if (estudante.status_superior === 'em_andamento' || estudante.ano_superior) return 'superior';
+  if (estudante.status_escolar_medio === 'em_andamento' || estudante.ano_escolar_medio) return 'medio';
+  return 'fundamental';
+}
+
+function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar }: {
+  estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void;
+}) {
+  const contexto = getContextoEstudante(estudante, isAdmin, academiaNivel, nivelEscolar);
+  const ano = contexto === 'fundamental' ? estudante.ano_escolar_fundamental : contexto === 'medio' ? estudante.ano_escolar_medio : estudante.ano_superior;
+  const statusContexto = contexto === 'fundamental' ? estudante.status_escolar_fundamental : contexto === 'medio' ? estudante.status_escolar_medio : estudante.status_superior;
+  const cursoId = contexto === 'medio' ? estudante.curso_medio_id : contexto === 'superior' ? estudante.curso_superior_id : undefined;
+  const curso = cursoId ? cursos.find(c => c.id === cursoId)?.nome ?? cursoId : undefined;
+  const documentos = Object.entries(((estudante as any).documentos ?? {}) as Record<string, unknown>).filter(([, doc]) => Boolean(doc));
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h4 className="text-lg font-semibold text-gray-800 dark:text-white/90">Detalhes do Estudante</h4>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Dados pessoais, identificação, matrícula e indicadores acadêmicos.</p>
+      <button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button>
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">{estudante.nome}</h3><p className="mt-1 text-sm text-gray-500">{estudante.codigo_estudante} · {contexto === 'fundamental' ? 'Ensino Fundamental' : contexto === 'medio' ? 'Ensino Médio' : 'Ensino Superior'}</p></div>
+          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span>
         </div>
-        <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(estudante.status)}`}>{estudante.status}</span>
       </div>
-
-      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação</h5>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <DetailItem label="Nome" value={estudante.nome} className="capitalize" />
-          <DetailItem label="Código do estudante" value={estudante.codigo_estudante} className="font-mono" />
-          <DetailItem label="Género" value={estudante.genero || "-"} className="capitalize" />
-          <DetailItem label="Data de nascimento" value={<>{formatarDataNasc(estudante.data_nascimento)}{estudante.data_nascimento && <span className="ml-2 text-xs text-gray-400">({calcularIdade(estudante.data_nascimento)} anos)</span>}</>} />
-          <DetailItem label="Bilhete de identidade" value={estudante.bilhete_identidade || "-"} />
-          <DetailItem label="BI do responsável" value={estudante.bilhete_identidade_responsavel || "-"} />
-        </div>
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Informações do vínculo atual</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <DetailItem label="Ano/Nível atual" value={ano ? formatAnoAcademico(ano) : '-'} />
+        {curso && <DetailItem label="Curso" value={curso} />}
+        {contexto === 'superior' && <DetailItem label="Semestre atual" value={estudante.semestre_atual ?? '-'} />}
+        <DetailItem label="Estado no contexto" value={statusContexto?.replace(/_/g, ' ') || '-'} className="capitalize" />
+        {isAdmin && <DetailItem label="Academia" value={estudante.codigo_academia || '-'} />}
+      </div></section>
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Identificação e contactos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <DetailItem label="Género" value={estudante.genero || '-'} className="capitalize" />
+        <DetailItem label="Nascimento" value={`${formatarDataNasc(estudante.data_nascimento)}${estudante.data_nascimento ? ` (${calcularIdade(estudante.data_nascimento)} anos)` : ''}`} />
+        <DetailItem label="Telefone" value={estudante.telefone || (estudante as any).telefone_responsavel || '-'} />
+        {isAdmin && <DetailItem label="E-mail" value={estudante.email || '-'} />}
+        {isAdmin && <DetailItem label="BI estudante" value={estudante.bilhete_identidade || '-'} />}
+        {isAdmin && <DetailItem label="BI responsável" value={estudante.bilhete_identidade_responsavel || '-'} />}
+      </div></section>
+      <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos disponíveis</h4>
+        {documentos.length === 0 ? <p className="text-sm text-gray-500">Nenhum documento disponível para este estudante.</p> : <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">{documentos.map(([campo]) => <a key={campo} href="#" onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudante.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-brand-600 hover:bg-brand-50 dark:border-gray-700 dark:text-brand-400"><Icon icon="mdi:file-pdf-box" width={18} /> {DOCUMENT_LABELS[campo] ?? campo}</a>)}</div>}
       </section>
-
-      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Contactos e academia</h5>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <DetailItem label="E-mail" value={estudante.email || "-"} />
-          <DetailItem label="E-mail verificado" value={estudante.email_verificado ? "Sim" : "Não"} />
-          <DetailItem label="Telefone" value={estudante.telefone || "-"} />
-          <DetailItem label="Academia" value={estudante.codigo_academia || "-"} />
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Matrícula atual</h5>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <DetailItem label="Ano acadêmico" value={anoAtual ? formatAnoAcademico(anoAtual) : "-"} />
-          <DetailItem label="Curso/Código do curso" value={cursoAtual} />
-          <DetailItem label="Semestre atual" value={estudante.semestre_atual ?? "-"} />
-          <DetailItem label="Status fundamental" value={estudante.status_escolar_fundamental?.replace(/_/g, " ") || "-"} className="capitalize" />
-          <DetailItem label="Status médio" value={estudante.status_escolar_medio?.replace(/_/g, " ") || "-"} className="capitalize" />
-          <DetailItem label="Status superior" value={estudante.status_superior?.replace(/_/g, " ") || "-"} className="capitalize" />
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-        <h5 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Resumo acadêmico</h5>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <DetailItem label="Total de notas" value={estudante.total_notas ?? "-"} />
-          <DetailItem label="Total de faltas" value={estudante.total_faltas ?? "-"} />
-          <DetailItem label="Criado em" value={formatarDataISO(estudante.created_at)} />
-          <DetailItem label="Atualizado em" value={formatarDataISO(estudante.updated_at)} />
-        </div>
-      </section>
-
-      <div className="flex justify-end"><Button size="sm" variant="outline" onClick={onClose}>Fechar</Button></div>
+      {isAdmin && <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Auditoria</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><DetailItem label="Criado em" value={formatarDataISO(estudante.created_at)} /><DetailItem label="Atualizado em" value={formatarDataISO(estudante.updated_at)} /></div></section>}
     </div>
   );
+}
+
+function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estudante: EstudanteDetalhado; onVoltar: () => void; onConcluido: () => void }) {
+  const [files, setFiles] = useState<Record<string, File | undefined>>({});
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
+  const enviados = new Set(Object.keys(((estudante as any).documentos ?? {}) as Record<string, unknown>));
+  const camposPendentes = DOCUMENT_FIELDS.filter(campo => !enviados.has(campo));
+  const handleSubmit = async () => { setErro(''); setLoading(true); try { await academiaService.adicionarDocumentosEstudante(estudante.codigo_estudante, files); onConcluido(); } catch (err: any) { setErro(err?.message || 'Falha ao adicionar documentação.'); } finally { setLoading(false); } };
+  return <div className="space-y-5"><button onClick={onVoltar} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"><Icon icon="mdi:arrow-left" width={18} /> Voltar para estudantes</button><div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]"><h3 className="text-xl font-semibold text-gray-900 dark:text-white">Adicionar documentação</h3><p className="mt-1 text-sm text-gray-500 capitalize">{estudante.nome} · {estudante.codigo_estudante}</p></div>{erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{erro}</div>}<section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A API validará quais documentos são obrigatórios para ativar este estudante.</p><div className="grid grid-cols-1 gap-4 md:grid-cols-2">{camposPendentes.map(campo => <label key={campo} className="block rounded-lg border border-gray-200 p-3 dark:border-gray-700"><span className="mb-2 block text-sm font-medium text-gray-800 dark:text-white/90">{DOCUMENT_LABELS[campo]}</span><input type="file" accept="application/pdf,.pdf" onChange={e => setFiles(prev => ({ ...prev, [campo]: e.target.files?.[0] }))} className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-brand-600" /></label>)}</div><div className="mt-5 flex justify-end gap-2"><Button size="sm" variant="outline" onClick={onVoltar}>Cancelar</Button><Button size="sm" variant="primary" onClick={handleSubmit} disabled={loading || !Object.values(files).some(Boolean)}>{loading ? 'Enviando...' : 'Adicionar documentação'}</Button></div></section></div>;
 }
 
 function DetailItem({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) {
@@ -1025,8 +912,6 @@ function DetailItem({ label, value, className = "" }: { label: string; value: Re
 export default function Estudantes() {
   const { isAcademia, isAdmin } = useUserType();
   const { user } = useUserCookie();
-  const { isOpen: isDetailsOpen, openModal: openDetailsModal, closeModal: closeDetailsModal } = useModal();
-  const { isOpen: isLoteOpen,    openModal: openLoteModal,    closeModal: closeLoteModal    } = useModal();
 
   const [carregado,            setCarregado]            = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
@@ -1035,11 +920,7 @@ export default function Estudantes() {
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
   const [filtros,              setFiltros]              = useState<FiltrosState>({ ...FILTROS_INICIAIS });
 
-  const [selecionadas,         setSelecionadas]         = useState<Set<string>>(new Set());
-  const [batchItems,           setBatchItems]           = useState<BatchJobItem[]>([]);
-  const [batchTitulo,          setBatchTitulo]          = useState('');
-  const [batchProgresso,       setBatchProgresso]       = useState(0);
-  const [batchCarregando,      setBatchCarregando]      = useState(false);
+  const [modoTela,             setModoTela]             = useState<'lista' | 'detalhes' | 'documentacao'>('lista');
 
   const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data: dataCursos,  execute: carregarCursos } = useApi(academiaService.listarCursos);
@@ -1105,9 +986,8 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
-  useEffect(() => { setPaginaAtual(1); setSelecionadas(new Set()); }, [ordem]);
+  useEffect(() => { setPaginaAtual(1); }, [ordem]);
   useEffect(() => { setPaginaAtual(1); }, [dataEstudantes]);
-  useEffect(() => { setSelecionadas(new Set()); }, [paginaAtual]);
 
   const filtrosVisiveis = useMemo(
     () => sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin),
@@ -1128,94 +1008,9 @@ export default function Estudantes() {
   const cursos: Curso[]  = dataCursos?.cursos ?? [];
   const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
-  const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); openDetailsModal(); };
-
-  const handleToggle = useCallback((codigo: string) => {
-    setSelecionadas(prev => {
-      const next = new Set(prev);
-      if (next.has(codigo)) next.delete(codigo);
-      else next.add(codigo);
-      return next;
-    });
-  }, []);
-
-  const handleToggleTodos = useCallback((todos: EstudanteDetalhado[]) => {
-    setSelecionadas(prev => {
-      const codigos = todos.map(e => e.codigo_estudante);
-      const todasSelecionadas = codigos.every(c => prev.has(c));
-      if (todasSelecionadas) {
-        const next = new Set(prev);
-        codigos.forEach(c => next.delete(c));
-        return next;
-      }
-      const next = new Set(prev);
-      codigos.forEach(c => next.add(c));
-      return next;
-    });
-  }, []);
-
-  const handleLimparSelecao = () => setSelecionadas(new Set());
-
-  const handleExecutarAcaoLote = async (acao: AcaoEstudanteLote) => {
-    const selecionadasList = (dataEstudantes?.estudantes ?? []).filter(
-      e => selecionadas.has(e.codigo_estudante)
-    );
-    if (selecionadasList.length === 0) return;
-
-    const tituloAcao = acao === 'matricular_fundamental'
-      ? 'Matricular no fundamental'
-      : 'Interromper fundamental';
-
-    setBatchTitulo(`${tituloAcao} (${selecionadasList.length} estudantes)`);
-    setBatchProgresso(0);
-    setBatchCarregando(true);
-    setBatchItems(selecionadasList.map(e => ({ codigo: e.codigo_estudante, nome: e.nome, status: 'pending' })));
-    openLoteModal();
-
-    const token = tokenStorage.get() || undefined;
-    const motivo = 'Atualização de acontecimento em lote pelo painel';
-
-    try {
-      for (let index = 0; index < selecionadasList.length; index += 1) {
-        const estudante = selecionadasList[index];
-        try {
-          if (acao === 'matricular_fundamental') {
-            const ano = estudante.ano_escolar_fundamental;
-            if (!ano) throw new Error('Estudante sem ano fundamental definido');
-            await academiaService.matricularFundamental(
-              estudante.codigo_estudante,
-              { ano_escolar_fundamental: ano },
-              token
-            );
-          } else {
-            await academiaService.interromperFundamental(
-              estudante.codigo_estudante,
-              { motivo },
-              token
-            );
-          }
-
-          setBatchItems(prev => prev.map(item =>
-            item.codigo === estudante.codigo_estudante
-              ? { ...item, status: 'success' }
-              : item
-          ));
-        } catch (err: any) {
-          setBatchItems(prev => prev.map(item =>
-            item.codigo === estudante.codigo_estudante
-              ? { ...item, status: 'error', message: err?.message || 'Falha no processamento' }
-              : item
-          ));
-        } finally {
-          setBatchProgresso(Math.round(((index + 1) / selecionadasList.length) * 100));
-        }
-      }
-    } finally {
-      setBatchCarregando(false);
-      setSelecionadas(new Set());
-      setTimeout(() => carregarLista(), 800);
-    }
-  };
+  const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); setModoTela('detalhes'); };
+  const handleAdicionarDocumentacao = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); setModoTela('documentacao'); };
+  const handleVoltarLista = () => { setModoTela('lista'); setEstudanteSelecionado(null); };
 
   const totalFiltrado = estudantesFiltradosOrdenados.length;
   const totalGeral    = dataEstudantes?.total ?? 0;
@@ -1225,7 +1020,8 @@ export default function Estudantes() {
       <PageBreadcrumb pageTitle="Estudantes" />
       <div className="space-y-6">
 
-        <div className="flex flex-wrap gap-2 items-center">
+        {modoTela === 'lista' && (
+          <div className="flex flex-wrap gap-2 items-center">
           {isAcademia && (
             <Link href="/estudantes/cadastrar" className="inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-5 py-3.5 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600">
               <Icon icon="mdi:account-plus" width={16} /> Cadastrar Estudante
@@ -1251,9 +1047,18 @@ export default function Estudantes() {
               <span className="ml-1">estudantes</span>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
-        {!vistaEscala && carregado && (
+        {modoTela === 'detalhes' && estudanteSelecionado && (
+          <TelaDetalhesEstudante estudante={estudanteSelecionado} isAdmin={!!isAdmin} academiaNivel={academiaNivel} nivelEscolar={nivelEscolar} cursos={cursos} onVoltar={handleVoltarLista} />
+        )}
+
+        {modoTela === 'documentacao' && estudanteSelecionado && (
+          <TelaDocumentacaoEstudante estudante={estudanteSelecionado} onVoltar={handleVoltarLista} onConcluido={() => { handleVoltarLista(); carregarLista(); }} />
+        )}
+
+        {modoTela === 'lista' && !vistaEscala && carregado && (
           <FiltrosPanel
             filtros={filtros}
             setFiltros={setFiltros}
@@ -1264,15 +1069,7 @@ export default function Estudantes() {
           />
         )}
 
-        {isAcademia && !vistaEscala && selecionadas.size > 0 && (
-          <BarraLote selecionadas={selecionadas} onLimpar={handleLimparSelecao} onExecutarAcao={handleExecutarAcaoLote} carregando={batchCarregando} />
-        )}
 
-        <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
-          {estudanteSelecionado && <ModalDetalhes estudante={estudanteSelecionado} onClose={closeDetailsModal} />}
-        </Modal>
-
-        <ModalResultadoLote isOpen={isLoteOpen} onClose={closeLoteModal} items={batchItems} titulo={batchTitulo} progresso={batchProgresso} />
 
         {erroEstudantes && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -1280,7 +1077,7 @@ export default function Estudantes() {
           </div>
         )}
 
-        {vistaEscala && isAcademia && carregado && (
+        {modoTela === 'lista' && vistaEscala && isAcademia && carregado && (
           <VistaEscala
             estudantes={dataEstudantes?.estudantes ?? []}
             turmas={turmas}
@@ -1293,7 +1090,7 @@ export default function Estudantes() {
           />
         )}
 
-        {!vistaEscala && (
+        {modoTela === 'lista' && !vistaEscala && (
           <>
             {carregandoEstudantes && (
               <div className="flex flex-col items-center justify-center py-12">
@@ -1323,9 +1120,7 @@ export default function Estudantes() {
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
                   <TabelaEstudantes
                     estudantes={estudantesPaginados} isAdmin={!!isAdmin}
-                    onVerDetalhes={handleVerDetalhes} academias={academiasMap}
-                    selecionadas={selecionadas} onToggle={handleToggle}
-                    onToggleTodos={handleToggleTodos} mostrarSelecao={!!isAcademia}
+                    onVerDetalhes={handleVerDetalhes} onAdicionarDocumentacao={isAcademia ? handleAdicionarDocumentacao : undefined} academias={academiasMap}
                   />
                   {totalFiltrado === 0 && totalGeral > 0 && (
                     <div className="flex flex-col items-center justify-center py-8 text-gray-400">
