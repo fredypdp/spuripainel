@@ -147,55 +147,6 @@ const gerarDataNascimentoPorAnoAcademico = (anoAcademico?: string) => {
   return gerarDataNasc();
 };
 
-const criarPdfTeste = (nome: string) => {
-  const safeName = nome.replace(/[^a-z0-9_-]/gi, "_").toLowerCase();
-  const pdf = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>
-endobj
-trailer
-<< /Root 1 0 R >>
-%%EOF
-`;
-  return new File([pdf], `${safeName}.pdf`, { type: "application/pdf" });
-};
-
-const getCertificadoObrigatorio = (anoAcademico?: string): "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio" | null => {
-  if (anoAcademico === "7_ano_fundamental") return "certificado_6_ano_fundamental";
-  if (anoAcademico === "1_ano_medio") return "certificado_9_ano_fundamental";
-  if (anoAcademico === "1_ano_superior") return "certificado_ensino_medio";
-  return null;
-};
-
-const criarFormDataEstudante = (payload: Record<string, unknown>) => {
-  const form = new FormData();
-  Object.entries(payload).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-    form.append(key, String(value));
-  });
-
-  const anoAcademico = String(payload.ano_superior || payload.ano_escolar_medio || payload.ano_escolar_fundamental || "");
-  const isSuperior = anoAcademico.endsWith("_ano_superior");
-
-  form.append("bi_estudante", criarPdfTeste(`bi_estudante_${payload.nome || "estudante"}`));
-  if (!isSuperior) {
-    form.append("bi_responsavel", criarPdfTeste(`bi_responsavel_${payload.nome || "responsavel"}`));
-  }
-
-  const certificado = getCertificadoObrigatorio(anoAcademico);
-  if (certificado) {
-    form.append(certificado, criarPdfTeste(`${certificado}_${payload.nome || "estudante"}`));
-  }
-
-  return form;
-};
-
 const toggleSelecionado = (lista: string[], valor: string) =>
   lista.includes(valor) ? lista.filter(item => item !== valor) : [...lista, valor];
 
@@ -292,6 +243,12 @@ function getCategoriasEscolaresPermitidas(anoAcademico: string, periodo: string)
     categorias.push("exame_final", "exame_recurso");
   }
   return categorias;
+}
+
+function getCategoriasPermitidasParaNota(tipoNota: "escolar" | "superior", anoAcademico: string, periodo: string, categoriasSelecionadas: string[]): string[] {
+  if (tipoNota === "superior") return categoriasSelecionadas;
+  const permitidas = getCategoriasEscolaresPermitidas(anoAcademico, periodo);
+  return categoriasSelecionadas.filter(categoria => permitidas.includes(categoria));
 }
 
 function getNotaAleatoria(anoAcademico: string): number {
@@ -501,14 +458,11 @@ export default function PageContent() {
     qtd: 20,
     anoFundamental: "random",
     anosFundamentalSelecionados: [] as string[],
-    statusFundamental: "em_andamento",
     anoMedio: "random",
     anosMedioSelecionados: [] as string[],
-    statusMedio: "em_andamento",
     cursoMedioId: "random",
     anoSuperior: "random",
     anosSuperiorSelecionados: [] as string[],
-    statusSuperior: "em_andamento",
     cursoSuperiorId: "random",
     modoPrincipal: "fundamental" as "fundamental" | "medio",
     pctFundamental: 60,
@@ -1033,7 +987,7 @@ export default function PageContent() {
       : modo === "fundamental" ? (anosFundamentaisGeracao.length || 1)
       : 1;
     const totalEstudantes = cfg.qtd * fatorMultiplicador;
-    addLog(`Gerando ${totalEstudantes} estudante(s) via multipart com PDFs (modo: ${modo})...`, "step");
+    addLog(`Gerando ${totalEstudantes} estudante(s) via cadastro em lote (modo: ${modo})...`, "step");
 
     const bilhetesUsadosCadastro = new Set<string>(estudantes.flatMap(e => [
       e.bilhete_identidade,
@@ -1113,29 +1067,48 @@ export default function PageContent() {
       return payload;
     });
 
+    const CHUNK_SIZE_ESTUDANTE = 1000;
+    const chunks = Array.from({ length: Math.ceil(items.length / CHUNK_SIZE_ESTUDANTE) }, (_, i) =>
+      items.slice(i * CHUNK_SIZE_ESTUDANTE, (i + 1) * CHUNK_SIZE_ESTUDANTE)
+    );
+
     let okTotal = 0;
     let errTotal = 0;
 
-    addLog("  Enviando cadastros pelo endpoint multipart /academia/estudante/register com PDFs de teste gerados no navegador...", "info");
+    addLog(
+      `  Enviando ${items.length} cadastro(s) em ${chunks.length} job(s) pelo endpoint /academia/estudante/register/async...`,
+      "info"
+    );
 
-    for (let i = 0; i < items.length; i++) {
+    for (let i = 0; i < chunks.length; i++) {
       if (cancelRef.current) break;
-      const item = items[i];
-      const form = criarFormDataEstudante(item);
-      const { ok, data } = await callApi("POST", "/academia/estudante/register", form, academia.token);
 
-      if (ok) {
-        okTotal++;
-        const codigo = (data as any)?.data?.codigo_estudante || (data as any)?.codigo_estudante || "sem código retornado";
-        addLog(`  ✓ Est. ${i + 1}/${items.length}: ${item.nome} (${codigo})`, "dim");
-      } else {
-        errTotal++;
-        const errMsg = (data as any)?.details?.[0]?.message || (data as any)?.message || (data as any)?.error || "Erro ao cadastrar";
-        addLog(`  ✗ Est. ${i + 1}/${items.length}: ${item.nome} — ${errMsg}`, "err");
+      const chunk = chunks[i];
+      const label = chunks.length > 1 ? `Estudantes [lote ${i + 1}/${chunks.length}]` : "Estudantes";
+      addLog(`  📦 Submetendo lote ${i + 1}/${chunks.length} — ${chunk.length} estudante(s)...`, "info");
+
+      const { ok, data } = await callApi("POST", "/academia/estudante/register/async", chunk, academia.token);
+      if (!ok) {
+        errTotal += chunk.length;
+        const errMsg = (data as any)?.details?.[0]?.message || (data as any)?.message || (data as any)?.error || "Erro ao cadastrar lote";
+        addLog(`  ✗ Erro ao submeter lote ${i + 1}: ${errMsg}`, "err");
+        continue;
       }
+
+      const jobId = (data as any)?.job_id || (data as any)?.id;
+      if (!jobId) {
+        errTotal += chunk.length;
+        addLog(`  ✗ Job ID não retornado no lote ${i + 1}`, "err");
+        continue;
+      }
+
+      addLog(`  Job ${jobId} criado — ${chunk.length} estudante(s) na fila`, "dim");
+      const result = await acompanharJob(jobId, label);
+      okTotal += result.ok;
+      errTotal += result.err;
     }
 
-    addLog(`Estudantes (total): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
+    addLog(`Estudantes (jobs): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
     await sleep(3000);
     await refreshData();
   };
@@ -1446,7 +1419,10 @@ export default function PageContent() {
           return !!mat.curso_id && mat.anos_academicos?.includes(anoAcademico) && mat.curso_id === est.curso_superior_id;
         }
         if (anoAcademico.includes("medio")) {
-          return mat.type === "medio" && !!mat.curso_id && mat.curso_id === est.curso_medio_id;
+          return mat.type === "medio"
+            && !!mat.curso_id
+            && mat.curso_id === est.curso_medio_id
+            && mat.anos_academicos?.includes(anoAcademico);
         }
         return mat.type === "fundamental" && mat.anos_academicos?.includes(anoAcademico);
       });
@@ -1480,9 +1456,15 @@ export default function PageContent() {
         }
 
         for (const p of periodos) {
-          const categoriasParaPeriodo = tipoNota === "escolar"
-            ? categoriasAtivas.filter(categoria => getCategoriasEscolaresPermitidas(anoAcademico, p).includes(categoria))
-            : categoriasAtivas;
+          const categoriasParaPeriodo = getCategoriasPermitidasParaNota(tipoNota, anoAcademico, p, categoriasAtivas);
+
+          if (categoriasParaPeriodo.length === 0) {
+            addLog(
+              `  ℹ ${est.codigo_estudante} (${anoAcademico}, ${p}): categorias selecionadas não se aplicam a este nível/modelo de avaliação`,
+              "dim"
+            );
+            continue;
+          }
 
           for (const categoria of categoriasParaPeriodo) {
             const key = `${est.codigo_estudante}|${academia.ano_letivo}|${mat.id}|${p}|${tipoNota}|${categoria}`;
@@ -1621,7 +1603,10 @@ export default function PageContent() {
           return !!mat.curso_id && mat.anos_academicos?.includes(anoAcademico) && mat.curso_id === est.curso_superior_id;
         }
         if (anoAcademico.includes("medio")) {
-          return mat.type === "medio" && !!mat.curso_id && mat.curso_id === est.curso_medio_id;
+          return mat.type === "medio"
+            && !!mat.curso_id
+            && mat.curso_id === est.curso_medio_id
+            && mat.anos_academicos?.includes(anoAcademico);
         }
         return mat.type === "fundamental" && mat.anos_academicos?.includes(anoAcademico);
       });
@@ -2145,14 +2130,6 @@ export default function PageContent() {
                         </div>
                       </Field>
                     )}
-                    <Field label="Status fundamental">
-                      <Sel value={estudanteConfig.statusFundamental}
-                        onChange={e => setEstudanteConfig(p => ({ ...p, statusFundamental: e.target.value }))}>
-                        <option value="em_andamento">Em andamento</option>
-                        <option value="inativo">Inativo</option>
-                        <option value="finalizado">Finalizado</option>
-                      </Sel>
-                    </Field>
                   </Row>
                 </SubSection>
               )}
@@ -2197,14 +2174,6 @@ export default function PageContent() {
                           </div>
                         </Field>
                       )}
-                      <Field label="Status médio">
-                        <Sel value={estudanteConfig.statusMedio}
-                          onChange={e => setEstudanteConfig(p => ({ ...p, statusMedio: e.target.value }))}>
-                          <option value="em_andamento">Em andamento</option>
-                          <option value="inativo">Inativo</option>
-                          <option value="finalizado">Finalizado</option>
-                        </Sel>
-                      </Field>
                     </Row>
                   )}
                 </SubSection>
@@ -2250,14 +2219,6 @@ export default function PageContent() {
                           </div>
                         </Field>
                       )}
-                      <Field label="Status superior">
-                        <Sel value={estudanteConfig.statusSuperior}
-                          onChange={e => setEstudanteConfig(p => ({ ...p, statusSuperior: e.target.value }))}>
-                          <option value="em_andamento">Em andamento</option>
-                          <option value="inativo">Inativo</option>
-                          <option value="finalizado">Finalizado</option>
-                        </Sel>
-                      </Field>
                     </Row>
                   )}
                 </SubSection>
@@ -2284,11 +2245,11 @@ export default function PageContent() {
 
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
-                  Criar {estudanteConfig.qtd} estudante(s) com PDFs
+                  Criar {estudanteConfig.qtd} estudante(s) em lote
                 </Btn>
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
-                Criação sequencial via multipart/form-data — PDFs de teste são gerados automaticamente para os documentos obrigatórios.
+                Criação assíncrona via /academia/estudante/register/async. O status acadêmico inicial é definido pelo backend, conforme a API.
               </p>
             </Section>
 
