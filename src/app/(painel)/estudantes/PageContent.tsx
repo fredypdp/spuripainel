@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, tokenStorage, academiaService } from '@/lib/api';
+import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
@@ -916,6 +916,13 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
+  const handleAbrirDocumento = async (campo: string) => {
+    const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
   return (
     <div className="space-y-5">
       <BotaoVoltarEstudantes onVoltar={onVoltar} />
@@ -970,7 +977,7 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
               <a
                 key={campo}
                 href="#"
-                onClick={async e => { e.preventDefault(); const blob = await academiaService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo); window.open(URL.createObjectURL(blob), '_blank'); }}
+                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo); }}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
               >
                 <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
@@ -988,7 +995,7 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
   const [files, setFiles] = useState<Record<string, File | undefined>>({});
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
-  const enviados = new Set(Object.keys(((estudante as any).documentos ?? {}) as Record<string, unknown>));
+  const enviados = new Set(listarDocumentosDisponiveis(estudante).map(([campo]) => campo));
   const camposPendentes = DOCUMENT_FIELDS.filter(campo => !enviados.has(campo));
   const possuiArquivoSelecionado = Object.values(files).some(Boolean);
 

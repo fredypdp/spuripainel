@@ -632,6 +632,19 @@ export const estudanteService = {
 
 };
 
+
+// =====================
+// DOCUMENTOS
+// =====================
+
+export const documentosService = {
+  baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
+    fetchApiBlob(
+      `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+};
+
 // =====================
 // ACADEMIA
 // =====================
@@ -664,10 +677,7 @@ export const academiaService = {
   },
 
   baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
-    fetchApiBlob(
-      `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download`,
-      { token: token || tokenStorage.get() || undefined }
-    ),
+    documentosService.baixarDocumentoEstudante(codigoEstudante, campo, token),
 
   // ── Solicitações de matrícula ────────────────────────────────────
 
