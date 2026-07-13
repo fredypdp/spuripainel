@@ -992,11 +992,11 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {documentos.map(([campo, documento]) => (
+            {documentos.map(([campo]) => (
               <button
                 key={campo}
                 type="button"
-                onClick={() => handleAbrirDocumento(campo, documento)}
+                onClick={() => handleAbrirDocumento(campo)}
                 disabled={carregandoDocumento === campo}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-medium text-brand-600 transition hover:bg-brand-50 disabled:cursor-wait disabled:opacity-70 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
               >
