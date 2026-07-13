@@ -8,17 +8,14 @@ import AcademiaSection, { type AcademiaSettingsSection } from "./AcademiaSection
 import AdminSection from "./AdminSection";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
-import GuiaConfiguracoesSection from "./GuiaConfiguracoesSection";
 
 type SettingsSection =
-  | "guia"
   | "ano-letivo"
   | "anos-academicos"
   | "regras-avaliacao-final"
   | "seguranca";
 
 const PAGE_TITLES: Record<SettingsSection, string> = {
-  guia: "Guia de Configurações",
   "ano-letivo": "Ano Letivo",
   "anos-academicos": "Anos acadêmicos",
   "regras-avaliacao-final": "Regras de avaliação final",
@@ -28,15 +25,6 @@ const PAGE_TITLES: Record<SettingsSection, string> = {
 export default function PageContent({ section }: { section: SettingsSection }) {
   const { isAcademia, isAdmin, isEstudante, user } = useUserType();
   const pageTitle = PAGE_TITLES[section];
-
-  if (section === "guia" && isAcademia) {
-    return (
-      <div>
-        <PageBreadcrumb pageTitle={pageTitle} />
-        <GuiaConfiguracoesSection />
-      </div>
-    );
-  }
 
   if (section === "seguranca") {
     return (

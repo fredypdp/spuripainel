@@ -11,6 +11,8 @@ import {
   tokenStorage,
 } from "@/lib/api";
 import { useUserCookie } from "@/hooks/useUserCookie";
+import { useAcademiaConfiguracaoStatus } from "@/hooks/useAcademiaConfiguracaoStatus";
+import GuiaConfiguracoesSection from "@/app/(painel)/configuracoes/GuiaConfiguracoesSection";
 import Icon from "@/components/ui/Icon";
 import type {
   MeuPerfilResponse,
@@ -405,14 +407,10 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
   const { data: dataCursos, loading: loadingCursos, execute: fetchCursos } =
     useApi(academiaService.listarCursos);
 
-  const { data: dataAnoLetivo, execute: fetchAnoLetivo } =
-    useApi(academiaService.getAnoLetivo);
-
   const load = useCallback(() => {
     fetchEst(token);
     fetchTurmas(token);
     fetchCursos(token);
-    fetchAnoLetivo(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -425,7 +423,6 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
   const turmasAtivas = turmas.filter((t: any) => t.status === "ativo").length;
   const cursos: any[] = (dataCursos as any)?.cursos ?? [];
   const cursosAtivos = cursos.filter((c: any) => c.status === "ativo").length;
-  const anoLetivo = (dataAnoLetivo as any)?.ano_letivo ?? null;
 
   const totalNotasAcad = useMemo(() => {
     const list: any[] = (dataEstudantes as any)?.estudantes ?? [];
@@ -458,18 +455,6 @@ function DashboardAcademia({ user }: { user: MeuPerfilResponse }) {
           icon="mdi:email-alert-outline"
           message="O e-mail da sua instituição ainda não foi verificado."
           action={{ label: "Ir ao perfil", href: "/perfil" }}
-        />
-      )}
-
-      {anoLetivo && (
-        <AlertBanner
-          variant="success"
-          icon="mdi:calendar-check-outline"
-          message={
-            <>
-              Ano letivo activo: <strong>{anoLetivo}</strong>
-            </>
-          }
         />
       )}
 
@@ -698,26 +683,6 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
           message="Ainda não está matriculado em nenhuma academia."
         />
       )}
-      {anoLetivo && (
-        <AlertBanner
-          variant="success"
-          icon="mdi:calendar-check-outline"
-          message={
-            <>
-              Ano letivo activo: <strong>{anoLetivo}</strong>
-              {anoActual && (
-                <>
-                  {" · "}Ano académico:{" "}
-                  <strong>
-                    {anoActual.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                  </strong>
-                </>
-              )}
-            </>
-          }
-        />
-      )}
-
       {/* Card resumo do aluno */}
       <div className="p-5 rounded-2xl border border-gray-100 dark:border-white/[0.06] bg-white dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-start gap-4">
@@ -873,9 +838,16 @@ function DashboardEstudante({ user }: { user: MeuPerfilResponse }) {
 
 export default function PainelDashboard() {
   const { user, loading: loadingUser } = useUserCookie();
+  const configuracaoStatus = useAcademiaConfiguracaoStatus();
 
   const nome = user?.estudante?.nome ?? user?.academia?.nome ?? user?.admin?.nome ?? "";
+  const nomeSaudacao = user?.tipo === "academia" ? user?.academia?.nome ?? "" : firstName(nome);
   const tipo = user?.tipo;
+  const deveMostrarGuiaAcademia = tipo === "academia" && (
+    configuracaoStatus.loading ||
+    Boolean(configuracaoStatus.error) ||
+    configuracaoStatus.completedCount < configuracaoStatus.totalCount
+  );
 
   return (
     <div className="space-y-6">
@@ -889,7 +861,7 @@ export default function PainelDashboard() {
         ) : (
           <>
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              {greeting()}, {firstName(nome)} 👋
+              {greeting()}, {nomeSaudacao} 👋
             </h1>
             <p className="text-sm text-gray-400 dark:text-gray-500">
               {tipo === "admin" && "Visão geral do sistema Spuri"}
@@ -921,7 +893,7 @@ export default function PainelDashboard() {
       ) : (
         <>
           {tipo === "admin" && user && <DashboardAdmin user={user} />}
-          {tipo === "academia" && user && <DashboardAcademia user={user} />}
+          {tipo === "academia" && user && (deveMostrarGuiaAcademia ? <GuiaConfiguracoesSection /> : <DashboardAcademia user={user} />)}
           {tipo === "estudante" && user && <DashboardEstudante user={user} />}
         </>
       )}

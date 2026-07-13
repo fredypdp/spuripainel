@@ -25,7 +25,7 @@ const navItems: NavItem[] = [
   {
     icon: <Icon width="24px" icon="flowbite:grid-outline" />,
     name: "Painel",
-    path: "/",
+    path: "/painel",
   },
   {
     icon: <Icon width="24px" icon="ix:user-profile" />,
@@ -82,7 +82,6 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
     name: "Configurações",
     subItems: [
-      { name: "Guia", path: "/configuracoes/guia" },
       { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
       { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
       { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
@@ -186,7 +185,6 @@ export default function AppSidebar() {
         // Configurações: mostrar apenas páginas aplicáveis ao tipo de usuário
         if (item.name === "Configurações" && item.subItems) {
           const academiaSettingsPaths = [
-            "/configuracoes/guia",
             "/configuracoes/ano-letivo",
             ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
             "/configuracoes/regras-avaliacao-final",
@@ -423,7 +421,7 @@ export default function AppSidebar() {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link href="/">
+        <Link href="/painel">
           {isExpanded || isHovered || isMobileOpen ? (
             <>
               <Image
