@@ -829,6 +829,35 @@ const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
 type DocumentoEstudanteEntrada = { download_url?: unknown; file_url?: unknown; path?: unknown } | string | null | undefined;
 type EstudanteDetalhes = ConsultarEstudanteResponse['estudante'];
 
+function getDocumentoString(documento: DocumentoEstudanteEntrada, campo: 'download_url' | 'file_url' | 'path'): string | undefined {
+  if (!documento || typeof documento === 'string') return undefined;
+  const value = documento[campo];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function getDocumentoFileName(documento: DocumentoEstudanteEntrada, campo: string): string {
+  const origem = (typeof documento === 'string' ? documento : getDocumentoString(documento, 'file_url') || getDocumentoString(documento, 'path')) || '';
+  const semQuery = origem.split('?')[0].split('#')[0];
+  const ultimoSegmento = semQuery.split('/').filter(Boolean).pop();
+  try {
+    const decoded = ultimoSegmento ? decodeURIComponent(ultimoSegmento) : '';
+    return decoded || `${campo}.pdf`;
+  } catch {
+    return ultimoSegmento || `${campo}.pdf`;
+  }
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function documentoTemArquivo(documento: DocumentoEstudanteEntrada): boolean {
   if (!documento) return false;
   if (typeof documento === 'string') return documento.trim().length > 0;
@@ -878,6 +907,7 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const [erroDocumento, setErroDocumento] = useState('');
   const [documentoAberto, setDocumentoAberto] = useState<{ titulo: string; url: string } | null>(null);
   const [carregandoDocumento, setCarregandoDocumento] = useState<string | null>(null);
+  const [baixandoDocumento, setBaixandoDocumento] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -924,12 +954,18 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
-  const handleAbrirDocumento = async (campo: string) => {
+  const obterBlobDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
+    const token = tokenStorage.get();
+    const downloadUrl = getDocumentoString(documento, 'download_url');
+    if (downloadUrl) return documentosService.baixarDocumentoEstudantePorUrl(downloadUrl, token || undefined);
+    return documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+  };
+
+  const handleAbrirDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
     setErroDocumento('');
     setCarregandoDocumento(campo);
     try {
-      const token = tokenStorage.get();
-      const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+      const blob = await obterBlobDocumento(campo, documento);
       const url = URL.createObjectURL(blob);
       setDocumentoAberto(atual => {
         if (atual?.url) URL.revokeObjectURL(atual.url);
@@ -939,6 +975,19 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
       setErroDocumento(err?.message || 'Não foi possível abrir este documento pela rota autenticada de documentos.');
     } finally {
       setCarregandoDocumento(null);
+    }
+  };
+
+  const handleBaixarDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
+    setErroDocumento('');
+    setBaixandoDocumento(campo);
+    try {
+      const blob = await obterBlobDocumento(campo, documento);
+      downloadBlob(blob, getDocumentoFileName(documento, campo));
+    } catch (err: any) {
+      setErroDocumento(err?.message || 'Não foi possível baixar este documento pela rota autenticada de documentos.');
+    } finally {
+      setBaixandoDocumento(null);
     }
   };
 
@@ -992,16 +1041,27 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {documentos.map(([campo]) => (
-              <button
-                key={campo}
-                type="button"
-                onClick={() => handleAbrirDocumento(campo)}
-                disabled={carregandoDocumento === campo}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-medium text-brand-600 transition hover:bg-brand-50 disabled:cursor-wait disabled:opacity-70 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
-              >
-                <Icon icon={carregandoDocumento === campo ? "mdi:loading" : "mdi:file-pdf-box"} width={18} className={carregandoDocumento === campo ? "animate-spin text-brand-500" : "text-red-500"} /> {DOCUMENT_LABELS[campo] ?? campo}
-              </button>
+            {documentos.map(([campo, documento]) => (
+              <div key={campo} className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => handleAbrirDocumento(campo, documento)}
+                  disabled={carregandoDocumento === campo}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-brand-600 transition hover:text-brand-700 disabled:cursor-wait disabled:opacity-70 dark:text-brand-300"
+                >
+                  <Icon icon={carregandoDocumento === campo ? "mdi:loading" : "mdi:file-pdf-box"} width={18} className={carregandoDocumento === campo ? "animate-spin text-brand-500" : "text-red-500"} />
+                  <span className="truncate">{DOCUMENT_LABELS[campo] ?? campo}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBaixarDocumento(campo, documento)}
+                  disabled={baixandoDocumento === campo}
+                  title={`Baixar ${getDocumentoFileName(documento, campo)}`}
+                  className="rounded-md p-1.5 text-gray-500 transition hover:bg-brand-50 hover:text-brand-600 disabled:cursor-wait disabled:opacity-60 dark:text-gray-300 dark:hover:bg-brand-900/20 dark:hover:text-brand-300"
+                >
+                  <Icon icon={baixandoDocumento === campo ? "mdi:loading" : "mdi:download"} width={18} className={baixandoDocumento === campo ? "animate-spin" : undefined} />
+                </button>
+              </div>
             ))}
           </div>
         )}

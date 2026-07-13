@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { academiaService, adminService } from "@/lib/api/services";
+import { academiaService, adminService, documentosService } from "@/lib/api/services";
+import { tokenStorage } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
 import type { SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -37,8 +38,12 @@ function anoOrder(value: string) {
   return nivelOrder * 100 + Number(match[1]);
 }
 
-function documentoNome(campo: string) {
-  return `${docLabels[campo] || campo}.pdf`;
+function documentoNome(campo: string, fileUrl?: string) {
+  const origem = (fileUrl || '').split('?')[0].split('#')[0];
+  const ultimoSegmento = origem.split('/').filter(Boolean).pop();
+  if (!ultimoSegmento) return `${docLabels[campo] || campo}.pdf`;
+  try { return decodeURIComponent(ultimoSegmento); }
+  catch { return ultimoSegmento; }
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -72,6 +77,8 @@ export default function PageContent() {
   const [anoSelecionado, setAnoSelecionado] = useState<string | null>(null);
   const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState<string | null>(null);
   const [documentoBaixando, setDocumentoBaixando] = useState<string | null>(null);
+  const [documentoAbrindo, setDocumentoAbrindo] = useState<string | null>(null);
+  const [documentoAberto, setDocumentoAberto] = useState<{ titulo: string; url: string } | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -88,7 +95,8 @@ export default function PageContent() {
   }, [isAdmin, status]);
 
   useEffect(() => { if (user?.tipo) carregar(); }, [user?.tipo, carregar]);
-  useEffect(() => { setAnoSelecionado(null); setSolicitacaoSelecionada(null); }, [status]);
+  useEffect(() => { setAnoSelecionado(null); setSolicitacaoSelecionada(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }, [status]);
+  useEffect(() => () => { if (documentoAberto?.url) URL.revokeObjectURL(documentoAberto.url); }, [documentoAberto?.url]);
 
   const anos = useMemo(() => {
     const values = new Set<string>(items.map(anoValue));
@@ -112,16 +120,34 @@ export default function PageContent() {
   );
 
   async function aprovar(codigo: string) { await academiaService.aprovarSolicitacaoMatricula(codigo); await carregar(); }
-  async function baixarDocumento(codigo: string, campo: string) {
+  async function obterBlobDocumento(codigo: string, campo: string, downloadUrl?: string) {
+    const token = tokenStorage.get() || undefined;
+    if (downloadUrl) return documentosService.baixarDocumentoSolicitacaoMatriculaPorUrl(downloadUrl, token);
+    return documentosService.baixarDocumentoSolicitacaoMatricula(codigo, campo, token);
+  }
+  async function baixarDocumento(codigo: string, campo: string, fileUrl?: string, downloadUrl?: string) {
     setDocumentoBaixando(`${codigo}:${campo}`);
     setErro("");
     try {
-      const blob = await academiaService.baixarDocumentoSolicitacaoMatricula(codigo, campo);
-      downloadBlob(blob, documentoNome(campo));
+      const blob = await obterBlobDocumento(codigo, campo, downloadUrl);
+      downloadBlob(blob, documentoNome(campo, fileUrl));
     } catch (e: any) {
       setErro(e?.message ?? "Não foi possível baixar o documento.");
     } finally {
       setDocumentoBaixando(null);
+    }
+  }
+  async function abrirDocumento(codigo: string, campo: string, downloadUrl?: string) {
+    setDocumentoAbrindo(`${codigo}:${campo}`);
+    setErro("");
+    try {
+      const blob = await obterBlobDocumento(codigo, campo, downloadUrl);
+      const url = URL.createObjectURL(blob);
+      setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return { titulo: docLabels[campo] || campo, url }; });
+    } catch (e: any) {
+      setErro(e?.message ?? "Não foi possível abrir o PDF do documento.");
+    } finally {
+      setDocumentoAbrindo(null);
     }
   }
   async function reprovar(codigo: string) {
@@ -199,7 +225,7 @@ export default function PageContent() {
             <Info label="BI responsável" value={solicitacao.bilhete_identidade_responsavel || "-"} />
             <Info label="Criada em" value={formatDateTime(solicitacao.created_at)} />
           </div>
-          {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><p className="mb-2 text-xs text-gray-500">Downloads são feitos pelas rotas autenticadas do backend, sem abrir links privados do storage.</p><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const disabled = documentoBaixando === `${solicitacao.codigo_solicitacao}:${key}` || !value?.path; return <button key={key} type="button" disabled={disabled} onClick={() => baixarDocumento(solicitacao.codigo_solicitacao, key)} title={value?.path || undefined} className="rounded-full border border-gray-200 px-3 py-1 text-xs text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-brand-300">{documentoBaixando === `${solicitacao.codigo_solicitacao}:${key}` ? "Baixando..." : docLabels[key] || key}</button>; })}</div></div>}
+          {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><p className="mb-2 text-xs text-gray-500">Leitura e download são feitos pelas rotas autenticadas do backend, sem abrir links privados do storage.</p><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const loadingKey = `${solicitacao.codigo_solicitacao}:${key}`; const disabled = (!value?.path && !value?.download_url); return <div key={key} className="inline-flex overflow-hidden rounded-full border border-gray-200 text-xs dark:border-gray-700"><button type="button" disabled={disabled || documentoAbrindo === loadingKey} onClick={() => abrirDocumento(solicitacao.codigo_solicitacao, key, value?.download_url)} title={value?.path || undefined} className="px-3 py-1 text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-brand-300">{documentoAbrindo === loadingKey ? "Abrindo..." : docLabels[key] || key}</button><button type="button" disabled={disabled || documentoBaixando === loadingKey} onClick={() => baixarDocumento(solicitacao.codigo_solicitacao, key, value?.file_url, value?.download_url)} title={`Baixar ${documentoNome(key, value?.file_url)}`} className="border-l border-gray-200 px-2 py-1 text-gray-500 hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-gray-300"><Icon icon={documentoBaixando === loadingKey ? "mdi:loading" : "mdi:download"} className={documentoBaixando === loadingKey ? "animate-spin" : undefined} /></button></div>; })}</div>{documentoAberto && <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"><div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700"><span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90"><Icon icon="mdi:file-eye-outline" />{documentoAberto.titulo}</span><button type="button" onClick={() => setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; })} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Fechar</button></div><iframe title={`Pré-visualização de ${documentoAberto.titulo}`} src={documentoAberto.url} className="h-[70vh] w-full bg-white" /></div>}</div>}
           {!isAdmin && solicitacao.status === "pendente" && <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button onClick={() => aprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white">Aprovar e criar estudante</button><input placeholder="Motivo da reprovação" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onChange={(e) => setMotivo((p) => ({ ...p, [solicitacao.codigo_solicitacao]: e.target.value }))} /><button onClick={() => reprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white">Reprovar</button></div>}
         </section>
       )}
