@@ -247,7 +247,7 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
             </span>
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                Ano Letivo Cativo
+                Ano Letivo Atual
               </p>
               {loadingAtual ? (
                 <div className="h-6 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mt-1" />
