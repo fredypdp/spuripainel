@@ -637,10 +637,28 @@ export const estudanteService = {
 // DOCUMENTOS
 // =====================
 
+function normalizarDocumentoEndpoint(downloadUrl: string, prefixoPermitido: string): string {
+  const endpoint = downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://')
+    ? new URL(downloadUrl).pathname
+    : downloadUrl;
+
+  if (!endpoint.startsWith(prefixoPermitido)) {
+    throw new Error('URL de documento inválida para a rota autenticada esperada.');
+  }
+
+  return endpoint;
+}
+
 export const documentosService = {
   baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
     fetchApiBlob(
       `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  baixarDocumentoEstudantePorUrl: (downloadUrl: string, token?: string) =>
+    fetchApiBlob(
+      normalizarDocumentoEndpoint(downloadUrl, '/documentos/estudantes/'),
       { token: token || tokenStorage.get() || undefined }
     ),
 };

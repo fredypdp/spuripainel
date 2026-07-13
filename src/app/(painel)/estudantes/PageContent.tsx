@@ -830,7 +830,7 @@ const DOCUMENT_LABELS: Record<string, string> = {
 };
 const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
 
-type DocumentoEstudanteEntrada = Record<string, unknown> | string | null | undefined;
+type DocumentoEstudanteEntrada = { download_url?: unknown; file_url?: unknown; path?: unknown } | string | null | undefined;
 type EstudanteDetalhes = ConsultarEstudanteResponse['estudante'];
 
 function documentoTemArquivo(documento: DocumentoEstudanteEntrada): boolean {
@@ -842,6 +842,14 @@ function documentoTemArquivo(documento: DocumentoEstudanteEntrada): boolean {
 function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[string, DocumentoEstudanteEntrada]> {
   return Object.entries((estudante.documentos ?? {}) as Record<string, DocumentoEstudanteEntrada>)
     .filter(([, documento]) => documentoTemArquivo(documento));
+}
+
+
+function getDocumentoDownloadUrl(documento: DocumentoEstudanteEntrada): string | undefined {
+  if (!documento || typeof documento === 'string') return undefined;
+  return typeof documento.download_url === 'string' && documento.download_url.trim()
+    ? documento.download_url
+    : undefined;
 }
 
 function labelContextoEstudante(contexto: string): string {
@@ -912,11 +920,14 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
-  const handleAbrirDocumento = async (campo: string) => {
+  const handleAbrirDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
     setErroDocumento('');
     try {
       const token = tokenStorage.get();
-      const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+      const downloadUrl = getDocumentoDownloadUrl(documento);
+      const blob = downloadUrl
+        ? await documentosService.baixarDocumentoEstudantePorUrl(downloadUrl, token || undefined)
+        : await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -977,11 +988,11 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {documentos.map(([campo]) => (
+            {documentos.map(([campo, documento]) => (
               <a
                 key={campo}
                 href="#"
-                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo); }}
+                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo, documento); }}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
               >
                 <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
