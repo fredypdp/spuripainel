@@ -1064,6 +1064,8 @@ export interface EstudanteDetalhado {
   codigo_estudante: string;
   email?: string;
   telefone?: string;
+  telefone_responsavel?: string;
+  email_responsavel?: string;
   email_verificado: boolean;
   bilhete_identidade?: string;
   bilhete_identidade_responsavel?: string;

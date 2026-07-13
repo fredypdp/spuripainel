@@ -408,6 +408,7 @@ export const consultasService = {
     status_escolar_fundamental?: string | string[];
     status_escolar_medio?: string | string[];
     status_superior?: string | string[];
+    status?: string | string[];
     turno?: string | string[];
     codigo_turma?: string | string[];
     com_turma?: boolean;
@@ -428,6 +429,7 @@ export const consultasService = {
     appendMultiValueParam(qs, 'status_escolar_fundamental', params?.status_escolar_fundamental);
     appendMultiValueParam(qs, 'status_escolar_medio', params?.status_escolar_medio);
     appendMultiValueParam(qs, 'status_superior', params?.status_superior);
+    appendMultiValueParam(qs, 'status', params?.status);
     appendMultiValueParam(qs, 'turno', params?.turno);
     appendMultiValueParam(qs, 'codigo_turma', params?.codigo_turma);
     if (params?.com_turma !== undefined) qs.append('com_turma', String(params.com_turma));
