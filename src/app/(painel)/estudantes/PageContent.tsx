@@ -136,10 +136,6 @@ function formatarDataNasc(data: string): string {
   catch { return data; }
 }
 
-function formatarDataISO(data: string): string {
-  try { return new Date(data).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit', year: 'numeric' }); }
-  catch { return '-'; }
-}
 
 function getStatusBadgeClass(status: string) {
   switch (status?.toLowerCase()) {
@@ -845,13 +841,6 @@ function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[stri
 }
 
 
-function getDocumentoDownloadUrl(documento: DocumentoEstudanteEntrada): string | undefined {
-  if (!documento || typeof documento === 'string') return undefined;
-  return typeof documento.download_url === 'string' && documento.download_url.trim()
-    ? documento.download_url
-    : undefined;
-}
-
 function labelContextoEstudante(contexto: string): string {
   if (contexto === 'fundamental') return 'Ensino Fundamental';
   if (contexto === 'medio') return 'Ensino Médio';
@@ -887,6 +876,8 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
   const [erroDetalhes, setErroDetalhes] = useState('');
   const [erroDocumento, setErroDocumento] = useState('');
+  const [documentoAberto, setDocumentoAberto] = useState<{ titulo: string; url: string } | null>(null);
+  const [carregandoDocumento, setCarregandoDocumento] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -908,6 +899,19 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
     return () => { mounted = false; };
   }, [estudante.codigo_estudante]);
 
+  useEffect(() => {
+    return () => {
+      if (documentoAberto?.url) URL.revokeObjectURL(documentoAberto.url);
+    };
+  }, [documentoAberto?.url]);
+
+  const fecharDocumentoAberto = () => {
+    setDocumentoAberto(atual => {
+      if (atual?.url) URL.revokeObjectURL(atual.url);
+      return null;
+    });
+  };
+
   const contexto = getContextoEstudante(estudanteConsultado, isAdmin, academiaNivel, nivelEscolar);
   const ano = contexto === 'fundamental' ? estudanteConsultado.ano_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.ano_escolar_medio : estudanteConsultado.ano_superior;
   const statusContexto = contexto === 'fundamental' ? estudanteConsultado.status_escolar_fundamental : contexto === 'medio' ? estudanteConsultado.status_escolar_medio : estudanteConsultado.status_superior;
@@ -920,19 +924,21 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const documentos = listarDocumentosDisponiveis(estudanteConsultado);
   const nivelLabel = labelContextoEstudante(contexto);
 
-  const handleAbrirDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
+  const handleAbrirDocumento = async (campo: string) => {
     setErroDocumento('');
+    setCarregandoDocumento(campo);
     try {
       const token = tokenStorage.get();
-      const downloadUrl = getDocumentoDownloadUrl(documento);
-      const blob = downloadUrl
-        ? await documentosService.baixarDocumentoEstudantePorUrl(downloadUrl, token || undefined)
-        : await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+      const blob = await documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setDocumentoAberto(atual => {
+        if (atual?.url) URL.revokeObjectURL(atual.url);
+        return { titulo: DOCUMENT_LABELS[campo] ?? campo, url };
+      });
     } catch (err: any) {
       setErroDocumento(err?.message || 'Não foi possível abrir este documento pela rota autenticada de documentos.');
+    } finally {
+      setCarregandoDocumento(null);
     }
   };
 
@@ -972,8 +978,6 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
         <DetailItem label="E-mail do estudante" value={estudanteConsultado.email || '-'} />
         <DetailItem label="Telefone do estudante" value={estudanteConsultado.telefone || '-'} />
         <DetailItem label="Telefone do responsável" value={estudanteConsultado.telefone_responsavel || '-'} />
-        <DetailItem label="Telefone estudante verificado" value={estudanteConsultado.telefone_verificado ? 'Sim' : 'Não'} />
-        <DetailItem label="Telefone responsável verificado" value={estudanteConsultado.telefone_responsavel_verificado ? 'Sim' : 'Não'} />
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -988,20 +992,29 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {documentos.map(([campo, documento]) => (
-              <a
+            {documentos.map(([campo]) => (
+              <button
                 key={campo}
-                href="#"
-                onClick={async e => { e.preventDefault(); await handleAbrirDocumento(campo, documento); }}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
+                type="button"
+                onClick={() => handleAbrirDocumento(campo)}
+                disabled={carregandoDocumento === campo}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-medium text-brand-600 transition hover:bg-brand-50 disabled:cursor-wait disabled:opacity-70 dark:border-gray-700 dark:text-brand-300 dark:hover:bg-brand-900/20"
               >
-                <Icon icon="mdi:file-pdf-box" width={18} className="text-red-500" /> {DOCUMENT_LABELS[campo] ?? campo}
-              </a>
+                <Icon icon={carregandoDocumento === campo ? "mdi:loading" : "mdi:file-pdf-box"} width={18} className={carregandoDocumento === campo ? "animate-spin text-brand-500" : "text-red-500"} /> {DOCUMENT_LABELS[campo] ?? campo}
+              </button>
             ))}
           </div>
         )}
+        {documentoAberto && (
+          <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
+            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90"><Icon icon="mdi:file-eye-outline" width={18} /> {documentoAberto.titulo}</div>
+              <button type="button" onClick={fecharDocumentoAberto} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800">Fechar</button>
+            </div>
+            <iframe title={`Pré-visualização de ${documentoAberto.titulo}`} src={documentoAberto.url} className="h-[70vh] w-full bg-white" />
+          </div>
+        )}
       </section>
-      {isAdmin && <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Auditoria</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><DetailItem label="Criado em" value={formatarDataISO(estudanteConsultado.created_at)} /><DetailItem label="Atualizado em" value={formatarDataISO(estudanteConsultado.updated_at)} /></div></section>}
     </div>
   );
 }
