@@ -94,7 +94,7 @@ export default function ProfileGate({ onComplete }: ProfileGateProps) {
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="overflow-hidden"
             >
-              <p className="mt-6 mb-3 text-sm font-medium text-gray-500 dark:text-gray-400">
+              <p className="mt-6 mb-3 text-sm lg:text-base font-medium text-gray-500 dark:text-gray-400">
                 Qual é o porte do vosso colégio?
               </p>
               <div className="grid gap-3 sm:grid-cols-2">

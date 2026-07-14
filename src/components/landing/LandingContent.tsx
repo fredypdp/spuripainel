@@ -44,7 +44,7 @@ function SectionHeading({ eyebrow, title }: { eyebrow?: string; title: string })
   return (
     <div className="text-center mb-10">
       {eyebrow && (
-        <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-brand-500">{eyebrow}</p>
+        <p className="mb-2 text-sm lg:text-base font-semibold uppercase tracking-wider text-brand-500">{eyebrow}</p>
       )}
       <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 dark:text-white/90">{title}</h2>
     </div>
@@ -112,7 +112,7 @@ function FeatureCategoryBlock({
                 </Badge>
               )}
             </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
+            <p className="mt-1 text-sm lg:text-base text-gray-500 dark:text-gray-400">{item.description}</p>
           </li>
         ))}
       </ul>
@@ -121,7 +121,7 @@ function FeatureCategoryBlock({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-500 hover:text-brand-600"
+          className="mt-4 inline-flex items-center gap-1 text-sm lg:text-base font-medium text-brand-500 hover:text-brand-600"
         >
           {expanded ? "Ver menos" : `Ver todos os custos reduzidos (+${items.length - 4})`}
           <ChevronDownSmallIcon className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -157,7 +157,7 @@ export default function LandingContent({
             <span className="text-lg font-bold text-gray-800 dark:text-white/90">Spuri</span>
           </Link>
 
-          <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 dark:text-gray-300 md:flex">
+          <nav className="hidden items-center gap-7 text-sm lg:text-base font-medium text-gray-600 dark:text-gray-300 md:flex">
             <a href="#sobre" className="hover:text-brand-500">Sobre</a>
             <a href="#funcionalidades" className="hover:text-brand-500">Funcionalidades</a>
             <a href="#contacto" className="hover:text-brand-500">Contacto</a>
@@ -173,7 +173,7 @@ export default function LandingContent({
             </button>
             <Link
               href="/login"
-              className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+              className="rounded-xl bg-brand-500 px-4 py-2 text-sm lg:text-base font-semibold text-white hover:bg-brand-600"
             >
               Entrar
             </Link>
@@ -191,7 +191,7 @@ export default function LandingContent({
         </div>
 
         {menuOpen && (
-          <nav className="grid gap-3 border-t border-gray-200 px-4 py-4 text-sm font-medium dark:border-gray-800 md:hidden">
+          <nav className="grid gap-3 border-t border-gray-200 px-4 py-4 text-sm lg:text-base font-medium dark:border-gray-800 md:hidden">
             <a href="#sobre" onClick={() => setMenuOpen(false)}>Sobre</a>
             <a href="#funcionalidades" onClick={() => setMenuOpen(false)}>Funcionalidades</a>
             <a href="#contacto" onClick={() => setMenuOpen(false)}>Contacto</a>
@@ -211,7 +211,7 @@ export default function LandingContent({
             transition={{ duration: 0.6, delay: 0.1 }}
             className="mx-auto max-w-3xl text-center"
           >
-            <p className="mb-4 text-sm font-bold uppercase tracking-[0.25em] text-brand-500">
+            <p className="mb-4 text-sm lg:text-base font-bold uppercase tracking-[0.25em] text-brand-500">
               Plataforma de Gestão Académica
             </p>
             <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl lg:text-6xl">
@@ -241,7 +241,7 @@ export default function LandingContent({
             ].map((line) => (
               <div
                 key={line}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm lg:text-base text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300"
               >
                 {line}
               </div>
@@ -258,16 +258,16 @@ export default function LandingContent({
             transition={{ duration: 0.45 }}
             className="rounded-3xl bg-white p-6 shadow-theme-sm ring-1 ring-gray-200 dark:bg-white/[0.03] dark:ring-gray-800 sm:p-10"
           >
-            <p className="text-sm font-bold uppercase tracking-wide text-brand-500">{content.label}</p>
+            <p className="text-sm lg:text-base font-bold uppercase tracking-wide text-brand-500">{content.label}</p>
             <h2 className="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{content.headline}</h2>
             <p className="mt-4 max-w-3xl text-gray-600 dark:text-gray-300">{content.subheadline}</p>
 
             <div className="mt-8 grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl bg-gray-50 p-5 dark:bg-gray-950">
-                <h3 className="mb-3 font-semibold text-gray-800 dark:text-white/90">Problemas Frequentes</h3>
+                <h3 className="mb-3 font-semibold text-gray-800 dark:text-white/90">Problemas resolvidos</h3>
                 <ul className="space-y-2.5">
                   {content.problems.map((p) => (
-                    <li key={p} className="flex gap-2.5 text-sm text-gray-600 dark:text-gray-300">
+                    <li key={p} className="flex gap-2.5 text-sm lg:text-base text-gray-600 dark:text-gray-300">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
                       {p}
                     </li>
@@ -278,7 +278,7 @@ export default function LandingContent({
                 <h3 className="mb-3 font-semibold text-gray-800 dark:text-white/90">Nossas Soluções</h3>
                 <ul className="space-y-2.5">
                   {content.solutions.map((s) => (
-                    <li key={s} className="flex gap-2.5 text-sm text-gray-700 dark:text-gray-200">
+                    <li key={s} className="flex gap-2.5 text-sm lg:text-base text-gray-700 dark:text-gray-200">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
                       {s}
                     </li>
@@ -287,7 +287,7 @@ export default function LandingContent({
               </div>
             </div>
 
-            <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-6 text-sm lg:text-base text-gray-500 dark:text-gray-400">
               <strong className="text-gray-700 dark:text-gray-200">Funcionalidades em destaque:</strong>{" "}
               {content.highlights}
             </p>
@@ -403,19 +403,19 @@ export default function LandingContent({
         <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-lg font-bold text-gray-800 dark:text-white/90">Spuri</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-sm lg:text-base text-gray-600 dark:text-gray-300">
               Confiança e eficiência na gestão académica.
             </p>
-            <a href="mailto:spuriartipan@gmail.com" className="text-sm text-brand-500">
+            <a href="mailto:spuriartipan@gmail.com" className="text-sm lg:text-base text-brand-500">
               spuriartipan@gmail.com
             </a>
           </div>
-          <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-300">
+          <div className="flex gap-4 text-sm lg:text-base text-gray-600 dark:text-gray-300">
             <a href="#sobre">Sobre</a>
             <a href="#funcionalidades">Funcionalidades</a>
             <a href="#contacto">Contacto</a>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">© 2026 Spuri. Todos os direitos reservados.</p>
+          <p className="text-sm lg:text-base text-gray-500 dark:text-gray-400">© 2026 Spuri. Todos os direitos reservados.</p>
         </div>
       </footer>
     </motion.div>
