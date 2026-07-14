@@ -94,7 +94,7 @@ export default function ProfileGate({ onComplete }: ProfileGateProps) {
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="overflow-hidden"
             >
-              <p className="mt-6 mb-3 text-sm font-medium text-gray-500 dark:text-gray-400">
+              <p className="mt-6 mb-3 text-sm lg:text-base font-medium text-gray-500 dark:text-gray-400">
                 Qual é o porte do vosso colégio?
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -105,7 +105,7 @@ export default function ProfileGate({ onComplete }: ProfileGateProps) {
                   onClick={() => onComplete("colegio-pequeno-medio")}
                   className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left font-medium text-gray-800 hover:border-brand-300 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:hover:border-brand-500/50"
                 >
-                  Pequena/Média Escola
+                  Pequeno/Médio Porte
                 </motion.button>
                 <motion.button
                   type="button"
