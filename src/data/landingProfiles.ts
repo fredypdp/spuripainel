@@ -60,7 +60,7 @@ export const profileContent: Record<Profile, ProfileContent> = {
     ],
   },
   "colegio-pequeno-medio": {
-    label: "Colégio — Pequena/Média",
+    label: "Colégio — Pequeno/Médio Porte",
     headline: "Tecnologia de ponta, ao alcance do seu colégio — mesmo sem grande estrutura.",
     subheadline:
       "Não precisa de equipa de TI nem de servidores próprios: o Spuri funciona a partir de qualquer computador ou telemóvel com internet, e coloca o seu colégio ao mesmo nível tecnológico das maiores instituições do país.",
@@ -85,7 +85,7 @@ export const profileContent: Record<Profile, ProfileContent> = {
     highlights:
       "matrículas digitais · registo de notas e faltas por trimestre · gestão financeira digital · notificações automáticas para encarregados de educação · avaliação final automática · IA institucional contextualizada (em desenvolvimento).",
     cta: "Fale Connosco",
-    href: mailtoFor("Spuri — Colégio – Pequena/Média"),
+    href: mailtoFor("Spuri — Colégio – Pequeno/Médio Porte"),
     steps: [
       "Mapeamos os processos essenciais do colégio.",
       "A equipa passa a operar matrículas, notas, faltas e finanças no Spuri.",

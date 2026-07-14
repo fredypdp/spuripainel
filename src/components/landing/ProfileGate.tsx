@@ -105,7 +105,7 @@ export default function ProfileGate({ onComplete }: ProfileGateProps) {
                   onClick={() => onComplete("colegio-pequeno-medio")}
                   className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left font-medium text-gray-800 hover:border-brand-300 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:hover:border-brand-500/50"
                 >
-                  Pequena/Média Escola
+                  Pequeno/Médio Porte
                 </motion.button>
                 <motion.button
                   type="button"
