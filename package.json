@@ -23,6 +23,7 @@
     "apexcharts": "^4.7.0",
     "autoprefixer": "^10.4.22",
     "flatpickr": "^4.6.13",
+    "framer-motion": "^12.23.26",
     "next": "16.0.10",
     "nodemailer": "^7.0.13",
     "primereact": "^10.9.7",
