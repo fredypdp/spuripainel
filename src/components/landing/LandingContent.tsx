@@ -275,7 +275,7 @@ export default function LandingContent({
                 </ul>
               </div>
               <div className="rounded-2xl bg-brand-50/60 p-5 dark:bg-brand-500/10">
-                <h3 className="mb-3 font-semibold text-gray-800 dark:text-white/90">Nossas Soluções</h3>
+                <h3 className="mb-3 font-semibold text-gray-800 dark:text-white/90">Benefícios</h3>
                 <ul className="space-y-2.5">
                   {content.solutions.map((s) => (
                     <li key={s} className="flex gap-2.5 text-sm lg:text-base text-gray-700 dark:text-gray-200">
