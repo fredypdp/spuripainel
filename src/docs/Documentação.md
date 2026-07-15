@@ -160,6 +160,7 @@ interface AcademiaDTO {
   tipo_ano_letivo?: string        // 'escolar' | 'superior'
   ano_letivo_ativado_em?: string  // RFC3339
   anos_letivos_lista: AnoLetivoItem[]
+  documentos?: Record<string, SolicitacaoMatriculaDocumentoDTO> // inclui alvara para usuários autenticados
   created_at: string
   updated_at?: string
   version: number
@@ -508,7 +509,7 @@ interface AsyncBatchAcceptedResponse {
 
 ### Consulta pública de academias
 
-As rotas `GET /academias` e `GET /consultar-academia/:codigo` são públicas com autenticação opcional. Usuários não autenticados podem consultar a lista de academias ou uma academia específica pelo código, mas a resposta expõe somente os campos públicos: `nivel`, `type`, `nome`, `codigo_academia`, `provincia`, `endereco`, `nivel_escolar` e `anos_academicos`. Para escolas fundamentais ou mistas, `anos_academicos` informa os anos acadêmicos ofertados sem exigir sessão.
+As rotas `GET /academias` e `GET /consultar-academia/:codigo` são públicas com autenticação opcional. Usuários não autenticados podem consultar a lista de academias ou uma academia específica pelo código, mas a resposta expõe somente os campos públicos: `nivel`, `type`, `nome`, `codigo_academia`, `provincia`, `endereco`, `nivel_escolar` e `anos_academicos`. Para escolas fundamentais ou mistas, `anos_academicos` informa os anos acadêmicos ofertados sem exigir sessão. Usuários autenticados recebem também `documentos.alvara.download_url` apontando para `/documentos/academias/{codigo_academia}/alvara/download`, permitindo download do alvará pelo backend sem expor links diretos do storage.
 
 As rotas `GET /academia/cursos?codigo_academia=...` e `GET /academia/curso/:id` também são públicas com autenticação opcional para consulta dos cursos e dos anos desses cursos em escolas do médio e academias do nível superior. Academias autenticadas continuam consultando os próprios cursos sem informar `codigo_academia`; admins autenticados continuam informando `codigo_academia` na listagem.
 
@@ -1190,7 +1191,9 @@ A obrigatoriedade dos documentos e as validações cadastrais comuns são aplica
 - `7_ano_fundamental` exige `certificado_6_ano_fundamental` ou `declaracao` com `declaracao_ano_academico=6_ano_fundamental`.
 - `1_ano_medio` exige `certificado_9_ano_fundamental` ou `declaracao` com `declaracao_ano_academico=9_ano_fundamental`.
 - `1_ano_superior` exige `certificado_ensino_medio` ou `declaracao` com `declaracao_ano_academico=3_ano_medio`.
-- Declaração sem `declaracao_ano_academico`, do mesmo ano, de ano posterior ou de ano anterior não imediato é rejeitada.
+- Declaração sem `declaracao_ano_academico`, do mesmo ano, de ano posterior ou de ano anterior não imediato é rejeitada quando ela é necessária para cumprir a regra acadêmica.
+- Na persistência, a declaração deixa de ser documento acadêmico genérico: uploads e documentos informados no corpo JSON são normalizados para `tipo=declaracao_<ano_academico>` e chave `nivel.ano_academico.declaracao_<ano_academico>`, por exemplo `medio.3_ano_medio.declaracao_3_ano_medio`.
+- Quando uma declaração opcional é enviada sem ano acadêmico e não participa da validação obrigatória, ela não é gravada como chave raiz `declaracao`; o backend isola o registro em `escopo_desconhecido.declaracao` até que o escopo possa ser corrigido.
 - No ensino superior, `bilhete_identidade` do estudante e PDF `bi_estudante` são obrigatórios; `bilhete_identidade_responsavel` e PDF `bi_responsavel` são opcionais.
 - No nível escolar/fundamental/médio, `bilhete_identidade_responsavel` e PDF `bi_responsavel` são sempre obrigatórios.
 - No nível escolar/fundamental/médio, o estudante deve ter `bilhete_identidade` + PDF `bi_estudante`, ou PDF `cedula_estudante` quando não tiver BI próprio.
@@ -1258,14 +1261,25 @@ Lista todas as academias com paginação e filtro de status.
 
 ```json
 {
-  "academias": [AcademiaDTO],
+  "academias": [
+    {
+      ... (AcademiaDTO) ...,
+      "documentos": {
+        "alvara": {
+          "path": "LDA20261/Documentação formal/alvara_LDA20261.pdf",
+          "file_url": "LDA20261/Documentação formal/alvara_LDA20261.pdf",
+          "download_url": "/documentos/academias/LDA20261/alvara/download"
+        }
+      }
+    }
+  ],
   "total": 25,
   "limit": 50,
   "offset": 0
 }
 ```
 
-**Nota**: usuários autenticados veem os campos operacionais do `AcademiaDTO`; admins veem campos extras (`email`, `total_estudantes`, `version`). O backend nunca retorna mais de 100 academias por página, mesmo que o cliente envie `limit` maior.
+**Nota**: usuários autenticados veem os campos operacionais do `AcademiaDTO`, incluindo `documentos.alvara.download_url`; admins veem campos extras (`email`, `total_estudantes`, `version`). O backend nunca retorna mais de 100 academias por página, mesmo que o cliente envie `limit` maior.
 
 ---
 
@@ -1319,13 +1333,20 @@ Retorna detalhes de uma academia pelo código.
   "total_estudantes": 10,
   "ano_letivo": "2026",
   "tipo_ano_letivo": "anual",
-  "anos_letivos_lista": ["2026"]
+  "anos_letivos_lista": ["2026"],
+  "documentos": {
+    "alvara": {
+      "path": "LDA20261/Documentação formal/alvara_LDA20261.pdf",
+      "file_url": "LDA20261/Documentação formal/alvara_LDA20261.pdf",
+      "download_url": "/documentos/academias/LDA20261/alvara/download"
+    }
+  }
 }
 ```
 
 **Campos públicos para usuário não autenticado:** `nivel`, `type`, `nome`, `codigo_academia`, `provincia`, `endereco`, `nivel_escolar`, `anos_academicos`.
 
-**Nota**: admins veem também `email` e `motivo_desativacao`.
+**Nota**: usuários autenticados veem também `documentos.alvara.download_url`; admins veem também `email` e `motivo_desativacao`.
 
 ### GET /academia/anos-academicos
 
@@ -2149,12 +2170,12 @@ Cadastra um novo estudante vinculado à academia autenticada. O cadastro direto 
 | `bi_estudante` | Obrigatório no ensino superior e obrigatório no escolar quando `bilhete_identidade` do estudante for informado. |
 | `cedula_estudante` | Obrigatória para estudante escolar/fundamental/médio sem BI próprio. |
 | `declaracao` | PDF da declaração acadêmica. Obrigatória nos anos escolares com ano anterior quando não houver certificado substitutivo válido; exige o campo textual `declaracao_ano_academico` com o ano imediatamente anterior. |
-| `declaracao_ano_academico` | Campo textual obrigatório quando `declaracao` for enviada; exemplos: `1_ano_fundamental` para ingresso no `2_ano_fundamental`, `6_ano_fundamental` para ingresso no `7_ano_fundamental`, `9_ano_fundamental` para ingresso no `1_ano_medio`. |
+| `declaracao_ano_academico` | Campo textual obrigatório quando `declaracao` for enviada para cumprir comprovativo acadêmico; exemplos: `1_ano_fundamental` para ingresso no `2_ano_fundamental`, `6_ano_fundamental` para ingresso no `7_ano_fundamental`, `9_ano_fundamental` para ingresso no `1_ano_medio`, `3_ano_medio` para ingresso no `1_ano_superior`. O valor também define o `tipo`, `nivel`, `ano_academico`, chave lógica e path do documento persistido. |
 | `certificado_6_ano_fundamental` | Exigido como alternativa à declaração somente para `7_ano_fundamental`. |
 | `certificado_9_ano_fundamental` | Exigido como alternativa à declaração somente para `1_ano_medio`. |
 | `certificado_ensino_medio` | Exigido como alternativa à declaração somente para `1_ano_superior`. |
 
-Quando enviados, todos os ficheiros devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 10MB. O cadastro direto usa a mesma validação compartilhada de matrícula aplicada por `POST /solicitacao-matricula` para dados comuns e documentos. Os documentos obrigatórios são validados e enviados para `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` antes de qualquer gravação no ledger; somente após sucesso total dos uploads o evento `EstudanteCriadoComVinculo` é persistido com `documentos.<campo>.path`, `documentos.<campo>.file_url` e `documentos.<campo>.download_url`. Se validação/upload falhar, nenhum estudante/vínculo é gravado; se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
+Quando enviados, todos os ficheiros devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 10MB. O cadastro direto usa a mesma validação compartilhada de matrícula aplicada por `POST /solicitacao-matricula` para dados comuns e documentos. Os documentos obrigatórios são validados e enviados para `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` antes de qualquer gravação no ledger; somente após sucesso total dos uploads o evento `EstudanteCriadoComVinculo` é persistido com metadados normalizados em `documentos.<chave>.documento_id`, `documentos.<chave>.tipo`, `documentos.<chave>.nivel`, `documentos.<chave>.ano_academico`, `documentos.<chave>.versao`, `documentos.<chave>.path`, `documentos.<chave>.file_url` e `documentos.<chave>.download_url`. Para identificação, a chave continua sendo o tipo do arquivo (`bi_estudante`, `bi_responsavel`, `cedula_estudante`); para documentos acadêmicos, a chave segue `nivel.ano_academico.tipo`, como `medio.3_ano_medio.declaracao_3_ano_medio`. Se validação/upload falhar, nenhum estudante/vínculo é gravado; se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
 
 **Request — campos de texto principais (exemplo escolar; requer anexar os PDFs obrigatórios do quadro acima):**
 
@@ -2916,7 +2937,7 @@ Eventos do ledger:
 - O bilhete de identidade do estudante e o PDF `bi_estudante` são obrigatórios no ensino superior.
 - No escolar/fundamental/médio, a cédula do estudante é obrigatória quando o bilhete de identidade do estudante não for enviado; quando o BI do estudante for enviado, o PDF `bi_estudante` também é obrigatório.
 - `1_ano_fundamental` não exige declaração nem certificado.
-- Anos escolares sequenciais exigem `declaracao` do ano imediatamente anterior, indicado em `declaracao_ano_academico`.
+- Anos escolares sequenciais exigem `declaracao` do ano imediatamente anterior, indicado em `declaracao_ano_academico`; ao persistir, ela é indexada como `nivel.ano_academico.declaracao_<ano_academico>`.
 - `7_ano_fundamental` exige certificado do 6.º ano fundamental ou declaração com `declaracao_ano_academico=6_ano_fundamental`.
 - `1_ano_medio` exige certificado do 9.º ano fundamental ou declaração com `declaracao_ano_academico=9_ano_fundamental`.
 - `1_ano_superior` exige certificado do ensino médio ou declaração com `declaracao_ano_academico=3_ano_medio`.
@@ -2928,13 +2949,13 @@ Eventos do ledger:
 
 ### POST /solicitacao-matricula
 
-Cria uma solicitação pública de matrícula via `multipart/form-data`. O backend gera `codigo_solicitacao`, valida dados e PDFs pelo mesmo validador compartilhado usado no cadastro direto, envia documentos para o armazenamento no caminho `{codigo_academia}/matriculas/matricula_{codigo_solicitacao}/` e só então grava `SolicitacaoMatriculaCriada` no ledger. Para cada arquivo enviado, o evento e a projeção salvam `path`, `file_url` e `download_url` como metadados compatíveis; o download para leitura deve ser feito pelas rotas autenticadas do backend, sem expor credenciais ou IDs internos do Mega.
+Cria uma solicitação pública de matrícula via `multipart/form-data`. O backend gera `codigo_solicitacao`, valida dados e PDFs pelo mesmo validador compartilhado usado no cadastro direto, envia documentos para o armazenamento no caminho `{codigo_academia}/matriculas/matricula_{codigo_solicitacao}/` e só então grava `SolicitacaoMatriculaCriada` no ledger. Para cada arquivo enviado, o evento e a projeção salvam metadados compatíveis (`documento_id`, `tipo`, `nivel`, `ano_academico`, `versao`, `path`, `file_url`, `download_url`); o download para leitura deve ser feito pelas rotas autenticadas do backend, sem expor credenciais ou IDs internos do Mega. Documentos acadêmicos usam chave `nivel.ano_academico.tipo` e path com o mesmo escopo, por exemplo `medio/3_ano_medio/declaracao_3_ano_medio/<documento_id>.pdf`.
 
 **Proteção**: pública
 
 **Campos**: `codigo_academia`, `nome`, `genero`, `data_nascimento`, `email`, `telefone`, `telefone_responsavel`, `bilhete_identidade`, `bilhete_identidade_responsavel`, `ano_escolar_fundamental`, `ano_escolar_medio`, `curso_medio_id`, `ano_superior`, `curso_superior_id`. `telefone_responsavel` é obrigatório para escolar/fundamental/médio; `telefone` é obrigatório para ensino superior. Quando `bilhete_identidade` e `bilhete_identidade_responsavel` forem enviados juntos, eles não podem ser iguais (comparação sem espaços nas extremidades e sem diferenciar maiúsculas/minúsculas).
 
-**Ficheiros PDF**: `bi_estudante`, `bi_responsavel`, `cedula_estudante`, `declaracao`, `certificado_6_ano_fundamental`, `certificado_9_ano_fundamental`, `certificado_ensino_medio`. Todos os documentos obrigatórios são validados e enviados ao storage antes da gravação no ledger; falha de upload impede a criação da solicitação. Cada ficheiro deve ser PDF válido e ter no máximo 10MB. Para estudantes escolares/fundamental/médio, `bi_responsavel` é obrigatório e o estudante deve enviar `bi_estudante` com `bilhete_identidade` ou `cedula_estudante` sem BI próprio. Para ensino superior, `bi_estudante` é obrigatório e `bi_responsavel` é opcional. `1_ano_fundamental` não exige comprovativo acadêmico; os demais anos escolares exigem `declaracao` do ano imediatamente anterior informada por `declaracao_ano_academico`, salvo quando um certificado específico válido substituir a declaração em `7_ano_fundamental`, `1_ano_medio` ou `1_ano_superior`.
+**Ficheiros PDF**: `bi_estudante`, `bi_responsavel`, `cedula_estudante`, `declaracao`, `certificado_6_ano_fundamental`, `certificado_9_ano_fundamental`, `certificado_ensino_medio`. Todos os documentos obrigatórios são validados e enviados ao storage antes da gravação no ledger; falha de upload impede a criação da solicitação. Cada ficheiro deve ser PDF válido e ter no máximo 10MB. Para estudantes escolares/fundamental/médio, `bi_responsavel` é obrigatório e o estudante deve enviar `bi_estudante` com `bilhete_identidade` ou `cedula_estudante` sem BI próprio. Para ensino superior, `bi_estudante` é obrigatório e `bi_responsavel` é opcional. `1_ano_fundamental` não exige comprovativo acadêmico; os demais anos escolares exigem `declaracao` do ano imediatamente anterior informada por `declaracao_ano_academico`, salvo quando um certificado específico válido substituir a declaração em `7_ano_fundamental`, `1_ano_medio` ou `1_ano_superior`. Na resposta e projeção, declarações são retornadas com `tipo=declaracao_<ano_academico>` e chave acadêmica normalizada; certificados ficam vinculados ao ano concluído correspondente.
 
 **Request:** `multipart/form-data` com os campos e ficheiros listados acima.
 
@@ -5837,7 +5858,7 @@ Falhas de configuração retornam mensagens operacionais explícitas, sem vazar 
 
 ### GET /documentos/academias/{codigo_academia}/alvara/download
 
-Faz stream inline do alvará/documento formal da academia pelo backend, sem expor credenciais, links privados ou IDs internos do Mega.
+Faz stream inline do alvará/documento formal da academia pelo backend, sem expor credenciais, links privados ou IDs internos do Mega. As consultas autenticadas de academia (`GET /academias`, `GET /consultar-academia/:codigo` e o inventário `GET /academia/documentos`) retornam esse endereço em `documentos.alvara.download_url`.
 
 **Escopo da rota**: global autenticado (`protected`), fora dos prefixos `/academia`, `/estudante` e `/dominis`, para permitir uso uniforme pelo front end a partir de qualquer tela autorizada.
 
