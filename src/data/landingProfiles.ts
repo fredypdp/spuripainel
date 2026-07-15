@@ -32,13 +32,13 @@ function mailtoFor(subject: string): string {
 export const profileContent: Record<Profile, ProfileContent> = {
   estudante: {
     label: "Estudante / Encarregado",
-    headline: "A matrícula do seu educando, sem filas nem deslocações.",
+    headline: "Faça a sua matrícula, sem filas nem deslocações.",
     subheadline:
-      "Peça a matrícula em qualquer colégio ou universidade parceira do Spuri, direto do telemóvel ou computador — envie os documentos online e acompanhe o pedido em tempo real.",
+      "Peça a matrícula em qualquer colégio ou universidade parceira do Spuri, direto do telemóvel ou computador e acompanhe o pedido em tempo real.",
     problems: [
       "Filas longas e deslocações para tratar de matrícula",
       "Ter de se deslocar só para pagar propinas ou material",
-      "Não saber a tempo quando sai uma nota, falta ou o seu certificado",
+      "Não saber a tempo quando sai uma nota, falta, pautas ou o seu certificado",
       "Perder ou danificar documentos físicos importantes",
       "Falta de visibilidade sobre o estado do pedido de matrícula",
     ],
@@ -46,11 +46,11 @@ export const profileContent: Record<Profile, ProfileContent> = {
       "Matrícula 100% online, a qualquer hora",
       "Pagamento de propinas e material sem sair de casa",
       "Documentos enviados digitalmente, sem burocracia",
-      "Notificações imediatas sobre notas, faltas e atualizações da matrícula",
+      "Notificações imediatas sobre notas, faltas e resultado da sua avaliação final",
       "Histórico académico seguro, protegido contra fraude e sempre acessível",
     ],
     highlights:
-      "pedido de matrícula com envio de documentos · notificações em tempo real · pagamentos digitais · painel do estudante com notas, faltas e avaliações.",
+      "pagamentos e matrículas digitais · notificações em tempo real · painel do estudante com notas, faltas e avaliações.",
     cta: "Fazer Matrícula",
     href: "/matricula",
     steps: [
@@ -61,29 +61,29 @@ export const profileContent: Record<Profile, ProfileContent> = {
   },
   "colegio-pequeno-medio": {
     label: "Colégio — Pequeno/Médio Porte",
-    headline: "Tecnologia de ponta, ao alcance do seu colégio — mesmo sem grande estrutura.",
+    headline: "Tecnologia de ponta ao alcance do seu colégio, sem grandes investimentos em infraestrutura.",
     subheadline:
-      "Não precisa de equipa de TI nem de servidores próprios: o Spuri funciona a partir de qualquer computador ou telemóvel com internet, e coloca o seu colégio ao mesmo nível tecnológico das maiores instituições do país.",
+      "O Spuri funciona a partir de qualquer computador ou telemóvel com internet, sem necessidade de servidores próprios ou equipa de TI, permitindo que o seu colégio alcance o mesmo nível tecnológico das maiores instituições do país.",
     problems: [
-      "Filas e atendimento lento no secretariado",
-      "Cobrança de propinas feita à mão, sem controlo centralizado",
-      "Registos manuais em papel ou em folhas de Excel dispersas",
-      "Risco de fraude documental sem qualquer mecanismo de controlo",
-      "Dependência de uma única pessoa para aceder à informação da escola",
-      "Dificuldade em responder a auditorias e inspeções de órgãos reguladores",
-      "Risco de fraude em certificados e históricos recebidos dos estudantes na hora da matrícula",
+      "Filas e demora no atendimento aos encarregados de educação",
+      "Pagamento de propinas realizado exclusivamente de forma presencial",
+      "Registos académicos dispersos em papel ou folhas de Excel",
+      "Ausência de mecanismos eficientes de controlo contra fraudes documentais",
+      "Dependência de pessoas específicas para acesso às informações da instituição",
+      "Dificuldade na geração de relatórios estatísticos e de gestão",
+      "Risco de certificados e históricos falsificados no processo de matrícula",
     ],
     solutions: [
-      "Diferencial competitivo imediato frente a colégios ainda 100% manuais",
-      "Cobrança de propinas e material simplificada, com registo digital de pagamentos",
+      "Maior competitividade face a instituições com processos ainda manuais",
+      "Pagamento digital de propinas e demais encargos, com registo automático de todas as transações",
       "Imagem mais moderna e profissional junto de pais e encarregados de educação",
-      "Sem necessidade de investimento em infraestrutura de TI",
-      "Menos tempo a atender encarregados de educação, porque já recebem notificações automáticas",
-      "Auditoria e conformidade facilitadas perante o Ministério da Educação",
-      "Fazendo parte do nosso ecossistema, a instituição poderá consultar todo o histórico do estudante na hora da matrícula",
+      "Sem necessidade de investimento em infraestrutura tecnológica própria",
+      "Redução do tempo de atendimento através de notificações automáticas aos encarregados de educação",
+      "Histórico académico dos estudantes organizado, centralizado e sempre disponível para consulta",
+      "Consulta do histórico completo do estudante no momento da matrícula através do nosso ecossistema",
     ],
     highlights:
-      "matrículas digitais · registo de notas e faltas por trimestre · gestão financeira digital · notificações automáticas para encarregados de educação · avaliação final automática · IA institucional contextualizada (em desenvolvimento).",
+      "pagamentos e matrículas digitais · registo de notas e faltas · gestão financeira digital · notificações automáticas · avaliação final automática · Inteligência Artificial personalizada (em desenvolvimento).",
     cta: "Fale Connosco",
     href: mailtoFor("Spuri — Colégio – Pequeno/Médio Porte"),
     steps: [
@@ -94,29 +94,29 @@ export const profileContent: Record<Profile, ProfileContent> = {
   },
   "colegio-grande-porte": {
     label: "Colégio — Grande Porte",
-    headline: "Gerir milhares de estudantes sem perder o controlo — nem o rigor.",
+    headline: "Gerir milhares de estudantes com controlo, eficiência e segurança.",
     subheadline:
-      "Processos em massa, gestão financeira centralizada e auditoria completa para colégios com centenas ou milhares de estudantes, várias turmas e cursos.",
+      "Centralize operações académicas, financeiras e administrativas numa única plataforma, com dados em tempo real, processos escaláveis e controlo total sobre a instituição.",
     problems: [
-      "Volume elevado de dados académicos difícil de manter consistente",
-      "Falta de visibilidade em tempo real sobre o desempenho da escola",
-      "Processos manuais que não escalam com o crescimento da instituição",
-      "Cobrança de propinas e taxas dispersas por vários canais, difícil de reconciliar",
-      "Risco de fraude documental a uma escala que pode manchar a reputação",
-      "Auditorias e inspeções mais complexas quanto maior a instituição",
-      "Risco de fraude em certificados e históricos recebidos dos estudantes na hora da matrícula",
+      "Grande volume de dados académicos difícil de gerir e manter consistente",
+      "Falta de visibilidade em tempo real sobre o desempenho da instituição",
+      "Processos manuais que limitam o crescimento e a eficiência operacional",
+      "Cobrança de propinas e outros encargos dispersa por vários canais",
+      "Dificuldade em realizar auditorias e acompanhar operações internas",
+      "Risco de fraude documental que pode comprometer a reputação da instituição",
+      "Processo de matrícula vulnerável a históricos e certificados falsificados",
     ],
     solutions: [
-      "Registo em massa de estudantes, notas e faltas, com acompanhamento em tempo real",
-      "Gestão financeira centralizada — propinas e material cobrados e conciliados na mesma plataforma",
-      "Dashboard com dados académicos sempre atualizados",
-      "Avaliação final do estudante feita automaticamente",
-      "Auditoria e cadeia de integridade prontas para qualquer inspeção",
+      "Gestão em massa de estudantes, notas e faltas com acompanhamento em tempo real",
+      "Gestão financeira centralizada de propinas e demais encargos, com reconciliação automática",
+      "Dashboard institucional com indicadores académicos e financeiros atualizados",
+      "Avaliação final dos estudantes calculada automaticamente",
+      "Auditoria completa e rastreabilidade de todas as operações",
       "Estrutura preparada para múltiplos cursos, turmas e turnos",
-      "Fazendo parte do nosso ecossistema, a instituição poderá consultar todo o histórico do estudante na hora da matrícula",
+      "Acesso ao histórico completo do estudante no momento da matrícula através do nosso ecossistema",
     ],
     highlights:
-      "processos em lote para operações em massa · gestão financeira digital · filtros avançados de consulta · relatórios e estatísticas · gestão completa de cursos e matérias disciplinares · IA institucional contextualizada (em desenvolvimento).",
+      "operações em massa · gestão financeira centralizada · dashboards institucionais · relatórios estatísticos avançados · gestão de cursos e disciplinas · Inteligência Artificial institucional personalizada (em desenvolvimento).",
     cta: "Fale Connosco",
     href: mailtoFor("Spuri — Colégio – Grande Porte"),
     steps: [
@@ -127,34 +127,34 @@ export const profileContent: Record<Profile, ProfileContent> = {
   },
   "ensino-superior": {
     label: "Instituição de Ensino Superior",
-    headline: "Gestão académica completa, do primeiro semestre ao milésimo estudante.",
+    headline: "Gestão académica preparada para crescer com a sua instituição.",
     subheadline:
-      "Cursos, semestres, propinas, avaliações — tudo configurável ao vosso modelo, quer estejam a começar, quer já giram milhares de estudantes em vários cursos.",
+      "Centralize cursos, propinas, avaliações e processos académicos numa única plataforma, totalmente adaptável ao modelo da sua instituição.",
     problems: [
-      "Falta de um sistema de gestão académica formal e credível",
-      "Processos manuais de matrícula, lançamento de notas e cobrança de propinas por semestre",
-      "Estudantes com cadeiras em atraso sem controlo centralizado",
-      "Falta de auditoria robusta para processos de acreditação",
-      "Dificuldade em escalar processos manuais à medida que o número de estudantes cresce",
-      "Risco de fraude em certificados e históricos recebidos dos estudantes na hora da matrícula",
+      "Processos académicos dispersos entre sistemas manuais e ferramentas sem integração",
+      "Dificuldade na gestão de matrículas, notas e propinas em diferentes cursos e cadeiras",
+      "Falta de controlo centralizado sobre estudantes com pendências académicas",
+      "Necessidade de maior rastreabilidade para auditorias e processos de acreditação",
+      "Processos manuais ou sistemas tecnológicos que dificultam o crescimento da instituição",
+      "Risco de fraude em certificados e históricos apresentados no processo de matrícula",
     ],
     solutions: [
-      "Estrutura de cursos e semestres configurável ao vosso modelo, desde o primeiro dia",
-      "Categorias de avaliação e fórmulas de avaliação final configuráveis",
-      "Gestão financeira digital de propinas, adequada a qualquer volume",
-      "Motor de avaliação final automático, por matéria disciplinar/cadeira, com gestão de pendências académicas",
-      "Credenciais verificáveis que reforçam a reputação institucional",
-      "Processos em massa prontos para quando o volume crescer, sem trocar de plataforma",
-      "Fazendo parte do nosso ecossistema, a instituição poderá consultar todo o histórico do estudante na hora da matrícula",
+      "Estrutura académica configurável para cursos, cadeiras e modelos institucionais",
+      "Fórmulas de avaliação e regras académicas totalmente personalizáveis",
+      "Gestão financeira digital de propinas e demais encargos",
+      "Cálculo automático da avaliação final e gestão de pendências académicas",
+      "Credenciais verificáveis que reforçam a segurança e reputação institucional",
+      "Operações em massa preparadas para acompanhar o crescimento da instituição",
+      "Acesso ao histórico completo do estudante no momento da matrícula através do nosso ecossistema",
     ],
     highlights:
-      "configuração de cursos por número de semestres · fórmulas de avaliação configuráveis · gestão financeira digital · processos em massa · IA institucional contextualizada (em desenvolvimento).",
+      "gestão de cursos e cadeiras · avaliação configurável · gestão financeira digital · operações em massa · auditoria académica · Inteligência Artificial institucional personalizada (em desenvolvimento).",
     cta: "Fale Connosco",
     href: mailtoFor("Spuri — Instituição de Ensino Superior"),
     steps: [
-      "Configure cursos, semestres e regras de avaliação.",
-      "Digitalize matrículas, propinas, notas e pendências académicas.",
-      "Acompanhe crescimento com relatórios, processos em massa e auditoria.",
+      "Configure cursos, cadeiras e regras académicas.",
+      "Digitalize matrículas, propinas, avaliações e pendências.",
+      "Acompanhe o crescimento com relatórios, operações em massa e auditoria.",
     ],
   },
 };
@@ -176,16 +176,17 @@ export const featureCategories: FeatureCategory[] = [
       {
         title: "Matrículas 100% digitais",
         description:
-          "Sem filas, sem papel: peça, envie os documentos e acompanhe a matrícula em poucos cliques.",
+          "Elimine filas e papel: solicite, envie documentos e acompanhe matrículas de forma simples e rápida.",
       },
       {
-        title: "Notas e faltas sempre à mão",
-        description: "Registo por trimestre ou semestre, com histórico que nunca se perde.",
+        title: "Notas e faltas sempre disponíveis",
+        description:
+          "Registo por trimestre ou semestre, com histórico académico centralizado e acessível.",
       },
       {
         title: "Avaliação final automática",
         description:
-          "Aprovações e reprovações calculadas a partir das notas lançadas, sem cálculos manuais nem margem de erro.",
+          "Cálculo automático de aprovações e reprovações com base nas notas registadas, reduzindo erros manuais.",
       },
     ],
   },
@@ -195,7 +196,7 @@ export const featureCategories: FeatureCategory[] = [
       {
         title: "Pagamentos digitais",
         description:
-          "Propinas, material escolar e outras taxas, cobradas e confirmadas dentro da própria plataforma, sem guichés nem recibos em papel.",
+          "Propinas, taxas e demais encargos cobrados e registados na própria plataforma, com maior controlo financeiro.",
       },
     ],
   },
@@ -203,44 +204,49 @@ export const featureCategories: FeatureCategory[] = [
     title: "Redução de Custos",
     items: [
       {
-        title: "Tempo",
-        description: "O maior ativo de um ser humano — tempo perdido nunca mais volta.",
+        title: "Tempo administrativo",
+        description:
+          "Reduza o tempo gasto em tarefas repetitivas e permita que a equipa se concentre em atividades de maior valor.",
       },
       {
         title: "Papel, impressões e material de secretaria",
         description:
-          "Matrículas, boletins, declarações e avisos deixam de precisar de ser impressos; tudo é gerado e partilhado digitalmente.",
+          "Matrículas, boletins, declarações e avisos passam a ser gerados e partilhados digitalmente.",
       },
       {
         title: "Arquivo físico e espaço de armazenamento",
         description:
-          "Sem pastas, armários e salas dedicadas a guardar processos em papel; o espaço pode ser reaproveitado.",
+          "Substitua arquivos físicos por registos digitais organizados, reduzindo a necessidade de espaço dedicado.",
       },
       {
-        title: "Perda e reconstituição de documentos extraviados",
+        title: "Recuperação de documentos extraviados",
         description:
-          "Sem o risco, nem o custo, de reconstituir históricos perdidos por humidade, incêndio ou desorganização.",
+          "Reduza custos e riscos associados à perda de documentos através de históricos digitais centralizados.",
       },
       {
         title: "Cobrança e reconciliação financeira manual",
-        description: "Menos tempo, e menos erros, a confirmar pagamentos um a um.",
-      },
-      {
-        title: "Comunicação avulsa com encarregados de educação",
-        description: "Menos chamadas, SMS e cartas enviadas para casa.",
-      },
-      {
-        title: "Horas de trabalho administrativo repetitivo",
-        description: "Menos tempo a transcrever notas à mão ou a localizar processos.",
-      },
-      {
-        title: "Ferramentas dispersas e desligadas entre si",
-        description: "Sem precisar de manter Excel, papel e outras ferramentas soltas em paralelo.",
-      },
-      {
-        title: "Preparação de auditorias e inspeções",
         description:
-          "Sem custo extra a reunir documentação física; o histórico já está organizado e pronto a consultar.",
+          "Automatize a confirmação de pagamentos e reduza erros em processos financeiros.",
+      },
+      {
+        title: "Comunicação com encarregados de educação",
+        description:
+          "Reduza custos operacionais com comunicação automatizada através de notificações digitais.",
+      },
+      {
+        title: "Trabalho administrativo repetitivo",
+        description:
+          "Automatize tarefas como transcrição de notas, consulta de processos e organização de informações.",
+      },
+      {
+        title: "Ferramentas dispersas",
+        description:
+          "Centralize informações académicas, financeiras e administrativas numa única plataforma.",
+      },
+      {
+        title: "Relatórios académicos e institucionais",
+        description:
+          "Reduza o tempo e os custos associados à elaboração de relatórios, com dados organizados e disponíveis automaticamente.",
       },
     ],
   },
@@ -258,12 +264,14 @@ export const featureCategories: FeatureCategory[] = [
     title: "Confiança e Prestação de Contas",
     items: [
       {
-        title: "Auditoria inviolável",
-        description: "Cada registo é protegido por uma cadeia de verificação; qualquer alteração deixa rasto.",
+        title: "Auditoria com rastreabilidade completa",
+        description:
+          "Cada alteração fica registada, garantindo maior transparência, controlo e segurança.",
       },
       {
-        title: "Relatórios",
-        description: "Estatísticas geradas automaticamente, sem consultar documentos manualmente.",
+        title: "Relatórios automáticos",
+        description:
+          "Indicadores e estatísticas gerados automaticamente, sem necessidade de consultas manuais.",
       },
     ],
   },
@@ -271,13 +279,14 @@ export const featureCategories: FeatureCategory[] = [
     title: "Em Desenvolvimento",
     items: [
       {
-        title: "Transferência de estudante entre instituições",
-        description: "Com histórico académico portátil. Já a caminho.",
+        title: "Transferência de estudantes entre instituições",
+        description:
+          "Histórico académico portátil para facilitar processos de transferência.",
       },
       {
-        title: "IA institucional contextualizada",
+        title: "Inteligência Artificial institucional personalizada",
         description:
-          "Treinada com o contexto real da vossa instituição — estudantes, turmas, notas, finanças — pronta a ajudar a equipa de gestão a decidir mais rápido.",
+          "Adaptada ao contexto da instituição — estudantes, turmas, notas e finanças — para apoiar a equipa de gestão na tomada de decisões.",
       },
     ],
   },
