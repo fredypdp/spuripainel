@@ -639,10 +639,11 @@ export const estudanteService = {
 
 function normalizarDocumentoEndpoint(downloadUrl: string, prefixoPermitido: string): string {
   const endpoint = downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://')
-    ? new URL(downloadUrl).pathname
+    ? `${new URL(downloadUrl).pathname}${new URL(downloadUrl).search}`
     : downloadUrl;
+  const pathname = endpoint.split('?')[0] || endpoint;
 
-  if (!endpoint.startsWith(prefixoPermitido)) {
+  if (!pathname.startsWith(prefixoPermitido)) {
     throw new Error('URL de documento inválida para a rota autenticada esperada.');
   }
 
@@ -662,11 +663,16 @@ export const documentosService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
-    fetchApiBlob(
-      `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download`,
+  baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string, params?: { nivel?: string; ano_academico?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.nivel) qs.set('nivel', params.nivel);
+    if (params?.ano_academico) qs.set('ano_academico', params.ano_academico);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return fetchApiBlob(
+      `/documentos/estudantes/${encodeURIComponent(codigoEstudante)}/${encodeURIComponent(campo)}/download${query}`,
       { token: token || tokenStorage.get() || undefined }
-    ),
+    );
+  },
 
   baixarDocumentoEstudantePorUrl: (downloadUrl: string, token?: string) =>
     fetchApiBlob(
@@ -718,8 +724,8 @@ export const academiaService = {
     );
   },
 
-  baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string) =>
-    documentosService.baixarDocumentoEstudante(codigoEstudante, campo, token),
+  baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string, params?: { nivel?: string; ano_academico?: string }) =>
+    documentosService.baixarDocumentoEstudante(codigoEstudante, campo, token, params),
 
   // ── Solicitações de matrícula ────────────────────────────────────
 

@@ -824,12 +824,70 @@ const DOCUMENT_LABELS: Record<string, string> = {
   certificado_9_ano_fundamental: 'Certificado da 9ª classe',
   certificado_ensino_medio: 'Certificado do ensino médio',
 };
-const DOCUMENT_FIELDS = Object.keys(DOCUMENT_LABELS);
+function getAnoAcademicoAtualEstudante(estudante: EstudanteDetalhado): string | undefined {
+  return estudante.ano_superior || estudante.ano_escolar_medio || estudante.ano_escolar_fundamental || undefined;
+}
 
-type DocumentoEstudanteEntrada = { download_url?: unknown; file_url?: unknown; path?: unknown } | string | null | undefined;
+function getAnoAcademicoAnteriorEstudante(ano?: string): string | undefined {
+  if (!ano) return undefined;
+  const fundamental = ANOS_FUNDAMENTAL_LIST.map(a => a.value);
+  const medio = ANOS_MEDIO_LIST.map(a => a.value);
+  const superior = ANOS_SUPERIOR_LIST.map(a => a.value);
+  const listas = [fundamental, medio, superior];
+  for (const lista of listas) {
+    const index = lista.indexOf(ano);
+    if (index > 0) return lista[index - 1];
+  }
+  if (ano === '1_ano_medio') return '9_ano_fundamental';
+  if (ano === '1_ano_superior') return '3_ano_medio';
+  return undefined;
+}
+
+function getDocumentoAcademicoObrigatorio(ano?: string): string | undefined {
+  if (!ano || ano === '1_ano_fundamental') return undefined;
+  if (ano === '7_ano_fundamental') return 'certificado_6_ano_fundamental';
+  if (ano === '1_ano_medio') return 'certificado_9_ano_fundamental';
+  if (ano === '1_ano_superior') return 'certificado_ensino_medio';
+  return 'declaracao';
+}
+
+function documentoEnviado(enviados: Set<string>, campo: string, estudante: EstudanteDetalhado): boolean {
+  if (enviados.has(campo)) return true;
+  const anoAnterior = getAnoAcademicoAnteriorEstudante(getAnoAcademicoAtualEstudante(estudante));
+  if (campo === 'declaracao') return [...enviados].some(key => key.includes('.declaracao_') || key === `declaracao_${anoAnterior}`);
+  return [...enviados].some(key => key.endsWith(`.${campo}`));
+}
+
+function getCamposDocumentosPendentes(estudante: EstudanteDetalhado): string[] {
+  const enviados = new Set(listarDocumentosDisponiveis(estudante).map(([campo]) => campo));
+  const anoAtual = getAnoAcademicoAtualEstudante(estudante);
+  const isSuperior = Boolean(estudante.ano_superior);
+  const pendentes: string[] = [];
+  const add = (campo?: string) => { if (campo && !documentoEnviado(enviados, campo, estudante) && !pendentes.includes(campo)) pendentes.push(campo); };
+
+  if (isSuperior) {
+    if (estudante.bilhete_identidade) add('bi_estudante');
+    if (estudante.bilhete_identidade_responsavel) add('bi_responsavel');
+  } else {
+    if (estudante.bilhete_identidade_responsavel) add('bi_responsavel');
+    if (estudante.bilhete_identidade) add('bi_estudante');
+    else add('cedula_estudante');
+  }
+
+  const academico = getDocumentoAcademicoObrigatorio(anoAtual);
+  if (academico === 'declaracao') add('declaracao');
+  else if (academico) {
+    const temDeclaracao = documentoEnviado(enviados, 'declaracao', estudante);
+    const temCertificado = documentoEnviado(enviados, academico, estudante);
+    if (!temDeclaracao && !temCertificado) add(academico);
+  }
+  return pendentes;
+}
+
+type DocumentoEstudanteEntrada = (Record<string, unknown> & { download_url?: unknown; file_url?: unknown; path?: unknown; nivel?: unknown; ano_academico?: unknown; tipo?: unknown }) | string | null | undefined;
 type EstudanteDetalhes = ConsultarEstudanteResponse['estudante'];
 
-function getDocumentoString(documento: DocumentoEstudanteEntrada, campo: 'download_url' | 'file_url' | 'path'): string | undefined {
+function getDocumentoString(documento: DocumentoEstudanteEntrada, campo: string): string | undefined {
   if (!documento || typeof documento === 'string') return undefined;
   const value = documento[campo];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -958,7 +1016,10 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
     const token = tokenStorage.get();
     const downloadUrl = getDocumentoString(documento, 'download_url');
     if (downloadUrl) return documentosService.baixarDocumentoEstudantePorUrl(downloadUrl, token || undefined);
-    return documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo, token || undefined);
+    const nivel = getDocumentoString(documento, 'nivel');
+    const ano_academico = getDocumentoString(documento, 'ano_academico');
+    const tipo = getDocumentoString(documento, 'tipo') || campo;
+    return documentosService.baixarDocumentoEstudante(estudanteConsultado.codigo_estudante, campo.includes('.') ? campo : tipo, token || undefined, { nivel, ano_academico });
   };
 
   const handleAbrirDocumento = async (campo: string, documento: DocumentoEstudanteEntrada) => {
@@ -1083,8 +1144,7 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
   const [files, setFiles] = useState<Record<string, File | undefined>>({});
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
-  const enviados = new Set(listarDocumentosDisponiveis(estudante).map(([campo]) => campo));
-  const camposPendentes = DOCUMENT_FIELDS.filter(campo => !enviados.has(campo));
+  const camposPendentes = getCamposDocumentosPendentes(estudante);
   const possuiArquivoSelecionado = Object.values(files).some(Boolean);
 
   const handleSubmit = async () => {
@@ -1119,7 +1179,12 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
       {erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{erro}</div>}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
-        <p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A API validará quais documentos são obrigatórios para ativar este estudante.</p>
+        <p className="mb-4 text-sm text-gray-500">Envie PDFs de até 10MB. A lista abaixo segue a política documental da API para dados textuais, ano acadêmico e certificados alternativos deste estudante.</p>
+        {camposPendentes.length === 0 && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
+            Não há documentos pendentes detectados na consulta atual deste estudante.
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {camposPendentes.map(campo => (
             <label key={campo} className="block rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4 transition hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10">
