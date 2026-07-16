@@ -215,12 +215,13 @@ export default function LandingContent({
               Plataforma de Gestão Académica
             </p>
             <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl lg:text-6xl">
-              Gestão académica eficiente, dados invioláveis.
+              Gestão académica eficiente e registos protegidos.
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-              O Spuri centraliza matrículas, notas, faltas e pagamentos numa única plataforma para
-              escolas e universidades — com cada registo protegido por uma cadeia de verificação
-              que torna a fraude documental praticamente impossível.
+              O Spuri centraliza matrículas, notas, faltas, avaliações e pagamentos numa única
+              plataforma para escolas e universidades, com mecanismos de auditoria e
+              rastreabilidade que reforçam a confiança, a integridade e a segurança dos registos
+              académicos.
             </p>
           </motion.div>
 
