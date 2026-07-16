@@ -3,11 +3,12 @@ import { Suspense } from "react";
 import LandingPageClient from "@/components/landing/LandingPageClient";
 
 export const metadata: Metadata = {
-  title: "Gestão académica eficiente, dados invioláveis",
-  description: "O Spuri centraliza matrículas, notas, faltas e pagamentos numa única plataforma para escolas e universidades, com registos auditáveis e invioláveis.",
+  title: "Spuri | Plataforma de Gestão Académica para Escolas e Universidades",
+  description: "Centralize matrículas, notas, faltas, avaliações e pagamentos numa única plataforma. Gestão académica digital com auditoria, rastreabilidade e maior confiança para instituições de ensino.",
   openGraph: {
-    title: "Spuri — Gestão académica eficiente, dados invioláveis",
-    description: "Matrículas digitais, pagamentos, notificações, relatórios e auditoria inviolável para instituições de ensino.",
+    title: "Spuri | Plataforma de Gestão Académica para Escolas e Universidades",
+    description:
+      "Digitalize matrículas, notas, faltas, pagamentos e gestão académica numa plataforma moderna, segura e preparada para escolas e universidades.",
     type: "website",
   },
 };
