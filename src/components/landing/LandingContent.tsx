@@ -27,9 +27,8 @@ import {
 
 const CATEGORY_ICON: Record<string, React.FC<{ className?: string }>> = {
   "Gestão Académica": GraduationCapIcon,
-  "Gestão Financeira": WalletIcon,
+  "Gestão Financeira e Comunicação": WalletIcon,
   "Redução de Custos": CoinsDownIcon,
-  Comunicação: BellIcon,
   "Confiança e Prestação de Contas": ShieldCheckIcon,
   "Em Desenvolvimento": RocketIcon,
 };
@@ -41,6 +40,17 @@ const HERO_HIGHLIGHTS: { text: string; icon: React.FC<{ className?: string }> }[
   { text: "Registos protegidos com auditoria e rastreabilidade", icon: ShieldCheckIcon },
   { text: "Pagamentos digitais e notificações em tempo real", icon: WalletIcon },
 ];
+
+// Ícone por item (não por categoria) usado só na vista curada do Estudante —
+// "Gestão Financeira e Comunicação" partilha um cartão institucional, mas os
+// dois assuntos continuam visualmente distintos nos cartões do estudante.
+const STUDENT_ITEM_ICON: Record<string, React.FC<{ className?: string }>> = {
+  "Matrículas 100% digitais": GraduationCapIcon,
+  "Notas e faltas sempre disponíveis": GraduationCapIcon,
+  "Pagamentos digitais": WalletIcon,
+  "Notificações em tempo real": BellIcon,
+  "Transferência de estudantes entre instituições": RocketIcon,
+};
 
 /** Para o perfil Estudante/Encarregado, a secção de Funcionalidades mostra só
  * os itens marcados como `studentRelevant`, sem o agrupamento por categoria —
@@ -58,7 +68,7 @@ function getStudentFeatures() {
         result.push({
           title: item.title,
           description: item.description,
-          icon: CATEGORY_ICON[category.title] ?? GraduationCapIcon,
+          icon: STUDENT_ITEM_ICON[item.title] ?? CATEGORY_ICON[category.title] ?? GraduationCapIcon,
         });
       }
     });
@@ -301,7 +311,7 @@ export default function LandingContent({
                 whileInView="show"
                 viewport={{ once: true, amount: 0.5 }}
                 transition={{ duration: 0.45, delay: i * 0.1 }}
-                whileHover={{ y: -4, transition: { duration: 0.5, ease: "easeOut" } }}
+                whileHover={{ y: -4, transition: { duration: 1.5, ease: "easeOut" } }}
                 className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
