@@ -110,8 +110,7 @@ function extractErrorMessage(data: ApiErrorEnvelope | undefined, statusText: str
 
 export function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
-    const requestId = error.data?.request_id;
-    return [error.message || fallback, requestId ? `Request ID: ${requestId}` : undefined].filter(Boolean).join(' ');
+    return error.message || fallback;
   }
   if (error instanceof Error) return error.message || fallback;
   return fallback;
