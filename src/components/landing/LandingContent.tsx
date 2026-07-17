@@ -301,7 +301,7 @@ export default function LandingContent({
                 whileInView="show"
                 viewport={{ once: true, amount: 0.5 }}
                 transition={{ duration: 0.45, delay: i * 0.1 }}
-                whileHover={{ y: -4, transition: { duration: 1.5, ease: "easeOut" } }}
+                whileHover={{ y: -4, transition: { duration: 0.5, ease: "easeOut" } }}
                 className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
