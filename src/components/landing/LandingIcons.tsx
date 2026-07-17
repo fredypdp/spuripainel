@@ -88,6 +88,13 @@ export const RocketIcon: React.FC<IconProps> = ({ className = base }) => (
   </svg>
 );
 
+export const CheckCircleIcon: React.FC<IconProps> = ({ className = base }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth={1.6}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="m8.5 12.3 2.3 2.3 4.7-5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export const ChevronDownSmallIcon: React.FC<IconProps> = ({ className = "w-4 h-4" }) => (
   <svg viewBox="0 0 20 20" fill="none" className={className} stroke="currentColor" strokeWidth={1.8}>
     <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />

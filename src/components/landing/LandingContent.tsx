@@ -16,6 +16,7 @@ import {
   LinkGlobeIcon,
   LockChainIcon,
   ChevronDownSmallIcon,
+  CheckCircleIcon,
 } from "./LandingIcons";
 import {
   profileContent,
@@ -34,6 +35,37 @@ const CATEGORY_ICON: Record<string, React.FC<{ className?: string }>> = {
 };
 
 const DIFFERENTIATOR_ICON: React.FC<{ className?: string }>[] = [LinkGlobeIcon, LockChainIcon];
+
+const HERO_HIGHLIGHTS: { text: string; icon: React.FC<{ className?: string }> }[] = [
+  { text: "Menos filas, menos papel, menos burocracia", icon: CheckCircleIcon },
+  { text: "Registos protegidos com auditoria e rastreabilidade", icon: ShieldCheckIcon },
+  { text: "Pagamentos digitais e notificações em tempo real", icon: WalletIcon },
+];
+
+/** Para o perfil Estudante/Encarregado, a secção de Funcionalidades mostra só
+ * os itens marcados como `studentRelevant`, sem o agrupamento por categoria —
+ * é um resumo curado, não a grelha institucional completa. */
+function getStudentFeatures() {
+  const result: {
+    title: string;
+    description: string;
+    icon: React.FC<{ className?: string }>;
+  }[] = [];
+
+  featureCategories.forEach((category) => {
+    category.items.forEach((item) => {
+      if (item.studentRelevant) {
+        result.push({
+          title: item.title,
+          description: item.description,
+          icon: CATEGORY_ICON[category.title] ?? GraduationCapIcon,
+        });
+      }
+    });
+  });
+
+  return result;
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -128,6 +160,32 @@ function FeatureCategoryBlock({
         </button>
       )}
     </motion.div>
+  );
+}
+
+function StudentFeaturesGrid() {
+  const items = getStudentFeatures();
+
+  return (
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((item, i) => (
+        <motion.div
+          key={item.title}
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.45, delay: i * 0.08 }}
+          className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
+            <item.icon className="w-5 h-5" />
+          </span>
+          <h3 className="mt-4 font-semibold text-gray-800 dark:text-white/90">{item.title}</h3>
+          <p className="mt-1.5 text-sm lg:text-base text-gray-500 dark:text-gray-400">{item.description}</p>
+        </motion.div>
+      ))}
+    </div>
   );
 }
 
@@ -234,18 +292,25 @@ export default function LandingContent({
             <TrilhaAnimation />
           </motion.div>
 
-          <div className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-3">
-            {[
-              "Menos filas, menos papel, menos burocracia",
-              "Zero fraude documental — registos auditáveis e invioláveis",
-              "Notificações e pagamentos digitais, sem sair de casa",
-            ].map((line) => (
-              <div
-                key={line}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm lg:text-base text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300"
+          <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-3">
+            {HERO_HIGHLIGHTS.map((item, i) => (
+              <motion.div
+                key={item.text}
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true, amount: 0.5 }}
+                transition={{ duration: 0.45, delay: i * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="rounded-2xl border border-gray-200 bg-white p-5 text-center shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03] sm:text-left"
               >
-                {line}
-              </div>
+                <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400 sm:mx-0">
+                  <item.icon className="w-5 h-5" />
+                </span>
+                <p className="mt-3 text-sm lg:text-base font-semibold text-gray-800 dark:text-white/90">
+                  {item.text}
+                </p>
+              </motion.div>
             ))}
           </div>
         </section>
@@ -305,11 +370,15 @@ export default function LandingContent({
             eyebrow="O que o Spuri faz"
             title="Funcionalidades pensadas para resolver o dia a dia"
           />
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {featureCategories.map((category) => (
-              <FeatureCategoryBlock key={category.title} title={category.title} items={category.items} />
-            ))}
-          </div>
+          {profile === "estudante" ? (
+            <StudentFeaturesGrid />
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {featureCategories.map((category) => (
+                <FeatureCategoryBlock key={category.title} title={category.title} items={category.items} />
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Diferenciais */}
@@ -374,10 +443,10 @@ export default function LandingContent({
                   Confiança, Segurança e Auditoria
                 </h2>
                 <p className="mt-3 text-gray-600 dark:text-gray-300">
-                  Cada nota, falta ou matrícula registada no Spuri gera um evento protegido por uma
-                  cadeia criptográfica — o mesmo princípio de segurança usado em sistemas
-                  financeiros, aplicado à educação. Qualquer tentativa de alteração é imediatamente
-                  detetável.
+                  Cada nota, falta ou matrícula registada no Spuri gera um registo protegido por
+                  uma cadeia de verificação criptográfica, reforçando a integridade, a
+                  rastreabilidade e a confiança na informação académica. Cada operação relevante
+                  fica registada, permitindo auditoria e verificação ao longo do tempo.
                 </p>
               </div>
             </div>
