@@ -11,7 +11,6 @@ import Link from "next/link";
 export default function EsqueciSenha() {
   const [codigo, setCodigo] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [contaTipo, setContaTipo] = useState<'estudante' | 'academia'>('estudante');
 
   const [EnviandoEmailRecurepacao, setEnviandoEmailRecurepacao] = useState(false);
   const [EmailEnviado, setEmailEnviado] = useState(false);
@@ -22,7 +21,7 @@ export default function EsqueciSenha() {
   const validarFormulario = (): boolean => {
     const erros: string[] = [];
     if (!codigo.trim()) {
-      erros.push('Código de identificação é obrigatório');
+      erros.push('Usuário é obrigatório');
     }
     setValidationErrors(erros);
     return erros.length === 0;
@@ -36,40 +35,18 @@ export default function EsqueciSenha() {
             <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">Recuperar senha</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">Enviar e-mail de recuperação de senha</p>
           </div>
-          <div className="flex border border-brand-500 rounded-lg w-full text-sm font-medium transition shadow-theme-xs mb-5">
-            <div 
-              onClick={() => setContaTipo('estudante')} 
-              className={`flex-1 cursor-pointer px-4 py-3 text-center dark:text-white rounded-l-lg transition-colors ${
-                contaTipo === 'estudante' 
-                  ? 'text-white bg-brand-500 hover:bg-brand-600' 
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              Estudante
-            </div>
-            <div 
-              onClick={() => setContaTipo('academia')} 
-              className={`flex-1 cursor-pointer px-4 py-3 text-center dark:text-white rounded-r-lg transition-colors ${
-                contaTipo === 'academia' 
-                  ? 'text-white bg-brand-500 hover:bg-brand-600' 
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              Academia
-            </div>
-          </div>
           <div>
             <form onSubmit={e => e.preventDefault()}>
               <div className="space-y-6">
                 <div>
-                  <Label>Código de {contaTipo}</Label>
-                  <Input 
-                    disabled={EnviandoEmailRecurepacao} 
-                    id="codigo" 
-                    name="codigo" 
-                    placeholder={`Digite o seu código de ${contaTipo}`} 
+                  <Label>Usuário</Label>
+                  <Input
+                    disabled={EnviandoEmailRecurepacao}
+                    id="codigo"
+                    name="codigo"
+                    placeholder="Código ou e-mail"
                     type="text"
-                    onChange={(e) => setCodigo(e.target.value)} 
+                    onChange={(e) => setCodigo(e.target.value)}
                   />
                 </div>
 
@@ -110,7 +87,7 @@ export default function EsqueciSenha() {
                     setEmailErro(false);
 
                     try {
-                      const res = await RecuperarSenhaComFrontend(codigo, contaTipo);
+                      const res = await RecuperarSenhaComFrontend(codigo);
                       setEmailEnviado(res.success);
                     } catch (error: any) {
                       const errorMessage = error?.message || '';
@@ -122,7 +99,7 @@ export default function EsqueciSenha() {
                         setMensagemErro(errorMessage);
                       } else if (errorMessage.includes('não encontrado')) {
                         setEmailErro(true);
-                        setMensagemErro('Usuário não encontrado. Verifique o código digitado.');
+                        setMensagemErro('Usuário não encontrado. Verifique o código ou e-mail digitado.');
                       } else {
                         setEmailErro(true);
                         setMensagemErro(errorMessage || 'Erro ao processar solicitação');

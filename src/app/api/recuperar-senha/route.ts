@@ -10,21 +10,41 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { identificador, tipo } = body;
 
-    if (!identificador || !tipo) {
+    if (!identificador) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Identificador e tipo são obrigatórios' 
+        {
+          success: false,
+          error: 'Identificador é obrigatório'
         },
         { status: 400 }
       );
     }
 
-    // 1️⃣ Gerar token no backend Go
-    const tokenResponse = await emailAuthService.gerarTokenRecuperacao({
-      identificador,
-      tipo
-    });
+    const tipos = tipo ? [tipo] : ['estudante', 'academia'] as const;
+    let tokenResponse;
+    let lastError: any;
+
+    // 1️⃣ Gerar token no backend Go. A API exige tipo, então a rota pública
+    // tenta estudante e academia para manter a UX com um único campo.
+    for (const tipoTentativa of tipos) {
+      try {
+        tokenResponse = await emailAuthService.gerarTokenRecuperacao({
+          identificador,
+          tipo: tipoTentativa,
+        });
+        break;
+      } catch (error: any) {
+        lastError = error;
+
+        if (!error.message?.includes('não encontrado')) {
+          throw error;
+        }
+      }
+    }
+
+    if (!tokenResponse) {
+      throw lastError || new Error('Usuário não encontrado');
+    }
 
     // 2️⃣ Resetar senha no backend Go
     const resetResponse = await emailAuthService.resetarSenha(tokenResponse.token);
