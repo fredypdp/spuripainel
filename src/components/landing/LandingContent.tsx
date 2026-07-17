@@ -433,8 +433,8 @@ export default function LandingContent({
 
         {/* Confiança e segurança */}
         <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:px-8">
-          <div className="rounded-3xl border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-white/[0.03]">
-            <div className="flex items-start gap-4">
+          <div className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03] sm:p-8">
+            <div className="flex flex-col items-start gap-4 sm:flex-row">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
                 <LockChainIcon className="w-5 h-5" />
               </span>
