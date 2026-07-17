@@ -29,7 +29,7 @@ export default function EsqueciSenha() {
   };
 
   return (
-    <div className="flex flex-col flex-1 lg:w-1/2 w-full">
+    <div className="flex w-full flex-1 flex-col px-4 sm:px-6 lg:w-1/2 lg:px-8">
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           <div className="mb-5 sm:mb-8">
@@ -157,7 +157,7 @@ export default function EsqueciSenha() {
               </div>
             </form>
             <div className="mt-5">
-              <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
+              <p className="text-start text-sm font-normal text-gray-700 dark:text-gray-400">
                 <Link href="/login" className="text-brand-500 hover:text-brand-600 dark:text-brand-400">Fazer login</Link>
               </p>
             </div>
