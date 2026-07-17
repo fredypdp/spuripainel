@@ -311,8 +311,8 @@ export default function LandingContent({
                 whileInView="show"
                 viewport={{ once: true, amount: 0.5 }}
                 transition={{ duration: 0.45, delay: i * 0.1 }}
-                whileHover={{ y: -4, transition: { duration: 1.5, ease: "easeOut" } }}
-                className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
+                whileHover={{ y: -4, transition: { duration: 0.1, ease: "easeOut" } }}
+                className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03] sm:flex-col sm:items-start"
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
                   <item.icon className="w-5 h-5" />
@@ -415,51 +415,6 @@ export default function LandingContent({
                 </motion.div>
               );
             })}
-          </div>
-        </section>
-
-        {/* Como funciona */}
-        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
-          <SectionHeading eyebrow="Como funciona" title="Um percurso simples, ajustado ao seu perfil" />
-          <div className="grid gap-5 md:grid-cols-3">
-            {content.steps.map((step, i) => (
-              <motion.div
-                key={step}
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: 0.45, delay: i * 0.12 }}
-                className="rounded-2xl bg-white p-6 shadow-theme-xs ring-1 ring-gray-200 dark:bg-white/[0.03] dark:ring-gray-800"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-500 font-bold text-white">
-                  {i + 1}
-                </span>
-                <p className="mt-4 font-medium text-gray-800 dark:text-white/90">{step}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* Confiança e segurança */}
-        <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:px-8">
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03] sm:p-8">
-            <div className="flex flex-col items-start gap-4 sm:flex-row">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
-                <LockChainIcon className="w-5 h-5" />
-              </span>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-                  Confiança, Segurança e Auditoria
-                </h2>
-                <p className="mt-3 text-gray-600 dark:text-gray-300">
-                  Cada nota, falta ou matrícula registada no Spuri gera um registo protegido por
-                  uma cadeia de verificação criptográfica, reforçando a integridade, a
-                  rastreabilidade e a confiança na informação académica. Cada operação relevante
-                  fica registada, permitindo auditoria e verificação ao longo do tempo.
-                </p>
-              </div>
-            </div>
           </div>
         </section>
 
