@@ -83,12 +83,12 @@ function SectionHeading({ eyebrow, title }: { eyebrow?: string; title: string })
   );
 }
 
-function CtaButton({ profile }: { profile: Profile }) {
+function CtaButton({ profile, className = "" }: { profile: Profile; className?: string }) {
   const content = profileContent[profile];
   const isMailto = content.href.startsWith("mailto:");
 
   const classes =
-    "inline-flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-7 py-3.5 font-semibold text-white shadow-theme-xs transition hover:bg-brand-600";
+    `inline-flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-7 py-3.5 font-semibold text-white shadow-theme-xs transition hover:bg-brand-600 ${className}`.trim();
 
   if (isMailto) {
     return (
@@ -301,13 +301,13 @@ export default function LandingContent({
                 whileInView="show"
                 viewport={{ once: true, amount: 0.5 }}
                 transition={{ duration: 0.45, delay: i * 0.1 }}
-                whileHover={{ y: -4 }}
-                className="rounded-2xl border border-gray-200 bg-white p-5 text-center shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03] sm:text-left"
+                whileHover={{ y: -4, transition: { duration: 1.5, ease: "easeOut" } }}
+                className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-theme-xs transition-shadow hover:shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
               >
-                <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400 sm:mx-0">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400">
                   <item.icon className="w-5 h-5" />
                 </span>
-                <p className="mt-3 text-sm lg:text-base font-semibold text-gray-800 dark:text-white/90">
+                <p className="text-sm lg:text-base font-semibold text-gray-800 dark:text-white/90">
                   {item.text}
                 </p>
               </motion.div>
@@ -466,7 +466,7 @@ export default function LandingContent({
 
       {/* CTA fixo no mobile */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:hidden">
-        <CtaButton profile={profile} />
+        <CtaButton profile={profile} className="w-full" />
       </div>
 
       <footer id="contacto" className="border-t border-gray-200 bg-white px-4 py-10 pb-24 dark:border-gray-800 dark:bg-gray-950 md:pb-10">
