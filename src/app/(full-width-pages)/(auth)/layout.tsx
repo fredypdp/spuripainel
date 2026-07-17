@@ -27,7 +27,7 @@ export default function AuthLayout({children}: {children: React.ReactNode;}) {
                       alt="Logo"
                     />
                   </Link>
-                  <p className="text-center text-gray-400 dark:text-white/60">Mapeamento e registros acadêmicos</p>
+                  <p className="text-center text-gray-400 dark:text-white/60">Gestão académica eficiente e registos protegidos</p>
                 </div>
               </div>
             </div>
