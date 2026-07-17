@@ -309,6 +309,6 @@ export const differentiators: Differentiator[] = [
   {
     title: "Imutabilidade e Auditoria",
     description:
-      "Cada nota, falta ou matrícula gera um registo protegido por uma cadeia de verificação criptográfica — qualquer tentativa de alteração é detetável.",
+      "Cada nota, falta ou matrícula registada no Spuri gera um registo protegido por uma cadeia de verificação criptográfica, reforçando a integridade, a rastreabilidade e a confiança na informação académica. Cada operação relevante fica registada, permitindo auditoria e verificação ao longo do tempo.",
   },
 ];
