@@ -162,6 +162,9 @@ export const profileContent: Record<Profile, ProfileContent> = {
 export interface FeatureItem {
   title: string;
   description: string;
+  /** Verdadeiro quando esta funcionalidade deve aparecer também na vista
+   * curada do perfil Estudante/Encarregado (secção "Funcionalidades"). */
+  studentRelevant?: boolean;
 }
 
 export interface FeatureCategory {
@@ -177,11 +180,13 @@ export const featureCategories: FeatureCategory[] = [
         title: "Matrículas 100% digitais",
         description:
           "Elimine filas e papel: solicite, envie documentos e acompanhe matrículas de forma simples e rápida.",
+        studentRelevant: true,
       },
       {
         title: "Notas e faltas sempre disponíveis",
         description:
           "Registo por trimestre ou semestre, com histórico académico centralizado e acessível.",
+        studentRelevant: true,
       },
       {
         title: "Avaliação final automática",
@@ -197,6 +202,7 @@ export const featureCategories: FeatureCategory[] = [
         title: "Pagamentos digitais",
         description:
           "Propinas, taxas e demais encargos cobrados e registados na própria plataforma, com maior controlo financeiro.",
+        studentRelevant: true,
       },
     ],
   },
@@ -257,6 +263,7 @@ export const featureCategories: FeatureCategory[] = [
         title: "Notificações em tempo real",
         description:
           "Estudantes e encarregados de educação recebem avisos imediatos sobre notas, faltas, matrículas e outros comunicados.",
+        studentRelevant: true,
       },
     ],
   },
@@ -282,6 +289,7 @@ export const featureCategories: FeatureCategory[] = [
         title: "Transferência de estudantes entre instituições",
         description:
           "Histórico académico portátil para facilitar processos de transferência.",
+        studentRelevant: true,
       },
       {
         title: "Inteligência Artificial institucional personalizada",
