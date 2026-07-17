@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     default: "Spuri",
     template: "%s | Spuri",
   },
-  description: "Mapeamento e registros acadêmicos"
+  description: "Gestão académica eficiente e registos protegidos"
 };
 
 export default function RootLayout({children}: Readonly<{children: React.ReactNode;}>) {
