@@ -23,13 +23,13 @@ export async function VerificarEmailComFrontend(identificador: string, tipo: Use
 /**
  * ✅ SIMPLIFICADO: Tudo acontece no API route
  */
-export async function RecuperarSenhaComFrontend(identificador: string, tipo: UserType) {
+export async function RecuperarSenhaComFrontend(identificador: string, tipo?: UserType) {
   // Validação
   if (!identificador || identificador.trim() === '') {
     throw new Error('Identificador é obrigatório');
   }
 
-  if (!tipo || !['estudante', 'academia', 'admin'].includes(tipo)) {
+  if (tipo && !['estudante', 'academia', 'admin'].includes(tipo)) {
     throw new Error('Tipo de usuário inválido');
   }
 
