@@ -196,12 +196,18 @@ export const featureCategories: FeatureCategory[] = [
     ],
   },
   {
-    title: "Gestão Financeira",
+    title: "Gestão Financeira e Comunicação",
     items: [
       {
         title: "Pagamentos digitais",
         description:
           "Propinas, taxas e demais encargos cobrados e registados na própria plataforma, com maior controlo financeiro.",
+        studentRelevant: true,
+      },
+      {
+        title: "Notificações em tempo real",
+        description:
+          "Estudantes e encarregados de educação recebem avisos imediatos sobre notas, faltas, matrículas e outros comunicados.",
         studentRelevant: true,
       },
     ],
@@ -253,17 +259,6 @@ export const featureCategories: FeatureCategory[] = [
         title: "Relatórios académicos e institucionais",
         description:
           "Reduza o tempo e os custos associados à elaboração de relatórios, com dados organizados e disponíveis automaticamente.",
-      },
-    ],
-  },
-  {
-    title: "Comunicação",
-    items: [
-      {
-        title: "Notificações em tempo real",
-        description:
-          "Estudantes e encarregados de educação recebem avisos imediatos sobre notas, faltas, matrículas e outros comunicados.",
-        studentRelevant: true,
       },
     ],
   },
