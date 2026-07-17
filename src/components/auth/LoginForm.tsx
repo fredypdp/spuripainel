@@ -47,8 +47,23 @@ export default function LoginForm() {
     }
   };
 
+  const handleFormKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
+    const target = event.target as HTMLInputElement;
+
+    if (event.key !== "Enter" || target.name !== "identificador") return;
+
+    if (identificador.trim() && senha.trim()) return;
+
+    event.preventDefault();
+    const passwordInput = event.currentTarget.elements.namedItem("senha");
+
+    if (passwordInput instanceof HTMLInputElement) {
+      passwordInput.focus();
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 lg:w-1/2 w-full">
+    <div className="flex w-full flex-1 flex-col px-4 sm:px-6 lg:w-1/2 lg:px-8">
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           <div className="mb-5 sm:mb-8">
@@ -57,7 +72,7 @@ export default function LoginForm() {
             </h1>
           </div>
 
-          <form onSubmit={handleLogin}>
+          <form onKeyDown={handleFormKeyDown} onSubmit={handleLogin}>
             <div className="space-y-6">
               <div>
                 <Label>Usuário</Label>
