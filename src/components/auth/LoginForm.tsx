@@ -168,7 +168,7 @@ export default function LoginForm() {
             <Link href="/matricula" className="inline-flex w-full items-center justify-center rounded-lg border border-brand-500 px-4 py-2.5 text-sm font-medium text-brand-600 transition hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-brand-400 dark:text-brand-300 dark:hover:bg-brand-500/10">
               Fazer matrícula
             </Link>
-            <p className="text-center text-sm font-normal text-gray-700 dark:text-gray-400 sm:text-start">
+            <p className="text-start text-sm font-normal text-gray-700 dark:text-gray-400">
               Esqueceu a senha?{" "}
               <Link
                 href="/esqueci-senha"
