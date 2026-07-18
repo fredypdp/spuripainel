@@ -541,7 +541,7 @@ export default function AppSidebar() {
             )}
           </Link>
         </div>
-        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto duration-300 ease-linear sidebar-scrollbar">
+        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto duration-300 ease-linear sidebar-scrollbar pt-4 lg:pt-0">
           <nav className="mb-6">
             <div className="flex flex-col gap-4">
               <div>
