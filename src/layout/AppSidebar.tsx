@@ -120,6 +120,61 @@ export default function AppSidebar() {
     closeMobileSidebar();
   }, [pathname]);
 
+  // A partir daqui: posicionamento real (não estimado) da sidebar no mobile.
+  // Em vez de supor que o header sempre mede 4rem, medimos a posição real
+  // do header (#app-header) e o tamanho real da área visível através da
+  // Visual Viewport API, que reflete o espaço restante depois de descontar
+  // barras de navegador dinâmicas (topo/rodapé). Assim a sidebar sempre
+  // começa logo abaixo do header e nunca invade a área coberta pelo
+  // navegador, independente de aparelho, navegador ou altura real do header.
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [mobileBounds, setMobileBounds] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const updateIsDesktop = () => setIsDesktop(desktopQuery.matches);
+
+    updateIsDesktop();
+    desktopQuery.addEventListener("change", updateIsDesktop);
+
+    return () => {
+      desktopQuery.removeEventListener("change", updateIsDesktop);
+    };
+  }, []);
+
+  useEffect(() => {
+    // No desktop a sidebar não é um overlay sobre o header; as classes
+    // Tailwind (lg:) já cuidam do posicionamento e nenhuma medição é
+    // necessária.
+    if (isDesktop) {
+      setMobileBounds(null);
+      return;
+    }
+
+    const updateBounds = () => {
+      const header = document.getElementById("app-header");
+      // Fallback de 64px caso o header não seja encontrado por algum motivo.
+      const top = header ? header.getBoundingClientRect().bottom : 64;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+
+      setMobileBounds({ top, height: Math.max(viewportHeight - top, 0) });
+    };
+
+    updateBounds();
+
+    window.visualViewport?.addEventListener("resize", updateBounds);
+    window.visualViewport?.addEventListener("scroll", updateBounds);
+    window.addEventListener("resize", updateBounds);
+    window.addEventListener("orientationchange", updateBounds);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateBounds);
+      window.visualViewport?.removeEventListener("scroll", updateBounds);
+      window.removeEventListener("resize", updateBounds);
+      window.removeEventListener("orientationchange", updateBounds);
+    };
+  }, [isDesktop]);
+
   // Filtrar navItems baseado no tipo de usuário
   const filteredNavItems = useMemo(() => {
     if (!mounted) return navItems;
@@ -435,7 +490,7 @@ export default function AppSidebar() {
       `}</style>
 
       <aside
-        className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-[calc(100dvh-4rem)] lg:h-[100dvh] overflow-hidden transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+        className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-[calc(100dvh-4rem)] lg:h-[100dvh] overflow-hidden transition-[width,transform] duration-300 ease-in-out z-50 border-r border-gray-200 
           ${
             isExpanded || isMobileOpen
               ? "w-[290px]"
@@ -445,6 +500,11 @@ export default function AppSidebar() {
           }
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0`}
+        style={
+          mobileBounds
+            ? { top: `${mobileBounds.top}px`, height: `${mobileBounds.height}px`, marginTop: 0 }
+            : undefined
+        }
         onMouseEnter={() => !isExpanded && setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
