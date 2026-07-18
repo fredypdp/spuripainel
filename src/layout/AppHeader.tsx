@@ -57,9 +57,24 @@ const AppHeader: React.FC = () => {
             )}
           </button>
 
-          <Link href="/painel" className="lg:hidden">
-            <Image width={154} height={32} className="dark:hidden" src="./images/logo/logo.svg" alt="Logo" />
-            <Image width={154} height={32} className="hidden dark:block" src="./images/logo/logo-dark.svg" alt="Logo" />
+          <Link
+            href="/painel"
+            className="lg:hidden shrink-0 block w-[154px] h-8 overflow-hidden"
+          >
+            <Image
+              width={154}
+              height={32}
+              className="dark:hidden w-full h-full object-contain"
+              src="/images/logo/logo.svg"
+              alt="Logo"
+            />
+            <Image
+              width={154}
+              height={32}
+              className="hidden dark:block w-full h-full object-contain"
+              src="/images/logo/logo-dark.svg"
+              alt="Logo"
+            />
           </Link>
 
           <button
