@@ -509,7 +509,7 @@ export default function AppSidebar() {
         onMouseLeave={() => setIsHovered(false)}
       >
         <div
-          className={`invisible lg:visible flex py-8 shrink-0 ${
+          className={`hidden lg:flex py-8 shrink-0 ${
             !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
           }`}
         >
