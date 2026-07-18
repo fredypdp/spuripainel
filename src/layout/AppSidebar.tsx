@@ -96,7 +96,7 @@ const navItems: NavItem[] = [
 ];
 
 export default function AppSidebar() {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { isExpanded, isMobileOpen, isHovered, setIsHovered, closeMobileSidebar } = useSidebar();
   const pathname = usePathname();
   const [user,    setUser]    = useState<MeuPerfilResponse | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -112,6 +112,13 @@ export default function AppSidebar() {
       } catch (error) {}
     }
   }, []);
+
+  useEffect(() => {
+    // Fecha a sidebar mobile sempre que a rota mudar (clique em qualquer
+    // item de navegação, inclusive subitens, ou navegação programática).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    closeMobileSidebar();
+  }, [pathname]);
 
   // Filtrar navItems baseado no tipo de usuário
   const filteredNavItems = useMemo(() => {
@@ -442,7 +449,7 @@ export default function AppSidebar() {
         onMouseLeave={() => setIsHovered(false)}
       >
         <div
-          className={`py-8 flex shrink-0 ${
+          className={`hidden lg:flex py-8 shrink-0 ${
             !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
           }`}
         >
