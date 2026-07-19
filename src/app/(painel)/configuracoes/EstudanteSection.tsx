@@ -17,7 +17,7 @@ export default function EstudanteSection() {
       email: estudante?.email ?? "",
       telefone: estudante?.telefone ?? "",
       bilhete_identidade: estudante?.bilhete_identidade ?? "",
-      bilhete_identidade_responsavel: estudante?.bilhete_identidade_responsavel ?? "",
+      bilhete_identidade_encarregado: estudante?.bilhete_identidade_encarregado ?? "",
       data_nascimento: estudante?.data_nascimento?.slice(0, 10) ?? "",
     }),
     [estudante]
@@ -43,9 +43,9 @@ export default function EstudanteSection() {
     setErroValidacao("");
 
     const biEstudante = form.bilhete_identidade.trim();
-    const biResponsavel = form.bilhete_identidade_responsavel.trim();
-    if (biEstudante && biResponsavel && biEstudante.toLowerCase() === biResponsavel.toLowerCase()) {
-      setErroValidacao("O BI do estudante não pode ser igual ao BI do responsável.");
+    const biEncarregado = form.bilhete_identidade_encarregado.trim();
+    if (biEstudante && biEncarregado && biEstudante.toLowerCase() === biEncarregado.toLowerCase()) {
+      setErroValidacao("O BI do estudante não pode ser igual ao BI do encarregado de educação.");
       return;
     }
 
@@ -55,7 +55,7 @@ export default function EstudanteSection() {
         email: form.email || undefined,
         telefone: form.telefone || undefined,
         bilhete_identidade: biEstudante || undefined,
-        bilhete_identidade_responsavel: biResponsavel || undefined,
+        bilhete_identidade_encarregado: biEncarregado || undefined,
         data_nascimento: form.data_nascimento || undefined,
       });
       setSucesso(true);
@@ -88,7 +88,7 @@ export default function EstudanteSection() {
               ["telefone", "Telefone", "text"],
               ["data_nascimento", "Data de nascimento", "date"],
               ["bilhete_identidade", "Bilhete de identidade", "text"],
-              ["bilhete_identidade_responsavel", "BI do responsável", "text"],
+              ["bilhete_identidade_encarregado", "BI do encarregado de educação", "text"],
             ].map(([field, label, type]) => (
               <div key={field}>
                 <label htmlFor={`est-${field}`} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">

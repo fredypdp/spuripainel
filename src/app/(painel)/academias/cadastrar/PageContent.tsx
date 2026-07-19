@@ -99,7 +99,7 @@ function SuccessState({
         </div>
 
         <p className="text-xs text-green-700 dark:text-green-400">
-          A primeira senha é o próprio código da academia. Oriente o responsável a trocar a senha no primeiro acesso.
+          A primeira senha é o próprio código da academia. Oriente o encarregado a trocar a senha no primeiro acesso.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">

@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 const statusOptions: Array<SolicitacaoMatriculaStatus | ""> = ["", "pendente", "aprovada", "reprovada", "cancelada"];
 const docLabels: Record<string, string> = {
   bi_estudante: "BI do estudante",
-  bi_responsavel: "BI do responsável",
+  bi_encarregado: "BI do encarregado de educação",
   cedula: "Cédula do estudante",
   cedula_estudante: "Cédula do estudante",
   declaracao: "Declaração",
@@ -259,7 +259,7 @@ export default function PageContent() {
             <Info label="Telefone" value={solicitacao.telefone || "-"} />
             <Info label="Email" value={solicitacao.email || "-"} />
             <Info label="BI estudante" value={solicitacao.bilhete_identidade || "-"} />
-            <Info label="BI responsável" value={solicitacao.bilhete_identidade_responsavel || "-"} />
+            <Info label="BI encarregado de educação" value={solicitacao.bilhete_identidade_encarregado || "-"} />
             <Info label="Criada em" value={formatDateTime(solicitacao.created_at)} />
           </div>
           {solicitacao.solicitacoes_semelhantes?.length > 0 && (

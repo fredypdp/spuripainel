@@ -12,7 +12,7 @@ import { academiaService, consultasService, solicitacaoMatriculaService } from "
 import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, Genero } from "@/types/api";
 
 type StepId = 0 | 1 | 2 | 3 | 4 | 5;
-type FileKey = "bi_estudante" | "bi_responsavel" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
+type FileKey = "bi_estudante" | "bi_encarregado" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
 type MatriculaForm = Partial<CriarSolicitacaoMatriculaRequest> & { genero: Genero };
 
 interface AnoOpcao { label: string; value: string }
@@ -132,9 +132,9 @@ export default function MatriculaPublicPage() {
 
     if (estudanteSuperior) {
       docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: true });
-      if (form.bilhete_identidade_responsavel?.trim() || files.bi_responsavel) docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: !!form.bilhete_identidade_responsavel?.trim() });
+      if (form.bilhete_identidade_encarregado?.trim() || files.bi_encarregado) docs.push({ key: "bi_encarregado", label: "Cópia do BI do encarregado de educação", obrigatorio: !!form.bilhete_identidade_encarregado?.trim() });
     } else {
-      docs.push({ key: "bi_responsavel", label: "Cópia do BI do responsável", obrigatorio: true });
+      docs.push({ key: "bi_encarregado", label: "Cópia do BI do encarregado de educação", obrigatorio: true });
       if (anoAtual === "1_ano_fundamental") {
         docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: true });
       } else {
@@ -168,7 +168,7 @@ export default function MatriculaPublicPage() {
     }
 
     return docs;
-  }, [anoSelecionado, files, form.bilhete_identidade, form.bilhete_identidade_responsavel]);
+  }, [anoSelecionado, files, form.bilhete_identidade, form.bilhete_identidade_encarregado]);
 
   const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoSelecionado);
   const estudanteSuperiorSelecionado = isSuperior(anoSelecionado ?? undefined);
@@ -194,11 +194,11 @@ export default function MatriculaPublicPage() {
     setForm((prev) => ({ ...prev, [key]: value || undefined }));
   }
 
-  function setTelefone(key: "telefone" | "telefone_responsavel", value: string) {
+  function setTelefone(key: "telefone" | "telefone_encarregado", value: string) {
     setField(key, onlyDigits(value).slice(0, 9));
   }
 
-  function setBilheteIdentidade(key: "bilhete_identidade" | "bilhete_identidade_responsavel", value: string) {
+  function setBilheteIdentidade(key: "bilhete_identidade" | "bilhete_identidade_encarregado", value: string) {
     setField(key, maskBilheteIdentidade(value));
   }
 
@@ -268,23 +268,23 @@ export default function MatriculaPublicPage() {
       if (!isBeforeToday(form.data_nascimento)) return "A data de nascimento deve ser anterior à data atual.";
       if (isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade?.trim()) return "Informe o Bilhete de Identidade do estudante para o ensino superior.";
       if (!estudantePrimeiroFundamental && form.bilhete_identidade && !isBilheteIdentidadeValido(form.bilhete_identidade)) return "Informe um BI do estudante válido no formato 123456789LA041.";
-      if (!isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade_responsavel?.trim()) return "Informe o Bilhete de Identidade do responsável.";
-      if (form.bilhete_identidade_responsavel && !isBilheteIdentidadeValido(form.bilhete_identidade_responsavel)) return "Informe um BI do responsável válido no formato 123456789LA041.";
-      if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_responsavel)) return "O BI do estudante não pode ser igual ao BI do responsável.";
+      if (!isSuperior(anoSelecionado ?? undefined) && !form.bilhete_identidade_encarregado?.trim()) return "Informe o Bilhete de Identidade do encarregado de educação.";
+      if (form.bilhete_identidade_encarregado && !isBilheteIdentidadeValido(form.bilhete_identidade_encarregado)) return "Informe um BI do encarregado de educação válido no formato 123456789LA041.";
+      if (bilhetesIdentidadeIguais(form.bilhete_identidade, form.bilhete_identidade_encarregado)) return "O BI do estudante não pode ser igual ao BI do encarregado de educação.";
     }
     if (current === 3) {
       if (isSuperior(anoSelecionado ?? undefined) && !form.telefone?.trim()) return "Informe o telefone do estudante para o ensino superior.";
-      if (!isSuperior(anoSelecionado ?? undefined) && !form.telefone_responsavel?.trim()) return "Informe o telefone do responsável para estudantes escolares.";
+      if (!isSuperior(anoSelecionado ?? undefined) && !form.telefone_encarregado?.trim()) return "Informe o telefone do encarregado de educação para estudantes escolares.";
       if (form.telefone && onlyDigits(form.telefone).length !== 9) return "Telefone do estudante deve ter exatamente 9 dígitos locais.";
-      if (form.telefone_responsavel && onlyDigits(form.telefone_responsavel).length !== 9) return "Telefone do responsável deve ter exatamente 9 dígitos locais.";
-      if (form.telefone && form.telefone_responsavel && onlyDigits(form.telefone) === onlyDigits(form.telefone_responsavel)) return "Os telefones do estudante e do responsável não podem ser iguais.";
+      if (form.telefone_encarregado && onlyDigits(form.telefone_encarregado).length !== 9) return "Telefone do encarregado de educação deve ter exatamente 9 dígitos locais.";
+      if (form.telefone && form.telefone_encarregado && onlyDigits(form.telefone) === onlyDigits(form.telefone_encarregado)) return "Os telefones do estudante e do encarregado de educação não podem ser iguais.";
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Informe um email válido.";
     }
     if (current === 4) {
       const faltando = documentos.find((doc) => doc.obrigatorio && !files[doc.key]);
       if (faltando) return `Anexe o documento: ${faltando.label}.`;
       if (form.bilhete_identidade?.trim() && !files.bi_estudante) return "Anexe o BI do estudante informado.";
-      if (form.bilhete_identidade_responsavel?.trim() && !files.bi_responsavel) return "Anexe o BI do responsável informado.";
+      if (form.bilhete_identidade_encarregado?.trim() && !files.bi_encarregado) return "Anexe o BI do encarregado de educação informado.";
       if (!isSuperior(anoSelecionado ?? undefined) && anoSelecionado !== "1_ano_fundamental") {
         const temBiEstudanteCompleto = !!form.bilhete_identidade?.trim() && !!files.bi_estudante;
         const temCedulaEstudante = !!files.cedula_estudante;
@@ -335,9 +335,9 @@ export default function MatriculaPublicPage() {
         curso_medio_id: isMedio(anoSelecionado) ? curso?.id : undefined,
         curso_superior_id: isSuperior(anoSelecionado) ? curso?.id : undefined,
         telefone: onlyDigits(form.telefone ?? "") || undefined,
-        telefone_responsavel: onlyDigits(form.telefone_responsavel ?? "") || undefined,
+        telefone_encarregado: onlyDigits(form.telefone_encarregado ?? "") || undefined,
         bilhete_identidade: estudantePrimeiroFundamental ? undefined : form.bilhete_identidade?.toUpperCase(),
-        bilhete_identidade_responsavel: form.bilhete_identidade_responsavel?.toUpperCase(),
+        bilhete_identidade_encarregado: form.bilhete_identidade_encarregado?.toUpperCase(),
         declaracao_ano_academico: files.declaracao ? declaracaoAnoAcademico : undefined,
         ...files,
       };
@@ -381,10 +381,10 @@ export default function MatriculaPublicPage() {
     ["Gênero", form.genero === "feminino" ? "Feminino" : "Masculino"],
     ["Data de nascimento", form.data_nascimento ?? "-"],
     ["Telefone", form.telefone ?? "-"],
-    ["Telefone do responsável", form.telefone_responsavel ?? "-"],
+    ["Telefone do encarregado de educação", form.telefone_encarregado ?? "-"],
     ["Email", form.email ?? "-"],
     ["BI estudante", form.bilhete_identidade ?? "-"],
-    ["BI responsável", form.bilhete_identidade_responsavel ?? "-"],
+    ["BI encarregado de educação", form.bilhete_identidade_encarregado ?? "-"],
     ...(files.declaracao ? [["Ano da declaração", getAnoLabel(declaracaoAnoAcademico)]] : []),
   ];
 
@@ -475,7 +475,7 @@ export default function MatriculaPublicPage() {
                 {!estudantePrimeiroFundamental && (
                   <div><Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade ?? ""} onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }} hint={estudanteEscolarSelecionado ? "Opcional para escola; se preencher, anexe também o BI do estudante." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."} /></div>
                 )}
-                <div><Label>Bilhete de Identidade do responsável</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_responsavel ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_responsavel", e.target.value)} hint="Obrigatório fora do ensino superior." /></div>
+                <div><Label>Bilhete de Identidade do encarregado de educação</Label><Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_encarregado ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_encarregado", e.target.value)} hint="Obrigatório fora do ensino superior." /></div>
               </div>
             </section>
           )}
@@ -485,7 +485,7 @@ export default function MatriculaPublicPage() {
               <StepTitle title="4. Telefone e email" description="Informe contactos válidos para a instituição responder à solicitação." />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div><Label>Telefone do estudante</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone ?? "")} onChange={(e) => setTelefone("telefone", e.target.value)} /></div>
-                <div><Label>Telefone do responsável</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone_responsavel ?? "")} onChange={(e) => setTelefone("telefone_responsavel", e.target.value)} /></div>
+                <div><Label>Telefone do encarregado de educação</Label><Input type="tel" placeholder="923 456 789" value={maskTelefoneAngola(form.telefone_encarregado ?? "")} onChange={(e) => setTelefone("telefone_encarregado", e.target.value)} /></div>
                 <div className="sm:col-span-2"><Label>Email</Label><Input type="email" placeholder="email@exemplo.com" defaultValue={form.email} onChange={(e) => setField("email", e.target.value)} /></div>
               </div>
             </section>
@@ -561,8 +561,8 @@ function isBilheteIdentidadeValido(value?: string) {
   return !!value && /^\d{9}[A-Z]{2}\d{3}$/.test(value);
 }
 
-function bilhetesIdentidadeIguais(estudante?: string, responsavel?: string) {
-  return !!estudante && !!responsavel && estudante.trim().toLowerCase() === responsavel.trim().toLowerCase();
+function bilhetesIdentidadeIguais(estudante?: string, encarregado?: string) {
+  return !!estudante && !!encarregado && estudante.trim().toLowerCase() === encarregado.trim().toLowerCase();
 }
 
 function StepTitle({ title, description }: { title: string; description: string }) {

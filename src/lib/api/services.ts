@@ -173,21 +173,21 @@ function normalizarBilheteIdentidade(value?: string): string | undefined {
 
 function ensureBilhetesDiferentes(
   bilheteIdentidade?: string,
-  bilheteIdentidadeResponsavel?: string
+  bilheteIdentidadeEncarregado?: string
 ): void {
   if (
     bilheteIdentidade &&
-    bilheteIdentidadeResponsavel &&
-    bilheteIdentidade.trim().toLowerCase() === bilheteIdentidadeResponsavel.trim().toLowerCase()
+    bilheteIdentidadeEncarregado &&
+    bilheteIdentidade.trim().toLowerCase() === bilheteIdentidadeEncarregado.trim().toLowerCase()
   ) {
-    throw new Error('O BI do estudante não pode ser igual ao BI do responsável');
+    throw new Error('O BI do estudante não pode ser igual ao BI do encarregado de educação');
   }
 }
 
 function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteRequest {
   const bilheteIdentidade = normalizarBilheteIdentidade(data.bilhete_identidade);
-  const bilheteIdentidadeResponsavel = normalizarBilheteIdentidade(data.bilhete_identidade_responsavel);
-  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeResponsavel);
+  const bilheteIdentidadeEncarregado = normalizarBilheteIdentidade(data.bilhete_identidade_encarregado);
+  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeEncarregado);
 
   const payload: CriarEstudanteRequest = {
     nome: data.nome?.trim(),
@@ -195,9 +195,9 @@ function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteReque
     data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento')!,
     email: data.email?.trim() || undefined,
     telefone: data.telefone?.trim() || undefined,
-    telefone_responsavel: data.telefone_responsavel?.trim() || undefined,
+    telefone_encarregado: data.telefone_encarregado?.trim() || undefined,
     bilhete_identidade: bilheteIdentidade,
-    bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
+    bilhete_identidade_encarregado: bilheteIdentidadeEncarregado,
     ano_escolar_fundamental: data.ano_escolar_fundamental ?? null,
     ano_escolar_medio: data.ano_escolar_medio ?? null,
     curso_medio_id: data.curso_medio_id ?? null,
@@ -214,7 +214,7 @@ function prepareCriarEstudanteForm(data: CriarEstudanteRequest): FormData {
   const form = new FormData();
   const entries = Object.entries({ ...payload,
     bi_estudante: data.bi_estudante,
-    bi_responsavel: data.bi_responsavel,
+    bi_encarregado: data.bi_encarregado,
     cedula_estudante: data.cedula_estudante,
     declaracao: data.declaracao,
     certificado_6_ano_fundamental: data.certificado_6_ano_fundamental,
@@ -250,31 +250,31 @@ function prepareAtualizarDadosPessoaisEstudante(
   data: AtualizarDadosPessoaisEstudanteRequest
 ): AtualizarDadosPessoaisEstudanteRequest {
   const bilheteIdentidade = normalizarBilheteIdentidade(data.bilhete_identidade);
-  const bilheteIdentidadeResponsavel = normalizarBilheteIdentidade(data.bilhete_identidade_responsavel);
-  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeResponsavel);
+  const bilheteIdentidadeEncarregado = normalizarBilheteIdentidade(data.bilhete_identidade_encarregado);
+  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeEncarregado);
 
   return {
     ...data,
     nome: data.nome?.trim() || undefined,
     email: data.email?.trim() || undefined,
     telefone: data.telefone?.trim() || undefined,
-    telefone_responsavel: data.telefone_responsavel?.trim() || undefined,
+    telefone_encarregado: data.telefone_encarregado?.trim() || undefined,
     bilhete_identidade: bilheteIdentidade,
-    bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
+    bilhete_identidade_encarregado: bilheteIdentidadeEncarregado,
     data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento'),
   };
 }
 
 function prepareSolicitacaoMatriculaForm(data: CriarSolicitacaoMatriculaRequest): FormData {
   const bilheteIdentidade = normalizarBilheteIdentidade(data.bilhete_identidade);
-  const bilheteIdentidadeResponsavel = normalizarBilheteIdentidade(data.bilhete_identidade_responsavel);
-  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeResponsavel);
+  const bilheteIdentidadeEncarregado = normalizarBilheteIdentidade(data.bilhete_identidade_encarregado);
+  ensureBilhetesDiferentes(bilheteIdentidade, bilheteIdentidadeEncarregado);
 
   const form = new FormData();
   const entries: Array<[keyof CriarSolicitacaoMatriculaRequest, unknown]> = Object.entries({
     ...data,
     bilhete_identidade: bilheteIdentidade,
-    bilhete_identidade_responsavel: bilheteIdentidadeResponsavel,
+    bilhete_identidade_encarregado: bilheteIdentidadeEncarregado,
   }) as any;
   entries.forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;

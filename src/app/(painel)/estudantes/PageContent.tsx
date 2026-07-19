@@ -817,7 +817,7 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
 
 const DOCUMENT_LABELS: Record<string, string> = {
   bi_estudante: 'BI do estudante',
-  bi_responsavel: 'BI do responsável',
+  bi_encarregado: 'BI do encarregado de educação',
   cedula_estudante: 'Cédula do estudante',
   declaracao: 'Declaração',
   certificado_6_ano_fundamental: 'Certificado da 6ª classe',
@@ -867,9 +867,9 @@ function getCamposDocumentosPendentes(estudante: EstudanteDetalhado): string[] {
 
   if (isSuperior) {
     if (estudante.bilhete_identidade) add('bi_estudante');
-    if (estudante.bilhete_identidade_responsavel) add('bi_responsavel');
+    if (estudante.bilhete_identidade_encarregado) add('bi_encarregado');
   } else {
-    if (estudante.bilhete_identidade_responsavel) add('bi_responsavel');
+    if (estudante.bilhete_identidade_encarregado) add('bi_encarregado');
     if (estudante.bilhete_identidade) add('bi_estudante');
     else add('cedula_estudante');
   }
@@ -1082,12 +1082,12 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
         <DetailItem label="Género" value={estudanteConsultado.genero || '-'} className="capitalize" />
         <DetailItem label="Nascimento" value={`${formatarDataNasc(estudanteConsultado.data_nascimento)}${estudanteConsultado.data_nascimento ? ` (${calcularIdade(estudanteConsultado.data_nascimento)} anos)` : ''}`} />
         <DetailItem label="BI estudante" value={estudanteConsultado.bilhete_identidade || '-'} />
-        <DetailItem label="BI responsável" value={estudanteConsultado.bilhete_identidade_responsavel || '-'} />
+        <DetailItem label="BI encarregado de educação" value={estudanteConsultado.bilhete_identidade_encarregado || '-'} />
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Contatos</h4><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="E-mail do estudante" value={estudanteConsultado.email || '-'} />
         <DetailItem label="Telefone do estudante" value={estudanteConsultado.telefone || '-'} />
-        <DetailItem label="Telefone do responsável" value={estudanteConsultado.telefone_responsavel || '-'} />
+        <DetailItem label="Telefone do encarregado de educação" value={estudanteConsultado.telefone_encarregado || '-'} />
       </div></section>
       <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
