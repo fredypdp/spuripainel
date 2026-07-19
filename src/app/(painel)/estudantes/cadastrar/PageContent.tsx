@@ -27,7 +27,7 @@ interface ResultadoCadastro {
   nome: string;
 }
 
-type FileKey = "bi_estudante" | "bi_responsavel" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
+type FileKey = "bi_estudante" | "bi_encarregado" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
 interface DocumentoOpcao { key: FileKey; label: string; obrigatorio: boolean }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -46,7 +46,7 @@ const ANOS_FUNDAMENTAL_LIST: AnoEscolar[] = [
 
 const documentLabels: Record<FileKey, string> = {
   bi_estudante: 'Bilhete de identidade do estudante',
-  bi_responsavel: 'Bilhete de identidade do responsável',
+  bi_encarregado: 'Bilhete de identidade do encarregado de educação',
   cedula_estudante: 'Cédula do estudante',
   declaracao: 'Declaração',
   certificado_6_ano_fundamental: 'Certificado da 6.ª classe',
@@ -180,15 +180,15 @@ export default function CadastrarEstudantePageContent() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [telefoneResponsavel, setTelefoneResponsavel] = useState('');
+  const [telefoneEncarregado, setTelefoneEncarregado] = useState('');
   const [bilheteIdentidade, setBilheteIdentidade] = useState('');
-  const [bilheteResponsavel, setBilheteResponsavel] = useState('');
+  const [bilheteEncarregado, setBilheteEncarregado] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
   const [genero, setGenero] = useState<Genero>('masculino');
   const [cursoSelecionado, setCursoSelecionado] = useState<Curso | null>(null);
   const [biEstudanteFile, setBiEstudanteFile] = useState<File | undefined>();
-  const [biResponsavelFile, setBiResponsavelFile] = useState<File | undefined>();
+  const [biEncarregadoFile, setBiEncarregadoFile] = useState<File | undefined>();
   const [cedulaEstudanteFile, setCedulaEstudanteFile] = useState<File | undefined>();
   const [declaracaoFile, setDeclaracaoFile] = useState<File | undefined>();
   const [certificado6File, setCertificado6File] = useState<File | undefined>();
@@ -266,8 +266,8 @@ export default function CadastrarEstudantePageContent() {
   const bilhetesIdentidadeIguais = (): boolean => {
     return (
       !!bilheteIdentidade.trim() &&
-      !!bilheteResponsavel.trim() &&
-      bilheteIdentidade.trim().toLowerCase() === bilheteResponsavel.trim().toLowerCase()
+      !!bilheteEncarregado.trim() &&
+      bilheteIdentidade.trim().toLowerCase() === bilheteEncarregado.trim().toLowerCase()
     );
   };
 
@@ -288,9 +288,9 @@ export default function CadastrarEstudantePageContent() {
 
     if (estudanteSuperior) {
       docs.push({ key: 'bi_estudante', label: documentLabels.bi_estudante, obrigatorio: true });
-      if (bilheteResponsavel.trim() || biResponsavelFile) docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: !!bilheteResponsavel.trim() });
+      if (bilheteEncarregado.trim() || biEncarregadoFile) docs.push({ key: 'bi_encarregado', label: documentLabels.bi_encarregado, obrigatorio: !!bilheteEncarregado.trim() });
     } else {
-      docs.push({ key: 'bi_responsavel', label: documentLabels.bi_responsavel, obrigatorio: true });
+      docs.push({ key: 'bi_encarregado', label: documentLabels.bi_encarregado, obrigatorio: true });
       if (anoAtual === '1_ano_fundamental') {
         docs.push({ key: 'cedula_estudante', label: documentLabels.cedula_estudante, obrigatorio: true });
       } else {
@@ -330,7 +330,7 @@ export default function CadastrarEstudantePageContent() {
 
   const getDocumentoFile = (key: FileKey): File | undefined => ({
     bi_estudante: biEstudanteFile,
-    bi_responsavel: biResponsavelFile,
+    bi_encarregado: biEncarregadoFile,
     cedula_estudante: cedulaEstudanteFile,
     declaracao: declaracaoFile,
     certificado_6_ano_fundamental: certificado6File,
@@ -355,7 +355,7 @@ export default function CadastrarEstudantePageContent() {
 
   const limparDocumentos = () => {
     setBiEstudanteFile(undefined);
-    setBiResponsavelFile(undefined);
+    setBiEncarregadoFile(undefined);
     setCedulaEstudanteFile(undefined);
     setDeclaracaoFile(undefined);
     setCertificado6File(undefined);
@@ -366,7 +366,7 @@ export default function CadastrarEstudantePageContent() {
   const setDocumentoFile = (key: FileKey, file?: File) => {
     const setters: Record<FileKey, (file?: File) => void> = {
       bi_estudante: setBiEstudanteFile,
-      bi_responsavel: setBiResponsavelFile,
+      bi_encarregado: setBiEncarregadoFile,
       cedula_estudante: setCedulaEstudanteFile,
       declaracao: setDeclaracaoFile,
       certificado_6_ano_fundamental: setCertificado6File,
@@ -402,17 +402,17 @@ export default function CadastrarEstudantePageContent() {
     if (isEstudanteSuperior(anoEscolarSelecionado) && !bilheteIdentidade.trim()) {
       erros.push('BI do estudante é obrigatório no ensino superior');
     }
-    if (!isEstudanteSuperior(anoEscolarSelecionado) && !bilheteResponsavel.trim()) {
-      erros.push('BI do responsável é obrigatório para estudantes escolares');
+    if (!isEstudanteSuperior(anoEscolarSelecionado) && !bilheteEncarregado.trim()) {
+      erros.push('BI do encarregado de educação é obrigatório para estudantes escolares');
     }
     if (isEstudanteSuperior(anoEscolarSelecionado) && !telefone.trim()) {
       erros.push('Telefone do estudante é obrigatório no ensino superior');
     }
-    if (!isEstudanteSuperior(anoEscolarSelecionado) && !telefoneResponsavel.trim()) {
-      erros.push('Telefone do responsável é obrigatório para estudantes escolares');
+    if (!isEstudanteSuperior(anoEscolarSelecionado) && !telefoneEncarregado.trim()) {
+      erros.push('Telefone do encarregado de educação é obrigatório para estudantes escolares');
     }
     if (bilhetesIdentidadeIguais()) {
-      erros.push('O BI do estudante não pode ser igual ao BI do responsável');
+      erros.push('O BI do estudante não pode ser igual ao BI do encarregado de educação');
     }
     if (deveMostrarCurso() && !cursoSelecionado) {
       erros.push('Para este nível, o curso é obrigatório');
@@ -430,12 +430,12 @@ export default function CadastrarEstudantePageContent() {
       erros.push('E-mail inválido');
     }
     if (telefone.trim() && normalizePhone(telefone).length !== 9) erros.push('Telefone do estudante deve ter exatamente 9 dígitos locais');
-    if (telefoneResponsavel.trim() && normalizePhone(telefoneResponsavel).length !== 9) erros.push('Telefone do responsável deve ter exatamente 9 dígitos locais');
-    if (telefone.trim() && telefoneResponsavel.trim() && normalizePhone(telefone) === normalizePhone(telefoneResponsavel)) erros.push('Os telefones do estudante e do responsável não podem ser iguais');
+    if (telefoneEncarregado.trim() && normalizePhone(telefoneEncarregado).length !== 9) erros.push('Telefone do encarregado de educação deve ter exatamente 9 dígitos locais');
+    if (telefone.trim() && telefoneEncarregado.trim() && normalizePhone(telefone) === normalizePhone(telefoneEncarregado)) erros.push('Os telefones do estudante e do encarregado de educação não podem ser iguais');
     if (anoEscolarSelecionado !== '1_ano_fundamental' && !isBiValido(bilheteIdentidade)) erros.push('BI do estudante deve usar o formato 123456789LA041');
-    if (!isBiValido(bilheteResponsavel)) erros.push('BI do responsável deve usar o formato 123456789LA041');
+    if (!isBiValido(bilheteEncarregado)) erros.push('BI do encarregado de educação deve usar o formato 123456789LA041');
     if (bilheteIdentidade.trim() && !biEstudanteFile) erros.push('Anexe o documento: Bilhete de identidade do estudante');
-    if (bilheteResponsavel.trim() && !biResponsavelFile) erros.push('Anexe o documento: Bilhete de identidade do responsável');
+    if (bilheteEncarregado.trim() && !biEncarregadoFile) erros.push('Anexe o documento: Bilhete de identidade do encarregado de educação');
     if (!isEstudanteSuperior(anoEscolarSelecionado) && anoEscolarSelecionado !== '1_ano_fundamental') {
       const temBiEstudanteCompleto = !!bilheteIdentidade.trim() && !!biEstudanteFile;
       const temCedulaEstudante = !!cedulaEstudanteFile;
@@ -456,14 +456,14 @@ export default function CadastrarEstudantePageContent() {
     setNome('');
     setEmail('');
     setTelefone('');
-    setTelefoneResponsavel('');
+    setTelefoneEncarregado('');
     setBilheteIdentidade('');
-    setBilheteResponsavel('');
+    setBilheteEncarregado('');
     setDataNascimento('');
     setAnoEscolarSelecionado(null);
     setCursoSelecionado(null);
     setGenero('masculino');
-    setBiEstudanteFile(undefined); setBiResponsavelFile(undefined); setCedulaEstudanteFile(undefined);
+    setBiEstudanteFile(undefined); setBiEncarregadoFile(undefined); setCedulaEstudanteFile(undefined);
     setDeclaracaoFile(undefined); setCertificado6File(undefined); setCertificado9File(undefined); setCertificadoMedioFile(undefined);
     setValidationErrors([]);
     setResultado(null);
@@ -481,9 +481,9 @@ export default function CadastrarEstudantePageContent() {
       data_nascimento: dataNascimentoISO,
       email: email.trim() || undefined,
       telefone: normalizePhone(telefone) || undefined,
-      telefone_responsavel: normalizePhone(telefoneResponsavel) || undefined,
+      telefone_encarregado: normalizePhone(telefoneEncarregado) || undefined,
       bilhete_identidade: anoEscolarSelecionado === '1_ano_fundamental' ? undefined : bilheteIdentidade.trim().toUpperCase() || undefined,
-      bilhete_identidade_responsavel: bilheteResponsavel.trim().toUpperCase() || undefined,
+      bilhete_identidade_encarregado: bilheteEncarregado.trim().toUpperCase() || undefined,
       ano_escolar_fundamental:
         isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)
           ? undefined
@@ -502,7 +502,7 @@ export default function CadastrarEstudantePageContent() {
         isAnoSuperior(anoEscolarSelecionado) && cursoSelecionado ? cursoSelecionado.id : undefined,
       declaracao_ano_academico: declaracaoFile ? declaracaoAnoAcademico : undefined,
       bi_estudante: biEstudanteFile,
-      bi_responsavel: biResponsavelFile,
+      bi_encarregado: biEncarregadoFile,
       cedula_estudante: cedulaEstudanteFile,
       declaracao: declaracaoFile,
       certificado_6_ano_fundamental: certificado6File,
@@ -675,8 +675,8 @@ export default function CadastrarEstudantePageContent() {
               </div>
 
               <div className="col-span-2 sm:col-span-1">
-                <Label>Telefone do responsável</Label>
-                <Input type="text" placeholder="Ex: 923456789" value={maskTelefone(telefoneResponsavel)} onChange={e => setTelefoneResponsavel(normalizePhone(e.target.value))} disabled={carregandoCadastro} />
+                <Label>Telefone do encarregado de educação</Label>
+                <Input type="text" placeholder="Ex: 923456789" value={maskTelefone(telefoneEncarregado)} onChange={e => setTelefoneEncarregado(normalizePhone(e.target.value))} disabled={carregandoCadastro} />
               </div>
 
               {/* Bilhetes */}
@@ -697,12 +697,12 @@ export default function CadastrarEstudantePageContent() {
                 </div>
               )}
               <div className="col-span-2 sm:col-span-1">
-                <Label>Bilhete de Identidade do responsável{isEstudanteSuperior(anoEscolarSelecionado) ? ' (opcional)' : ' *'}</Label>
+                <Label>Bilhete de Identidade do encarregado de educação{isEstudanteSuperior(anoEscolarSelecionado) ? ' (opcional)' : ' *'}</Label>
                 <Input
                   type="text"
                   placeholder="Ex: 123456789012AB"
-                  value={bilheteResponsavel}
-                  onChange={e => setBilheteResponsavel(normalizeBi(e.target.value))}
+                  value={bilheteEncarregado}
+                  onChange={e => setBilheteEncarregado(normalizeBi(e.target.value))}
                   disabled={carregandoCadastro}
                 />
               </div>

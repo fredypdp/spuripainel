@@ -475,7 +475,7 @@ Ao cadastrar, informe os vínculos acadêmicos compatíveis com o tipo de estuda
 | Médio | `curso_medio_id` e `ano_escolar_medio` compatíveis com o curso médio. |
 | Superior | `curso_superior_id`; o backend inicia o vínculo superior no começo do curso conforme as regras do domínio. |
 
-Para estudantes escolares, o BI do responsável também é parte das validações de cadastro. Após a criação, o vínculo com a academia nasce ativo; alterações posteriores de status devem usar os endpoints específicos de matrícula, interrupção, trancamento, desvinculação ou revinculação.
+Para estudantes escolares, o BI do encarregado de educação também é parte das validações de cadastro. Após a criação, o vínculo com a academia nasce ativo; alterações posteriores de status devem usar os endpoints específicos de matrícula, interrupção, trancamento, desvinculação ou revinculação.
 
 **Por que estudantes vêm depois da estrutura curricular?**
 

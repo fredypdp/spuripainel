@@ -37,7 +37,7 @@ interface Estudante {
   curso_medio_id?: string;
   curso_superior_id?: string;
   bilhete_identidade?: string;
-  bilhete_identidade_responsavel?: string;
+  bilhete_identidade_encarregado?: string;
   total_notas?: number;
   total_faltas?: number;
 }
@@ -177,7 +177,7 @@ const camposDocumentaisObrigatorios = (payload: Record<string, any>) => {
     return campos;
   }
 
-  campos.push(payload.bilhete_identidade ? "bi_estudante" : "cedula_estudante", "bi_responsavel");
+  campos.push(payload.bilhete_identidade ? "bi_estudante" : "cedula_estudante", "bi_encarregado");
   if (payload.ano_escolar_fundamental === "7_ano_fundamental") campos.push("certificado_6_ano_fundamental");
   else if (payload.ano_escolar_medio === "1_ano_medio") campos.push("certificado_9_ano_fundamental");
   else if (anoAcademico && anoAcademico !== "1_ano_fundamental" && anoAnteriorAcademico(anoAcademico)) campos.push("declaracao");
@@ -1029,7 +1029,7 @@ export default function PageContent() {
 
     const bilhetesUsadosCadastro = new Set<string>(estudantes.flatMap(e => [
       e.bilhete_identidade,
-      e.bilhete_identidade_responsavel,
+      e.bilhete_identidade_encarregado,
     ]).filter(Boolean).map(bi => String(bi).trim().toLowerCase()));
     const telefonesUsadosCadastro = new Set<string>();
 
@@ -1098,8 +1098,8 @@ export default function PageContent() {
       payload.telefone = gerarTelefoneAngola(telefonesUsadosCadastro);
 
       if (!payload.ano_superior) {
-        payload.bilhete_identidade_responsavel = gerarBilheteIdentidade(bilhetesUsadosCadastro);
-        payload.telefone_responsavel = gerarTelefoneAngola(telefonesUsadosCadastro);
+        payload.bilhete_identidade_encarregado = gerarBilheteIdentidade(bilhetesUsadosCadastro);
+        payload.telefone_encarregado = gerarTelefoneAngola(telefonesUsadosCadastro);
       }
 
       if (camposDocumentaisObrigatorios(payload).includes("declaracao")) {

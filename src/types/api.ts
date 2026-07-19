@@ -140,11 +140,11 @@ export interface CriarEstudanteRequest {
   data_nascimento: ApiDate;
   email?: string;
   telefone?: string;
-  telefone_responsavel?: string;
-  /** Não pode ser igual ao BI do responsável (trim + case-insensitive). */
+  telefone_encarregado?: string;
+  /** Não pode ser igual ao BI do encarregado de educação (trim + case-insensitive). */
   bilhete_identidade?: string;
   /** Não pode ser igual ao BI do estudante (trim + case-insensitive). */
-  bilhete_identidade_responsavel?: string;
+  bilhete_identidade_encarregado?: string;
   ano_escolar_fundamental?: string | null;
   ano_escolar_medio?: string | null;
   curso_medio_id?: string | null;
@@ -153,7 +153,7 @@ export interface CriarEstudanteRequest {
   /** Obrigatório quando `declaracao` for enviada; deve ser o ano acadêmico imediatamente anterior. */
   declaracao_ano_academico?: string;
   bi_estudante?: File;
-  bi_responsavel?: File;
+  bi_encarregado?: File;
   cedula_estudante?: File;
   declaracao?: File;
   certificado_6_ano_fundamental?: File;
@@ -219,10 +219,10 @@ export interface CriarSolicitacaoMatriculaRequest {
   data_nascimento: ApiDate;
   email?: string;
   telefone?: string;
-  telefone_responsavel?: string;
+  telefone_encarregado?: string;
   /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
-  bilhete_identidade_responsavel?: string;
+  bilhete_identidade_encarregado?: string;
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   curso_medio_id?: string;
@@ -231,7 +231,7 @@ export interface CriarSolicitacaoMatriculaRequest {
   /** Obrigatório quando `declaracao` for enviada; deve ser o ano acadêmico imediatamente anterior. */
   declaracao_ano_academico?: string;
   bi_estudante?: File;
-  bi_responsavel?: File;
+  bi_encarregado?: File;
   cedula_estudante?: File;
   declaracao?: File;
   certificado_6_ano_fundamental?: File;
@@ -268,7 +268,7 @@ export interface SolicitacaoMatricula {
   email?: string;
   telefone?: string;
   bilhete_identidade?: string;
-  bilhete_identidade_responsavel?: string;
+  bilhete_identidade_encarregado?: string;
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
   curso_medio_id?: string;
@@ -441,10 +441,10 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   email?: string;
   telefone?: string;
-  telefone_responsavel?: string;
+  telefone_encarregado?: string;
   /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
-  bilhete_identidade_responsavel?: string;
+  bilhete_identidade_encarregado?: string;
   data_nascimento?: ApiDate;
 }
 
@@ -1081,12 +1081,12 @@ export interface EstudanteDetalhado {
   codigo_estudante: string;
   email?: string;
   telefone?: string;
-  telefone_responsavel?: string;
+  telefone_encarregado?: string;
   telefone_verificado: boolean;
-  telefone_responsavel_verificado: boolean;
+  telefone_encarregado_verificado: boolean;
   email_verificado: boolean;
   bilhete_identidade?: string;
-  bilhete_identidade_responsavel?: string;
+  bilhete_identidade_encarregado?: string;
   genero: Genero;
   data_nascimento: ApiDate;
   codigo_academia?: string;
