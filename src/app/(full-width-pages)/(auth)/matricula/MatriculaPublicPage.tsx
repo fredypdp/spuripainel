@@ -142,8 +142,8 @@ export default function MatriculaPublicPage() {
         if (!files.cedula_estudante) {
           docs.push({ key: "bi_estudante", label: "Cópia do BI do estudante", obrigatorio: temBilheteEstudante || !!files.bi_estudante });
         }
-        if (!files.bi_estudante) {
-          docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: !temBilheteEstudante });
+        if (!temBilheteEstudante) {
+          docs.push({ key: "cedula_estudante", label: "Cédula do estudante", obrigatorio: true });
         }
       }
     }
@@ -365,7 +365,7 @@ export default function MatriculaPublicPage() {
         ...files,
       };
       const res = await solicitacaoMatriculaService.criar(payload);
-      setSucesso(`Solicitação enviada com sucesso. Código: ${res.codigo_solicitacao}`);
+      setSucesso(res.codigo_solicitacao);
     } catch (err: any) {
       setErro(err?.message ?? "Não foi possível enviar a solicitação.");
     } finally {
@@ -535,23 +535,32 @@ export default function MatriculaPublicPage() {
               </div>
 
               <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Identificação do estudante</p>
-                {!estudantePrimeiroFundamental && (
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Identificação</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {!estudantePrimeiroFundamental ? (
+                    <div>
+                      <Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label>
+                      <Input
+                        placeholder="Ex: 123456789LA041"
+                        value={form.bilhete_identidade ?? ""}
+                        onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }}
+                        hint={estudanteEscolarSelecionado ? "Opcional para escola; se preencher o número, anexe também a cópia do BI abaixo." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."}
+                      />
+                    </div>
+                  ) : (
+                    <InfoCard title="Documento do estudante" lines={["Para o 1.º Ano Fundamental, pedimos apenas a cédula do estudante."]} />
+                  )}
                   <div>
-                    <Label>Bilhete de Identidade do estudante{estudanteSuperiorSelecionado ? " *" : " (opcional)"}</Label>
-                    <Input
-                      placeholder="Ex: 123456789LA041"
-                      value={form.bilhete_identidade ?? ""}
-                      onChange={(e) => { setBilheteIdentidade("bilhete_identidade", e.target.value); setFiles((prev) => ({ ...prev, cedula_estudante: undefined })); }}
-                      hint={estudanteEscolarSelecionado ? "Opcional para escola; se preencher o número, anexe também a cópia do BI logo abaixo." : "Obrigatório no ensino superior. Use 9 números, 2 letras e 3 números."}
-                    />
+                    <Label>Bilhete de Identidade do encarregado de educação</Label>
+                    <Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_encarregado ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_encarregado", e.target.value)} hint="Obrigatório fora do ensino superior." />
                   </div>
-                )}
-                {estudantePrimeiroFundamental && (
-                  <InfoCard title="Documento do estudante" lines={["Para o 1.º Ano Fundamental, pedimos apenas a cédula do estudante."]} />
-                )}
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Anexar documentos</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {documentosIdentificacaoEstudante.map((doc) => (
+                  {[...documentosIdentificacaoEstudante, ...documentosIdentificacaoEncarregado].map((doc) => (
                     <DocumentUpload
                       key={doc.key}
                       id={`matricula-${doc.key}`}
@@ -578,28 +587,6 @@ export default function MatriculaPublicPage() {
                   )}
                 </div>
               </div>
-
-              <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Identificação do encarregado de educação</p>
-                <div>
-                  <Label>Bilhete de Identidade do encarregado de educação</Label>
-                  <Input placeholder="Ex: 123456789LA041" value={form.bilhete_identidade_encarregado ?? ""} onChange={(e) => setBilheteIdentidade("bilhete_identidade_encarregado", e.target.value)} hint="Obrigatório fora do ensino superior." />
-                </div>
-                {documentosIdentificacaoEncarregado.length > 0 && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {documentosIdentificacaoEncarregado.map((doc) => (
-                      <DocumentUpload
-                        key={doc.key}
-                        id={`matricula-${doc.key}`}
-                        label={doc.label}
-                        required={doc.obrigatorio}
-                        file={files[doc.key]}
-                        onChange={(file, error) => { if (error) setErro(error); else setErro(""); setDocumentoFile(doc.key, file); }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
             </section>
           )}
 
@@ -619,7 +606,16 @@ export default function MatriculaPublicPage() {
               <StepTitle title="5. Solicitar matrícula" description="Revise o resumo geral e envie a solicitação." />
               <div className="grid gap-2 sm:grid-cols-2">{resumo.map(([label, value]) => <div key={label} className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>)}</div>
               <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800"><h3 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">Documentos anexados</h3><div className="grid gap-1 text-sm sm:grid-cols-2">{documentos.map((doc) => <p key={doc.key} className="text-gray-600 dark:text-gray-300"><b>{doc.label}:</b> {files[doc.key] ? "✓ anexado" : doc.obrigatorio ? "Ainda falta" : "Não anexado"}</p>)}</div></div>
-              {sucesso && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-500/10 dark:text-green-300">{sucesso}</p>}
+              {sucesso && (
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(sucesso)}
+                  className="w-full rounded-lg bg-green-50 p-3 text-left text-sm text-green-700 transition hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500/30 dark:bg-green-500/10 dark:text-green-300 dark:hover:bg-green-500/15"
+                  title="Clique para copiar o código da solicitação"
+                >
+                  Solicitação enviada com sucesso. Código: <b>{sucesso}</b> <span className="text-xs">(clique para copiar)</span>
+                </button>
+              )}
             </section>
           )}
         </div>
