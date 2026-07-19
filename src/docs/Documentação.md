@@ -92,7 +92,7 @@ type Genero = 'masculino' | 'feminino'
 type TipoNota = 'escolar' | 'superior'
 type JobStatus = 'pending' | 'processing' | 'done' | 'failed'
 type JobEventType = 'job_enqueued' | 'job_progress' | 'job_done' | 'job_failed'
-type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada'
+type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada' | 'cancelada'
 ```
 
 **Períodos de nota:**
@@ -243,6 +243,7 @@ interface SolicitacaoMatriculaDTO {
   ano_superior?: string
   curso_superior_id?: string
   status: SolicitacaoMatriculaStatus
+  solicitacoes_semelhantes: string[] // calculado pelo backend; somente leitura
   motivo_reprovacao?: string
   documentos: Record<string, SolicitacaoMatriculaDocumentoDTO>
   codigo_estudante_gerado?: string
@@ -1957,7 +1958,7 @@ O registro e a atualização de faltas validam a data no backend usando o tipo i
 
 #### POST `/academia/anos-letivos/finalizar`
 
-A academia autenticada finaliza o ano letivo ativo no próprio escopo e, na mesma operação, avança automaticamente para o ano letivo seguinte. O cliente não envia `academia_id`; o backend obtém a academia pelo token, normaliza `type`, valida que o `ano_letivo` informado, quando presente, corresponde ao ano letivo ativo da academia, valida o formato `YYYY_YYYY` com segundo ano igual ao primeiro + 1, valida a janela mensal de finalização pelo `periodo` fixo derivado do tipo e grava um evento auditável `AnoLetivoAcademiaFinalizado`. A janela mensal é inclusiva no mês final e exclusiva no mês inicial: o mês atual precisa ser maior ou igual ao mês de fim do período letivo e menor que o mês de início do período letivo. Exemplo: se `periodo=10_07`, a finalização é permitida somente em julho, agosto e setembro; em outubro o próximo período já começou, e de novembro a junho o período vigente ainda não chegou ao mês de encerramento.
+A academia autenticada finaliza o ano letivo ativo no próprio escopo e, na mesma operação, avança automaticamente para o ano letivo seguinte. O cliente não envia `academia_id`; o backend obtém a academia pelo token, normaliza `type`, valida que o `ano_letivo` informado, quando presente, corresponde ao ano letivo ativo da academia, valida o formato `YYYY_YYYY` com segundo ano igual ao primeiro + 1, valida que o ano atual é exatamente o ano final desse `ano_letivo`, valida a janela mensal de finalização pelo `periodo` fixo derivado do tipo e grava um evento auditável `AnoLetivoAcademiaFinalizado`. As duas condições temporais precisam passar simultaneamente: para `ano_letivo=2025_2026`, a finalização só é aceita em 2026 e dentro da janela mensal do tipo. A janela mensal é inclusiva no mês final e exclusiva no mês inicial: o mês atual precisa ser maior ou igual ao mês de fim do período letivo e menor que o mês de início do período letivo. Exemplo: se `periodo=10_07`, a finalização de `2025_2026` é permitida somente em julho, agosto e setembro de 2026; em outubro o próximo período já começou, e de novembro a junho o período vigente ainda não chegou ao mês de encerramento.
 
 Request:
 
@@ -1983,7 +1984,7 @@ Response:
 }
 ```
 
-A operação é auditada por `(academia_id, type, ano_letivo_finalizado)` e avança a academia para o próximo `YYYY_YYYY`. Se, após esse avanço, todas as academias ativas do mesmo tipo estiverem no mesmo ano letivo, o backend atualiza automaticamente o ano letivo global daquele tipo para esse ano. Fora da janela mensal permitida, o backend retorna `400` e não grava novo evento.
+A operação é auditada por `(academia_id, type, ano_letivo_finalizado)` e avança a academia para o próximo `YYYY_YYYY`. Se, após esse avanço, todas as academias ativas do mesmo tipo estiverem no mesmo ano letivo, o backend atualiza automaticamente o ano letivo global daquele tipo para esse ano. Se o ano atual for diferente do ano final do `ano_letivo` ou se o mês estiver fora da janela mensal permitida, o backend retorna `400` com mensagem específica para a condição que falhou e não grava novo evento.
 
 #### GET `/academia/anos-letivos/finalizacoes`
 
@@ -2907,13 +2908,14 @@ Retorna as avaliações finais do estudante autenticado.
 
 ### Entidade `SolicitacaoMatricula`
 
-A entidade representa o pedido feito pelo estudante para se matricular numa academia. Ela possui código único de 11 caracteres (`codigo_solicitacao`), dados pessoais/académicos, mapa de documentos enviados, status (`pendente`, `aprovada`, `reprovada`) e campos de decisão (`codigo_estudante_gerado`, `motivo_reprovacao`, `aprovada_por`, `reprovada_por`). Cada documento enviado é salvo como objeto com `path`, `file_url` e `download_url`, permitindo que as rotas GET retornem tanto o caminho interno quanto as URLs do arquivo e de download.
+A entidade representa o pedido feito pelo estudante para se matricular numa academia. Ela possui código único de 11 caracteres (`codigo_solicitacao`), dados pessoais/académicos, mapa de documentos enviados, status (`pendente`, `aprovada`, `reprovada`, `cancelada`) e campos de decisão (`codigo_estudante_gerado`, `motivo_reprovacao`, `aprovada_por`, `reprovada_por`). Cada documento enviado é salvo como objeto com `path`, `file_url` e `download_url`, permitindo que as rotas GET retornem tanto o caminho interno quanto as URLs do arquivo e de download.
 
 Eventos do ledger:
 
 - `SolicitacaoMatriculaCriada`
 - `SolicitacaoMatriculaAprovada`
 - `SolicitacaoMatriculaReprovada`
+- `SolicitacaoMatriculaCancelada`
 
 ### Processo de negócio
 
@@ -2923,8 +2925,9 @@ Eventos do ledger:
 4. Antes de criar ou aprovar a solicitação escolar, o handler confirma que o BI do responsável não pertence como BI principal a outro estudante escolar/fundamental/médio já existente.
 5. Os documentos são enviados ao storage em `{codigo_academia}/matriculas/matricula_{codigo_solicitacao}/`.
 6. Para cada PDF, o storage devolve o caminho interno, a URL do arquivo (`file_url`) e a URL de download (`download_url`).
-7. Somente após todos os uploads obrigatórios concluírem com sucesso, o aggregate `SolicitacaoMatricula` grava o evento de criação no ledger com os metadados documentais.
-8. Se validação ou upload falhar, nenhum evento `SolicitacaoMatriculaCriada` é gravado; se ocorrer falha posterior após upload parcial, o backend tenta remover o diretório da solicitação.
+7. Antes de gravar o evento, o backend busca solicitações `pendente` da mesma academia e calcula `solicitacoes_semelhantes` por melhor esforço: nome normalizado + data de nascimento + gênero, ou BI do estudante normalizado, ou BI do responsável normalizado. O campo é somente leitura, nunca é aceito no payload público e não bloqueia a criação.
+8. Somente após todos os uploads obrigatórios concluírem com sucesso, o aggregate `SolicitacaoMatricula` grava o evento de criação no ledger com os metadados documentais e `solicitacoes_semelhantes`.
+9. Se validação ou upload falhar, nenhum evento `SolicitacaoMatriculaCriada` é gravado; se ocorrer falha posterior após upload parcial, o backend tenta remover o diretório da solicitação.
 9. A academia lista/consulta solicitações e aprova ou reprova.
 10. Na aprovação, o sistema reutiliza o aggregate `Estudante`, revalida os documentos e conflitos atuais, e emite `EstudanteCriadoComVinculo`.
 11. Na reprovação, grava o evento de reprovação e remove o diretório dos documentos.
@@ -2966,7 +2969,8 @@ Cria uma solicitação pública de matrícula via `multipart/form-data`. O backe
   "message": "solicitação de matrícula criada com sucesso",
   "codigo_solicitacao": "A3F9K2BPQ7X",
   "codigo_academia": "LDA20261",
-  "status": "pendente"
+  "status": "pendente",
+  "solicitacoes_semelhantes": []
 }
 ```
 
@@ -2978,7 +2982,7 @@ Lista solicitações da academia autenticada em ordem decrescente de criação. 
 
 **Query params**:
 
-- `status`: filtro repetível por status (`pendente`, `aprovada`, `reprovada`). Ex.: `?status=pendente&status=reprovada`.
+- `status`: filtro repetível por status (`pendente`, `aprovada`, `reprovada`, `cancelada`). Ex.: `?status=pendente&status=reprovada`.
 - `limit`: quantidade máxima de registros. Padrão `50`, mínimo `1`, máximo `1000`.
 - `offset`: deslocamento de paginação. Padrão `0`.
 
@@ -3066,6 +3070,8 @@ Aprova uma solicitação pendente e cria automaticamente o estudante com o aggre
 ```
 
 ### PUT /academia/solicitacao-matricula/:codigo/reprovar
+
+`cancelada` é terminal e distinta de `reprovada`: indica cancelamento automático por matrícula aprovada em outra instituição, não rejeição documental. Ao aprovar uma solicitação com `bilhete_identidade` do próprio estudante preenchido, o backend cancela em cascata as demais solicitações `pendente` com o mesmo BI em qualquer academia, gravando `SolicitacaoMatriculaCancelada` com motivo `matricula aprovada em outra instituicao`; sem BI do estudante, não há cancelamento automático. Falhas parciais no cancelamento em cascata são logadas e não revertem a aprovação nem a criação do estudante. O mecanismo é de melhor esforço e não substitui um sistema de identidade única de estudantes.
 
 Reprova uma solicitação pendente, grava `SolicitacaoMatriculaReprovada` e remove o diretório de documentos.
 
@@ -4517,7 +4523,7 @@ A regra usa `formula` como texto declarativo. O parser valida referências, oper
 
 No Superior, o backend preenche o período no momento do cálculo usando a matéria/escopo avaliado (`periodo` da matéria e `semestre_atual` do estudante). Assim, a mesma regra superior pode calcular as matérias do semestre atual sem expor período explícito no payload da regra.
 
-Se a fórmula exigir nota que ainda não existe para determinada matéria, categoria e período, aquela execução não fecha a avaliação naquele momento; o lançamento de novas notas tentará novamente. A fórmula sempre lê notas do ano letivo atual, da mesma academia, do mesmo estudante, da matéria avaliada e de categorias extraídas da própria fórmula.
+Quando a nota recém-lançada dispara a avaliação final para uma matéria, qualquer referência da fórmula dessa mesma matéria que ainda não tenha nota registrada é calculada como `0` naquele momento. A substituição por zero fica restrita à matéria que recebeu a nota-gatilho (`nota_despertadora` no Superior ou o gatilho escolar fixo equivalente) e é registrada no snapshot de `resultados_materias.notas_substituidas_zero`; matérias que ainda não receberam o próprio gatilho não são forçadas a avaliar. A fórmula sempre lê notas do ano letivo atual, da mesma academia, do mesmo estudante, da matéria avaliada e de categorias extraídas da própria fórmula.
 
 #### 16.1.4 Execução automática por lançamento de notas
 
@@ -4526,7 +4532,7 @@ Se a fórmula exigir nota que ainda não existe para determinada matéria, categ
 3. Para Superior, o backend transforma `semestre_atual` em `[n]_semestre` e valida esse período contra o curso.
 4. O backend busca regras aplicáveis à academia, ao `nivel` e ao escopo acadêmico atual. Para `fundamental` e `medio`, essa busca é sempre resolvida pelo catálogo fixo do sistema; se a categoria lançada não despertar uma regra fixa, a execução termina sem consultar regras configuráveis/legadas. Para `superior`, a busca usa as regras configuráveis ativas da academia.
 5. A execução automática da raiz continua quando a categoria da nota registrada é a `nota_despertadora` da raiz. No padrão escolar fixo, isso significa `prova_trimestral` no 3º trimestre para anos regulares, `exame_final` para anos com exame e `nota_pap` no `4_ano_medio` técnico.
-6. Descendentes só são consideradas se a etapa anterior reprovou. A descendente escolar fixa `exame_recurso` também pode ser despertada diretamente por lançamento de `exame_recurso`, mas somente para matérias reprovadas na avaliação final anterior e quando todas as notas de recurso exigidas estiverem completas.
+6. Descendentes só são consideradas se a etapa anterior reprovou. A descendente escolar fixa `exame_recurso` também pode ser despertada diretamente por lançamento de `exame_recurso`, mas somente para matérias reprovadas na avaliação final anterior; notas ausentes exigidas pela fórmula dessa etapa e dessa matéria também são substituídas por zero no snapshot da avaliação.
 7. Para cada regra executável, o backend resolve as matérias aplicáveis e calcula `nota_final` individual por matéria.
 8. O resultado de cada matéria compara `nota_final` com `nota_minima_aprovacao`.
 10. A decisão geral é derivada dos resultados por matéria e, no Superior, das condições de pendência.
@@ -4592,7 +4598,7 @@ Tabela completa dos modelos fixos por ano escolar:
 
 Observações importantes que vêm diretamente do comportamento fixo do backend:
 
-- Nos anos sem exame, a avaliação final só fecha quando existirem as notas exigidas de professor e prova trimestral nos três trimestres de cada matéria avaliada.
+- Nos anos sem exame, a `prova_trimestral` do 3º trimestre dispara a avaliação da matéria; se notas exigidas de professor ou prova trimestral de trimestres anteriores estiverem ausentes para essa mesma matéria, elas entram como `0` e são listadas em `notas_substituidas_zero`.
 - Nos anos com exame (`6_ano_fundamental`, `9_ano_fundamental` e `3_ano_medio`), a etapa raiz usa `exame_final` no lugar da prova trimestral do 3º trimestre. A prova trimestral do 3º trimestre pode existir como categoria, mas não entra nessa fórmula com exame.
 - O recurso existe somente para `6_ano_fundamental`, `9_ano_fundamental` e `3_ano_medio`, depende de reprovação anterior na etapa `normal` e recalcula somente as matérias reprovadas. Se a matéria já foi aprovada na etapa `normal`, lançar `exame_recurso` para ela é inválido.
 - O `4_ano_medio` só tem modelo fixo de avaliação final quando o curso médio é técnico; nessa situação a etapa final é a Prova de Aptidão Profissional (`nota_pap`) e não há avaliação regular por trimestres, exame final nem recurso.
@@ -4653,7 +4659,7 @@ Pontos importantes:
 
 #### 16.1.10 Resultados por matéria, eventos, projeções e auditoria
 
-Cada avaliação final gravada deve ser explicada pelos itens de `resultados_materias`, não por média global única. Cada item contém, no mínimo, `materia_id`, `nota_final`, `aprovado`, `type`, `formula_snapshot`, `regra_avaliacao_final_id` e `pendencia_permitida`. A projeção também mantém `nota_final` agregada como média dos itens calculados para compatibilidade/consulta resumida, mas a decisão funcional é por matéria.
+Cada avaliação final gravada deve ser explicada pelos itens de `resultados_materias`, não por média global única. Cada item contém, no mínimo, `materia_id`, `nota_final`, `aprovado`, `type`, `formula_snapshot`, `regra_avaliacao_final_id`, `pendencia_permitida` e, quando aplicável, `notas_substituidas_zero` com as referências calculadas como zero por ausência de lançamento no momento do gatilho. A projeção também mantém `nota_final` agregada como média dos itens calculados para compatibilidade/consulta resumida, mas a decisão funcional é por matéria.
 
 Eventos `AvaliacaoFinalEscolar` e `AvaliacaoFinalSuperior` preservam snapshots de regra, fórmula, notas calculadas, progressão e pendências geradas. Alterações posteriores de regra, matéria ou nota não reescrevem silenciosamente decisões já registradas; ajustes exigem fluxo operacional próprio/rebuild controlado.
 
@@ -4702,6 +4708,13 @@ Devem falhar com erro de validação ou bloqueio funcional:
 
 **Escopo por academia:** usuário autenticado como academia só consulta/gerencia dados da própria academia. Admin pode consultar de forma ampla com filtros.
 ### Regras de Negócio — Avaliação Final
+
+
+#### 16.1.15 Decisão futura para correção de notas após avaliação final
+
+Na versão atual do sistema, notas permanecem imutáveis: elas podem ser criadas e consultadas, mas não há endpoint público, administrativo, batch ou assíncrono para editar, eliminar, restaurar ou substituir notas já registradas. Portanto, esta seção é uma decisão de produto para uma funcionalidade futura de correção de notas; ela não descreve um comportamento já implementado.
+
+Quando uma funcionalidade de correção/edição de notas for especificada no futuro, ela deve verificar se o ano letivo ativo da academia ainda é o mesmo ano letivo da nota corrigida e da avaliação final já registrada para aquele estudante, matéria e escopo. Se for o mesmo ano letivo, a avaliação daquela matéria deve ser recalculada com a nota corrigida, e o resultado deve ser persistido como um novo evento auditável de reavaliação, distinto do evento original de avaliação final. O evento original deve permanecer preservado para auditoria. Se o ano letivo ativo já tiver avançado, a reavaliação automática não deve ocorrer; esse cenário deve ser definido junto com a própria funcionalidade de edição de notas. Qualquer implementação futura de edição/correção de notas deve reutilizar esta regra em vez de introduzir comportamento divergente sem revisão de produto.
 
 ### 16.2 Regras de Avaliação Final
 
@@ -4755,7 +4768,8 @@ Não existe rota pública/registrada para executar avaliação final manualmente
 - Se a regra raiz aplicável não tiver `nota_despertadora`, ou se a categoria da nota não corresponder ao código configurado, nenhuma avaliação final automática de raiz é registrada naquele lançamento. Exceção escolar: `exame_recurso` pode despertar a etapa fixa de recurso quando houver reprovação anterior.
 - Se a cadeia aplicável não tiver exatamente uma raiz, o backend retorna erro para evitar ambiguidade.
 - O backend evita duplicidade por `codigo_estudante`, `codigo_academia`, `ano_lectivo`, `tipo_ensino`, `ano_academico_atual` e `type`.
-- Se alguma nota exigida pela fórmula ainda estiver ausente, aquela regra é ignorada naquele momento e poderá ser calculada quando novas notas forem registradas.
+- Quando a categoria lançada é o gatilho da regra executada, notas exigidas pela fórmula e ausentes para a mesma matéria são substituídas por `0`, registradas em `resultados_materias.notas_substituidas_zero` e a avaliação não fica pendente indefinidamente.
+- O gatilho da raiz executa somente a raiz; regras descendentes aguardam o próprio gatilho aplicável (por exemplo, `exame_recurso` no escolar fixo) e só executam se a etapa anterior já registrou reprovação para a matéria.
 - Quando uma regra é executada, o backend calcula `nota_final`, define `aprovado = nota_final >= nota_minima_aprovacao`, calcula o próximo ano acadêmico e persiste o evento com snapshot da regra.
 - O registro de nota retorna o campo `avaliacoes_finais_automaticas` com os resultados automáticos disparados naquele request. Para fundamental aprovado com próximo ano global ainda não ofertado pela academia, o item inclui `motivo_progressao = "academia_sem_oferta_do_proximo_ano_academico_fundamental"` e `sem_oferta_do_proximo_ano_academico_na_academia = true`; o estudante permanece em andamento no próximo ano global e não recebe turma automática.
 
