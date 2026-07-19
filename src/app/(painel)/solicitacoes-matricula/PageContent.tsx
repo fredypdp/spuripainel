@@ -6,8 +6,20 @@ import { tokenStorage } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
 import type { SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect, { type SearchableSelectOption } from "@/components/form/SearchableSelect";
 
-const statusOptions: Array<SolicitacaoMatriculaStatus | ""> = ["", "pendente", "aprovada", "reprovada", "cancelada"];
+const statusOptions: Array<SearchableSelectOption<SolicitacaoMatriculaStatus | "">> = [
+  { value: "", label: "todas" },
+  { value: "pendente", label: "pendente" },
+  { value: "aprovada", label: "aprovada" },
+  { value: "reprovada", label: "reprovada" },
+  { value: "cancelada", label: "cancelada" },
+];
+const ordemOptions: Array<SearchableSelectOption<"recentes" | "antigas">> = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "antigas", label: "Mais antigas" },
+];
+const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
 const docLabels: Record<string, string> = {
   bi_estudante: "BI do estudante",
   bi_encarregado: "BI do encarregado de educação",
@@ -203,9 +215,14 @@ export default function PageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Solicitações de matrícula</h1>
           <p className="text-sm text-gray-500">Entre em cada ano acadêmico para ver as solicitações e abrir os detalhes completos.</p>
         </div>
-        <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
-          {statusOptions.map((s) => <option key={s || "todas"} value={s}>{s || "todas"}</option>)}
-        </select>
+        <div className="w-44">
+          <SearchableSelect
+            value={status}
+            options={statusOptions}
+            onChange={(value) => setStatus(value as SolicitacaoMatriculaStatus | "")}
+            isSearchable={false}
+          />
+        </div>
       </div>
 
       {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{erro}</p>}
@@ -228,10 +245,17 @@ export default function PageContent() {
       {anoSelecionado && !solicitacao && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <button type="button" onClick={() => setAnoSelecionado(null)} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400"><Icon icon="mdi:arrow-left" />Anos acadêmicos</button>
+            <button type="button" onClick={() => setAnoSelecionado(null)} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar para anos acadêmicos</button>
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{anoLabel(anoSelecionado)}</h2>
-              <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option></select>
+              <div className="w-44">
+                <SearchableSelect
+                  value={ordem}
+                  options={ordemOptions}
+                  onChange={(value) => setOrdem(value as "recentes" | "antigas")}
+                  isSearchable={false}
+                />
+              </div>
             </div>
           </div>
           {solicitacoesDoAno.length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhuma solicitação neste ano acadêmico.</p> : (
@@ -249,7 +273,7 @@ export default function PageContent() {
 
       {solicitacao && (
         <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-          <button type="button" onClick={() => setSolicitacaoSelecionada(null)} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400"><Icon icon="mdi:arrow-left" />Solicitações de {anoLabel(anoSelecionado ?? undefined)}</button>
+          <button type="button" onClick={() => setSolicitacaoSelecionada(null)} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar para solicitações de {anoLabel(anoSelecionado ?? undefined)}</button>
           <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{solicitacao.nome}</h2><p className="text-sm text-gray-500">{solicitacao.codigo_solicitacao} · {solicitacao.codigo_academia}{solicitacao.academia_nome ? ` · ${solicitacao.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{solicitacao.status}</span></div>
           <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
             <Info label="Ano acadêmico" value={anoLabel(anoValue(solicitacao))} />
