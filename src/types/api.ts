@@ -69,7 +69,7 @@ export type Turno = 'manha' | 'tarde' | 'noite';
 export type Genero      = 'masculino' | 'feminino';
 
 export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
-export type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada';
+export type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada' | 'cancelada';
 export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
 export type JobEventType = 'job_enqueued' | 'job_progress' | 'job_done' | 'job_failed';
 /** Date-only ISO string (YYYY-MM-DD), correspondente ao tipo `date` na documentação da API. */
@@ -278,6 +278,8 @@ export interface SolicitacaoMatricula {
   curso_superior_nome?: string;
   documentos?: Record<string, SolicitacaoMatriculaDocumento>;
   status: SolicitacaoMatriculaStatus;
+  /** Códigos de outras solicitações mapeadas pelo backend como semelhantes a esta. */
+  solicitacoes_semelhantes: string[];
   codigo_estudante_gerado?: string;
   motivo_reprovacao?: string;
   aprovada_por?: string;

@@ -7,7 +7,7 @@ import { useUserType } from "@/hooks/useRoutePermission";
 import type { SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
-const statusOptions: Array<SolicitacaoMatriculaStatus | ""> = ["", "pendente", "aprovada", "reprovada"];
+const statusOptions: Array<SolicitacaoMatriculaStatus | ""> = ["", "pendente", "aprovada", "reprovada", "cancelada"];
 const docLabels: Record<string, string> = {
   bi_estudante: "BI do estudante",
   bi_responsavel: "BI do responsável",
@@ -79,6 +79,7 @@ export default function PageContent() {
   const [documentoBaixando, setDocumentoBaixando] = useState<string | null>(null);
   const [documentoAbrindo, setDocumentoAbrindo] = useState<string | null>(null);
   const [documentoAberto, setDocumentoAberto] = useState<{ titulo: string; url: string } | null>(null);
+  const [solicitacaoSemelhanteAbrindo, setSolicitacaoSemelhanteAbrindo] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -115,8 +116,8 @@ export default function PageContent() {
   }, [items, anoSelecionado, ordem]);
 
   const solicitacao = useMemo(
-    () => solicitacoesDoAno.find((item) => item.codigo_solicitacao === solicitacaoSelecionada) ?? null,
-    [solicitacoesDoAno, solicitacaoSelecionada]
+    () => items.find((item) => item.codigo_solicitacao === solicitacaoSelecionada) ?? null,
+    [items, solicitacaoSelecionada]
   );
 
   async function aprovar(codigo: string) { await academiaService.aprovarSolicitacaoMatricula(codigo); await carregar(); }
@@ -150,6 +151,42 @@ export default function PageContent() {
       setDocumentoAbrindo(null);
     }
   }
+
+  async function abrirSolicitacaoSemelhante(codigo: string) {
+    setSolicitacaoSemelhanteAbrindo(codigo);
+    setErro("");
+    try {
+      let encontrada = items.find((item) => item.codigo_solicitacao === codigo);
+
+      if (!encontrada) {
+        const svc = isAdmin ? adminService.listarSolicitacoesMatricula : academiaService.listarSolicitacoesMatricula;
+        const response = await svc({ limit: 1000 });
+        const novasSolicitacoes = response.solicitacoes ?? [];
+        setItems(novasSolicitacoes);
+        encontrada = novasSolicitacoes.find((item) => item.codigo_solicitacao === codigo);
+      }
+
+      if (!encontrada && !isAdmin) {
+        const response = await academiaService.consultarSolicitacaoMatricula(codigo);
+        encontrada = response.solicitacao;
+        setItems((atuais) => atuais.some((item) => item.codigo_solicitacao === codigo) ? atuais : [...atuais, encontrada!]);
+      }
+
+      if (!encontrada) {
+        setErro("Não foi possível abrir a solicitação semelhante. Ela pode estar fora do seu escopo de acesso.");
+        return;
+      }
+
+      setAnoSelecionado(anoValue(encontrada));
+      setSolicitacaoSelecionada(encontrada.codigo_solicitacao);
+      setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; });
+    } catch (e: any) {
+      setErro(e?.message ?? "Não foi possível abrir a solicitação semelhante.");
+    } finally {
+      setSolicitacaoSemelhanteAbrindo(null);
+    }
+  }
+
   async function reprovar(codigo: string) {
     const m = motivo[codigo]?.trim();
     if (!m) return alert("Informe o motivo da reprovação.");
@@ -225,6 +262,27 @@ export default function PageContent() {
             <Info label="BI responsável" value={solicitacao.bilhete_identidade_responsavel || "-"} />
             <Info label="Criada em" value={formatDateTime(solicitacao.created_at)} />
           </div>
+          {solicitacao.solicitacoes_semelhantes?.length > 0 && (
+            <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+              <h4 className="mb-2 text-xs font-semibold uppercase text-amber-700 dark:text-amber-300">Solicitações semelhantes</h4>
+              <p className="mb-2 text-xs text-amber-700/80 dark:text-amber-200/80">O backend identificou outras solicitações possivelmente relacionadas a este estudante.</p>
+              <div className="flex flex-wrap gap-2">
+                {solicitacao.solicitacoes_semelhantes.map((codigo) => (
+                  <button
+                    key={codigo}
+                    type="button"
+                    onClick={() => abrirSolicitacaoSemelhante(codigo)}
+                    disabled={solicitacaoSemelhanteAbrindo === codigo}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 disabled:cursor-wait disabled:opacity-70 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200 dark:hover:bg-amber-950"
+                    title={`Abrir solicitação ${codigo}`}
+                  >
+                    <Icon icon={solicitacaoSemelhanteAbrindo === codigo ? "mdi:loading" : "mdi:open-in-new"} className={solicitacaoSemelhanteAbrindo === codigo ? "animate-spin" : undefined} />
+                    {codigo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><p className="mb-2 text-xs text-gray-500">Leitura e download são feitos pelas rotas autenticadas do backend, sem abrir links privados do storage.</p><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const loadingKey = `${solicitacao.codigo_solicitacao}:${key}`; const disabled = (!value?.path && !value?.download_url); return <div key={key} className="inline-flex overflow-hidden rounded-full border border-gray-200 text-xs dark:border-gray-700"><button type="button" disabled={disabled || documentoAbrindo === loadingKey} onClick={() => abrirDocumento(solicitacao.codigo_solicitacao, key, value?.download_url)} title={value?.path || undefined} className="px-3 py-1 text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-brand-300">{documentoAbrindo === loadingKey ? "Abrindo..." : docLabels[key] || key}</button><button type="button" disabled={disabled || documentoBaixando === loadingKey} onClick={() => baixarDocumento(solicitacao.codigo_solicitacao, key, value?.file_url, value?.download_url)} title={`Baixar ${documentoNome(key, value?.file_url)}`} className="border-l border-gray-200 px-2 py-1 text-gray-500 hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-gray-300"><Icon icon={documentoBaixando === loadingKey ? "mdi:loading" : "mdi:download"} className={documentoBaixando === loadingKey ? "animate-spin" : undefined} /></button></div>; })}</div>{documentoAberto && <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"><div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700"><span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90"><Icon icon="mdi:file-eye-outline" />{documentoAberto.titulo}</span><button type="button" onClick={() => setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; })} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Fechar</button></div><iframe title={`Pré-visualização de ${documentoAberto.titulo}`} src={documentoAberto.url} className="h-[70vh] w-full bg-white" /></div>}</div>}
           {!isAdmin && solicitacao.status === "pendente" && <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button onClick={() => aprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white">Aprovar e criar estudante</button><input placeholder="Motivo da reprovação" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onChange={(e) => setMotivo((p) => ({ ...p, [solicitacao.codigo_solicitacao]: e.target.value }))} /><button onClick={() => reprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white">Reprovar</button></div>}
         </section>
