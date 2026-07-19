@@ -215,7 +215,7 @@ export default function PageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Solicitações de matrícula</h1>
           <p className="text-sm text-gray-500">Entre em cada ano acadêmico para ver as solicitações e abrir os detalhes completos.</p>
         </div>
-        <div className="w-44">
+        <div className="w-44 capitalize">
           <SearchableSelect
             value={status}
             options={statusOptions}
