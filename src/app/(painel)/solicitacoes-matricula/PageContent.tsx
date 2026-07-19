@@ -6,8 +6,19 @@ import { tokenStorage } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
 import type { SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect, { type SearchableSelectOption } from "@/components/form/SearchableSelect";
 
-const statusOptions: Array<SolicitacaoMatriculaStatus | ""> = ["", "pendente", "aprovada", "reprovada", "cancelada"];
+const statusOptions: Array<SearchableSelectOption<SolicitacaoMatriculaStatus | "">> = [
+  { value: "", label: "todas" },
+  { value: "pendente", label: "pendente" },
+  { value: "aprovada", label: "aprovada" },
+  { value: "reprovada", label: "reprovada" },
+  { value: "cancelada", label: "cancelada" },
+];
+const ordemOptions: Array<SearchableSelectOption<"recentes" | "antigas">> = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "antigas", label: "Mais antigas" },
+];
 const docLabels: Record<string, string> = {
   bi_estudante: "BI do estudante",
   bi_encarregado: "BI do encarregado de educação",
@@ -203,9 +214,14 @@ export default function PageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Solicitações de matrícula</h1>
           <p className="text-sm text-gray-500">Entre em cada ano acadêmico para ver as solicitações e abrir os detalhes completos.</p>
         </div>
-        <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
-          {statusOptions.map((s) => <option key={s || "todas"} value={s}>{s || "todas"}</option>)}
-        </select>
+        <div className="w-44">
+          <SearchableSelect
+            value={status}
+            options={statusOptions}
+            onChange={(value) => setStatus(value as SolicitacaoMatriculaStatus | "")}
+            isSearchable={false}
+          />
+        </div>
       </div>
 
       {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{erro}</p>}
@@ -231,7 +247,14 @@ export default function PageContent() {
             <button type="button" onClick={() => setAnoSelecionado(null)} className="inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400"><Icon icon="mdi:arrow-left" />Anos acadêmicos</button>
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{anoLabel(anoSelecionado)}</h2>
-              <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option></select>
+              <div className="w-44">
+                <SearchableSelect
+                  value={ordem}
+                  options={ordemOptions}
+                  onChange={(value) => setOrdem(value as "recentes" | "antigas")}
+                  isSearchable={false}
+                />
+              </div>
             </div>
           </div>
           {solicitacoesDoAno.length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhuma solicitação neste ano acadêmico.</p> : (
