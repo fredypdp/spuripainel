@@ -319,7 +319,7 @@ export default function AvaliacoesFinaisAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 50 });
+    carregarEstudantes({ token, limit: 50, offset: 0 });
     buscarAnoLetivo(token);
     // Primeiro carrega sem filtro para descobrir anos disponíveis
     carregarAvaliacoes({ token });

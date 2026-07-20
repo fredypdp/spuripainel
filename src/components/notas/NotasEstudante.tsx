@@ -243,7 +243,7 @@ export default function NotasEstudante() {
   useEffect(() => {
     if (codigoEstudante) {
       carregarNotas(codigoEstudante, token);
-      carregarAcademias({ token, limit: 50 });
+      carregarAcademias({ token, limit: 50, offset: 0 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoEstudante]);

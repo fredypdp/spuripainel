@@ -376,7 +376,7 @@ export default function AvaliacoesFinaisAdmin() {
   const [loadingAnosAcad, setLoadingAnosAcad]    = useState(false);
 
   useEffect(() => {
-    carregarAcads({ token });
+    carregarAcads({ token, limit: ITEMS_POR_PAGINA, offset: 0 });
     // Descobrir anos letivos globais
     listarPaginaAvaliacoes({ token }).then(res => {
       const anos = Array.from(new Set((res?.avaliacoes ?? []).map(a => a.ano_lectivo).filter(Boolean))).sort();

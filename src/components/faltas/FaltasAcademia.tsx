@@ -417,7 +417,7 @@ export default function FaltasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 50 });
+    carregarEstudantes({ token, limit: 50, offset: 0 });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);

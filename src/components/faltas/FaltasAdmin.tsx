@@ -274,7 +274,7 @@ export default function FaltasAdmin() {
   const { data: dataAnoLetivo,                          execute: fetchAnoLetivo  } = useApi(academiaService.getAnoLetivo);
 
   useEffect(() => {
-    fetchAcademias({ token, limit: 50 });
+    fetchAcademias({ token, limit: 50, offset: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -455,7 +455,7 @@ export default function FaltasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, limit: 50 });
+    fetchEstudantes({ token, limit: 50, offset: 0 });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
   }
