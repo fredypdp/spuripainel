@@ -120,7 +120,7 @@ export default function PageContent() {
   }, [isAdmin, paginaAtual, status]);
 
   useEffect(() => { if (user?.tipo) carregar(); }, [user?.tipo, carregar]);
-  useEffect(() => { setPaginaAtual(1); setAnoSelecionado(null); setSolicitacaoSelecionada(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }, [status]);
+  useEffect(() => { setPaginaAtual(1); setOrdem("recentes"); setAnoSelecionado(null); setSolicitacaoSelecionada(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }, [status]);
   useEffect(() => () => { if (documentoAberto?.url) URL.revokeObjectURL(documentoAberto.url); }, [documentoAberto?.url]);
 
   const anos = useMemo(() => {
@@ -139,14 +139,22 @@ export default function PageContent() {
       });
   }, [items, anoSelecionado, ordem]);
 
-  const totalPaginas = Math.ceil(totalGeral / ITEMS_POR_PAGINA);
+  const totalPaginas = Math.max(1, Math.ceil(totalGeral / ITEMS_POR_PAGINA));
+
+  const mudarPagina = useCallback((pagina: number) => {
+    setOrdem("recentes");
+    setAnoSelecionado(null);
+    setSolicitacaoSelecionada(null);
+    setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; });
+    setPaginaAtual(pagina);
+  }, []);
 
   const solicitacao = useMemo(
     () => items.find((item) => item.codigo_solicitacao === solicitacaoSelecionada) ?? null,
     [items, solicitacaoSelecionada]
   );
 
-  async function aprovar(codigo: string) { await academiaService.aprovarSolicitacaoMatricula(codigo); await carregar(); }
+  async function aprovar(codigo: string) { setOrdem("recentes"); await academiaService.aprovarSolicitacaoMatricula(codigo); await carregar(); }
   async function obterBlobDocumento(codigo: string, campo: string, downloadUrl?: string) {
     const token = tokenStorage.get() || undefined;
     if (downloadUrl) return documentosService.baixarDocumentoSolicitacaoMatriculaPorUrl(downloadUrl, token);
@@ -217,6 +225,7 @@ export default function PageContent() {
   async function reprovar(codigo: string) {
     const m = motivo[codigo]?.trim();
     if (!m) return alert("Informe o motivo da reprovação.");
+    setOrdem("recentes");
     await academiaService.reprovarSolicitacaoMatricula(codigo, { motivo_reprovacao: m });
     await carregar();
   }
@@ -290,7 +299,7 @@ export default function PageContent() {
         <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
           <button
             type="button"
-            onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
+            onClick={() => mudarPagina(Math.max(1, paginaAtual - 1))}
             disabled={paginaAtual === 1}
             className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700"
           >
@@ -299,7 +308,7 @@ export default function PageContent() {
           <span>Página {paginaAtual} de {totalPaginas}</span>
           <button
             type="button"
-            onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
+            onClick={() => mudarPagina(Math.min(totalPaginas, paginaAtual + 1))}
             disabled={paginaAtual === totalPaginas}
             className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700"
           >

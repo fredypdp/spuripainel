@@ -11,6 +11,10 @@ const ITEMS_POR_PAGINA = 50;
 export async function listarTodasAcademias(
   params?: Parameters<typeof consultasService.listarAcademias>[0]
 ): Promise<ConsultarAcademiasResponse> {
+  if (typeof params?.offset === "number" || typeof params?.limit === "number") {
+    return consultasService.listarAcademias({ ...params, limit: params.limit ?? ITEMS_POR_PAGINA, offset: params.offset ?? 0 });
+  }
+
   let offset = 0;
   const academias: AcademiaDetalhada[] = [];
   let primeiraPagina: ConsultarAcademiasResponse | null = null;
@@ -36,6 +40,10 @@ export async function listarTodasAcademias(
 export async function listarTodosEstudantes(
   params?: Parameters<typeof consultasService.listarEstudantes>[0]
 ): Promise<ConsultarEstudantesResponse> {
+  if (typeof params?.offset === "number" || typeof params?.limit === "number") {
+    return consultasService.listarEstudantes({ ...params, limit: params.limit ?? ITEMS_POR_PAGINA, offset: params.offset ?? 0 });
+  }
+
   let offset = 0;
   const estudantes: EstudanteDetalhado[] = [];
   let primeiraPagina: ConsultarEstudantesResponse | null = null;
