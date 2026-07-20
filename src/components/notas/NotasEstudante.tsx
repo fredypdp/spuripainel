@@ -2,6 +2,7 @@
 "use client"
 import { useState, useEffect, useMemo } from "react";
 import { consultasService, tokenStorage, useApi } from "@/lib/api";
+import { listarTodasAcademias } from "@/lib/api/pagination";
 import type { MeuPerfilResponse, Nota } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import { getCookie } from "@/lib/utils/cookies";
