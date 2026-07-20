@@ -162,21 +162,79 @@ export interface CriarEstudanteRequest {
 }
 
 
-export interface MatricularFundamentalRequest {
-  ano_escolar_fundamental: string;
-}
-
-export interface MatricularMedioRequest {
-  ano_escolar_medio: string;
-  curso_id: string;
-}
-
-export interface MatricularSuperiorRequest {
-  curso_id: string;
-}
-
 export interface MotivoEstudanteRequest {
   motivo: string;
+}
+
+export type SolicitacaoStatusAcademicoTipo = 'interrupcao' | 'desvinculacao' | 'revinculacao';
+export type SolicitacaoStatusAcademicoStatus = 'pendente' | 'aprovada' | 'reprovada' | 'cancelada';
+
+export interface CriarSolicitacaoStatusAcademicoRequest {
+  motivo: string;
+}
+
+export interface CriarSolicitacaoRevinculacaoRequest extends CriarSolicitacaoStatusAcademicoRequest {
+  tipo_ensino?: TipoEnsino;
+  curso_medio_id?: string | null;
+  curso_superior_id?: string | null;
+}
+
+export interface CriarSolicitacaoStatusAcademicoResponse {
+  message: string;
+  codigo_solicitacao: string;
+  status: SolicitacaoStatusAcademicoStatus;
+}
+
+export interface SolicitacaoStatusAcademico {
+  id?: string;
+  codigo_solicitacao: string;
+  codigo_academia: string;
+  academia_nome?: string;
+  codigo_estudante: string;
+  estudante_nome?: string;
+  tipo: SolicitacaoStatusAcademicoTipo;
+  status: SolicitacaoStatusAcademicoStatus;
+  motivo: string;
+  tipo_ensino?: TipoEnsino;
+  curso_medio_id?: string | null;
+  curso_superior_id?: string | null;
+  observacao_academia?: string;
+  motivo_reprovacao?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ListarSolicitacoesStatusAcademicoParams {
+  status?: SolicitacaoStatusAcademicoStatus | SolicitacaoStatusAcademicoStatus[];
+  tipo?: SolicitacaoStatusAcademicoTipo | SolicitacaoStatusAcademicoTipo[];
+  codigo_academia?: string;
+  codigo_estudante?: string;
+  limit?: number;
+  offset?: number;
+  token?: string;
+}
+
+export interface ListarSolicitacoesStatusAcademicoResponse {
+  solicitacoes: SolicitacaoStatusAcademico[];
+  total: number;
+  total_geral?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface DecidirSolicitacaoStatusAcademicoRequest {
+  solicitacao_id: string;
+  observacao_academia?: string;
+}
+
+export interface ReprovarSolicitacaoStatusAcademicoRequest {
+  solicitacao_id: string;
+  motivo_reprovacao: string;
+}
+
+export interface DecidirSolicitacaoStatusAcademicoResponse {
+  message: string;
+  codigo_solicitacao?: string;
 }
 
 export type RevincularEstudanteRequest =

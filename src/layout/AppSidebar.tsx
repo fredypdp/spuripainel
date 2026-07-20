@@ -33,6 +33,11 @@ const navItems: NavItem[] = [
     path: "/perfil",
   },
   {
+    icon: <Icon width="24px" icon="mdi:file-document-edit-outline" />,
+    name: "Solicitações",
+    path: "/solicitacoes",
+  },
+  {
     name: "Registros",
     icon: <Icon width="24px" icon="vaadin:records" />,
     subItems: [
@@ -70,7 +75,7 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Listar",    path: "/estudantes"           },
       { name: "Cadastrar", path: "/estudantes/cadastrar" },
-      { name: "Solicitações", path: "/solicitacoes-matricula" },
+      { name: "Matrículas", path: "/solicitacoes-matricula" },
     ],
   },
   {

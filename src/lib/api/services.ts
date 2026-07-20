@@ -73,12 +73,17 @@ import type {
   ListarAvaliacoesParams,
   ListarAprovacoesParams,
   ListarReprovacoesParams,
-  MatricularFundamentalRequest,
-  MatricularMedioRequest,
-  MatricularSuperiorRequest,
   MotivoEstudanteRequest,
   RevincularEstudanteRequest,
   MensagemResponse,
+  CriarSolicitacaoStatusAcademicoRequest,
+  CriarSolicitacaoRevinculacaoRequest,
+  CriarSolicitacaoStatusAcademicoResponse,
+  ListarSolicitacoesStatusAcademicoParams,
+  ListarSolicitacoesStatusAcademicoResponse,
+  DecidirSolicitacaoStatusAcademicoRequest,
+  ReprovarSolicitacaoStatusAcademicoRequest,
+  DecidirSolicitacaoStatusAcademicoResponse,
   CriarSolicitacaoMatriculaRequest,
   CriarSolicitacaoMatriculaResponse,
   ListarSolicitacoesMatriculaParams,
@@ -163,6 +168,22 @@ const GLOBAL_ANO_LETIVO_ENDPOINT = '/ano-letivo';
 const GLOBAL_ANOS_LETIVOS_LISTA_ENDPOINT = '/anos-letivos-lista';
 const ANOS_LETIVOS_CONFIGURACOES_ENDPOINT = '/anos-letivos/configuracoes';
 const ADMIN_ANOS_LETIVOS_CONFIGURACOES_ENDPOINT = '/admin/sistema/anos-letivos/configuracoes';
+
+function buildSolicitacoesStatusAcademicoQuery(params?: ListarSolicitacoesStatusAcademicoParams): string {
+  const qs = new URLSearchParams();
+  const appendMany = (key: string, value?: string | string[]) => {
+    if (!value) return;
+    if (Array.isArray(value)) value.forEach((item) => qs.append(key, item));
+    else qs.append(key, value);
+  };
+  appendMany('status', params?.status);
+  appendMany('tipo', params?.tipo);
+  if (params?.codigo_academia) qs.append('codigo_academia', params.codigo_academia);
+  if (params?.codigo_estudante) qs.append('codigo_estudante', params.codigo_estudante);
+  appendPageParams(qs, params);
+  const query = qs.toString();
+  return query ? `?${query}` : '';
+}
 
 function ensureApiDate(value: string | undefined, fieldName: string): string | undefined {
   if (!value) return value;
@@ -706,6 +727,33 @@ export const estudanteService = {
       'avaliacoes',
     ),
 
+  solicitarInterrupcao: (data: CriarSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<CriarSolicitacaoStatusAcademicoResponse>('/estudante/solicitacoes-status/interrupcao', data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  solicitarDesvinculacao: (data: CriarSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<CriarSolicitacaoStatusAcademicoResponse>('/estudante/solicitacoes-status/desvinculacao', data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  solicitarRevinculacao: (codigoAcademia: string, data: CriarSolicitacaoRevinculacaoRequest, token?: string) =>
+    api.post<CriarSolicitacaoStatusAcademicoResponse>(`/estudante/solicitacoes-status/revinculacao/${encodeURIComponent(codigoAcademia)}`, data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  listarMinhasSolicitacoesStatusAcademico: (params?: ListarSolicitacoesStatusAcademicoParams | string): Promise<ListarSolicitacoesStatusAcademicoResponse> => {
+    const isLegacy = typeof params === 'string';
+    if (!isLegacy && !hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => estudanteService.listarMinhasSolicitacoesStatusAcademico({ ...params, limit, offset }), 'solicitacoes');
+    }
+    const tok = isLegacy ? params : params?.token;
+    const qs = isLegacy ? '' : buildSolicitacoesStatusAcademicoQuery(params);
+    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/estudante/solicitacoes-status${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
+
 };
 
 
@@ -1015,60 +1063,58 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  // ── Acontecimentos do estudante ───────────────────────────────────
+  // ── Solicitações de status acadêmico ──────────────────────────────
 
-  matricularFundamental: (codigoEstudante: string, data: MatricularFundamentalRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/matricula/fundamental`,
+  listarSolicitacoesStatusAcademico: (params?: ListarSolicitacoesStatusAcademicoParams | string): Promise<ListarSolicitacoesStatusAcademicoResponse> => {
+    const isLegacy = typeof params === 'string';
+    if (!isLegacy && !hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => academiaService.listarSolicitacoesStatusAcademico({ ...params, limit, offset }), 'solicitacoes');
+    }
+    const tok = isLegacy ? params : params?.token;
+    const qs = isLegacy ? '' : buildSolicitacoesStatusAcademicoQuery(params);
+    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/academia/solicitacoes-status-academico${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
+
+  aprovarInterrupcaoPercurso: (codigoEstudante: string, data: DecidirSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<DecidirSolicitacaoStatusAcademicoResponse>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/interromper/percurso-academico`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  matricularMedio: (codigoEstudante: string, data: MatricularMedioRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/matricula/medio`,
+  reprovarInterrupcaoPercurso: (codigoEstudante: string, data: ReprovarSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<DecidirSolicitacaoStatusAcademicoResponse>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/interromper/percurso-academico/reprovar`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  matricularSuperior: (codigoEstudante: string, data: MatricularSuperiorRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/matricula/superior`,
+  aprovarDesvinculacao: (codigoEstudante: string, data: DecidirSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<DecidirSolicitacaoStatusAcademicoResponse>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/desvincular`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  interromperFundamental: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/interrupcao/fundamental`,
-      prepareMotivoEstudante(data),
+  reprovarDesvinculacao: (codigoEstudante: string, data: ReprovarSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<DecidirSolicitacaoStatusAcademicoResponse>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/desvincular/reprovar`,
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  interromperMedio: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/interrupcao/medio`,
-      prepareMotivoEstudante(data),
+  aprovarRevinculacao: (codigoEstudante: string, data: DecidirSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<DecidirSolicitacaoStatusAcademicoResponse>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/revincular`,
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  trancarSuperior: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/trancamento/superior`,
-      prepareMotivoEstudante(data),
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  desvincularEstudante: (codigoEstudante: string, data: MotivoEstudanteRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/desvincular`,
-      prepareMotivoEstudante(data),
-      { token: token || tokenStorage.get() || undefined }
-    ),
-
-  revincularEstudante: (codigoEstudante: string, data: RevincularEstudanteRequest, token?: string) =>
-    api.post<MensagemResponse>(
-      `/academia/estudante/${codigoEstudante}/revincular`,
+  reprovarRevinculacao: (codigoEstudante: string, data: ReprovarSolicitacaoStatusAcademicoRequest, token?: string) =>
+    api.post<DecidirSolicitacaoStatusAcademicoResponse>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/revincular/reprovar`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
@@ -1673,6 +1719,18 @@ export const adminService = {
     const tok = isLegacy ? params : params?.token;
     const qs = isLegacy ? '' : buildSolicitacoesMatriculaQuery(params);
     return api.get<ListarSolicitacoesMatriculaResponse>(`/solicitacoes-matricula${qs}`, {
+      token: tok || tokenStorage.get() || undefined,
+    });
+  },
+
+  listarSolicitacoesStatusAcademico: (params?: ListarSolicitacoesStatusAcademicoParams | string): Promise<ListarSolicitacoesStatusAcademicoResponse> => {
+    const isLegacy = typeof params === 'string';
+    if (!isLegacy && !hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => adminService.listarSolicitacoesStatusAcademico({ ...params, limit, offset }), 'solicitacoes');
+    }
+    const tok = isLegacy ? params : params?.token;
+    const qs = isLegacy ? '' : buildSolicitacoesStatusAcademicoQuery(params);
+    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/academia/solicitacoes-status-academico${qs}`, {
       token: tok || tokenStorage.get() || undefined,
     });
   },
