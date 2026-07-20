@@ -5,6 +5,7 @@ import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/a
 import type {
   MeuPerfilResponse,
   AvaliacaoFinal,
+  ListarAvaliacoesResponse,
   Turma,
   Curso,
   EstudanteDetalhado,
@@ -12,6 +13,32 @@ import type {
 } from "@/types/api";
 import { getCookie } from "@/lib/utils/cookies";
 import Icon from "@/components/ui/Icon";
+
+
+const ITEMS_POR_PAGINA = 50;
+
+async function listarTodasAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
+  let offset = 0;
+  const avaliacoes: AvaliacaoFinal[] = [];
+  let primeiraPagina: ListarAvaliacoesResponse | null = null;
+
+  while (true) {
+    const pagina = await consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset });
+    if (!primeiraPagina) primeiraPagina = pagina;
+    const itens = pagina.avaliacoes ?? [];
+    avaliacoes.push(...itens);
+
+    const totalGeral = pagina.total_geral;
+    if ((typeof totalGeral === 'number' && avaliacoes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
+    offset += ITEMS_POR_PAGINA;
+  }
+
+  return {
+    ...(primeiraPagina ?? { total: 0 }),
+    avaliacoes,
+    total: avaliacoes.length,
+  };
+}
 
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
@@ -301,21 +328,21 @@ export default function AvaliacoesFinaisAcademia() {
   const { data: dataTurmas,    loading: loadTurmas,  execute: carregarTurmas    } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                           execute: carregarCursos    } = useApi(academiaService.listarCursos);
   const { data: dataEstudantes,                       execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataAvaliacoes, loading: loadAvs,    execute: carregarAvaliacoes } = useApi(consultasService.listarAvaliacoes);
+  const { data: dataAvaliacoes, loading: loadAvs,    execute: carregarAvaliacoes } = useApi(listarTodasAvaliacoes);
   const { data: dataAnoLetivo,                        execute: buscarAnoLetivo   } = useApi(academiaService.getAnoLetivo);
 
   // Carrega avaliações para um ano letivo específico (ou todos se vazio)
   const recarregarAvaliacoes = useCallback((anoLetivo?: string) => {
-    carregarAvaliacoes({ ano_letivo: anoLetivo || undefined, token, limit: 100 });
+    carregarAvaliacoes({ ano_letivo: anoLetivo || undefined, token });
   }, [carregarAvaliacoes, token]);
 
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 100 });
+    carregarEstudantes({ token });
     buscarAnoLetivo(token);
     // Primeiro carrega sem filtro para descobrir anos disponíveis
-    carregarAvaliacoes({ token, limit: 100 });
+    carregarAvaliacoes({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

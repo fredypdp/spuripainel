@@ -7,6 +7,39 @@ import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 
+
+const ITEMS_POR_PAGINA_API = 50;
+
+async function listarTodasAcademias(params?: Parameters<typeof consultasService.listarAcademias>[0]) {
+  let offset = 0;
+  const academias: unknown[] = [];
+  let primeiraPagina: any = null;
+  while (true) {
+    const pagina = await consultasService.listarAcademias({ ...params, limit: ITEMS_POR_PAGINA_API, offset });
+    if (!primeiraPagina) primeiraPagina = pagina;
+    const itens = pagina.academias ?? [];
+    academias.push(...itens);
+    if ((typeof (pagina as any).total_geral === "number" && academias.length >= (pagina as any).total_geral) || itens.length < ITEMS_POR_PAGINA_API) break;
+    offset += ITEMS_POR_PAGINA_API;
+  }
+  return { ...(primeiraPagina ?? { total: 0 }), academias, total: academias.length };
+}
+
+async function listarTodosEstudantes(params?: Parameters<typeof consultasService.listarEstudantes>[0]) {
+  let offset = 0;
+  const estudantes: unknown[] = [];
+  let primeiraPagina: any = null;
+  while (true) {
+    const pagina = await consultasService.listarEstudantes({ ...params, limit: ITEMS_POR_PAGINA_API, offset });
+    if (!primeiraPagina) primeiraPagina = pagina;
+    const itens = pagina.estudantes ?? [];
+    estudantes.push(...itens);
+    if ((typeof (pagina as any).total_geral === "number" && estudantes.length >= (pagina as any).total_geral) || itens.length < ITEMS_POR_PAGINA_API) break;
+    offset += ITEMS_POR_PAGINA_API;
+  }
+  return { ...(primeiraPagina ?? { total: 0 }), estudantes, total: estudantes.length };
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 const PERIODOS_LABEL: Record<string, string> = {
@@ -315,11 +348,11 @@ export default function NotasAdmin() {
 
   // APIs
   const { data: academiasData, loading: loadingAcads, execute: fetchAcademias } =
-    useApi(consultasService.listarAcademias);
+    useApi(listarTodasAcademias);
 
   const { data: dataTurmas,     loading: loadingTurmas, execute: fetchTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,     loading: loadingCursos, execute: fetchCursos     } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes, loading: loadingEstud,  execute: fetchEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataEstudantes, loading: loadingEstud,  execute: fetchEstudantes } = useApi(listarTodosEstudantes);
   const { data: dataMaterias,                           execute: fetchMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnosLetivos, loading: loadingAnos,  execute: fetchAnosLetivos} = useApi(academiaService.listarAnosLetivosLista);
   const { data: dataAnoLetivo,                          execute: fetchAnoLetivo  } = useApi(academiaService.getAnoLetivo);
@@ -518,7 +551,7 @@ export default function NotasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, limit: 100 });
+    fetchEstudantes({ token });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
   }
