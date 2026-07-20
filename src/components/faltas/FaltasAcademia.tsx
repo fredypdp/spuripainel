@@ -17,6 +17,7 @@ import { Dropdown } from "primereact/dropdown";
 import DatePicker from "@/components/form/date-picker";
 import { getCookie } from "@/lib/utils/cookies";
 
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function getUserFromCookie(): MeuPerfilResponse | null {
@@ -415,7 +416,7 @@ export default function FaltasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes(undefined, token);
+    carregarEstudantes({ token, limit: 50 });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);

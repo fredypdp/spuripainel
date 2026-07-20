@@ -7,6 +7,7 @@ import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
 
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 const ANOS_FUNDAMENTAL = [
@@ -272,7 +273,7 @@ export default function FaltasAdmin() {
   const { data: dataAnoLetivo,                          execute: fetchAnoLetivo  } = useApi(academiaService.getAnoLetivo);
 
   useEffect(() => {
-    fetchAcademias({ token });
+    fetchAcademias({ token, limit: 50 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -453,7 +454,7 @@ export default function FaltasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, limit: 100 });
+    fetchEstudantes({ token, limit: 50 });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
   }

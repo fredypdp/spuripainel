@@ -1268,7 +1268,8 @@ export default function Estudantes() {
     const filtrosPermitidos = sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin);
     await carregarEstudantesRef.current({
       token: token || undefined,
-      limit: 100,
+      limit: ITEMS_POR_PAGINA,
+      offset: (paginaAtual - 1) * ITEMS_POR_PAGINA,
       genero: filtrosPermitidos.genero || undefined,
       idade_min: filtrosPermitidos.idadeMin ? Number(filtrosPermitidos.idadeMin) : undefined,
       idade_max: filtrosPermitidos.idadeMax ? Number(filtrosPermitidos.idadeMax) : undefined,
@@ -1287,17 +1288,17 @@ export default function Estudantes() {
       com_turma: filtrosPermitidos.comTurma === '' ? undefined : filtrosPermitidos.comTurma === 'true',
     });
     setCarregado(true);
-  }, [filtros, isAdmin, visibilidadeFiltros]);
+  }, [filtros, isAdmin, paginaAtual, visibilidadeFiltros]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const token = tokenStorage.get();
-      await carregarEstudantesRef.current({ token: token || undefined, limit: 100 });
+      await carregarEstudantesRef.current({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [paginaAtual]);
 
   useEffect(() => {
     if (isAcademia) {
@@ -1309,7 +1310,6 @@ export default function Estudantes() {
   }, [vistaEscala, isAcademia]);
 
   useEffect(() => { setPaginaAtual(1); }, [ordem]);
-  useEffect(() => { setPaginaAtual(1); }, [dataEstudantes]);
 
   const filtrosVisiveis = useMemo(
     () => sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin),
@@ -1320,11 +1320,9 @@ export default function Estudantes() {
     () => ordenarEstudantes(aplicarFiltros(dataEstudantes?.estudantes ?? [], filtrosVisiveis), ordem),
     [dataEstudantes, filtrosVisiveis, ordem]
   );
-  const totalPaginas = Math.ceil(estudantesFiltradosOrdenados.length / ITEMS_POR_PAGINA);
-  const estudantesPaginados = useMemo(
-    () => estudantesFiltradosOrdenados.slice((paginaAtual - 1) * ITEMS_POR_PAGINA, paginaAtual * ITEMS_POR_PAGINA),
-    [estudantesFiltradosOrdenados, paginaAtual]
-  );
+  const totalEstudantes = dataEstudantes?.total_geral ?? dataEstudantes?.total ?? estudantesFiltradosOrdenados.length;
+  const totalPaginas = Math.ceil(totalEstudantes / ITEMS_POR_PAGINA);
+  const estudantesPaginados = estudantesFiltradosOrdenados;
 
   const turmas: Turma[]  = (dataTurmas as any)?.turmas ?? [];
   const cursos: Curso[]  = dataCursos?.cursos ?? [];
@@ -1451,7 +1449,7 @@ export default function Estudantes() {
                     </div>
                   )}
                 </div>
-                <PaginacaoSetas paginaAtual={paginaAtual} totalPaginas={totalPaginas} total={totalFiltrado} porPagina={ITEMS_POR_PAGINA} onChange={setPaginaAtual} />
+                <PaginacaoSetas paginaAtual={paginaAtual} totalPaginas={totalPaginas} total={totalEstudantes} porPagina={ITEMS_POR_PAGINA} onChange={setPaginaAtual} />
               </div>
             )}
           </>

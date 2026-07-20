@@ -5,6 +5,7 @@ import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/a
 import type {
   MeuPerfilResponse,
   AvaliacaoFinal,
+  ListarAvaliacoesResponse,
   Turma,
   Curso,
   EstudanteDetalhado,
@@ -13,6 +14,12 @@ import type {
 import { getCookie } from "@/lib/utils/cookies";
 import Icon from "@/components/ui/Icon";
 
+
+const ITEMS_POR_PAGINA = 50;
+
+async function listarPaginaAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
+  return consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset: params?.offset ?? 0 });
+}
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = {
@@ -301,21 +308,21 @@ export default function AvaliacoesFinaisAcademia() {
   const { data: dataTurmas,    loading: loadTurmas,  execute: carregarTurmas    } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                           execute: carregarCursos    } = useApi(academiaService.listarCursos);
   const { data: dataEstudantes,                       execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataAvaliacoes, loading: loadAvs,    execute: carregarAvaliacoes } = useApi(consultasService.listarAvaliacoes);
+  const { data: dataAvaliacoes, loading: loadAvs,    execute: carregarAvaliacoes } = useApi(listarPaginaAvaliacoes);
   const { data: dataAnoLetivo,                        execute: buscarAnoLetivo   } = useApi(academiaService.getAnoLetivo);
 
   // Carrega avaliações para um ano letivo específico (ou todos se vazio)
   const recarregarAvaliacoes = useCallback((anoLetivo?: string) => {
-    carregarAvaliacoes({ ano_letivo: anoLetivo || undefined, token, limit: 100 });
+    carregarAvaliacoes({ ano_letivo: anoLetivo || undefined, token });
   }, [carregarAvaliacoes, token]);
 
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 100 });
+    carregarEstudantes({ token, limit: 50 });
     buscarAnoLetivo(token);
     // Primeiro carrega sem filtro para descobrir anos disponíveis
-    carregarAvaliacoes({ token, limit: 100 });
+    carregarAvaliacoes({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

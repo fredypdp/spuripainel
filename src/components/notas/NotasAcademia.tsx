@@ -16,6 +16,7 @@ import { useModal } from "@/hooks/useModal";
 import { Dropdown } from "primereact/dropdown";
 import { getCookie } from "@/lib/utils/cookies";
 
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function getUserFromCookie(): MeuPerfilResponse | null {
@@ -655,7 +656,7 @@ export default function NotasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 100 });
+    carregarEstudantes({ token, limit: 50 });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);

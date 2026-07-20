@@ -4,11 +4,18 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, consultasService, tokenStorage } from "@/lib/api";
 import type {
   AvaliacaoFinal,
+  ListarAvaliacoesResponse,
   AcademiaDetalhada,
 } from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 
+
+const ITEMS_POR_PAGINA = 50;
+
+async function listarPaginaAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
+  return consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset: params?.offset ?? 0 });
+}
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = {
@@ -358,7 +365,7 @@ export default function AvaliacoesFinaisAdmin() {
   // Académias (leves)
   const { data: dataAcads,      execute: carregarAcads,      loading: loadAcads  } = useApi(consultasService.listarAcademias);
   // Avaliações filtradas pelo servidor
-  const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading: loadAvs    } = useApi(consultasService.listarAvaliacoes);
+  const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading: loadAvs    } = useApi(listarPaginaAvaliacoes);
 
   // Anos letivos disponíveis globalmente (carregados com 1 chamada inicial)
   const [anosGlobais,      setAnosGlobais]      = useState<string[]>([]);
@@ -371,13 +378,13 @@ export default function AvaliacoesFinaisAdmin() {
   useEffect(() => {
     carregarAcads({ token });
     // Descobrir anos letivos globais
-    consultasService.listarAvaliacoes({ token, limit: 100 }).then(res => {
+    listarPaginaAvaliacoes({ token }).then(res => {
       const anos = Array.from(new Set((res?.avaliacoes ?? []).map(a => a.ano_lectivo).filter(Boolean))).sort();
       setAnosGlobais(anos);
       if (anos.length > 0) setAnoLetivoGlobal(anos[0]);
     }).catch(() => {});
     // Carregar avaliações (sem filtro inicialmente para stats das províncias)
-    carregarAvaliacoes({ token, limit: 100 });
+    carregarAvaliacoes({ token });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -410,7 +417,7 @@ export default function AvaliacoesFinaisAdmin() {
   const entrarNaAcademia = useCallback(async (acad: AcadInfo) => {
     setLoadingAnosAcad(true);
     try {
-      const res = await consultasService.listarAvaliacoes({ codigo_academia: acad.codigo_academia, token, limit: 100 });
+      const res = await listarPaginaAvaliacoes({ codigo_academia: acad.codigo_academia, token });
       const avs  = res?.avaliacoes ?? [];
       const anos = Array.from(new Set(avs.map(a => a.ano_lectivo).filter(Boolean))).sort();
       setAnosAcademia(anos);
@@ -418,9 +425,9 @@ export default function AvaliacoesFinaisAdmin() {
       setAnoLetivoAcademia(anoInicial);
       // Carrega filtrado pelo primeiro ano letivo
       if (anoInicial) {
-        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: anoInicial, token, limit: 100 });
+        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: anoInicial, token });
       } else {
-        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, token, limit: 100 });
+        await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, token });
       }
     } finally {
       setLoadingAnosAcad(false);
@@ -430,7 +437,7 @@ export default function AvaliacoesFinaisAdmin() {
   // Quando muda o ano letivo dentro da academia
   const onChangeAnoAcademia = useCallback(async (acad: AcadInfo, ano: string) => {
     setAnoLetivoAcademia(ano);
-    await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: ano || undefined, token, limit: 100 });
+    await carregarAvaliacoes({ codigo_academia: acad.codigo_academia, ano_letivo: ano || undefined, token });
   }, [carregarAvaliacoes, token]);
 
   function buildCrumbs() {
@@ -464,7 +471,7 @@ export default function AvaliacoesFinaisAdmin() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma província para explorar as academias</p>
           </div>
-          <AnoLetivoSelector anosDisponiveis={anosGlobais} anoSelecionado={anoLetivoGlobal} onChange={v => { setAnoLetivoGlobal(v); carregarAvaliacoes({ ano_letivo: v || undefined, token, limit: 100 }); }} />
+          <AnoLetivoSelector anosDisponiveis={anosGlobais} anoSelecionado={anoLetivoGlobal} onChange={v => { setAnoLetivoGlobal(v); carregarAvaliacoes({ ano_letivo: v || undefined, token }); }} />
         </div>
         <StatsBar avaliacoes={todasAvaliacoes} />
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">

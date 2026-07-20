@@ -6,6 +6,7 @@ import type { MeuPerfilResponse, Nota } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import { getCookie } from "@/lib/utils/cookies";
 
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function getUserFromCookie(): MeuPerfilResponse | null {
@@ -241,7 +242,7 @@ export default function NotasEstudante() {
   useEffect(() => {
     if (codigoEstudante) {
       carregarNotas(codigoEstudante, token);
-      carregarAcademias({ token });
+      carregarAcademias({ token, limit: 50 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoEstudante]);
