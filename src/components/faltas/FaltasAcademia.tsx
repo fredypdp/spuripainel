@@ -399,7 +399,7 @@ export default function FaltasAcademia() {
 
   const { data: dataTurmas,         loading: loadingTurmas, execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes,                              execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataEstudantes,                              execute: carregarEstudantes } = useApi(listarTodosEstudantes);
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
   const { data: dataAnosLetivosLista,                        execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);

@@ -237,7 +237,7 @@ export default function NotasEstudante() {
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
 
   const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
-  const { data: acadList, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
+  const { data: acadList, execute: carregarAcademias } = useApi(listarTodasAcademias);
 
   useEffect(() => {
     if (codigoEstudante) {

@@ -316,11 +316,11 @@ export default function NotasAdmin() {
 
   // APIs
   const { data: academiasData, loading: loadingAcads, execute: fetchAcademias } =
-    useApi(consultasService.listarAcademias);
+    useApi(listarTodasAcademias);
 
   const { data: dataTurmas,     loading: loadingTurmas, execute: fetchTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,     loading: loadingCursos, execute: fetchCursos     } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes, loading: loadingEstud,  execute: fetchEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataEstudantes, loading: loadingEstud,  execute: fetchEstudantes } = useApi(listarTodosEstudantes);
   const { data: dataMaterias,                           execute: fetchMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnosLetivos, loading: loadingAnos,  execute: fetchAnosLetivos} = useApi(academiaService.listarAnosLetivosLista);
   const { data: dataAnoLetivo,                          execute: fetchAnoLetivo  } = useApi(academiaService.getAnoLetivo);

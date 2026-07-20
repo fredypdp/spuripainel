@@ -10,7 +10,7 @@ import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
-import { Provincias, AcademiaDetalhada, formatAnoAcademico } from '@/types/api';
+import { Provincias, AcademiaDetalhada, ConsultarAcademiasResponse, formatAnoAcademico } from '@/types/api';
 import Icon from "@/components/ui/Icon";
 import Checkbox from "@/components/form/input/Checkbox";
 import {
@@ -24,6 +24,29 @@ import {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const ITEMS_POR_PAGINA = 50;
+
+async function listarTodasAcademias(params?: { limit?: number; offset?: number; status?: 'ativo' | 'inativo'; token?: string }): Promise<ConsultarAcademiasResponse> {
+  let offset = 0;
+  const academias: AcademiaDetalhada[] = [];
+  let primeiraPagina: ConsultarAcademiasResponse | null = null;
+
+  while (true) {
+    const pagina = await consultasService.listarAcademias({ ...params, limit: ITEMS_POR_PAGINA, offset });
+    if (!primeiraPagina) primeiraPagina = pagina;
+    const itens = pagina.academias ?? [];
+    academias.push(...itens);
+
+    const totalGeral = (pagina as any).total_geral;
+    if ((typeof totalGeral === 'number' && academias.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
+    offset += ITEMS_POR_PAGINA;
+  }
+
+  return {
+    ...(primeiraPagina ?? { total: 0, tipo_usuario: 'admin' as const }),
+    academias,
+    total: academias.length,
+  };
+}
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -994,7 +1017,7 @@ export default function Academias() {
   const [resultadosLote,         setResultadosLote]         = useState<BatchResultItem[]>([]);
   const [tituloResultadoLote,    setTituloResultadoLote]    = useState('');
 
-  const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(consultasService.listarAcademias);
+  const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(listarTodasAcademias);
   const { loading: carregandoAtivar,    error: erroAtivarAcademia,    execute: executarAtivar    } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
 

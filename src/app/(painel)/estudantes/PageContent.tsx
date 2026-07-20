@@ -5,7 +5,7 @@ import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
-import { ConsultarEstudanteResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
+import { ConsultarEstudanteResponse, ConsultarEstudantesResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
@@ -13,6 +13,29 @@ import SearchableSelect from "@/components/form/SearchableSelect";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ITEMS_POR_PAGINA = 50;
+
+async function listarTodosEstudantes(params?: Parameters<typeof consultasService.listarEstudantes>[0]): Promise<ConsultarEstudantesResponse> {
+  let offset = 0;
+  const estudantes: EstudanteDetalhado[] = [];
+  let primeiraPagina: ConsultarEstudantesResponse | null = null;
+
+  while (true) {
+    const pagina = await consultasService.listarEstudantes({ ...params, limit: ITEMS_POR_PAGINA, offset });
+    if (!primeiraPagina) primeiraPagina = pagina;
+    const itens = pagina.estudantes ?? [];
+    estudantes.push(...itens);
+
+    const totalGeral = pagina.total_geral;
+    if ((typeof totalGeral === 'number' && estudantes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
+    offset += ITEMS_POR_PAGINA;
+  }
+
+  return {
+    ...(primeiraPagina ?? { total: 0, tipo_usuario: 'academia' as const }),
+    estudantes,
+    total: estudantes.length,
+  };
+}
 
 const ANOS_FUNDAMENTAL_LIST = [
   { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
@@ -1243,7 +1266,7 @@ export default function Estudantes() {
 
   const [modoTela,             setModoTela]             = useState<'lista' | 'detalhes' | 'documentacao'>('lista');
 
-  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(listarTodosEstudantes);
   const { data: dataCursos,  execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { data: dataTurmas,  execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
