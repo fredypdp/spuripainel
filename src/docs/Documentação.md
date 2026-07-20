@@ -1251,6 +1251,7 @@ Lista todas as academias com paginação e filtro de status.
     }
   ],
   "total": 1,
+  "total_geral": 25,
   "limit": 50,
   "offset": 0
 }
@@ -1275,12 +1276,13 @@ Lista todas as academias com paginação e filtro de status.
     }
   ],
   "total": 25,
+  "total_geral": 25,
   "limit": 50,
   "offset": 0
 }
 ```
 
-**Nota**: usuários autenticados veem os campos operacionais do `AcademiaDTO`, incluindo `documentos.alvara.download_url`; admins veem campos extras (`email`, `total_estudantes`, `version`). O backend nunca retorna mais de 100 academias por página, mesmo que o cliente envie `limit` maior.
+**Nota**: usuários autenticados veem os campos operacionais do `AcademiaDTO`, incluindo `documentos.alvara.download_url`; admins veem campos extras (`email`, `total_estudantes`, `version`). O backend nunca retorna mais de 100 academias por página, mesmo que o cliente envie `limit` maior. Em listagens paginadas, `total` indica a quantidade de itens retornados na página atual, enquanto `total_geral` indica a quantidade total de itens no escopo da consulta depois dos filtros e antes de aplicar `limit`/`offset`.
 
 ---
 
@@ -2296,7 +2298,7 @@ Cadastra estudantes em lote. O campo `com_arquivo` é obrigatório e define o co
 }
 ```
 
-Neste modo são validados somente os campos textuais pelas mesmas regras de `POST /academia/estudante/register`, sem cobrança de PDFs. Cada estudante é criado com `status = "pendente_documentos"` e não deve ser tratado como ativo até concluir a documentação pela rota posterior. Envio de arquivos com `com_arquivo: false` ou `com_arquivo` ausente/inválido é rejeitado.
+Neste modo a requisição retorna imediatamente `202 Accepted` e cria um job de background, igual aos demais endpoints `/async` em lote. Use `poll_url` (`GET /jobs/:id`) ou `sse_url` (`GET /jobs/stream`) para acompanhar progresso, desempenho e resultados item a item. Durante o processamento são validados somente os campos textuais pelas mesmas regras de `POST /academia/estudante/register`, sem cobrança de PDFs. Cada estudante criado fica com `status = "pendente_documentos"` e não deve ser tratado como ativo até concluir a documentação pela rota posterior. Envio de arquivos com `com_arquivo: false` ou `com_arquivo` ausente/inválido é rejeitado.
 
 **Modo com arquivos (`multipart/form-data`)**
 
@@ -2317,7 +2319,9 @@ curl -X POST https://api.exemplo.ao/academia/estudante/register/async \
 
 Arquivos órfãos, `codigo_temporario` duplicado, campos documentais desconhecidos, documentos ausentes obrigatórios e PDFs inválidos seguem as mesmas validações documentais do cadastro singular/solicitação de matrícula.
 
-**Response:** segue o envelope de lote `{total, sucesso, falhas, items[]}`.
+Se os dados textuais e os PDFs forem válidos, mas o armazenamento externo falhar durante o upload dos documentos (por exemplo erro transitório do Mega, timeout ou resposta JSON incompleta), o item do lote não é perdido. O backend remove a pasta parcial do estudante, conclui o cadastro textual com `status = "pendente_documentos"` e retorna o `codigo_estudante` no item correspondente para permitir repescagem. Nesse caso, a academia deve reenviar os documentos pela rota `POST /academia/estudante/{codigo_estudante}/documentos`; o estudante não deve ser tratado como ativo até a documentação ser concluída.
+
+**Response:** nos modos JSON sem arquivos e multipart com arquivos retorna `202 Accepted` com `{job_id, total_items, status, poll_url, sse_url}`. Os resultados de cada estudante ficam disponíveis no acompanhamento do job. Itens salvos por fallback de falha de storage contam como sucesso de cadastro, mas aparecem com `status = "pendente_documentos"` e `documentos_faltantes` no resultado do item.
 
 ### POST /academia/estudante/{codigo_estudante}/documentos
 
@@ -2376,6 +2380,7 @@ Lista estudantes. Retorna apenas os da academia (para academia) ou todos (para a
 {
   "estudantes": [EstudanteDTO],
   "total": 50,
+  "total_geral": 375,
   "tipo_usuario": "academia",
   "codigo_academia": "LDA20261",
   "nome_academia": "string",
@@ -2383,6 +2388,8 @@ Lista estudantes. Retorna apenas os da academia (para academia) ou todos (para a
   "offset": 0
 }
 ```
+
+`total` é a quantidade de estudantes retornados na página atual. `total_geral` é a contagem total de estudantes no escopo do usuário e filtros aplicados, ignorando `limit`/`offset`.
 
 **Erros de validação (400):**
 
@@ -2893,10 +2900,13 @@ Retorna as avaliações finais do estudante autenticado.
 {
   "avaliacoes": [AvaliacaoFinalDTO],
   "total": 2,
+  "total_geral": 12,
   "limit": 50,
   "offset": 0
 }
 ```
+
+`total` é a quantidade de avaliações retornadas na página atual. `total_geral` é a contagem total de avaliações do estudante autenticado, ignorando `limit`/`offset`.
 
 ---
 
@@ -3014,10 +3024,13 @@ Lista solicitações da academia autenticada em ordem decrescente de criação. 
     }
   ],
   "total": 1,
+  "total_geral": 42,
   "limit": 50,
   "offset": 0
 }
 ```
+
+`total` é a quantidade de solicitações retornadas na página atual. `total_geral` é a contagem total de solicitações no escopo e filtros aplicados, ignorando `limit`/`offset`. A rota admin `GET /solicitacoes-matricula` usa o mesmo contrato.
 
 ### GET /academia/solicitacao-matricula/:codigo
 
@@ -5089,10 +5102,13 @@ Lista avaliações finais. Escopo varia por tipo de usuário.
 {
   "avaliacoes": [AvaliacaoFinalDTO],
   "total": 50,
+  "total_geral": 240,
   "limit": 50,
   "offset": 0
 }
 ```
+
+`total` é a quantidade de avaliações retornadas na página atual. `total_geral` é a contagem total de avaliações no escopo e filtros aplicados, ignorando `limit`/`offset`.
 
 ---
 
@@ -5121,10 +5137,13 @@ Lista apenas avaliações com `aprovado = true`.
 {
   "aprovacoes": [AvaliacaoFinalDTO],
   "total": 35,
+  "total_geral": 180,
   "limit": 50,
   "offset": 0
 }
 ```
+
+`total` é a quantidade de aprovações retornadas na página atual. `total_geral` é a contagem total de aprovações no escopo e filtros aplicados, ignorando `limit`/`offset`.
 
 ---
 
@@ -5153,10 +5172,13 @@ Lista apenas avaliações com `aprovado = false`.
 {
   "reprovacoes": [AvaliacaoFinalDTO],
   "total": 15,
+  "total_geral": 60,
   "limit": 50,
   "offset": 0
 }
 ```
+
+`total` é a quantidade de reprovações retornadas na página atual. `total_geral` é a contagem total de reprovações no escopo e filtros aplicados, ignorando `limit`/`offset`.
 
 ---
 
@@ -5181,10 +5203,13 @@ Retorna avaliações finais de um estudante específico.
   "nome": "string",
   "avaliacoes": [AvaliacaoFinalDTO],
   "total": 3,
+  "total_geral": 9,
   "limit": 50,
   "offset": 0
 }
 ```
+
+`total` é a quantidade de avaliações retornadas na página atual. `total_geral` é a contagem total de avaliações desse estudante no escopo permitido ao usuário, ignorando `limit`/`offset`.
 
 ---
 
@@ -5753,7 +5778,7 @@ Use `poll_url` (`GET /jobs/:id`) e/ou `sse_url` (`GET /jobs/stream`).
 - O limite máximo de itens por requisição depende do endpoint (tabela abaixo).
 - O servidor valida e conta itens diretamente no payload bruto do request (sem dupla serialização), reduzindo risco de timeout no enqueue de lotes grandes.
 
-> Exceção: `POST /academia/estudante/register/async` usa o contrato específico de cadastro em massa com `com_arquivo` descrito na seção da rota, retorna resposta de lote e não cria job de background.
+> Exceção de formato: `POST /academia/estudante/register/async` mantém o contrato específico de cadastro em massa com `com_arquivo` descrito na seção da rota. Tanto JSON sem arquivos (`com_arquivo:false`) quanto multipart com arquivos (`com_arquivo=true`) criam job de background e retornam `202`.
 
 **Response 202 (para endpoints que criam job):**
 
@@ -5770,7 +5795,7 @@ Use `poll_url` (`GET /jobs/:id`) e/ou `sse_url` (`GET /jobs/stream`).
 
 |Endpoint|Payload por item|Resposta|Limite|
 |---|---|---|---|
-|`POST /academia/estudante/register/async`|`{com_arquivo:false, estudantes:[...]}` ou `multipart/form-data` com `com_arquivo=true`|resposta de lote (`200`/`207`)|100|
+|`POST /academia/estudante/register/async`|`{com_arquivo:false, estudantes:[...]}` ou `multipart/form-data` com `com_arquivo=true`|`202` (job criado)|100|
 |`POST /academia/notas-aluno/async`|igual ao `POST /academia/notas-aluno`|`202` (job criado)|2000|
 |`POST /academia/faltas-aluno/async`|igual ao `POST /academia/faltas-aluno`|`202` (job criado)|2000|
 |`POST /academia/curso/async`|igual ao `POST /academia/curso`|`202` (job criado)|200|
