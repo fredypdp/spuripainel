@@ -108,6 +108,54 @@ function appendPageParams(qs: URLSearchParams, params?: { limit?: number; offset
   if (params?.offset !== undefined) qs.append('offset', String(Math.max(0, params.offset)));
 }
 
+function hasExplicitPagination(params?: { limit?: number; offset?: number } | null): boolean {
+  return params?.limit !== undefined || params?.offset !== undefined;
+}
+
+async function getAllPaginated<T extends object>(
+  makeRequest: (limit: number, offset: number) => Promise<T>,
+  collectionKey: keyof T,
+): Promise<T> {
+  const limit = GET_PAGE_LIMIT_MAX;
+  let offset = 0;
+  let merged: T | undefined;
+  let allItems: unknown[] = [];
+
+  while (true) {
+    const page = await makeRequest(limit, offset);
+    const rawItems = (page as Record<string, unknown>)[collectionKey as string];
+    const items = Array.isArray(rawItems) ? rawItems : [];
+
+    if (!merged) merged = { ...page };
+    allItems = allItems.concat(items);
+
+    const totalGeralValue = (page as Record<string, unknown>).total_geral;
+    const totalGeral = typeof totalGeralValue === 'number' ? totalGeralValue : undefined;
+    const nextOffset = offset + limit;
+    const reachedKnownTotal = totalGeral !== undefined && allItems.length >= totalGeral;
+    const reachedShortPage = items.length < limit;
+
+    if (reachedKnownTotal || reachedShortPage || items.length === 0) {
+      break;
+    }
+
+    offset = nextOffset;
+  }
+
+  if (!merged) {
+    throw new Error('Resposta paginada inválida.');
+  }
+
+  return {
+    ...merged,
+    [collectionKey]: allItems,
+    total: allItems.length,
+    total_geral: typeof (merged as Record<string, unknown>).total_geral === 'number' ? (merged as Record<string, unknown>).total_geral : allItems.length,
+    limit,
+    offset: 0,
+  } as T;
+}
+
 const ACADEMIA_ANO_LETIVO_ENDPOINT = '/academia/ano-letivo';
 const ACADEMIA_DEFINIR_ANO_LETIVO_ENDPOINT = '/academia/definir-ano-letivo';
 const ADMIN_SISTEMA_ANO_LETIVO_ENDPOINT = '/admin/definir-ano-letivo-geral';
@@ -380,10 +428,12 @@ export const consultasService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarAcademias: (params?: { limit?: number; offset?: number; status?: 'ativo' | 'inativo'; token?: string }) => {
+  listarAcademias: (params?: { limit?: number; offset?: number; status?: 'ativo' | 'inativo'; token?: string }): Promise<ConsultarAcademiasResponse & { limit?: number; offset?: number }> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarAcademias({ ...params, limit, offset }), 'academias');
+    }
     const qs = new URLSearchParams();
-    if (params?.limit)  qs.append('limit',  params.limit.toString());
-    if (params?.offset) qs.append('offset', params.offset.toString());
+    appendPageParams(qs, params);
     if (params?.status) qs.append('status', params.status);
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ConsultarAcademiasResponse & { limit: number; offset: number }>(`/academias${query}`, {
@@ -412,7 +462,10 @@ export const consultasService = {
     turno?: string | string[];
     codigo_turma?: string | string[];
     com_turma?: boolean;
-  }) => {
+  }): Promise<ConsultarEstudantesResponse> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarEstudantes({ ...params, limit, offset }), 'estudantes');
+    }
     const qs = new URLSearchParams();
     appendPageParams(qs, params);
     appendMultiValueParam(qs, 'genero', params?.genero);
@@ -444,7 +497,10 @@ export const consultasService = {
    * Lista avaliações finais. Escopo varia por tipo de usuário.
    * Proteção: autenticado (qualquer tipo)
    */
-  listarAvaliacoes: (params?: ListarAvaliacoesParams) => {
+  listarAvaliacoes: (params?: ListarAvaliacoesParams): Promise<ListarAvaliacoesResponse> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarAvaliacoes({ ...params, limit, offset }), 'avaliacoes');
+    }
     const qs = new URLSearchParams();
     appendPageParams(qs, params);
     if (params?.nivel)              qs.append('nivel',              params.nivel);
@@ -464,8 +520,12 @@ export const consultasService = {
    * Lista apenas avaliações com aprovado = true.
    * Proteção: autenticado (qualquer tipo)
    */
-  listarAprovacoes: (params?: ListarAprovacoesParams) => {
+  listarAprovacoes: (params?: ListarAprovacoesParams): Promise<ListarAprovacoesResponse> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarAprovacoes({ ...params, limit, offset }), 'aprovacoes');
+    }
     const qs = new URLSearchParams();
+    appendPageParams(qs, params);
     if (params?.nivel)              qs.append('nivel',              params.nivel);
     if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
     if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
@@ -483,8 +543,12 @@ export const consultasService = {
    * Lista apenas avaliações com aprovado = false.
    * Proteção: autenticado (qualquer tipo)
    */
-  listarReprovacoes: (params?: ListarReprovacoesParams) => {
+  listarReprovacoes: (params?: ListarReprovacoesParams): Promise<ListarReprovacoesResponse> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarReprovacoes({ ...params, limit, offset }), 'reprovacoes');
+    }
     const qs = new URLSearchParams();
+    appendPageParams(qs, params);
     if (params?.nivel)              qs.append('nivel',              params.nivel);
     if (params?.ano_letivo)         qs.append('ano_letivo',         params.ano_letivo);
     if (params?.ano_academico_atual) qs.append('ano_academico_atual', params.ano_academico_atual);
@@ -535,9 +599,12 @@ export const consultasService = {
   },
 
   avaliacoesEstudante: (codigoEstudante: string, token?: string) =>
-    api.get<AvaliacoesEstudanteResponse>(
-      `/avaliacoes-estudante/${codigoEstudante}`,
-      { token: token || tokenStorage.get() || undefined }
+    getAllPaginated(
+      (limit, offset) => api.get<AvaliacoesEstudanteResponse>(
+        `/avaliacoes-estudante/${codigoEstudante}?limit=${limit}&offset=${offset}`,
+        { token: token || tokenStorage.get() || undefined }
+      ),
+      'avaliacoes',
     ),
 
   /**
@@ -545,7 +612,10 @@ export const consultasService = {
    * Lista registros de notas com escopo por perfil.
    * Proteção: autenticado (admin ou academia)
    */
-  listarNotas: (params?: ListarNotasParams) => {
+  listarNotas: (params?: ListarNotasParams): Promise<ListarNotasResponse> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarNotas({ ...params, limit, offset }), 'notas');
+    }
     const qs = new URLSearchParams();
     appendPageParams(qs, params);
     appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
@@ -568,7 +638,10 @@ export const consultasService = {
    * Lista registros de faltas com escopo por perfil.
    * Proteção: autenticado (admin ou academia)
    */
-  listarFaltas: (params?: ListarFaltasParams) => {
+  listarFaltas: (params?: ListarFaltasParams): Promise<ListarFaltasResponse> => {
+    if (!hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => consultasService.listarFaltas({ ...params, limit, offset }), 'faltas');
+    }
     const qs = new URLSearchParams();
     appendPageParams(qs, params);
     appendMultiValueParam(qs, 'ano_letivo', params?.ano_letivo);
@@ -626,9 +699,12 @@ export const estudanteService = {
     ),
 
   minhasAvaliacoes: (token?: string) =>
-    api.get<ListarAvaliacoesResponse>('/estudante/minhas-avaliacoes', {
-      token: token || tokenStorage.get() || undefined,
-    }),
+    getAllPaginated(
+      (limit, offset) => api.get<ListarAvaliacoesResponse>(`/estudante/minhas-avaliacoes?limit=${limit}&offset=${offset}`, {
+        token: token || tokenStorage.get() || undefined,
+      }),
+      'avaliacoes',
+    ),
 
 };
 
@@ -729,8 +805,11 @@ export const academiaService = {
 
   // ── Solicitações de matrícula ────────────────────────────────────
 
-  listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string) => {
+  listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string): Promise<ListarSolicitacoesMatriculaResponse> => {
     const isLegacy = typeof params === 'string';
+    if (!isLegacy && !hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => academiaService.listarSolicitacoesMatricula({ ...params, limit, offset }), 'solicitacoes');
+    }
     const tok = isLegacy ? params : params?.token;
     const qs = isLegacy ? '' : buildSolicitacoesMatriculaQuery(params);
     return api.get<ListarSolicitacoesMatriculaResponse>(`/academia/solicitacoes-matricula${qs}`, {
@@ -1586,8 +1665,11 @@ export const adminService = {
       token: token || tokenStorage.get() || undefined,
     }),
 
-  listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string) => {
+  listarSolicitacoesMatricula: (params?: ListarSolicitacoesMatriculaParams | string): Promise<ListarSolicitacoesMatriculaResponse> => {
     const isLegacy = typeof params === 'string';
+    if (!isLegacy && !hasExplicitPagination(params)) {
+      return getAllPaginated((limit, offset) => adminService.listarSolicitacoesMatricula({ ...params, limit, offset }), 'solicitacoes');
+    }
     const tok = isLegacy ? params : params?.token;
     const qs = isLegacy ? '' : buildSolicitacoesMatriculaQuery(params);
     return api.get<ListarSolicitacoesMatriculaResponse>(`/solicitacoes-matricula${qs}`, {
