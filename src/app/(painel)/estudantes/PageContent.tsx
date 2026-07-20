@@ -43,6 +43,8 @@ const ANOS_SUPERIOR_LIST = [
 ];
 
 type OrdemEstudantes = 'nome_asc' | 'nome_desc' | 'idade_asc' | 'idade_desc' | 'cadastro_desc' | 'cadastro_asc';
+
+const ORDEM_PADRAO: OrdemEstudantes = 'nome_asc';
 interface FiltrosState {
   genero: string; idadeMin: string; idadeMax: string;
   anoFundamental: string; anoMedio: string; anoSuperior: string;
@@ -1238,7 +1240,7 @@ export default function Estudantes() {
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
   const [vistaEscala,          setVistaEscala]          = useState(false);
   const [paginaAtual,          setPaginaAtual]          = useState(1);
-  const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
+  const [ordem,                setOrdem]                = useState<OrdemEstudantes>(ORDEM_PADRAO);
   const [filtros,              setFiltros]              = useState<FiltrosState>({ ...FILTROS_INICIAIS });
   const [filtrosAplicados,     setFiltrosAplicados]     = useState<FiltrosState>({ ...FILTROS_INICIAIS });
   const [atualizacaoLista,     setAtualizacaoLista]     = useState(0);
@@ -1290,6 +1292,7 @@ export default function Estudantes() {
   }, [filtrosAplicados, isAdmin, paginaAtual, visibilidadeFiltros]);
 
   const carregarLista = useCallback(() => {
+    setOrdem(ORDEM_PADRAO);
     setFiltrosAplicados(sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin));
     setPaginaAtual(1);
     setAtualizacaoLista(tick => tick + 1);
@@ -1317,8 +1320,6 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
-  useEffect(() => { setPaginaAtual(1); }, [ordem]);
-
   const filtrosVisiveis = useMemo(
     () => sanitizarFiltrosPorVisibilidade(filtrosAplicados, visibilidadeFiltros, !!isAdmin),
     [filtrosAplicados, isAdmin, visibilidadeFiltros]
@@ -1335,6 +1336,11 @@ export default function Estudantes() {
   const turmas: Turma[]  = (dataTurmas as any)?.turmas ?? [];
   const cursos: Curso[]  = dataCursos?.cursos ?? [];
   const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
+
+  const handleMudarPagina = (pagina: number) => {
+    setOrdem(ORDEM_PADRAO);
+    setPaginaAtual(pagina);
+  };
 
   const handleVerDetalhes = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); setModoTela('detalhes'); };
   const handleAdicionarDocumentacao = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); setModoTela('documentacao'); };
@@ -1457,7 +1463,7 @@ export default function Estudantes() {
                     </div>
                   )}
                 </div>
-                <PaginacaoSetas paginaAtual={paginaAtual} totalPaginas={totalPaginas} total={totalEstudantes} porPagina={ITEMS_POR_PAGINA} onChange={setPaginaAtual} />
+                <PaginacaoSetas paginaAtual={paginaAtual} totalPaginas={totalPaginas} total={totalEstudantes} porPagina={ITEMS_POR_PAGINA} onChange={handleMudarPagina} />
               </div>
             )}
           </>
