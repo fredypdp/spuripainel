@@ -2,6 +2,7 @@
 "use client"
 import { useState, useEffect, useMemo } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
+import { listarTodosEstudantes } from "@/lib/api/pagination";
 import type {
   ApiDate, MeuPerfilResponse, Falta, RegistrarFaltasRequest,
   Turma, Curso, EstudanteDetalhado,

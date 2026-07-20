@@ -2,6 +2,7 @@
 "use client"
 import { useState, useEffect, useMemo } from "react";
 import { useApi, consultasService, academiaService, tokenStorage } from "@/lib/api";
+import { listarTodasAcademias, listarTodosEstudantes } from "@/lib/api/pagination";
 import type { Nota, Turma, EstudanteDetalhado, Curso } from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
