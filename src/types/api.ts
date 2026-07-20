@@ -300,6 +300,7 @@ export interface ListarSolicitacoesMatriculaParams {
 export interface ListarSolicitacoesMatriculaResponse {
   solicitacoes: SolicitacaoMatricula[];
   total: number;
+  total_geral?: number;
   limit?: number;
   offset?: number;
 }
@@ -625,6 +626,10 @@ export interface ListarAvaliacoesParams {
  * Proteção: autenticado (qualquer tipo)
  */
 export interface ListarAprovacoesParams {
+  /** Paginação: padrão 50, máximo 100 */
+  limit?: number;
+  /** Paginação: padrão 0 */
+  offset?: number;
   /** Filtro oficial atual da API: 'fundamental' | 'medio' | 'superior'. */
   nivel?: TipoEnsino;
   /** Ex: '2025_2026' */
@@ -650,6 +655,10 @@ export interface ListarAprovacoesParams {
  * Proteção: autenticado (qualquer tipo)
  */
 export interface ListarReprovacoesParams {
+  /** Paginação: padrão 50, máximo 100 */
+  limit?: number;
+  /** Paginação: padrão 0 */
+  offset?: number;
   /** Filtro oficial atual da API: 'fundamental' | 'medio' | 'superior'. */
   nivel?: TipoEnsino;
   /** Ex: '2025_2026' */
@@ -1249,12 +1258,18 @@ export interface AvaliacoesEstudanteResponse {
 export interface ListarAprovacoesResponse {
   aprovacoes: AvaliacaoFinal[];
   total: number;
+  total_geral?: number;
+  limit?: number;
+  offset?: number;
 }
 
 /** GET /reprovacoes */
 export interface ListarReprovacoesResponse {
   reprovacoes: AvaliacaoFinal[];
   total: number;
+  total_geral?: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface EventosEstudanteResponse {
@@ -1521,6 +1536,9 @@ export interface ConsultarAcademiaResponse {
 export interface ConsultarAcademiasResponse {
   academias: AcademiaDetalhada[];
   total: number;
+  total_geral?: number;
+  limit?: number;
+  offset?: number;
   tipo_usuario: UserType;
 }
 
