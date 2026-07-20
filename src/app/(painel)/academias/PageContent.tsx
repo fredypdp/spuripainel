@@ -26,6 +26,10 @@ import {
 const ITEMS_POR_PAGINA = 50;
 
 async function listarTodasAcademias(params?: { limit?: number; offset?: number; status?: 'ativo' | 'inativo'; token?: string }): Promise<ConsultarAcademiasResponse> {
+  if (typeof params?.offset === 'number' || typeof params?.limit === 'number') {
+    return consultasService.listarAcademias({ ...params, limit: params.limit ?? ITEMS_POR_PAGINA, offset: params.offset ?? 0 });
+  }
+
   let offset = 0;
   const academias: AcademiaDetalhada[] = [];
   let primeiraPagina: ConsultarAcademiasResponse | null = null;
