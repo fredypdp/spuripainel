@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { academiaService, adminService, documentosService } from "@/lib/api/services";
 import { tokenStorage } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
-import type { SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
+import type { ListarSolicitacoesMatriculaParams, ListarSolicitacoesMatriculaResponse, SolicitacaoMatricula, SolicitacaoMatriculaStatus } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import SearchableSelect, { type SearchableSelectOption } from "@/components/form/SearchableSelect";
 
@@ -19,7 +19,29 @@ const ordemOptions: Array<SearchableSelectOption<"recentes" | "antigas">> = [
   { value: "recentes", label: "Mais recentes" },
   { value: "antigas", label: "Mais antigas" },
 ];
+const ITEMS_POR_PAGINA = 50;
+
 const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
+
+async function listarTodasSolicitacoes(
+  svc: (params?: ListarSolicitacoesMatriculaParams | string) => Promise<ListarSolicitacoesMatriculaResponse>,
+  params: ListarSolicitacoesMatriculaParams,
+): Promise<SolicitacaoMatricula[]> {
+  let offset = 0;
+  const solicitacoes: SolicitacaoMatricula[] = [];
+
+  while (true) {
+    const pagina = await svc({ ...params, limit: ITEMS_POR_PAGINA, offset });
+    const itens = pagina.solicitacoes ?? [];
+    solicitacoes.push(...itens);
+
+    const totalGeral = (pagina as any).total_geral;
+    if ((typeof totalGeral === 'number' && solicitacoes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
+    offset += ITEMS_POR_PAGINA;
+  }
+
+  return solicitacoes;
+}
 const docLabels: Record<string, string> = {
   bi_estudante: "BI do estudante",
   bi_encarregado: "BI do encarregado de educação",
@@ -98,8 +120,8 @@ export default function PageContent() {
     setErro("");
     try {
       const svc = isAdmin ? adminService.listarSolicitacoesMatricula : academiaService.listarSolicitacoesMatricula;
-      const r = await svc({ status: status || undefined, limit: 100 });
-      setItems((r as any).solicitacoes ?? []);
+      const solicitacoes = await listarTodasSolicitacoes(svc, { status: status || undefined });
+      setItems(solicitacoes);
     } catch (e: any) {
       setErro(e?.message ?? "Erro ao carregar solicitações");
     } finally {
@@ -172,8 +194,7 @@ export default function PageContent() {
 
       if (!encontrada) {
         const svc = isAdmin ? adminService.listarSolicitacoesMatricula : academiaService.listarSolicitacoesMatricula;
-        const response = await svc({ limit: 1000 });
-        const novasSolicitacoes = response.solicitacoes ?? [];
+        const novasSolicitacoes = await listarTodasSolicitacoes(svc, {});
         setItems(novasSolicitacoes);
         encontrada = novasSolicitacoes.find((item) => item.codigo_solicitacao === codigo);
       }
