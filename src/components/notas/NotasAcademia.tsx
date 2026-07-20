@@ -17,38 +17,6 @@ import { Dropdown } from "primereact/dropdown";
 import { getCookie } from "@/lib/utils/cookies";
 
 
-const ITEMS_POR_PAGINA_API = 50;
-
-async function listarTodasAcademias(params?: Parameters<typeof consultasService.listarAcademias>[0]) {
-  let offset = 0;
-  const academias: unknown[] = [];
-  let primeiraPagina: any = null;
-  while (true) {
-    const pagina = await consultasService.listarAcademias({ ...params, limit: ITEMS_POR_PAGINA_API, offset });
-    if (!primeiraPagina) primeiraPagina = pagina;
-    const itens = pagina.academias ?? [];
-    academias.push(...itens);
-    if ((typeof (pagina as any).total_geral === "number" && academias.length >= (pagina as any).total_geral) || itens.length < ITEMS_POR_PAGINA_API) break;
-    offset += ITEMS_POR_PAGINA_API;
-  }
-  return { ...(primeiraPagina ?? { total: 0 }), academias, total: academias.length };
-}
-
-async function listarTodosEstudantes(params?: Parameters<typeof consultasService.listarEstudantes>[0]) {
-  let offset = 0;
-  const estudantes: unknown[] = [];
-  let primeiraPagina: any = null;
-  while (true) {
-    const pagina = await consultasService.listarEstudantes({ ...params, limit: ITEMS_POR_PAGINA_API, offset });
-    if (!primeiraPagina) primeiraPagina = pagina;
-    const itens = pagina.estudantes ?? [];
-    estudantes.push(...itens);
-    if ((typeof (pagina as any).total_geral === "number" && estudantes.length >= (pagina as any).total_geral) || itens.length < ITEMS_POR_PAGINA_API) break;
-    offset += ITEMS_POR_PAGINA_API;
-  }
-  return { ...(primeiraPagina ?? { total: 0 }), estudantes, total: estudantes.length };
-}
-
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function getUserFromCookie(): MeuPerfilResponse | null {
@@ -688,7 +656,7 @@ export default function NotasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token });
+    carregarEstudantes({ token, limit: 50 });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);

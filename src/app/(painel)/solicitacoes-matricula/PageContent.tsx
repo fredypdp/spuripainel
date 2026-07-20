@@ -23,24 +23,11 @@ const ITEMS_POR_PAGINA = 50;
 
 const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
 
-async function listarTodasSolicitacoes(
+async function listarPaginaSolicitacoes(
   svc: (params?: ListarSolicitacoesMatriculaParams | string) => Promise<ListarSolicitacoesMatriculaResponse>,
   params: ListarSolicitacoesMatriculaParams,
-): Promise<SolicitacaoMatricula[]> {
-  let offset = 0;
-  const solicitacoes: SolicitacaoMatricula[] = [];
-
-  while (true) {
-    const pagina = await svc({ ...params, limit: ITEMS_POR_PAGINA, offset });
-    const itens = pagina.solicitacoes ?? [];
-    solicitacoes.push(...itens);
-
-    const totalGeral = (pagina as any).total_geral;
-    if ((typeof totalGeral === 'number' && solicitacoes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
-    offset += ITEMS_POR_PAGINA;
-  }
-
-  return solicitacoes;
+): Promise<ListarSolicitacoesMatriculaResponse> {
+  return svc({ ...params, limit: ITEMS_POR_PAGINA, offset: params.offset ?? 0 });
 }
 const docLabels: Record<string, string> = {
   bi_estudante: "BI do estudante",
@@ -105,6 +92,8 @@ export default function PageContent() {
   const [status, setStatus] = useState<SolicitacaoMatriculaStatus | "">("pendente");
   const [ordem, setOrdem] = useState<"recentes" | "antigas">("recentes");
   const [items, setItems] = useState<SolicitacaoMatricula[]>([]);
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [totalGeral, setTotalGeral] = useState(0);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [motivo, setMotivo] = useState<Record<string, string>>({});
@@ -120,17 +109,18 @@ export default function PageContent() {
     setErro("");
     try {
       const svc = isAdmin ? adminService.listarSolicitacoesMatricula : academiaService.listarSolicitacoesMatricula;
-      const solicitacoes = await listarTodasSolicitacoes(svc, { status: status || undefined });
-      setItems(solicitacoes);
+      const pagina = await listarPaginaSolicitacoes(svc, { status: status || undefined, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
+      setItems(pagina.solicitacoes ?? []);
+      setTotalGeral((pagina as any).total_geral ?? pagina.total ?? 0);
     } catch (e: any) {
       setErro(e?.message ?? "Erro ao carregar solicitações");
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, status]);
+  }, [isAdmin, paginaAtual, status]);
 
   useEffect(() => { if (user?.tipo) carregar(); }, [user?.tipo, carregar]);
-  useEffect(() => { setAnoSelecionado(null); setSolicitacaoSelecionada(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }, [status]);
+  useEffect(() => { setPaginaAtual(1); setAnoSelecionado(null); setSolicitacaoSelecionada(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }, [status]);
   useEffect(() => () => { if (documentoAberto?.url) URL.revokeObjectURL(documentoAberto.url); }, [documentoAberto?.url]);
 
   const anos = useMemo(() => {
@@ -148,6 +138,8 @@ export default function PageContent() {
         return ordem === "recentes" ? -diff : diff;
       });
   }, [items, anoSelecionado, ordem]);
+
+  const totalPaginas = Math.ceil(totalGeral / ITEMS_POR_PAGINA);
 
   const solicitacao = useMemo(
     () => items.find((item) => item.codigo_solicitacao === solicitacaoSelecionada) ?? null,
@@ -194,8 +186,10 @@ export default function PageContent() {
 
       if (!encontrada) {
         const svc = isAdmin ? adminService.listarSolicitacoesMatricula : academiaService.listarSolicitacoesMatricula;
-        const novasSolicitacoes = await listarTodasSolicitacoes(svc, {});
+        const pagina = await listarPaginaSolicitacoes(svc, {});
+        const novasSolicitacoes = pagina.solicitacoes ?? [];
         setItems(novasSolicitacoes);
+        setTotalGeral((pagina as any).total_geral ?? pagina.total ?? 0);
         encontrada = novasSolicitacoes.find((item) => item.codigo_solicitacao === codigo);
       }
 
@@ -290,6 +284,28 @@ export default function PageContent() {
             </div>
           )}
         </section>
+      )}
+
+      {totalPaginas > 1 && !solicitacao && (
+        <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+          <button
+            type="button"
+            onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
+            disabled={paginaAtual === 1}
+            className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700"
+          >
+            Anterior
+          </button>
+          <span>Página {paginaAtual} de {totalPaginas}</span>
+          <button
+            type="button"
+            onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
+            disabled={paginaAtual === totalPaginas}
+            className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700"
+          >
+            Próxima
+          </button>
+        </div>
       )}
 
       {solicitacao && (

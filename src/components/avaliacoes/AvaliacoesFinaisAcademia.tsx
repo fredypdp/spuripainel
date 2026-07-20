@@ -17,29 +17,9 @@ import Icon from "@/components/ui/Icon";
 
 const ITEMS_POR_PAGINA = 50;
 
-async function listarTodasAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
-  let offset = 0;
-  const avaliacoes: AvaliacaoFinal[] = [];
-  let primeiraPagina: ListarAvaliacoesResponse | null = null;
-
-  while (true) {
-    const pagina = await consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset });
-    if (!primeiraPagina) primeiraPagina = pagina;
-    const itens = pagina.avaliacoes ?? [];
-    avaliacoes.push(...itens);
-
-    const totalGeral = pagina.total_geral;
-    if ((typeof totalGeral === 'number' && avaliacoes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
-    offset += ITEMS_POR_PAGINA;
-  }
-
-  return {
-    ...(primeiraPagina ?? { total: 0 }),
-    avaliacoes,
-    total: avaliacoes.length,
-  };
+async function listarPaginaAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
+  return consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset: params?.offset ?? 0 });
 }
-
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = {
@@ -328,7 +308,7 @@ export default function AvaliacoesFinaisAcademia() {
   const { data: dataTurmas,    loading: loadTurmas,  execute: carregarTurmas    } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                           execute: carregarCursos    } = useApi(academiaService.listarCursos);
   const { data: dataEstudantes,                       execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
-  const { data: dataAvaliacoes, loading: loadAvs,    execute: carregarAvaliacoes } = useApi(listarTodasAvaliacoes);
+  const { data: dataAvaliacoes, loading: loadAvs,    execute: carregarAvaliacoes } = useApi(listarPaginaAvaliacoes);
   const { data: dataAnoLetivo,                        execute: buscarAnoLetivo   } = useApi(academiaService.getAnoLetivo);
 
   // Carrega avaliações para um ano letivo específico (ou todos se vazio)
@@ -339,7 +319,7 @@ export default function AvaliacoesFinaisAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token });
+    carregarEstudantes({ token, limit: 50 });
     buscarAnoLetivo(token);
     // Primeiro carrega sem filtro para descobrir anos disponíveis
     carregarAvaliacoes({ token });

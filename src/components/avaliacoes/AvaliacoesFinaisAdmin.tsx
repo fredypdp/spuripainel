@@ -13,29 +13,9 @@ import Icon from "@/components/ui/Icon";
 
 const ITEMS_POR_PAGINA = 50;
 
-async function listarTodasAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
-  let offset = 0;
-  const avaliacoes: AvaliacaoFinal[] = [];
-  let primeiraPagina: ListarAvaliacoesResponse | null = null;
-
-  while (true) {
-    const pagina = await consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset });
-    if (!primeiraPagina) primeiraPagina = pagina;
-    const itens = pagina.avaliacoes ?? [];
-    avaliacoes.push(...itens);
-
-    const totalGeral = pagina.total_geral;
-    if ((typeof totalGeral === 'number' && avaliacoes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
-    offset += ITEMS_POR_PAGINA;
-  }
-
-  return {
-    ...(primeiraPagina ?? { total: 0 }),
-    avaliacoes,
-    total: avaliacoes.length,
-  };
+async function listarPaginaAvaliacoes(params?: Parameters<typeof consultasService.listarAvaliacoes>[0]): Promise<ListarAvaliacoesResponse> {
+  return consultasService.listarAvaliacoes({ ...params, limit: ITEMS_POR_PAGINA, offset: params?.offset ?? 0 });
 }
-
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = {
@@ -385,7 +365,7 @@ export default function AvaliacoesFinaisAdmin() {
   // Académias (leves)
   const { data: dataAcads,      execute: carregarAcads,      loading: loadAcads  } = useApi(consultasService.listarAcademias);
   // Avaliações filtradas pelo servidor
-  const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading: loadAvs    } = useApi(listarTodasAvaliacoes);
+  const { data: dataAvaliacoes, execute: carregarAvaliacoes, loading: loadAvs    } = useApi(listarPaginaAvaliacoes);
 
   // Anos letivos disponíveis globalmente (carregados com 1 chamada inicial)
   const [anosGlobais,      setAnosGlobais]      = useState<string[]>([]);
@@ -398,7 +378,7 @@ export default function AvaliacoesFinaisAdmin() {
   useEffect(() => {
     carregarAcads({ token });
     // Descobrir anos letivos globais
-    listarTodasAvaliacoes({ token }).then(res => {
+    listarPaginaAvaliacoes({ token }).then(res => {
       const anos = Array.from(new Set((res?.avaliacoes ?? []).map(a => a.ano_lectivo).filter(Boolean))).sort();
       setAnosGlobais(anos);
       if (anos.length > 0) setAnoLetivoGlobal(anos[0]);
@@ -437,7 +417,7 @@ export default function AvaliacoesFinaisAdmin() {
   const entrarNaAcademia = useCallback(async (acad: AcadInfo) => {
     setLoadingAnosAcad(true);
     try {
-      const res = await listarTodasAvaliacoes({ codigo_academia: acad.codigo_academia, token });
+      const res = await listarPaginaAvaliacoes({ codigo_academia: acad.codigo_academia, token });
       const avs  = res?.avaliacoes ?? [];
       const anos = Array.from(new Set(avs.map(a => a.ano_lectivo).filter(Boolean))).sort();
       setAnosAcademia(anos);

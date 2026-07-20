@@ -1032,33 +1032,30 @@ export default function Academias() {
   const carregarLista = useCallback(async () => {
     try {
       const token = tokenStorage.get();
-      await carregarAcademias({ token: token || undefined });
+      await carregarAcademias({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
       setCarregado(true);
     } catch {}
-  }, [carregarAcademias]);
+  }, [carregarAcademias, paginaAtual]);
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
         const token = tokenStorage.get();
-        await carregarAcademias({ token: token || undefined });
+        await carregarAcademias({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
         if (isMounted) setCarregado(true);
       } catch {}
     })();
     return () => { isMounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [carregarAcademias, paginaAtual]);
 
-  useEffect(() => { setPaginaAtual(1); }, [dataAcademias, ordem]);
+  useEffect(() => { setPaginaAtual(1); }, [ordem]);
 
   const academiasList       = useMemo(() => dataAcademias?.academias ?? [], [dataAcademias]);
   const academiasOrdenadas  = useMemo(() => ordenarAcademias(academiasList, ordem), [academiasList, ordem]);
-  const totalPaginas        = Math.ceil(academiasOrdenadas.length / ITEMS_POR_PAGINA);
-  const academiasPaginadas  = useMemo(
-    () => academiasOrdenadas.slice((paginaAtual - 1) * ITEMS_POR_PAGINA, paginaAtual * ITEMS_POR_PAGINA),
-    [academiasOrdenadas, paginaAtual],
-  );
+  const totalAcademias      = (dataAcademias as any)?.total_geral ?? dataAcademias?.total ?? academiasOrdenadas.length;
+  const totalPaginas        = Math.ceil(totalAcademias / ITEMS_POR_PAGINA);
+  const academiasPaginadas  = academiasOrdenadas;
 
   // ─── Handlers individuais ──────────────────────────────────────────────────
 
@@ -1328,7 +1325,7 @@ export default function Academias() {
               <PaginacaoSetas
                 paginaAtual={paginaAtual}
                 totalPaginas={totalPaginas}
-                total={academiasOrdenadas.length}
+                total={totalAcademias}
                 porPagina={ITEMS_POR_PAGINA}
                 onChange={setPaginaAtual}
               />
