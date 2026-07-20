@@ -5,7 +5,7 @@ import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
-import { ConsultarEstudanteResponse, ConsultarEstudantesResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
+import { ConsultarEstudanteResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
 import { useUserType } from '@/hooks/useRoutePermission';
 import { useUserCookie } from '@/hooks/useUserCookie';
 import Icon from "@/components/ui/Icon";
@@ -13,29 +13,6 @@ import SearchableSelect from "@/components/form/SearchableSelect";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 const ITEMS_POR_PAGINA = 50;
-
-async function listarTodosEstudantes(params?: Parameters<typeof consultasService.listarEstudantes>[0]): Promise<ConsultarEstudantesResponse> {
-  let offset = 0;
-  const estudantes: EstudanteDetalhado[] = [];
-  let primeiraPagina: ConsultarEstudantesResponse | null = null;
-
-  while (true) {
-    const pagina = await consultasService.listarEstudantes({ ...params, limit: ITEMS_POR_PAGINA, offset });
-    if (!primeiraPagina) primeiraPagina = pagina;
-    const itens = pagina.estudantes ?? [];
-    estudantes.push(...itens);
-
-    const totalGeral = pagina.total_geral;
-    if ((typeof totalGeral === 'number' && estudantes.length >= totalGeral) || itens.length < ITEMS_POR_PAGINA) break;
-    offset += ITEMS_POR_PAGINA;
-  }
-
-  return {
-    ...(primeiraPagina ?? { total: 0, tipo_usuario: 'academia' as const }),
-    estudantes,
-    total: estudantes.length,
-  };
-}
 
 const ANOS_FUNDAMENTAL_LIST = [
   { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
@@ -1263,10 +1240,12 @@ export default function Estudantes() {
   const [paginaAtual,          setPaginaAtual]          = useState(1);
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>('nome_asc');
   const [filtros,              setFiltros]              = useState<FiltrosState>({ ...FILTROS_INICIAIS });
+  const [filtrosAplicados,     setFiltrosAplicados]     = useState<FiltrosState>({ ...FILTROS_INICIAIS });
+  const [atualizacaoLista,     setAtualizacaoLista]     = useState(0);
 
   const [modoTela,             setModoTela]             = useState<'lista' | 'detalhes' | 'documentacao'>('lista');
 
-  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(listarTodosEstudantes);
+  const { data: dataEstudantes, loading: carregandoEstudantes, error: erroEstudantes, execute: carregarEstudantes } = useApi(consultasService.listarEstudantes);
   const { data: dataCursos,  execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { data: dataTurmas,  execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
@@ -1286,11 +1265,9 @@ export default function Estudantes() {
   const carregarEstudantesRef = useRef(carregarEstudantes);
   useEffect(() => { carregarEstudantesRef.current = carregarEstudantes; }, [carregarEstudantes]);
 
-  const carregarLista = useCallback(async () => {
-    const token = tokenStorage.get();
-    const filtrosPermitidos = sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin);
-    await carregarEstudantesRef.current({
-      token: token || undefined,
+  const parametrosConsultaEstudantes = useMemo(() => {
+    const filtrosPermitidos = sanitizarFiltrosPorVisibilidade(filtrosAplicados, visibilidadeFiltros, !!isAdmin);
+    return {
       limit: ITEMS_POR_PAGINA,
       offset: (paginaAtual - 1) * ITEMS_POR_PAGINA,
       genero: filtrosPermitidos.genero || undefined,
@@ -1309,19 +1286,27 @@ export default function Estudantes() {
       codigo_turma: filtrosPermitidos.codigoTurma.trim() || undefined,
       status: filtrosPermitidos.statusDocumentos || filtrosPermitidos.status || undefined,
       com_turma: filtrosPermitidos.comTurma === '' ? undefined : filtrosPermitidos.comTurma === 'true',
-    });
-    setCarregado(true);
-  }, [filtros, isAdmin, paginaAtual, visibilidadeFiltros]);
+    };
+  }, [filtrosAplicados, isAdmin, paginaAtual, visibilidadeFiltros]);
+
+  const carregarLista = useCallback(() => {
+    setFiltrosAplicados(sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin));
+    setPaginaAtual(1);
+    setAtualizacaoLista(tick => tick + 1);
+  }, [filtros, isAdmin, visibilidadeFiltros]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const token = tokenStorage.get();
-      await carregarEstudantesRef.current({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
+      await carregarEstudantesRef.current({
+        ...parametrosConsultaEstudantes,
+        token: token || undefined,
+      });
       if (mounted) setCarregado(true);
     })();
     return () => { mounted = false; };
-  }, [paginaAtual]);
+  }, [parametrosConsultaEstudantes, atualizacaoLista]);
 
   useEffect(() => {
     if (isAcademia) {
@@ -1335,8 +1320,8 @@ export default function Estudantes() {
   useEffect(() => { setPaginaAtual(1); }, [ordem]);
 
   const filtrosVisiveis = useMemo(
-    () => sanitizarFiltrosPorVisibilidade(filtros, visibilidadeFiltros, !!isAdmin),
-    [filtros, isAdmin, visibilidadeFiltros]
+    () => sanitizarFiltrosPorVisibilidade(filtrosAplicados, visibilidadeFiltros, !!isAdmin),
+    [filtrosAplicados, isAdmin, visibilidadeFiltros]
   );
 
   const estudantesFiltradosOrdenados = useMemo(
@@ -1344,7 +1329,7 @@ export default function Estudantes() {
     [dataEstudantes, filtrosVisiveis, ordem]
   );
   const totalEstudantes = dataEstudantes?.total_geral ?? dataEstudantes?.total ?? estudantesFiltradosOrdenados.length;
-  const totalPaginas = Math.ceil(totalEstudantes / ITEMS_POR_PAGINA);
+  const totalPaginas = Math.max(1, Math.ceil(totalEstudantes / ITEMS_POR_PAGINA));
   const estudantesPaginados = estudantesFiltradosOrdenados;
 
   const turmas: Turma[]  = (dataTurmas as any)?.turmas ?? [];
@@ -1355,8 +1340,8 @@ export default function Estudantes() {
   const handleAdicionarDocumentacao = (e: EstudanteDetalhado) => { setEstudanteSelecionado(e); setModoTela('documentacao'); };
   const handleVoltarLista = () => { setModoTela('lista'); setEstudanteSelecionado(null); };
 
-  const totalFiltrado = estudantesFiltradosOrdenados.length;
-  const totalGeral    = dataEstudantes?.total ?? 0;
+  const totalFiltrado = totalEstudantes;
+  const totalGeral    = totalEstudantes;
 
   return (
     <div>
