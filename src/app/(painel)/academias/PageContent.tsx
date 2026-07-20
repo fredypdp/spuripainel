@@ -1031,11 +1031,13 @@ export default function Academias() {
 
   const carregarLista = useCallback(async () => {
     try {
+      setOrdem('nome_asc');
+      setPaginaAtual(1);
       const token = tokenStorage.get();
-      await carregarAcademias({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
+      await carregarAcademias({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: 0 });
       setCarregado(true);
     } catch {}
-  }, [carregarAcademias, paginaAtual]);
+  }, [carregarAcademias]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1049,12 +1051,16 @@ export default function Academias() {
     return () => { isMounted = false; };
   }, [carregarAcademias, paginaAtual]);
 
-  useEffect(() => { setPaginaAtual(1); }, [ordem]);
+  const handleMudarPagina = useCallback((pagina: number) => {
+    setOrdem('nome_asc');
+    setSelecionadas(new Set());
+    setPaginaAtual(pagina);
+  }, []);
 
   const academiasList       = useMemo(() => dataAcademias?.academias ?? [], [dataAcademias]);
   const academiasOrdenadas  = useMemo(() => ordenarAcademias(academiasList, ordem), [academiasList, ordem]);
   const totalAcademias      = (dataAcademias as any)?.total_geral ?? dataAcademias?.total ?? academiasOrdenadas.length;
-  const totalPaginas        = Math.ceil(totalAcademias / ITEMS_POR_PAGINA);
+  const totalPaginas        = Math.max(1, Math.ceil(totalAcademias / ITEMS_POR_PAGINA));
   const academiasPaginadas  = academiasOrdenadas;
 
   // ─── Handlers individuais ──────────────────────────────────────────────────
@@ -1327,7 +1333,7 @@ export default function Academias() {
                 totalPaginas={totalPaginas}
                 total={totalAcademias}
                 porPagina={ITEMS_POR_PAGINA}
-                onChange={setPaginaAtual}
+                onChange={handleMudarPagina}
               />
             )}
           </div>
