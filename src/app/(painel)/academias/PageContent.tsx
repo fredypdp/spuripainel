@@ -55,6 +55,7 @@ async function listarTodasAcademias(params?: { limit?: number; offset?: number; 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type OrdemAcademias =
+  | 'padrao'
   | 'nome_asc' | 'nome_desc'
   | 'estudantes_desc' | 'estudantes_asc'
   | 'cadastro_desc' | 'cadastro_asc';
@@ -118,6 +119,8 @@ function ordenarAcademias(
   lista: AcademiaDetalhada[],
   ordem: OrdemAcademias,
 ): AcademiaDetalhada[] {
+  if (ordem === 'padrao') return lista;
+
   return [...lista].sort((a, b) => {
     switch (ordem) {
       case 'nome_asc':         return a.nome.localeCompare(b.nome, 'pt');
@@ -132,6 +135,7 @@ function ordenarAcademias(
 }
 
 const OPCOES_ORDEM_ACADEMIAS: { key: OrdemAcademias; label: string; icon: string }[] = [
+  { key: 'padrao',          label: 'Padrão',           icon: 'mdi:sort-variant-off'             },
   { key: 'nome_asc',        label: 'Nome A → Z',       icon: 'mdi:sort-alphabetical-ascending'  },
   { key: 'nome_desc',       label: 'Nome Z → A',       icon: 'mdi:sort-alphabetical-descending' },
   { key: 'estudantes_desc', label: 'Mais estudantes',  icon: 'mdi:sort-descending'              },
@@ -1012,7 +1016,7 @@ export default function Academias() {
 
   const [carregado,   setCarregado]   = useState(false);
   const [vistaEscala, setVistaEscala] = useState(true);
-  const [ordem,       setOrdem]       = useState<OrdemAcademias>('nome_asc');
+  const [ordem,       setOrdem]       = useState<OrdemAcademias>('padrao');
   const [paginaAtual, setPaginaAtual] = useState(1);
 
   const [selecionadas,           setSelecionadas]           = useState<Set<string>>(new Set());
@@ -1035,7 +1039,7 @@ export default function Academias() {
 
   const carregarLista = useCallback(async () => {
     try {
-      setOrdem('nome_asc');
+      setOrdem('padrao');
       setPaginaAtual(1);
       const token = tokenStorage.get();
       await carregarAcademias({ token: token || undefined, limit: ITEMS_POR_PAGINA, offset: 0 });
@@ -1056,7 +1060,7 @@ export default function Academias() {
   }, [carregarAcademias, paginaAtual]);
 
   const handleMudarPagina = useCallback((pagina: number) => {
-    setOrdem('nome_asc');
+    setOrdem('padrao');
     setSelecionadas(new Set());
     setPaginaAtual(pagina);
   }, []);
