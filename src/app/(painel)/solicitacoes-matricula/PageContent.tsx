@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { academiaService, adminService } from "@/lib/api/services";
+import { academiaService, adminService, consultasService } from "@/lib/api/services";
 import { useUserType } from "@/hooks/useRoutePermission";
 import type {
   ListarSolicitacoesStatusAcademicoParams,
   ListarSolicitacoesStatusAcademicoResponse,
+  AcademiaDetalhada,
   SolicitacaoStatusAcademico,
   SolicitacaoStatusAcademicoStatus,
   SolicitacaoStatusAcademicoTipo,
@@ -24,6 +25,7 @@ const ordemOptions: Array<SearchableSelectOption<"recentes" | "antigas">> = [
   { value: "recentes", label: "Mais recentes" },
   { value: "antigas", label: "Mais antigas" },
 ];
+const academiaPlaceholderOption: SearchableSelectOption<string> = { value: "", label: "Selecione uma academia" };
 const ITEMS_POR_PAGINA = 50;
 
 const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
@@ -71,6 +73,9 @@ export default function PageContent() {
   const [status, setStatus] = useState<SolicitacaoStatusAcademicoStatus | "">("pendente");
   const [ordem, setOrdem] = useState<"recentes" | "antigas">("recentes");
   const [items, setItems] = useState<SolicitacaoStatusAcademico[]>([]);
+  const [academias, setAcademias] = useState<AcademiaDetalhada[]>([]);
+  const [academiaSelecionada, setAcademiaSelecionada] = useState("");
+  const [loadingAcademias, setLoadingAcademias] = useState(false);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [totalGeral, setTotalGeral] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -83,11 +88,21 @@ export default function PageContent() {
   const [decidindo, setDecidindo] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
+    if (isAdmin && !academiaSelecionada) {
+      setItems([]);
+      setTotalGeral(0);
+      return;
+    }
+
     setLoading(true);
     setErro("");
     try {
       const svc = isAdmin ? adminService.listarSolicitacoesStatusAcademico : academiaService.listarSolicitacoesStatusAcademico;
-      const pagina = await listarPaginaSolicitacoes(svc, { status: status || undefined, offset: (paginaAtual - 1) * ITEMS_POR_PAGINA });
+      const pagina = await listarPaginaSolicitacoes(svc, {
+        status: status || undefined,
+        codigo_academia: isAdmin ? academiaSelecionada : undefined,
+        offset: (paginaAtual - 1) * ITEMS_POR_PAGINA,
+      });
       setItems(pagina.solicitacoes ?? []);
       setTotalGeral(pagina.total_geral ?? pagina.total ?? 0);
     } catch (e: any) {
@@ -95,10 +110,40 @@ export default function PageContent() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, paginaAtual, status]);
+  }, [academiaSelecionada, isAdmin, paginaAtual, status]);
 
-  useEffect(() => { if (user?.tipo) void carregar(); }, [user?.tipo, carregar]);
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let ativo = true;
+    async function carregarAcademias() {
+      setLoadingAcademias(true);
+      setErro("");
+      try {
+        const resposta = await consultasService.listarAcademias();
+        if (ativo) setAcademias(resposta.academias ?? []);
+      } catch (e: any) {
+        if (ativo) setErro(e?.message ?? "Erro ao carregar academias");
+      } finally {
+        if (ativo) setLoadingAcademias(false);
+      }
+    }
+
+    void carregarAcademias();
+    return () => { ativo = false; };
+  }, [isAdmin]);
+
+  useEffect(() => { if (user?.tipo && (!isAdmin || academiaSelecionada)) void carregar(); }, [academiaSelecionada, isAdmin, user?.tipo, carregar]);
   useEffect(() => { setPaginaAtual(1); setOrdem("recentes"); setTipoSelecionado(null); setSolicitacaoSelecionada(null); }, [status]);
+  useEffect(() => { setPaginaAtual(1); setOrdem("recentes"); setTipoSelecionado(null); setSolicitacaoSelecionada(null); setItems([]); setTotalGeral(0); }, [academiaSelecionada]);
+
+  const academiaOptions = useMemo<Array<SearchableSelectOption<string>>>(() => [
+    academiaPlaceholderOption,
+    ...academias.map((academia) => ({
+      value: academia.codigo_academia,
+      label: academia.nome ? `${academia.codigo_academia} · ${academia.nome}` : academia.codigo_academia,
+    })),
+  ], [academias]);
 
   const tipos = useMemo(() => Array.from(new Set(items.map((item) => item.tipo))), [items]);
 
@@ -160,7 +205,7 @@ export default function PageContent() {
     }
   }
 
-  if (loading) return <div className="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />;
+  if (loading && !isAdmin) return <div className="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />;
 
   return (
     <div className="space-y-6">
@@ -169,15 +214,35 @@ export default function PageContent() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Solicitações de status acadêmico</h1>
           <p className="text-sm text-gray-500">Analise pedidos de interrupção, desvinculação e revinculação criados pelo estudante.</p>
         </div>
-        <div className="w-44 capitalize">
-          <SearchableSelect value={status} options={statusOptions} onChange={(value) => setStatus(value as SolicitacaoStatusAcademicoStatus | "")} isSearchable={false} />
+        <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <div className="w-72">
+              <SearchableSelect
+                value={academiaSelecionada}
+                options={academiaOptions}
+                onChange={setAcademiaSelecionada}
+                placeholder="Selecione uma academia"
+                isDisabled={loadingAcademias}
+                isSearchable={false}
+              />
+            </div>
+          )}
+          <div className="w-44 capitalize">
+            <SearchableSelect value={status} options={statusOptions} onChange={(value) => setStatus(value as SolicitacaoStatusAcademicoStatus | "")} isSearchable={false} />
+          </div>
         </div>
       </div>
 
       {mensagem && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{mensagem}</p>}
       {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{erro}</p>}
 
-      {!tipoSelecionado && (
+      {loading && <div className="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />}
+
+      {isAdmin && !academiaSelecionada && !loading && (
+        <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Selecione uma academia para consultar as solicitações.</p>
+      )}
+
+      {!loading && (!isAdmin || academiaSelecionada) && !tipoSelecionado && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {tipos.length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhuma solicitação encontrada.</p> : tipos.map((tipo) => {
             const total = items.filter((item) => item.tipo === tipo).length;
@@ -192,7 +257,7 @@ export default function PageContent() {
         </div>
       )}
 
-      {tipoSelecionado && !solicitacao && (
+      {!loading && tipoSelecionado && !solicitacao && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button type="button" onClick={() => setTipoSelecionado(null)} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar para tipos de solicitação</button>
@@ -214,7 +279,7 @@ export default function PageContent() {
         </section>
       )}
 
-      {totalPaginas > 1 && !solicitacao && (
+      {!loading && totalPaginas > 1 && !solicitacao && (
         <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
           <button type="button" onClick={() => mudarPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700">Anterior</button>
           <span>Página {paginaAtual} de {totalPaginas}</span>
@@ -222,7 +287,7 @@ export default function PageContent() {
         </div>
       )}
 
-      {solicitacao && (
+      {!loading && solicitacao && (
         <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <button type="button" onClick={() => setSolicitacaoSelecionada(null)} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar para solicitações de {tipoSelecionado ? tipoLabels[tipoSelecionado] : "status"}</button>
           <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{solicitacao.estudante_nome || solicitacao.codigo_estudante}</h2><p className="text-sm text-gray-500">{solicitacao.codigo_solicitacao} · {solicitacao.codigo_academia}{solicitacao.academia_nome ? ` · ${solicitacao.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{solicitacao.status}</span></div>
