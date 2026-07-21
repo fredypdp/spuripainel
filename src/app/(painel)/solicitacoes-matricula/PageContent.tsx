@@ -170,7 +170,7 @@ export default function PageContent() {
           <p className="text-sm text-gray-500">Analise pedidos de interrupção, desvinculação e revinculação criados pelo estudante.</p>
         </div>
         <div className="w-44 capitalize">
-          <SearchableSelect value={status} options={statusOptions} onChange={(value) => setStatus(value as SolicitacaoStatusAcademicoStatus | "")} isSearchable={false} />
+          <SearchableSelect value={status} options={statusOptions} onChange={(value) => setStatus(value as SolicitacaoStatusAcademicoStatus | "")} searchable={false} />
         </div>
       </div>
 
@@ -198,7 +198,7 @@ export default function PageContent() {
             <button type="button" onClick={() => setTipoSelecionado(null)} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar para tipos de solicitação</button>
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{tipoLabels[tipoSelecionado]}</h2>
-              <div className="w-44"><SearchableSelect value={ordem} options={ordemOptions} onChange={(value) => setOrdem(value as "recentes" | "antigas")} isSearchable={false} /></div>
+              <div className="w-44"><SearchableSelect value={ordem} options={ordemOptions} onChange={(value) => setOrdem(value as "recentes" | "antigas")} searchable={false} /></div>
             </div>
           </div>
           {solicitacoesDoTipo.length === 0 ? <p className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700">Nenhuma solicitação deste tipo.</p> : (
