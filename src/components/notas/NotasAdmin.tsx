@@ -781,7 +781,7 @@ export default function NotasAdmin() {
         onClick={goBack}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
       >
-        <Icon icon="mdi:arrow-left" width={16} /> Voltar
+        <Icon icon="mdi:arrow-left" width={16} /> Voltar para estudantes
       </button>
     ) : null;
 
@@ -1082,7 +1082,7 @@ export default function NotasAdmin() {
         <button onClick={() => setNavLayer({ type: "provincias" })}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
         >
-          <Icon icon="mdi:arrow-left" width={16} /> Voltar
+          <Icon icon="mdi:arrow-left" width={16} /> Voltar para estudantes
         </button>
         <Breadcrumb crumbs={buildCrumbs()} />
         <div>
