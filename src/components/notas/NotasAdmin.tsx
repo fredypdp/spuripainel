@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useApi, consultasService, academiaService, tokenStorage } from "@/lib/api";
 import { listarTodasAcademias, listarTodosEstudantes } from "@/lib/api/pagination";
-import type { Nota, Turma, EstudanteDetalhado, Curso } from "@/types/api";
+import type { CategoriaNotaItem, Nota, Turma, EstudanteDetalhado, Curso } from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -113,6 +113,19 @@ function categoriasEscolaresDoAno(anoAcademico: string, notas: Nota[]): string[]
     .filter(cat => cat.anos_academicos.includes(anoAcademico))
     .map(cat => cat.value);
   return Array.from(new Set([...categoriasFixas, ...notas.map(n => n.categoria)]));
+}
+
+
+function categoriasSuperioresDoAno(anoAcademico: string, notas: Nota[], categorias: CategoriaNotaItem[]): string[] {
+  const categoriasConfiguradas = categorias
+    .filter(cat => cat.status !== "inativo")
+    .filter(cat => {
+      const anos = cat.anos_academicos ?? [];
+      return anos.length === 0 || anos.includes(anoAcademico);
+    })
+    .map(cat => cat.codigo);
+  return Array.from(new Set([...categoriasConfiguradas, ...notas.map(n => n.categoria)]))
+    .sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
 }
 
 function turmaAtiva(turma: Turma): boolean {
@@ -275,8 +288,8 @@ function TabelaNotasEscolar({ notas, estudantes, codigosTurma, anoAcademico }: {
 
 // ─── Tabela superior ──────────────────────────────────────────────────────────
 
-function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
-  notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[];
+function TabelaNotasSuperior({ notas, estudantes, codigosTurma, anoAcademico, categorias }: {
+  notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[]; anoAcademico: string; categorias: CategoriaNotaItem[];
 }) {
   if (codigosTurma.length === 0)
     return (
@@ -286,7 +299,7 @@ function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
       </div>
     );
 
-  const categoriasOrdem = Array.from(new Set(["nota_professor", ...notas.map(n => n.categoria)])).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+  const categoriasOrdem = categoriasSuperioresDoAno(anoAcademico, notas, categorias);
   const porEst = new Map<string, Nota[]>();
   notas.forEach(n => {
     const k = normCodigo(n.codigo_estudante);
@@ -348,6 +361,7 @@ export default function NotasAdmin() {
   const [materiaSelecionada, setMateriaSelecionada]             = useState<string | null>(null);
   const [materiasCache, setMateriasCache]                       = useState<Record<string, { id: string; nome: string }>>({});
   const [carregandoMaterias, setCarregandoMaterias]             = useState(false);
+  const [categorias, setCategorias]                             = useState<CategoriaNotaItem[]>([]);
 
   // APIs
   const { data: academiasData, loading: loadingAcads, execute: fetchAcademias } =
@@ -567,6 +581,13 @@ export default function NotasAdmin() {
     fetchEstudantes({ token, limit: 50, offset: 0 });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
+    if (isSup) {
+      academiaService.listarCategoriasNota({ codigo_academia: cod, token })
+        .then(res => setCategorias(res?.categorias ?? []))
+        .catch(() => setCategorias([]));
+    } else {
+      setCategorias([]);
+    }
   }
 
   // ─── breadcrumbs ─────────────────────────────────────────────────────────────
@@ -744,7 +765,7 @@ export default function NotasAdmin() {
 
         {materiasDisponiveis.length > 0 && (
           usarTabelaSuperior
-            ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
+            ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} categorias={categorias} />
             : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} />
         )}
       </div>

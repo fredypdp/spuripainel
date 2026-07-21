@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { academiaService, consultasService, tokenStorage, useApi } from "@/lib/api";
 import { listarTodasAcademias } from "@/lib/api/pagination";
-import type { Materia, MeuPerfilResponse, Nota, Turma } from "@/types/api";
+import type { CategoriaNotaItem, Materia, MeuPerfilResponse, Nota, Turma } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import { getCookie } from "@/lib/utils/cookies";
 
@@ -70,6 +70,39 @@ function sortAnosAcademicos(anos: string[]): string[] {
 
 type AcadInfo = { codigo: string; nome: string; nivel: string; nivel_escolar?: string };
 
+const ANOS_COM_NOTAS_REGULARES = [
+  "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
+  "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental",
+  "9_ano_fundamental", "1_ano_medio", "2_ano_medio", "3_ano_medio",
+];
+const ANOS_COM_EXAME = ["6_ano_fundamental", "9_ano_fundamental", "3_ano_medio"];
+const CATEGORIAS_ESCOLAR = [
+  { value: "nota_professor", anos_academicos: ANOS_COM_NOTAS_REGULARES },
+  { value: "prova_trimestral", anos_academicos: ANOS_COM_NOTAS_REGULARES },
+  { value: "exame_final", anos_academicos: ANOS_COM_EXAME },
+  { value: "exame_recurso", anos_academicos: ANOS_COM_EXAME },
+  { value: "nota_pap", anos_academicos: ["4_ano_medio"] },
+];
+
+function categoriasEscolaresDoAno(anoAcademico: string, notas: Nota[]): string[] {
+  const categoriasFixas = CATEGORIAS_ESCOLAR
+    .filter(cat => cat.anos_academicos.includes(anoAcademico))
+    .map(cat => cat.value);
+  return Array.from(new Set([...categoriasFixas, ...notas.map(n => n.categoria)]));
+}
+
+function categoriasSuperioresDoAno(anoAcademico: string, notas: Nota[], categorias: CategoriaNotaItem[]): string[] {
+  const categoriasConfiguradas = categorias
+    .filter(cat => cat.status !== "inativo")
+    .filter(cat => {
+      const anos = cat.anos_academicos ?? [];
+      return anos.length === 0 || anos.includes(anoAcademico);
+    })
+    .map(cat => cat.codigo);
+  return Array.from(new Set([...categoriasConfiguradas, ...notas.map(n => n.categoria)]))
+    .sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+}
+
 type Layer =
   | { type: "academias" }
   | { type: "anos_letivos"; a: AcadInfo }
@@ -133,7 +166,7 @@ function StatsNotas({ notas }: { notas: Nota[] }) {
   );
 }
 
-function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [] }: { notas: Nota[]; categoriasMap: Record<string, string>; materias?: Materia[] }) {
+function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [], anoAcademico }: { notas: Nota[]; categoriasMap: Record<string, string>; materias?: Materia[]; anoAcademico: string }) {
   const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
   materias.forEach(m => porMateria.set(m.id, { nome: m.nome, notas: [] }));
   notas.forEach(n => {
@@ -143,7 +176,7 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [] }: { 
   });
 
 
-  const categoriasOrdem = Array.from(new Set(["nota_professor", "prova_trimestral", "exame_final", "exame_recurso", "nota_pap", ...notas.map(n => n.categoria)]));
+  const categoriasOrdem = categoriasEscolaresDoAno(anoAcademico, notas);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
@@ -200,7 +233,7 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [] }: { 
   );
 }
 
-function TabelaNotasSuperiorEstudante({ notas, materias = [] }: { notas: Nota[]; materias?: Materia[] }) {
+function TabelaNotasSuperiorEstudante({ notas, materias = [], anoAcademico, categorias }: { notas: Nota[]; materias?: Materia[]; anoAcademico: string; categorias: CategoriaNotaItem[] }) {
   const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
   materias.forEach(m => porMateria.set(m.id, { nome: m.nome, notas: [] }));
   notas.forEach(n => {
@@ -209,39 +242,34 @@ function TabelaNotasSuperiorEstudante({ notas, materias = [] }: { notas: Nota[];
     porMateria.get(id)!.notas.push(n);
   });
 
+  const categoriasOrdem = categoriasSuperioresDoAno(anoAcademico, notas, categorias);
+
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800/70">
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Matéria Disciplinar</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Categoria</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Nota</th>
+            {categoriasOrdem.map((cat) => (
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{formatCategoria(cat)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {porMateria.size === 0 && (
             <tr className="bg-white dark:bg-gray-800">
-              <td className="px-4 py-6 text-gray-400 dark:text-gray-600" colSpan={3}></td>
+              <td className="px-4 py-6 text-gray-400 dark:text-gray-600" colSpan={categoriasOrdem.length + 1}></td>
             </tr>
           )}
-          {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).flatMap(([, { nome, notas: nm }]) =>
-            nm.length > 0
-              ? nm.map((n, i) => (
-                <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                  {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
-                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{notaText(n.nota)}</td>
-                </tr>
-              ))
-              : [
-                <tr key={nome} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400"></td>
-                  <td className="px-4 py-3 text-right font-bold text-gray-400 dark:text-gray-600"></td>
-                </tr>
-              ]
-          )}
+          {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([, { nome, notas: nm }]) => (
+            <tr key={nome} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+              <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
+              {categoriasOrdem.map((cat) => {
+                const notaCat = nm.find(n => n.categoria === cat);
+                return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -254,6 +282,7 @@ export default function NotasEstudante() {
   const [user]  = useState<MeuPerfilResponse | null>(getUserFromCookie);
   const [layer, setLayer] = useState<Layer>({ type: "academias" });
   const [loadingLayer, setLoadingLayer] = useState(false);
+  const [categoriasPorAcademia, setCategoriasPorAcademia] = useState<Record<string, CategoriaNotaItem[]>>({});
   const token = tokenStorage.get() ?? undefined;
   const codigoEstudante = user?.estudante?.codigo_estudante ?? "";
 
@@ -327,6 +356,14 @@ export default function NotasEstudante() {
 
   const navegar = async (novaLayer: Layer) => {
     setLoadingLayer(true);
+    if (novaLayer.type === "periodo" && novaLayer.a.nivel === "superior" && !categoriasPorAcademia[novaLayer.a.codigo]) {
+      try {
+        const res = await academiaService.listarCategoriasNota({ codigo_academia: novaLayer.a.codigo, token });
+        setCategoriasPorAcademia(prev => ({ ...prev, [novaLayer.a.codigo]: res?.categorias ?? [] }));
+      } catch {
+        setCategoriasPorAcademia(prev => ({ ...prev, [novaLayer.a.codigo]: [] }));
+      }
+    }
     await new Promise(r => setTimeout(r, 80));
     setLayer(novaLayer);
     setLoadingLayer(false);
@@ -503,8 +540,8 @@ export default function NotasEstudante() {
         {loadingLayer
           ? <LoadingSpinner message="Carregando notas..." />
           : isSup
-            ? <TabelaNotasSuperiorEstudante notas={notas} materias={materiasPeriodo} />
-            : <TabelaNotasEscolarEstudante notas={notas} categoriasMap={categoriasMap} materias={materiasPeriodo} />
+            ? <TabelaNotasSuperiorEstudante notas={notas} materias={materiasPeriodo} anoAcademico={anoAcademico} categorias={categoriasPorAcademia[a.codigo] ?? []} />
+            : <TabelaNotasEscolarEstudante notas={notas} categoriasMap={categoriasMap} materias={materiasPeriodo} anoAcademico={anoAcademico} />
         }
       </div>
     );
