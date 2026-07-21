@@ -33,26 +33,6 @@ const navItems: NavItem[] = [
     path: "/perfil",
   },
   {
-    icon: <Icon width="24px" icon="mdi:file-document-edit-outline" />,
-    name: "Solicitações",
-    path: "/solicitacoes",
-  },
-  {
-    name: "Registros",
-    icon: <Icon width="24px" icon="vaadin:records" />,
-    subItems: [
-      { name: "Notas",  path: "/notas"  },
-      { name: "Faltas", path: "/faltas" },
-    ],
-  },
-  {
-    name: "Avaliações",
-    icon: <Icon width="24px" icon="mdi:clipboard-check-outline" />,
-    subItems: [
-      { name: "Avaliações Finais", path: "/avaliacoes/avaliacoes-finais" },
-    ],
-  },
-  {
     name: "Gerenciamento",
     icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
     subItems: [
@@ -76,6 +56,26 @@ const navItems: NavItem[] = [
       { name: "Listar",    path: "/estudantes"           },
       { name: "Cadastrar", path: "/estudantes/cadastrar" },
       { name: "Matrículas", path: "/solicitacoes-matricula" },
+    ],
+  },
+  {
+    icon: <Icon width="24px" icon="mdi:file-document-edit-outline" />,
+    name: "Solicitações",
+    path: "/solicitacoes",
+  },
+  {
+    name: "Registros",
+    icon: <Icon width="24px" icon="vaadin:records" />,
+    subItems: [
+      { name: "Notas",  path: "/notas"  },
+      { name: "Faltas", path: "/faltas" },
+    ],
+  },
+  {
+    name: "Avaliações",
+    icon: <Icon width="24px" icon="mdi:clipboard-check-outline" />,
+    subItems: [
+      { name: "Avaliações Finais", path: "/avaliacoes/avaliacoes-finais" },
     ],
   },
   {
