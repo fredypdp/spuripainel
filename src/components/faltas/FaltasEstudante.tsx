@@ -41,12 +41,16 @@ function formatarData(data: ApiDate) {
 interface AcadInfo {
   codigo: string;
   nome: string;
+  nivel?: string;
+  nivel_escolar?: string;
 }
 
 type Layer =
   | { type: "academias" }
   | { type: "anos_letivos"; a: AcadInfo }
-  | { type: "turmas"; a: AcadInfo; anoLetivo: string }
+  | { type: "tipo_ensino"; a: AcadInfo; anoLetivo: string }
+  | { type: "cursos"; a: AcadInfo; anoLetivo: string; tipoEnsino: "medio" | "superior" }
+  | { type: "turmas"; a: AcadInfo; anoLetivo: string; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string }
   | { type: "materias"; a: AcadInfo; anoLetivo: string; turma: Turma }
   | { type: "faltas"; a: AcadInfo; anoLetivo: string; turma: Turma; materiaId: string; materiaNome: string };
 
@@ -145,11 +149,17 @@ export default function FaltasEstudante() {
       .filter(Boolean)
       .forEach(codigo => {
         if (!map.has(codigo)) {
-          map.set(codigo, { codigo, nome: resolverNomeAcademia(codigo) });
+          const academiaInfo = user?.estudante?.academia_info ?? (user?.estudante as any)?.academia;
+          map.set(codigo, {
+            codigo,
+            nome: resolverNomeAcademia(codigo),
+            nivel: academiaInfo?.codigo === codigo ? academiaInfo?.nivel : undefined,
+            nivel_escolar: academiaInfo?.codigo === codigo ? academiaInfo?.nivel_escolar : undefined,
+          });
         }
       });
     return Array.from(map.values());
-  }, [resolverNomeAcademia, todasFaltas, todasTurmas]);
+  }, [resolverNomeAcademia, todasFaltas, todasTurmas, user]);
 
   function anosLetivosDaAcademia(codigoAcademia: string): string[] {
     const anosDasFaltas = todasFaltas
@@ -165,11 +175,30 @@ export default function FaltasEstudante() {
    * Retorna as turmas de uma academia que possuem faltas para este estudante.
    * Correspondência: turma.codigo_academia === academia && turma.nivel === falta.ano_academico
    */
-  function turmasDaAcademia(codigoAcademia: string, anoLetivo: string): Turma[] {
+  function turmasDaAcademia(codigoAcademia: string, anoLetivo: string, tipoEnsino?: "fundamental" | "medio" | "superior", cursoId?: string): Turma[] {
     return todasTurmas.filter(t => {
       const codigosAno = t.historico_estudantes_ano_letivo?.[anoLetivo] ?? t.estudantes;
-      return t.codigo_academia === codigoAcademia && codigosAno.includes(codigoEstudante);
+      if (t.codigo_academia !== codigoAcademia || !codigosAno.includes(codigoEstudante)) return false;
+      if (tipoEnsino === "fundamental" && !t.nivel.includes("fundamental")) return false;
+      if (tipoEnsino === "medio" && !t.nivel.includes("medio")) return false;
+      if (tipoEnsino === "superior" && !t.nivel.includes("superior")) return false;
+      if (cursoId && t.curso_id !== cursoId) return false;
+      return true;
     });
+  }
+
+  function cursosDaAcademia(codigoAcademia: string, anoLetivo: string, tipoEnsino: "medio" | "superior") {
+    const cursos = turmasDaAcademia(codigoAcademia, anoLetivo, tipoEnsino)
+      .map(t => t.curso_id)
+      .filter(Boolean) as string[];
+    return Array.from(new Set(cursos)).sort();
+  }
+
+  function proximaLayerAnoLetivo(a: AcadInfo, anoLetivo: string): Layer {
+    if (a.nivel === "superior") return { type: "cursos", a, anoLetivo, tipoEnsino: "superior" };
+    if (a.nivel_escolar === "misto") return { type: "tipo_ensino", a, anoLetivo };
+    if (a.nivel_escolar === "medio") return { type: "cursos", a, anoLetivo, tipoEnsino: "medio" };
+    return { type: "turmas", a, anoLetivo, tipoEnsino: "fundamental" };
   }
 
   /** Faltas do estudante nesta turma (academia + nivel + anoLetivo). */
@@ -224,6 +253,17 @@ export default function FaltasEstudante() {
       { label: "Academias", onClick: goAcademias },
       { label: layer.a.nome },
     ];
+    if (layer.type === "tipo_ensino") return [
+      { label: "Academias", onClick: goAcademias },
+      { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
+      { label: layer.anoLetivo.replace("_", "/") },
+    ];
+    if (layer.type === "cursos") return [
+      { label: "Academias", onClick: goAcademias },
+      { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
+      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a }) },
+      { label: layer.tipoEnsino === "superior" ? "Ensino Superior" : "Ensino Médio" },
+    ];
     if (layer.type === "turmas") return [
       { label: "Academias", onClick: goAcademias },
       { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
@@ -252,7 +292,9 @@ export default function FaltasEstudante() {
 
   const goBack = () => {
     if (layer.type === "anos_letivos") return setLayer({ type: "academias" });
-    if (layer.type === "turmas") return setLayer({ type: "anos_letivos", a: layer.a });
+    if (layer.type === "tipo_ensino") return setLayer({ type: "anos_letivos", a: layer.a });
+    if (layer.type === "cursos") return setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a });
+    if (layer.type === "turmas") return setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a });
     if (layer.type === "materias") return setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo });
     if (layer.type === "faltas") return setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: layer.turma });
   };
@@ -323,7 +365,7 @@ export default function FaltasEstudante() {
               key={ano}
               icon="mdi:calendar-school"
               title={ano.replace("_", "/")}
-              onClick={() => navegar({ type: "turmas", a: layer.a, anoLetivo: ano })}
+              onClick={() => navegar(proximaLayerAnoLetivo(layer.a, ano))}
             />
           ))}
         </div>
@@ -331,9 +373,45 @@ export default function FaltasEstudante() {
     );
   }
 
+  // ── Tipo de ensino ─────────────────────────────────────────────────────────
+  if (layer.type === "tipo_ensino") {
+    return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2>
+          <p className="text-sm text-gray-500 mt-1">Selecione o tipo de ensino</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="Turmas do fundamental" onClick={() => navegar({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "fundamental" })} />
+          <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Selecione um curso" onClick={() => navegar({ type: "cursos", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "medio" })} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Cursos ────────────────────────────────────────────────────────────────
+  if (layer.type === "cursos") {
+    const cursos = cursosDaAcademia(layer.a.codigo, layer.anoLetivo, layer.tipoEnsino);
+    return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Selecione o curso</h2>
+          <p className="text-sm text-gray-500 mt-1">{layer.a.nome} · {layer.anoLetivo.replace("_", "/")}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {cursos.map(cursoId => <CardBtn key={cursoId} icon="mdi:book-education" title={cursoId} onClick={() => navegar({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId })} />)}
+        </div>
+      </div>
+    );
+  }
+
   // ── Turmas ─────────────────────────────────────────────────────────────────
   if (layer.type === "turmas") {
-    const turmas = turmasDaAcademia(layer.a.codigo, layer.anoLetivo);
+    const turmas = turmasDaAcademia(layer.a.codigo, layer.anoLetivo, layer.tipoEnsino, layer.cursoId);
     return (
       <div className="space-y-6">
         {BotaoVoltar}
