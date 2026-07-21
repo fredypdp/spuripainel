@@ -2,15 +2,23 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import { useUserType } from "@/hooks/useRoutePermission";
-import { academiaService, adminService, estudanteService } from "@/lib/api";
+import { academiaService, adminService, consultasService, estudanteService } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
-import type { SolicitacaoStatusAcademico, SolicitacaoStatusAcademicoTipo, TipoEnsino } from "@/types/api";
+import type { AcademiaDetalhada, SolicitacaoStatusAcademico, SolicitacaoStatusAcademicoTipo, TipoEnsino } from "@/types/api";
 
 const tipos: { value: SolicitacaoStatusAcademicoTipo; label: string }[] = [
   { value: "interrupcao", label: "Interrupção" },
   { value: "desvinculacao", label: "Desvinculação" },
   { value: "revinculacao", label: "Revinculação" },
+];
+
+const tiposEnsino: { value: TipoEnsino | ""; label: string }[] = [
+  { value: "", label: "Usar histórico" },
+  { value: "fundamental", label: "Fundamental" },
+  { value: "medio", label: "Médio" },
+  { value: "superior", label: "Superior" },
 ];
 
 const statusClass: Record<string, string> = {
@@ -32,6 +40,8 @@ function tipoLabel(tipo: SolicitacaoStatusAcademicoTipo) {
 export default function SolicitacoesPageContent() {
   const { isEstudante, isAcademia, isAdmin, loading } = useUserType();
   const [items, setItems] = useState<SolicitacaoStatusAcademico[]>([]);
+  const [academias, setAcademias] = useState<AcademiaDetalhada[]>([]);
+  const [academiaSelecionada, setAcademiaSelecionada] = useState("");
   const [tipo, setTipo] = useState<SolicitacaoStatusAcademicoTipo>("interrupcao");
   const [motivo, setMotivo] = useState("");
   const [codigoAcademia, setCodigoAcademia] = useState("");
@@ -46,6 +56,7 @@ export default function SolicitacoesPageContent() {
 
   const load = useCallback(async () => {
     if (!isEstudante && !isAcademia && !isAdmin) return;
+    if (isAdmin && !academiaSelecionada) return;
     setRefreshing(true);
     setError(null);
     try {
@@ -53,18 +64,29 @@ export default function SolicitacoesPageContent() {
         ? await estudanteService.listarMinhasSolicitacoesStatusAcademico()
         : isAcademia
           ? await academiaService.listarSolicitacoesStatusAcademico()
-          : await adminService.listarSolicitacoesStatusAcademico();
+          : await adminService.listarSolicitacoesStatusAcademico({ codigo_academia: academiaSelecionada });
       setItems(response.solicitacoes ?? []);
     } catch (err) {
       setError(formatApiError(err, "Não foi possível carregar as solicitações."));
     } finally {
       setRefreshing(false);
     }
-  }, [isAcademia, isAdmin, isEstudante]);
+  }, [academiaSelecionada, isAcademia, isAdmin, isEstudante]);
 
   useEffect(() => {
-    if (!loading) void load();
-  }, [load, loading]);
+    if (!loading && !isAdmin) void load();
+  }, [isAdmin, load, loading]);
+
+  useEffect(() => {
+    if (!loading && isAdmin) {
+      setItems([]);
+      setError(null);
+      consultasService
+        .listarAcademias({ status: "ativo" })
+        .then((response) => setAcademias(response.academias ?? []))
+        .catch((err) => setError(formatApiError(err, "Não foi possível carregar as academias.")));
+    }
+  }, [isAdmin, loading]);
 
   const pendentes = useMemo(() => items.filter((item) => item.status === "pendente").length, [items]);
 
@@ -86,6 +108,10 @@ export default function SolicitacoesPageContent() {
       }
       setMessage("Solicitação criada com sucesso.");
       setMotivo("");
+      setCodigoAcademia("");
+      setTipoEnsino("");
+      setCursoMedioId("");
+      setCursoSuperiorId("");
       await load();
     } catch (err) {
       setError(formatApiError(err, "Não foi possível criar a solicitação."));
@@ -134,18 +160,46 @@ export default function SolicitacoesPageContent() {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Status acadêmico</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">{isEstudante ? "Crie e acompanhe suas solicitações." : isAcademia ? "Analise solicitações pendentes da sua academia." : "Consulte solicitações por instituição."}</p>
             </div>
-            <button onClick={load} disabled={refreshing} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700 dark:text-gray-200">{refreshing ? "Atualizando..." : `Atualizar (${pendentes} pendentes)`}</button>
+            <button onClick={load} disabled={refreshing || (isAdmin && !academiaSelecionada)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-60 dark:border-gray-700 dark:text-gray-200">{refreshing ? "Atualizando..." : `Atualizar (${pendentes} pendentes)`}</button>
           </div>
         </section>
+
+        {isAdmin && (
+          <section className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-[1fr_auto] md:items-end">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Academia
+              <div className="mt-1">
+                <SearchableSelect
+                  value={academiaSelecionada}
+                  options={academias.map((academia) => ({ value: academia.codigo_academia, label: `${academia.nome} · ${academia.codigo_academia}` }))}
+                  onChange={(value) => {
+                    setAcademiaSelecionada(value);
+                    setItems([]);
+                  }}
+                  placeholder="Selecione a academia"
+                  isSearchable={false}
+                />
+              </div>
+            </label>
+            <button type="button" onClick={load} disabled={refreshing || !academiaSelecionada} className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
+              {refreshing ? "Consultando..." : "Consultar solicitações"}
+            </button>
+          </section>
+        )}
 
         {message && <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300">{message}</div>}
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">{error}</div>}
 
         {isEstudante && (
           <form onSubmit={submitStudentRequest} className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo<select value={tipo} onChange={(e) => setTipo(e.target.value as SolicitacaoStatusAcademicoTipo)} className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700">{tipos.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Tipo
+              <div className="mt-1">
+                <SearchableSelect value={tipo} options={tipos} onChange={(value) => setTipo(value as SolicitacaoStatusAcademicoTipo)} isSearchable={false} />
+              </div>
+            </label>
             {tipo === "revinculacao" && <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Código da academia<input value={codigoAcademia} onChange={(e) => setCodigoAcademia(e.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700" /></label>}
-            {tipo === "revinculacao" && <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo de ensino<select value={tipoEnsino} onChange={(e) => setTipoEnsino(e.target.value as TipoEnsino | "")} className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700"><option value="">Usar histórico</option><option value="fundamental">Fundamental</option><option value="medio">Médio</option><option value="superior">Superior</option></select></label>}
+            {tipo === "revinculacao" && <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo de ensino<div className="mt-1"><SearchableSelect value={tipoEnsino} options={tiposEnsino} onChange={(value) => setTipoEnsino(value as TipoEnsino | "")} isSearchable={false} /></div></label>}
             {tipo === "revinculacao" && tipoEnsino === "medio" && <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Curso médio (opcional)<input value={cursoMedioId} onChange={(e) => setCursoMedioId(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700" /></label>}
             {tipo === "revinculacao" && tipoEnsino === "superior" && <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Curso superior (opcional)<input value={cursoSuperiorId} onChange={(e) => setCursoSuperiorId(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700" /></label>}
             <label className="md:col-span-2 text-sm font-medium text-gray-700 dark:text-gray-300">Motivo<textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} required rows={3} className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700" /></label>
