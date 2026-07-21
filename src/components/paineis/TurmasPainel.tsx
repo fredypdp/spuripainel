@@ -39,6 +39,20 @@ const labelNivel = (v: string): string => {
 };
 const labelTurno = (t: string) => TURNOS.find(x => x.value === t)?.label ?? t;
 
+const estudantePertenceAoAno = (estudante: EstudanteDetalhado, ano: string): boolean => {
+  if (ano.includes("fundamental")) return estudante.ano_escolar_fundamental === ano;
+  if (ano.includes("medio")) return estudante.ano_escolar_medio === ano;
+  if (ano.includes("superior")) return estudante.ano_superior === ano;
+  return false;
+};
+
+const estudantePertenceAoCurso = (estudante: EstudanteDetalhado, ano: string, cursoId?: string): boolean => {
+  if (!cursoId) return true;
+  if (ano.includes("medio")) return estudante.curso_medio_id === cursoId;
+  if (ano.includes("superior")) return estudante.curso_superior_id === cursoId;
+  return true;
+};
+
 const getUserFromCookie = (): MeuPerfilResponse | null => {
   if (typeof window === "undefined") return null;
   try { return JSON.parse(getCookie("user") ?? ""); }
@@ -243,6 +257,14 @@ export default function TurmasPainel() {
 
   const turmasFundamental = turmas.filter(t => t.nivel.includes("fundamental"));
   const turmasCursos = turmas.filter(t => !t.nivel.includes("fundamental"));
+  const codigosComTurma = new Set(turmas.flatMap(t => t.estudantes));
+
+  const estudantesSemTurmaPorAno = (ano: string, cursoId?: string) =>
+    estudantes.filter(estudante =>
+      estudantePertenceAoAno(estudante, ano) &&
+      estudantePertenceAoCurso(estudante, ano, cursoId) &&
+      !codigosComTurma.has(estudante.codigo_estudante)
+    );
 
   const calcularIdade = (dataNascimento?: string) => {
     if (!dataNascimento) return "—";
@@ -443,11 +465,51 @@ export default function TurmasPainel() {
     </div>
   );
 
+  const EstudantesSemTurmaCard = ({ estudantesSemTurma }: { estudantesSemTurma: EstudanteDetalhado[] }) => {
+    if (estudantesSemTurma.length === 0) return null;
+    return (
+      <div className="border border-amber-200 dark:border-amber-800/60 rounded-lg overflow-hidden bg-amber-50/60 dark:bg-amber-900/10">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Icon icon="mdi:account-alert-outline" className="text-amber-500 w-5 h-5" />
+            <span className="font-semibold text-sm text-gray-900 dark:text-white">Estudantes sem turma</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sem vínculo</span>
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantesSemTurma.length}</span>
+        </div>
+        <div className="border-t border-amber-100 dark:border-amber-800/40 overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-amber-50 dark:bg-amber-900/10">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Idade</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Email</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-100 dark:divide-amber-800/30 bg-white dark:bg-gray-800">
+              {estudantesSemTurma.map(est => (
+                <tr key={est.codigo_estudante}>
+                  <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{est.nome}</td>
+                  <td className="px-4 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{est.codigo_estudante}</td>
+                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{calcularIdade(est.data_nascimento)}</td>
+                  <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{est.email ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   // ── ViewFundamental ────────────────────────────────────────────────────
 
   const ViewFundamental = ({ lista }: { lista?: Turma[] }) => {
     const porNivel = turmasPorNivel(lista);
-    const niveisComTurmas = ANOS_FUNDAMENTAL.filter(a => porNivel[a.value]?.length > 0);
+    const anosAcademicos = user?.academia?.anos_academicos ?? [];
+    const niveisDisponiveis = anosAcademicos.length > 0 ? ANOS_FUNDAMENTAL.filter(a => anosAcademicos.includes(a.value)) : ANOS_FUNDAMENTAL;
+    const niveisComTurmas = niveisDisponiveis.filter(a => (porNivel[a.value]?.length ?? 0) > 0 || estudantesSemTurmaPorAno(a.value).length > 0);
     if (niveisComTurmas.length === 0) return <Empty />;
     const listaCompleta = Object.values(porNivel).flat();
     const todasSelecionadas = listaCompleta.length > 0 && listaCompleta.every(t => selecionadas.has(t.codigo_turma));
@@ -462,6 +524,7 @@ export default function TurmasPainel() {
         {niveisComTurmas.map(ano => {
           const isOpen = expandedNivel === ano.value;
           const listaAno = porNivel[ano.value] ?? [];
+          const semTurmaAno = estudantesSemTurmaPorAno(ano.value);
           return (
             <div key={ano.value} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <button onClick={() => setExpandedNivel(isOpen ? null : ano.value)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
@@ -469,10 +532,11 @@ export default function TurmasPainel() {
                   <Icon icon="mdi:school" className="text-brand-500 w-5 h-5" />
                   <span className="font-semibold text-gray-800 dark:text-white">{ano.label}</span>
                   <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{listaAno.length} turma{listaAno.length !== 1 ? "s" : ""}</span>
+                  {semTurmaAno.length > 0 && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{semTurmaAno.length} sem turma</span>}
                 </div>
                 <Icon icon={isOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
               </button>
-              {isOpen && <div className="p-3 space-y-2">{listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}</div>}
+              {isOpen && <div className="p-3 space-y-2">{listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}<EstudantesSemTurmaCard estudantesSemTurma={semTurmaAno} /></div>}
             </div>
           );
         })}
@@ -482,8 +546,18 @@ export default function TurmasPainel() {
 
   const ViewCursos = ({ lista }: { lista?: Turma[] }) => {
     const porCurso = turmasPorCurso(lista);
-    if (Object.keys(porCurso).length === 0) return <Empty />;
-    const listaCompleta = Object.values(porCurso).flatMap(g => Object.values(g.niveis).flat());
+    const cursosComConteudo = cursos.filter(curso =>
+      Object.values(porCurso[curso.id]?.niveis ?? {}).some(turmasNivel => turmasNivel.length > 0) ||
+      curso.anos_academicos.some(ano => estudantesSemTurmaPorAno(ano, curso.id).length > 0)
+    );
+    const entradasCurso = [
+      ...cursosComConteudo.map(curso => ({ key: curso.id, curso, niveis: porCurso[curso.id]?.niveis ?? {} })),
+      ...Object.entries(porCurso)
+        .filter(([cursoKey]) => cursoKey === "__sem_curso__" || !cursos.some(c => c.id === cursoKey))
+        .map(([key, grupo]) => ({ key, curso: grupo.curso, niveis: grupo.niveis })),
+    ];
+    if (entradasCurso.length === 0) return <Empty />;
+    const listaCompleta = entradasCurso.flatMap(g => Object.values(g.niveis).flat());
     const todasSelecionadas = listaCompleta.length > 0 && listaCompleta.every(t => selecionadas.has(t.codigo_turma));
     const algumasSelecionadas = listaCompleta.some(t => selecionadas.has(t.codigo_turma));
     return (
@@ -493,9 +567,11 @@ export default function TurmasPainel() {
             <Checkbox checked={todasSelecionadas} indeterminate={algumasSelecionadas && !todasSelecionadas} onChange={() => handleToggleTodas(listaCompleta)} label={todasSelecionadas ? "Desselecionar todas" : "Selecionar todas"} />
           </div>
         )}
-        {Object.entries(porCurso).map(([cursoKey, { curso, niveis }]) => {
+        {entradasCurso.map(({ key: cursoKey, curso, niveis }) => {
           const isCursoOpen = expandedCurso === cursoKey;
+          const anosDoCurso = curso?.anos_academicos ?? Object.keys(niveis);
           const totalTurmas = Object.values(niveis).reduce((s, a) => s + a.length, 0);
+          const totalSemTurma = anosDoCurso.reduce((s, ano) => s + estudantesSemTurmaPorAno(ano, curso?.id).length, 0);
           return (
             <div key={cursoKey} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <button onClick={() => setExpandedCurso(isCursoOpen ? null : cursoKey)} className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
@@ -503,12 +579,16 @@ export default function TurmasPainel() {
                   <Icon icon="mdi:book-education" className="text-brand-500 w-5 h-5" />
                   <span className="font-semibold text-gray-800 dark:text-white">{curso ? curso.nome : "Sem curso associado"}</span>
                   <span className="text-xs bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-2 py-0.5 rounded-full">{totalTurmas} turma{totalTurmas !== 1 ? "s" : ""}</span>
+                  {totalSemTurma > 0 && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{totalSemTurma} sem turma</span>}
                 </div>
                 <Icon icon={isCursoOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
               </button>
               {isCursoOpen && (
                 <div className="p-3 space-y-2">
-                  {Object.entries(niveis).map(([nivel, listaLocal]) => {
+                  {anosDoCurso.map(nivel => {
+                    const listaLocal = niveis[nivel] ?? [];
+                    const semTurmaAno = estudantesSemTurmaPorAno(nivel, curso?.id);
+                    if (listaLocal.length === 0 && semTurmaAno.length === 0) return null;
                     const nivelKey = `${cursoKey}__${nivel}`;
                     const isNivel = expandedNivel === nivelKey;
                     return (
@@ -518,10 +598,11 @@ export default function TurmasPainel() {
                             <Icon icon="mdi:school-outline" className="text-gray-400 w-4 h-4" />
                             <span className="font-medium text-sm text-gray-700 dark:text-gray-300">{labelNivel(nivel)}</span>
                             <span className="text-xs text-gray-400 dark:text-gray-500">· {listaLocal.length} turma{listaLocal.length !== 1 ? "s" : ""}</span>
+                            {semTurmaAno.length > 0 && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{semTurmaAno.length} sem turma</span>}
                           </div>
                           <Icon icon={isNivel ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-gray-400" />
                         </button>
-                        {isNivel && <div className="p-2 space-y-2">{listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}</div>}
+                        {isNivel && <div className="p-2 space-y-2">{listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}<EstudantesSemTurmaCard estudantesSemTurma={semTurmaAno} /></div>}
                       </div>
                     );
                   })}
