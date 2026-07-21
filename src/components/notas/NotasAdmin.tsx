@@ -390,26 +390,35 @@ export default function NotasAdmin() {
     return sortAnos(base);
   }, [turmasAtivas, academiaAtual]);
 
-  // pré-selecionar primeira matéria quando o cache estiver pronto
+  // pré-selecionar a primeira matéria disponível no contexto
   useEffect(() => {
     if (acadLayer.type !== "notas") return;
     if (materiaSelecionada) return;
+
     const l = acadLayer as any;
     const anoFiltro = anoLetivoSelecionado || anoLectivo;
     const codsHistorico: string[] = anoFiltro ? (l.turma.historico_estudantes_ano_letivo?.[anoFiltro] ?? []) : [];
-    const codsOrigem: string[]    = codsHistorico.length > 0 ? codsHistorico : (l.turma.estudantes ?? []);
+    const codsOrigem: string[] = codsHistorico.length > 0 ? codsHistorico : (l.turma.estudantes ?? []);
     const codsNorm = [...new Set(codsOrigem.map((c: string) => normCodigo(c)).filter(Boolean))];
     const notasCtx: Nota[] = codsNorm
       .flatMap((c: string) => notasPorEstudante[c] ?? [])
       .filter((n: Nota) => (!anoFiltro || n.ano_lectivo === anoFiltro) && n.ano_academico === l.nivel && n.periodo === l.periodo);
-    const ids = [...new Set(notasCtx.map((n: Nota) => n.materia_disciplinar_id))];
+    const idsConfiguradas = materias
+      .filter((m: any) =>
+        (m.anos_academicos ?? []).includes(l.nivel) &&
+        (!l.turma.curso_id || !m.curso_id || m.curso_id === l.turma.curso_id) &&
+        ((acadLayer.mode !== "sup") || !m.periodo || m.periodo === l.periodo)
+      )
+      .map((m: any) => m.id);
+    const ids = [...new Set([...idsConfiguradas, ...notasCtx.map((n: Nota) => n.materia_disciplinar_id)])];
     if (ids.length === 0) return;
-    const todosResolvidos = ids.every(id => materiasCache[id] && materiasCache[id].nome !== id);
-    if (!todosResolvidos) return;
-    const sorted = ids.map(id => materiasCache[id]).sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
+
+    const sorted = ids
+      .map(id => materias.find((m: any) => m.id === id) ?? materiasCache[id] ?? { id, nome: id })
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
     if (sorted.length > 0) setMateriaSelecionada(sorted[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acadLayer, materiasCache, notasPorEstudante]);
+  }, [acadLayer, materias, materiasCache, notasPorEstudante]);
 
   // buscar detalhes das matérias via GET /academia/materia/:id?codigo_academia=...
   useEffect(() => {
@@ -677,14 +686,7 @@ export default function NotasAdmin() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {materiaSelecionada
-                ? `Notas de ${materiasCache[materiaSelecionada]?.nome ?? materiaSelecionada}`
-                : "Selecione uma matéria:"}
-            </p>
-            {!materiaSelecionada && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">Clique numa matéria abaixo para ver as notas</p>
-            )}
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Selecione uma matéria:</p>
             {carregandoMaterias && materiasDisponiveis.every(m => m.nome === m.id) ? (
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-500" />
@@ -695,7 +697,7 @@ export default function NotasAdmin() {
                 {materiasDisponiveis.map(m => (
                   <button
                     key={m.id}
-                    onClick={() => setMateriaSelecionada(prev => prev === m.id ? null : m.id)}
+                    onClick={() => setMateriaSelecionada(m.id)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
                       materiaSelecionada === m.id
                         ? "bg-brand-500 text-white border-brand-500 shadow-sm"
@@ -710,16 +712,10 @@ export default function NotasAdmin() {
           </div>
         )}
 
-        {materiaSelecionada ? (
+        {materiasDisponiveis.length > 0 && (
           usarTabelaSuperior
             ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
             : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
-        ) : (
-          materiasDisponiveis.length > 0 && (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic text-center py-4">
-              Selecione uma matéria acima para ver as notas.
-            </p>
-          )
         )}
       </div>
     );
