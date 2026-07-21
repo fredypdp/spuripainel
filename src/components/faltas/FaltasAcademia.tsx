@@ -643,7 +643,7 @@ export default function FaltasAcademia() {
   // ─── goBack / canGoBack ──────────────────────────────────────────────────────
 
   function canGoBack(): boolean {
-    if (layer.mode === "misto" && layer.type === "choose") return false;
+    if (layer.mode === "misto" && layer.type === "choose") return Boolean(anoLetivoSelecionado);
     if (layer.mode === "fund" && layer.type === "anos" && !isMisto && !anoLetivoSelecionado) return false;
     if (layer.mode === "sup"  && layer.type === "cursos" && !isMisto) return false;
     return true;
@@ -651,6 +651,11 @@ export default function FaltasAcademia() {
 
   function goBack() {
     if (!canGoBack()) return;
+
+    if (layer.mode === "misto" && layer.type === "choose") {
+      setAnoLetivoSelecionado("");
+      return;
+    }
 
     if (layer.type === "anos" && anoLetivoSelecionado) {
       setAnoLetivoSelecionado("");
@@ -815,13 +820,27 @@ export default function FaltasAcademia() {
       <div className="space-y-6">
         {BotaoVoltar}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Faltas</h2>
-          <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{anoLetivoSelecionado ? "Faltas" : "Anos Letivos"}</h2>
+          <p className="text-sm text-gray-500 mt-1">{anoLetivoSelecionado ? "Selecione o nível de ensino" : "Selecione o ano letivo"}</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
-          <CardBtn icon="mdi:book-education" title="Médio / Superior"   subtitle="Cursos"         onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
-        </div>
+        {!anoLetivoSelecionado ? (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <CardBtn
+                key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace("_", "/")}`}
+                subtitle="Entrar para selecionar o nível de ensino"
+                onClick={() => setAnoLetivoSelecionado(ano)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+            <CardBtn icon="mdi:book-education" title="Médio / Superior"   subtitle="Cursos"         onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
+          </div>
+        )}
       </div>
     );
 
