@@ -85,6 +85,36 @@ function normCodigo(codigo: string): string {
   return (codigo ?? "").trim().toLowerCase();
 }
 
+function exibirCodigo(codigo: string): string {
+  return (codigo ?? "").trim().toUpperCase();
+}
+
+function nomeEstudante(estudante: EstudanteDetalhado | undefined, notas: Nota[], codigo: string): string {
+  const nome = estudante?.nome?.trim() || notas.find(n => n.estudante_nome?.trim())?.estudante_nome?.trim();
+  return nome || exibirCodigo(codigo);
+}
+
+const ANOS_COM_NOTAS_REGULARES = [
+  "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
+  "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental",
+  "9_ano_fundamental", "1_ano_medio", "2_ano_medio", "3_ano_medio",
+];
+const ANOS_COM_EXAME = ["6_ano_fundamental", "9_ano_fundamental", "3_ano_medio"];
+const CATEGORIAS_ESCOLAR = [
+  { value: "nota_professor", anos_academicos: ANOS_COM_NOTAS_REGULARES },
+  { value: "prova_trimestral", anos_academicos: ANOS_COM_NOTAS_REGULARES },
+  { value: "exame_final", anos_academicos: ANOS_COM_EXAME },
+  { value: "exame_recurso", anos_academicos: ANOS_COM_EXAME },
+  { value: "nota_pap", anos_academicos: ["4_ano_medio"] },
+];
+
+function categoriasEscolaresDoAno(anoAcademico: string, notas: Nota[]): string[] {
+  const categoriasFixas = CATEGORIAS_ESCOLAR
+    .filter(cat => cat.anos_academicos.includes(anoAcademico))
+    .map(cat => cat.value);
+  return Array.from(new Set([...categoriasFixas, ...notas.map(n => n.categoria)]));
+}
+
 function turmaAtiva(turma: Turma): boolean {
   const s = turma.status ?? "";
   return s !== "inativo" && s !== "deletado";
@@ -187,10 +217,10 @@ function LoadingSpinner({ message = "Carregando..." }: { message?: string }) {
 
 // ─── Tabela escolar ───────────────────────────────────────────────────────────
 
-function TabelaNotasEscolar({ notas, estudantes, codigosTurma }: {
-  notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[];
+function TabelaNotasEscolar({ notas, estudantes, codigosTurma, anoAcademico }: {
+  notas: Nota[]; estudantes: EstudanteDetalhado[]; codigosTurma: string[]; anoAcademico: string;
 }) {
-  const categoriasOrdem = Array.from(new Set(["nota_professor", "prova_trimestral", "exame_final", "exame_recurso", "nota_pap", ...notas.map(n => n.categoria)]));
+  const categoriasOrdem = categoriasEscolaresDoAno(anoAcademico, notas);
   if (codigosTurma.length === 0)
     return (
       <div className="text-center py-10 text-gray-400">
@@ -223,14 +253,14 @@ function TabelaNotasEscolar({ notas, estudantes, codigosTurma }: {
             .map(codigo => {
               const ne   = porEst.get(codigo) ?? [];
               const est  = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
-              const nome = est?.nome ?? ne[0]?.estudante_nome ?? "-";
+              const nome = nomeEstudante(est, ne, codigo);
               return { codigo, nome, ne };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
             .map(({ codigo, nome, ne }) => (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigo(codigo)}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = ne.find(n => n.categoria === cat);
                   return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
@@ -281,14 +311,14 @@ function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
             .map(codigo => {
               const ne = porEst.get(codigo) ?? [];
               const est = estudantes.find(e => normCodigo(e.codigo_estudante) === codigo);
-              const nome = est?.nome ?? ne[0]?.estudante_nome ?? "-";
+              const nome = nomeEstudante(est, ne, codigo);
               return { codigo, nome, ne };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
             .map(({ codigo, nome, ne }) => (
               <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome}</td>
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
+                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigo(codigo)}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = ne.find(n => n.categoria === cat);
                   return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
@@ -715,7 +745,7 @@ export default function NotasAdmin() {
         {materiasDisponiveis.length > 0 && (
           usarTabelaSuperior
             ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
-            : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
+            : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} />
         )}
       </div>
     );
