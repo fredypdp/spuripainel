@@ -5,7 +5,7 @@ import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/a
 import { listarTodosEstudantes } from "@/lib/api/pagination";
 import type {
   MeuPerfilResponse, Nota, Turma, EstudanteDetalhado, Curso,
-  TipoNota, RegistrarNotasRequest, CriarCategoriaNotaRequest,
+  TipoNota, RegistrarNotasRequest, CriarCategoriaNotaRequest, CategoriaNotaItem,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -159,16 +159,26 @@ function categoriasEscolaresDoAno(anoAcademico: string, notas: Nota[]): string[]
   return Array.from(new Set([...categoriasFixas, ...notas.map(n => n.categoria)]));
 }
 
-function categoriasSuperioresDoAno(anoAcademico: string, notas: Nota[], categorias: any[]): string[] {
+function categoriasSuperioresDoAno(anoAcademico: string, notas: Nota[], categorias: CategoriaNotaItem[]): string[] {
   const categoriasConfiguradas = categorias
-    .filter((cat: any) => cat.status !== "inativo")
-    .filter((cat: any) => {
+    .filter(cat => cat.status !== "inativo")
+    .filter(cat => {
       const anos = cat.anos_academicos ?? [];
       return anos.length === 0 || anos.includes(anoAcademico);
     })
-    .map((cat: any) => cat.codigo);
+    .map(cat => cat.codigo);
   return Array.from(new Set([...categoriasConfiguradas, ...notas.map(n => n.categoria)]))
     .sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+}
+
+function categoriasParaConsulta(anoAcademico: string, superior: boolean, categorias: CategoriaNotaItem[]): string[] {
+  return superior
+    ? categoriasSuperioresDoAno(anoAcademico, [], categorias)
+    : categoriasEscolaresDoAno(anoAcademico, []);
+}
+
+function nomeCategoria(codigo: string, categorias: CategoriaNotaItem[]): string {
+  return categorias.find(cat => cat.codigo === codigo)?.nome ?? formatCategoria(codigo);
 }
 
 // ─── tipos de layer ───────────────────────────────────────────────────────────
@@ -339,7 +349,7 @@ function TabelaNotasSuperior({
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
   anoAcademico: string;
-  categorias: any[];
+  categorias: CategoriaNotaItem[];
 }) {
   const categoriasOrdem = categoriasSuperioresDoAno(anoAcademico, notas, categorias);
 
@@ -367,7 +377,7 @@ function TabelaNotasSuperior({
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
             {categoriasOrdem.map((cat) => (
-              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{formatCategoria(cat)}</th>
+              <th key={cat} className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">{nomeCategoria(cat, categorias)}</th>
             ))}
           </tr>
         </thead>
@@ -411,7 +421,7 @@ function ModalGestao({
   anoLectivo: string;
   estudantes: EstudanteDetalhado[];
   materias: any[];
-  categorias: any[];
+  categorias: CategoriaNotaItem[];
   anosAcademicosDisponiveis: string[];
   onRegistrar: (d: RegistrarNotasRequest) => Promise<void>;
   onCriarCategoria: (d: CriarCategoriaNotaRequest) => Promise<void>;
@@ -707,7 +717,7 @@ export default function NotasAcademia() {
   const cursos: Curso[]                  = useMemo(() => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
   const materias                         = useMemo(() => (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [], [dataMaterias]);
-  const categorias                       = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
+  const categorias: CategoriaNotaItem[]    = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
   const anosAcademicosDisponiveis         = useMemo(() => {
     const academia = user?.academia;
     const fundamental = academia?.nivel === "escola" && (academia.nivel_escolar === "fundamental" || academia.nivel_escolar === "misto")
@@ -841,13 +851,20 @@ export default function NotasAcademia() {
   }
 
   /**
-   * Carrega TODAS as notas dos estudantes da turma via GET /notas-estudante/:codigo
-   * sem parâmetros de filtro — a filtragem é feita client-side.
+   * Carrega notas dos estudantes da turma via GET /notas-estudante/:codigo.
+   * Quando o contexto já é conhecido, envia os filtros de ano, ano académico,
+   * período e categorias válidas para evitar consultar categorias indevidas.
    */
-  async function carregarNotasDosEstudantesDaTurma(turma: Turma, force = false) {
+  async function carregarNotasDosEstudantesDaTurma(
+    turma: Turma,
+    force = false,
+    filtros?: { nivel: string; periodo: string; superior: boolean }
+  ) {
     const anoFiltro      = anoLetivoSelecionado || anoLectivo || undefined;
     const codigosNorm    = codigosTurmaDoAnoLetivo(turma, anoFiltro);
-    const codigosParaBuscar = force
+    const categoriasValidas = filtros ? categoriasParaConsulta(filtros.nivel, filtros.superior, categorias) : [];
+    const deveForcarConsulta = force || Boolean(filtros);
+    const codigosParaBuscar = deveForcarConsulta
       ? codigosNorm
       : codigosNorm.filter(c => !(c in notasPorEstudante));
     if (codigosParaBuscar.length === 0) return;
@@ -857,8 +874,13 @@ export default function NotasAcademia() {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async codigoNorm => {
           const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
-          // Chama sem parâmetros de filtro — a rota não os suporta
-          const resposta = await consultasService.notasEstudante(codigoOriginal, { token });
+          const resposta = await consultasService.notasEstudante(codigoOriginal, {
+            token,
+            ano_letivo: anoFiltro,
+            ano_academico: filtros?.nivel,
+            periodo: filtros?.periodo,
+            categoria: categoriasValidas.length > 0 ? categoriasValidas : undefined,
+          });
           return { codigoNorm, notas: resposta?.notas ?? [] };
         })
       );
@@ -892,7 +914,10 @@ export default function NotasAcademia() {
     await academiaService.registrarNota(d, token);
     showAlert("success", "Nota registada com sucesso.");
     const turmaAtual = (layer.type === "periodos" || layer.type === "notas") ? (layer as any).turma : null;
-    if (turmaAtual) await carregarNotasDosEstudantesDaTurma(turmaAtual, true);
+    if (turmaAtual) {
+      const l = layer as any;
+      await carregarNotasDosEstudantesDaTurma(turmaAtual, true, l.type === "notas" ? { nivel: l.nivel, periodo: l.periodo, superior: l.mode === "sup" } : undefined);
+    }
   }
 
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
@@ -1234,7 +1259,10 @@ export default function NotasAcademia() {
                 icon="mdi:clipboard-text-clock-outline"
                 title={p.label}
                 subtitle="Ver notas"
-                onClick={() => setLayer({ mode: "fund", type: "notas", nivel, turma, periodo: p.value })}
+                onClick={async () => {
+                  await carregarNotasDosEstudantesDaTurma(turma, true, { nivel, periodo: p.value, superior: false });
+                  setLayer({ mode: "fund", type: "notas", nivel, turma, periodo: p.value });
+                }}
               />
             ))}
           </div>
@@ -1384,7 +1412,10 @@ export default function NotasAcademia() {
                 icon="mdi:clipboard-text-clock-outline"
                 title={p.label}
                 subtitle="Ver notas"
-                onClick={() => setLayer({ mode: "sup", type: "notas", curso, nivel, turma, periodo: p.value })}
+                onClick={async () => {
+                  await carregarNotasDosEstudantesDaTurma(turma, true, { nivel, periodo: p.value, superior: true });
+                  setLayer({ mode: "sup", type: "notas", curso, nivel, turma, periodo: p.value });
+                }}
               />
             ))}
           </div>
