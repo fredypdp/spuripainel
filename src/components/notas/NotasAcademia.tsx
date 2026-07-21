@@ -1288,8 +1288,20 @@ export default function NotasAcademia() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
-        {cursos.length === 0 ? (
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{anoLetivoSelecionado ? "Cursos" : "Anos Letivos"}</h2>
+        {!anoLetivoSelecionado ? (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <CardBtn
+                key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace("_", "/")}`}
+                subtitle="Entrar para selecionar o curso"
+                onClick={() => setAnoLetivoSelecionado(ano)}
+              />
+            ))}
+          </div>
+        ) : cursos.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Icon icon="mdi:book-open-outline" width={48} className="mx-auto mb-3 opacity-40" />
             <p className="text-sm">Nenhum curso ativo.</p>
