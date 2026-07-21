@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import type { Curso, MeuPerfilResponse, Turma, EstudanteDetalhado } from "@/types/api";
@@ -170,6 +170,40 @@ function ModalConfirmarDeleteTurma({ turma, onConfirm, onClose }: { turma: Turma
   );
 }
 
+
+function TabelaEstudantesGerenciamento({ estudantes, calcularIdade }: { estudantes: EstudanteDetalhado[]; calcularIdade: (dataNascimento?: string) => string }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm min-w-[800px]">
+        <thead className="bg-gray-50 dark:bg-gray-800/70">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Idade</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Gênero</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Email</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Telefone</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {estudantes.length === 0 ? (
+            <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500 italic">Nenhum estudante sem turma neste escopo</td></tr>
+          ) : estudantes.map(est => (
+            <tr key={est.codigo_estudante} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+              <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est.nome ?? "—"}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{est.codigo_estudante}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{calcularIdade(est.data_nascimento)}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{est.genero ?? "—"}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{est.email ?? "—"}</td>
+              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{est.telefone ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Componente principal ────────────────────────────────────────────────────
 
 export default function TurmasPainel() {
@@ -185,6 +219,7 @@ export default function TurmasPainel() {
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
   const [viewNivelTurmas, setViewNivelTurmas] = useState<"fundamental" | "cursos">("fundamental");
   const [turmaEmFoco, setTurmaEmFoco] = useState<Turma | null>(null);
+  const [estudantesSemTurmaEmFoco, setEstudantesSemTurmaEmFoco] = useState<{ titulo: string; subtitulo: string; estudantes: EstudanteDetalhado[] } | null>(null);
 
   // Lote
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -223,9 +258,9 @@ export default function TurmasPainel() {
   const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
   const isMisto = academiaNivel === "escola" && nivelEscolar === "misto";
 
-  const turmas: Turma[] = dataTurmas?.turmas ?? [];
-  const cursos: Curso[] = dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [];
-  const estudantes: EstudanteDetalhado[] = dataEstudantes?.estudantes ?? [];
+  const turmas: Turma[] = useMemo(() => dataTurmas?.turmas ?? [], [dataTurmas]);
+  const cursos: Curso[] = useMemo(() => dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [], [dataCursos]);
+  const estudantes: EstudanteDetalhado[] = useMemo(() => dataEstudantes?.estudantes ?? [], [dataEstudantes]);
 
   const getNivelOptions = (cursoId?: string) => {
     if (isFundamental) return ANOS_FUNDAMENTAL;
@@ -257,7 +292,7 @@ export default function TurmasPainel() {
 
   const turmasFundamental = turmas.filter(t => t.nivel.includes("fundamental"));
   const turmasCursos = turmas.filter(t => !t.nivel.includes("fundamental"));
-  const codigosComTurma = new Set(turmas.flatMap(t => t.estudantes));
+  const codigosComTurma = useMemo(() => new Set(turmas.flatMap(t => t.estudantes)), [turmas]);
 
   const estudantesSemTurmaPorAno = (ano: string, cursoId?: string) =>
     estudantes.filter(estudante =>
@@ -465,41 +500,22 @@ export default function TurmasPainel() {
     </div>
   );
 
-  const EstudantesSemTurmaCard = ({ estudantesSemTurma }: { estudantesSemTurma: EstudanteDetalhado[] }) => {
+  const EstudantesSemTurmaCard = ({ estudantesSemTurma, titulo, subtitulo }: { estudantesSemTurma: EstudanteDetalhado[]; titulo: string; subtitulo: string }) => {
     if (estudantesSemTurma.length === 0) return null;
     return (
-      <div className="border border-amber-200 dark:border-amber-800/60 rounded-lg overflow-hidden bg-amber-50/60 dark:bg-amber-900/10">
+      <button type="button" onClick={() => setEstudantesSemTurmaEmFoco({ titulo, subtitulo, estudantes: estudantesSemTurma })} className="w-full border border-amber-200 dark:border-amber-800/60 rounded-xl overflow-hidden bg-amber-50/60 dark:bg-amber-900/10 hover:bg-amber-100/70 dark:hover:bg-amber-900/20 transition-colors text-left">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Icon icon="mdi:account-alert-outline" className="text-amber-500 w-5 h-5" />
             <span className="font-semibold text-sm text-gray-900 dark:text-white">Estudantes sem turma</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sem vínculo</span>
           </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantesSemTurma.length}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantesSemTurma.length}</span>
+            <Icon icon="mdi:chevron-right" className="w-5 h-5 text-gray-400" />
+          </div>
         </div>
-        <div className="border-t border-amber-100 dark:border-amber-800/40 overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead className="bg-amber-50 dark:bg-amber-900/10">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Nome</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Código</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Idade</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Email</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-amber-100 dark:divide-amber-800/30 bg-white dark:bg-gray-800">
-              {estudantesSemTurma.map(est => (
-                <tr key={est.codigo_estudante}>
-                  <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{est.nome}</td>
-                  <td className="px-4 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{est.codigo_estudante}</td>
-                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{calcularIdade(est.data_nascimento)}</td>
-                  <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{est.email ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </button>
     );
   };
 
@@ -536,7 +552,7 @@ export default function TurmasPainel() {
                 </div>
                 <Icon icon={isOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-5 h-5 text-gray-400" />
               </button>
-              {isOpen && <div className="p-3 space-y-2">{listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}<EstudantesSemTurmaCard estudantesSemTurma={semTurmaAno} /></div>}
+              {isOpen && <div className="p-3 space-y-2">{listaAno.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}<EstudantesSemTurmaCard estudantesSemTurma={semTurmaAno} titulo={`Estudantes sem turma · ${ano.label}`} subtitulo={`${ano.label} · ${semTurmaAno.length} estudante(s) sem vínculo`} /></div>}
             </div>
           );
         })}
@@ -602,7 +618,7 @@ export default function TurmasPainel() {
                           </div>
                           <Icon icon={isNivel ? "mdi:chevron-up" : "mdi:chevron-down"} className="w-4 h-4 text-gray-400" />
                         </button>
-                        {isNivel && <div className="p-2 space-y-2">{listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}<EstudantesSemTurmaCard estudantesSemTurma={semTurmaAno} /></div>}
+                        {isNivel && <div className="p-2 space-y-2">{listaLocal.map(t => <TurmaCard key={t.codigo_turma} turma={t} mostrarCheckbox />)}<EstudantesSemTurmaCard estudantesSemTurma={semTurmaAno} titulo={`Estudantes sem turma · ${labelNivel(nivel)}`} subtitulo={`${curso ? curso.nome : "Sem curso associado"} · ${labelNivel(nivel)} · ${semTurmaAno.length} estudante(s) sem vínculo`} /></div>}
                       </div>
                     );
                   })}
@@ -624,7 +640,19 @@ export default function TurmasPainel() {
 
   return (
     <div className="space-y-5">
-      {turmaEmFoco ? (
+      {estudantesSemTurmaEmFoco ? (
+        <div className="space-y-4">
+          <button onClick={() => setEstudantesSemTurmaEmFoco(null)} className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
+            <Icon icon="mdi:arrow-left" width={18} />
+            Voltar para turmas
+          </button>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{estudantesSemTurmaEmFoco.titulo}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{estudantesSemTurmaEmFoco.subtitulo}</p>
+          </div>
+          <TabelaEstudantesGerenciamento estudantes={estudantesSemTurmaEmFoco.estudantes} calcularIdade={calcularIdade} />
+        </div>
+      ) : turmaEmFoco ? (
         <div className="space-y-4">
           <button onClick={() => setTurmaEmFoco(null)} className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
             <Icon icon="mdi:arrow-left" width={18} />

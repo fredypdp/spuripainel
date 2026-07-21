@@ -1244,6 +1244,8 @@ export default function Estudantes() {
   const [filtros,              setFiltros]              = useState<FiltrosState>({ ...FILTROS_INICIAIS });
   const [filtrosAplicados,     setFiltrosAplicados]     = useState<FiltrosState>({ ...FILTROS_INICIAIS });
   const [atualizacaoLista,     setAtualizacaoLista]     = useState(0);
+  const [estudantesEscala,     setEstudantesEscala]     = useState<EstudanteDetalhado[]>([]);
+  const [carregandoEscala,     setCarregandoEscala]     = useState(false);
 
   const [modoTela,             setModoTela]             = useState<'lista' | 'detalhes' | 'documentacao'>('lista');
 
@@ -1255,7 +1257,7 @@ export default function Estudantes() {
   const academiaNivel      = user?.academia?.nivel ?? 'escola';
   const nivelEscolar       = user?.academia?.nivel_escolar ?? 'fundamental';
   const isSuperior         = academiaNivel === 'superior';
-  const anosAcademicosAcademia = user?.academia?.anos_academicos ?? [];
+  const anosAcademicosAcademia = useMemo(() => user?.academia?.anos_academicos ?? [], [user?.academia?.anos_academicos]);
   const visibilidadeFiltros = useMemo(
     () => getVisibilidadeFiltros(!!isAdmin, academiaNivel, nivelEscolar),
     [isAdmin, academiaNivel, nivelEscolar]
@@ -1319,6 +1321,64 @@ export default function Estudantes() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
+
+  const anosParaBuscaEscala = useMemo<Array<string | { ano: string; cursoId: string }>>(() => {
+    const anosFundamental = anosAcademicosAcademia.filter(a => a.includes('fundamental'));
+    const anosFundamentalBusca = anosFundamental.length > 0 ? anosFundamental : ANOS_FUNDAMENTAL_LIST.map(a => a.value);
+    const cursosAtivos = dataCursos?.cursos?.filter(c => c.status === 'ativo') ?? [];
+    if (nivelParaVista === 'fundamental') return anosFundamentalBusca;
+    if (nivelParaVista === 'medio') return cursosAtivos.filter(c => c.type === 'medio').flatMap(c => c.anos_academicos.map(ano => ({ ano, cursoId: c.id })));
+    if (nivelParaVista === 'superior') return cursosAtivos.filter(c => c.type === 'superior').flatMap(c => c.anos_academicos.map(ano => ({ ano, cursoId: c.id })));
+    return [
+      ...anosFundamentalBusca,
+      ...cursosAtivos.filter(c => c.type === 'medio').flatMap(c => c.anos_academicos.map(ano => ({ ano, cursoId: c.id }))),
+    ];
+  }, [anosAcademicosAcademia, dataCursos, nivelParaVista]);
+
+  useEffect(() => {
+    if (!vistaEscala || !isAcademia || !carregado) return;
+    let cancelled = false;
+    const token = tokenStorage.get() || undefined;
+    const appendUnique = (novos: EstudanteDetalhado[]) => {
+      setEstudantesEscala(prev => {
+        const mapa = new Map(prev.map(e => [e.codigo_estudante, e]));
+        novos.forEach(e => mapa.set(e.codigo_estudante, e));
+        return Array.from(mapa.values());
+      });
+    };
+
+    (async () => {
+      setCarregandoEscala(true);
+      setEstudantesEscala(dataEstudantes?.estudantes ?? []);
+      try {
+        let offset = 0;
+        while (!cancelled) {
+          const pagina = await consultasService.listarEstudantes({ token, limit: ITEMS_POR_PAGINA, offset, com_turma: true });
+          if (cancelled) return;
+          appendUnique(pagina.estudantes ?? []);
+          if ((pagina.estudantes ?? []).length < ITEMS_POR_PAGINA) break;
+          offset += ITEMS_POR_PAGINA;
+        }
+      } finally {
+        if (!cancelled) setCarregandoEscala(false);
+      }
+
+      anosParaBuscaEscala.forEach(async item => {
+        const ano = typeof item === 'string' ? item : item.ano;
+        const cursoId = typeof item === 'string' ? undefined : item.cursoId;
+        const params: Parameters<typeof consultasService.listarEstudantes>[0] = { token, limit: ITEMS_POR_PAGINA, offset: 0, com_turma: false, curso_id: cursoId };
+        if (ano.includes('fundamental')) params.ano_escolar_fundamental = ano;
+        if (ano.includes('medio')) params.ano_escolar_medio = ano;
+        if (ano.includes('superior')) params.ano_superior = ano;
+        try {
+          const pagina = await consultasService.listarEstudantes(params);
+          if (!cancelled) appendUnique(pagina.estudantes ?? []);
+        } catch { /* mantém a vista parcial se algum escopo de sem turma falhar */ }
+      });
+    })();
+
+    return () => { cancelled = true; };
+  }, [anosParaBuscaEscala, carregado, dataEstudantes?.estudantes, isAcademia, vistaEscala]);
 
   const filtrosVisiveis = useMemo(
     () => sanitizarFiltrosPorVisibilidade(filtrosAplicados, visibilidadeFiltros, !!isAdmin),
@@ -1412,8 +1472,10 @@ export default function Estudantes() {
         )}
 
         {modoTela === 'lista' && vistaEscala && isAcademia && carregado && (
+          <>
+          {carregandoEscala && <div className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:border-brand-900/40 dark:bg-brand-900/20 dark:text-brand-200">Carregando a visão em escala progressivamente...</div>}
           <VistaEscala
-            estudantes={dataEstudantes?.estudantes ?? []}
+            estudantes={estudantesEscala.length > 0 ? estudantesEscala : dataEstudantes?.estudantes ?? []}
             turmas={turmas}
             cursos={cursos}
             nivelAcademia={nivelParaVista}
@@ -1422,6 +1484,7 @@ export default function Estudantes() {
             onVerDetalhes={handleVerDetalhes}
             anosAcademicos={anosAcademicosAcademia}
           />
+          </>
         )}
 
         {modoTela === 'lista' && !vistaEscala && (
