@@ -749,7 +749,7 @@ export const estudanteService = {
     }
     const tok = isLegacy ? params : params?.token;
     const qs = isLegacy ? '' : buildSolicitacoesStatusAcademicoQuery(params);
-    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/estudante/solicitacoes-status${qs}`, {
+    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/estudante/solicitacoes${qs}`, {
       token: tok || tokenStorage.get() || undefined,
     });
   },
@@ -1072,7 +1072,7 @@ export const academiaService = {
     }
     const tok = isLegacy ? params : params?.token;
     const qs = isLegacy ? '' : buildSolicitacoesStatusAcademicoQuery(params);
-    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/academia/solicitacoes-status-academico${qs}`, {
+    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/academia/solicitacoes${qs}`, {
       token: tok || tokenStorage.get() || undefined,
     });
   },
@@ -1730,7 +1730,7 @@ export const adminService = {
     }
     const tok = isLegacy ? params : params?.token;
     const qs = isLegacy ? '' : buildSolicitacoesStatusAcademicoQuery(params);
-    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/academia/solicitacoes-status-academico${qs}`, {
+    return api.get<ListarSolicitacoesStatusAcademicoResponse>(`/academia/solicitacoes${qs}`, {
       token: tok || tokenStorage.get() || undefined,
     });
   },
