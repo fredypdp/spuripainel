@@ -151,7 +151,7 @@ function getStatusBadgeClass(status: string) {
 
 function formatarStatusEstudante(status: string): string {
   switch (status?.toLowerCase()) {
-    case 'pendente_documentos': return 'Pendente de documentos';
+    case 'pendente_documentos': return 'Pendência de documentos';
     case 'ativo': return 'Ativo';
     case 'inativo': return 'Inativo';
     case 'arquivado': return 'Arquivado';
@@ -440,7 +440,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação geral</label>
                 <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option><option value="ativo">Ativo</option><option value="pendente_documentos">Pendente de documentos</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
+                  <option value="">Todos</option><option value="ativo">Ativo</option><option value="pendente_documentos">Pendência de documentos</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
                 </select>
               </div>
             )}
@@ -1473,7 +1473,6 @@ export default function Estudantes() {
 
         {modoTela === 'lista' && vistaEscala && isAcademia && carregado && (
           <>
-          {carregandoEscala && <div className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:border-brand-900/40 dark:bg-brand-900/20 dark:text-brand-200">Carregando a visão em escala progressivamente...</div>}
           <VistaEscala
             estudantes={estudantesEscala.length > 0 ? estudantesEscala : dataEstudantes?.estudantes ?? []}
             turmas={turmas}

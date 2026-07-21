@@ -1,9 +1,9 @@
 // src/components/notas/NotasEstudante.tsx
 "use client"
 import { useState, useEffect, useMemo } from "react";
-import { consultasService, tokenStorage, useApi } from "@/lib/api";
+import { academiaService, consultasService, tokenStorage, useApi } from "@/lib/api";
 import { listarTodasAcademias } from "@/lib/api/pagination";
-import type { MeuPerfilResponse, Nota } from "@/types/api";
+import type { Materia, MeuPerfilResponse, Nota, Turma } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import { getCookie } from "@/lib/utils/cookies";
 
@@ -133,8 +133,9 @@ function StatsNotas({ notas }: { notas: Nota[] }) {
   );
 }
 
-function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; categoriasMap: Record<string, string> }) {
+function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [] }: { notas: Nota[]; categoriasMap: Record<string, string>; materias?: Materia[] }) {
   const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
+  materias.forEach(m => porMateria.set(m.id, { nome: m.nome, notas: [] }));
   notas.forEach(n => {
     const id = n.materia_disciplinar_id;
     if (!porMateria.has(id)) porMateria.set(id, { nome: n.materia_nome ?? id, notas: [] });
@@ -164,6 +165,16 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
           {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([, { nome, notas: nm }]) => {
             const notaProf  = nm.find(n => n.categoria === "nota_professor");
             const provaTrimestral = nm.find(n => n.categoria === "prova_trimestral");
+            if (nm.length === 0) {
+              return (
+                <tr key={nome} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
+                  {categoriasOrdem.map((cat) => (
+                    <td key={cat} className="px-4 py-3 text-right font-bold text-gray-400 dark:text-gray-600"></td>
+                  ))}
+                </tr>
+              );
+            }
             if (!notaProf && !provaTrimestral) {
               return nm.map((n, i) => (
                 <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
@@ -189,8 +200,9 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
   );
 }
 
-function TabelaNotasSuperiorEstudante({ notas }: { notas: Nota[] }) {
+function TabelaNotasSuperiorEstudante({ notas, materias = [] }: { notas: Nota[]; materias?: Materia[] }) {
   const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
+  materias.forEach(m => porMateria.set(m.id, { nome: m.nome, notas: [] }));
   notas.forEach(n => {
     const id = n.materia_disciplinar_id;
     if (!porMateria.has(id)) porMateria.set(id, { nome: n.materia_nome ?? id, notas: [] });
@@ -213,14 +225,22 @@ function TabelaNotasSuperiorEstudante({ notas }: { notas: Nota[] }) {
               <td className="px-4 py-6 text-gray-400 dark:text-gray-600" colSpan={3}></td>
             </tr>
           )}
-          {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([, { nome, notas: nm }]) =>
-            nm.map((n, i) => (
-              <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
-                <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
-                <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{notaText(n.nota)}</td>
-              </tr>
-            ))
+          {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).flatMap(([, { nome, notas: nm }]) =>
+            nm.length > 0
+              ? nm.map((n, i) => (
+                <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
+                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{notaText(n.nota)}</td>
+                </tr>
+              ))
+              : [
+                <tr key={nome} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400"></td>
+                  <td className="px-4 py-3 text-right font-bold text-gray-400 dark:text-gray-600"></td>
+                </tr>
+              ]
           )}
         </tbody>
       </table>
@@ -239,21 +259,38 @@ export default function NotasEstudante() {
 
   const { data: historico, execute: carregarNotas, loading } = useApi(consultasService.notasEstudante);
   const { data: acadList, execute: carregarAcademias } = useApi(listarTodasAcademias);
+  const { data: turmasData, execute: carregarTurmas } = useApi(consultasService.turmasEstudante);
+  const { data: materiasData, execute: carregarMaterias } = useApi(academiaService.listarMaterias);
 
   useEffect(() => {
     if (codigoEstudante) {
       carregarNotas(codigoEstudante, token);
       carregarAcademias({ token, limit: 50, offset: 0 });
+      carregarTurmas(codigoEstudante, token);
+      const academiaCodigo = user?.estudante?.academia_info?.codigo ?? user?.estudante?.academia?.codigo;
+      if (academiaCodigo) carregarMaterias({ codigo_academia: academiaCodigo, token });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigoEstudante]);
 
   const todasNotas: Nota[] = useMemo(() => historico?.notas ?? [], [historico]);
+  const turmas: Turma[] = useMemo(() => (turmasData as any)?.turmas ?? [], [turmasData]);
+  const materias: Materia[] = useMemo(() => ((materiasData as any)?.materias ?? []).filter((m: Materia) => m.status === "ativo"), [materiasData]);
   const categoriasMap = useMemo<Record<string, string>>(() => ({}), []);
 
   // Académias únicas nas notas
   const academias = useMemo((): AcadInfo[] => {
     const map = new Map<string, AcadInfo>();
+    const perfilAcademia = user?.estudante?.academia_info ?? user?.estudante?.academia;
+    if (perfilAcademia?.codigo) {
+      const info = (acadList as any)?.academias?.find((a: any) => a.codigo_academia === perfilAcademia.codigo);
+      map.set(perfilAcademia.codigo, {
+        codigo: perfilAcademia.codigo,
+        nome: perfilAcademia.nome ?? info?.nome ?? perfilAcademia.codigo,
+        nivel: perfilAcademia.nivel ?? info?.nivel ?? "escola",
+        nivel_escolar: info?.nivel_escolar,
+      });
+    }
     todasNotas.forEach(n => {
       if (!map.has(n.codigo_academia)) {
         const info = (acadList as any)?.academias?.find((a: any) => a.codigo_academia === n.codigo_academia);
@@ -266,20 +303,26 @@ export default function NotasEstudante() {
       }
     });
     return Array.from(map.values());
-  }, [todasNotas, acadList]);
+  }, [todasNotas, acadList, user]);
 
   const notasDe = (codigoAcad: string) => todasNotas.filter(n => n.codigo_academia === codigoAcad);
 
   // Anos letivos de uma academia
   const anosLetivosDe = (codigoAcad: string) => {
-    const anos = Array.from(new Set(notasDe(codigoAcad).map(n => n.ano_lectivo).filter(Boolean)));
+    const anosNotas = notasDe(codigoAcad).map(n => n.ano_lectivo).filter(Boolean);
+    const anosTurmas = turmas.flatMap(t => Object.keys(t.historico_estudantes_ano_letivo ?? {}));
+    const anos = Array.from(new Set([...anosNotas, ...anosTurmas]));
     return anos.sort();
   };
 
   // Anos académicos dentro de um ano letivo
   const anosAcademicosDe = (codigoAcad: string, anoLetivo: string) => {
     const notas = notasDe(codigoAcad).filter(n => n.ano_lectivo === anoLetivo);
-    return sortAnosAcademicos(Array.from(new Set(notas.map(n => n.ano_academico).filter(Boolean))) as string[]);
+    const anosNotas = notas.map(n => n.ano_academico).filter(Boolean);
+    const anosTurmas = turmas
+      .filter(t => t.codigo_academia === codigoAcad && ((t.historico_estudantes_ano_letivo?.[anoLetivo] ?? t.estudantes ?? []).includes(codigoEstudante)))
+      .map(t => t.nivel);
+    return sortAnosAcademicos(Array.from(new Set([...anosNotas, ...anosTurmas])) as string[]);
   };
 
   const navegar = async (novaLayer: Layer) => {
@@ -396,7 +439,8 @@ export default function NotasEstudante() {
                 title={labelNivel(anoAcad)}
                 subtitle={`${np.length} nota(s)`}
                 onClick={() => {
-                  const periodos = Array.from(new Set(np.map(n => n.periodo))).sort(
+                  const periodosNotas = Array.from(new Set(np.map(n => n.periodo)));
+                  const periodos = (periodosNotas.length > 0 ? periodosNotas : (a.nivel === "superior" ? ["1_semestre", "2_semestre"] : ["1_trimestre", "2_trimestre", "3_trimestre"])).sort(
                     (x, y) => ORDEM_PERIODOS.indexOf(x) - ORDEM_PERIODOS.indexOf(y)
                   );
                   // Se só um período, vai directo para ele
@@ -418,9 +462,14 @@ export default function NotasEstudante() {
   if (layer.type === "periodo") {
     const { a, anoLetivo, anoAcademico, periodo } = layer;
     const notasAno  = notasDe(a.codigo).filter(n => n.ano_lectivo === anoLetivo && n.ano_academico === anoAcademico);
-    const periodos  = Array.from(new Set(notasAno.map(n => n.periodo))).sort((x, y) => ORDEM_PERIODOS.indexOf(x) - ORDEM_PERIODOS.indexOf(y));
+    const periodosNotas = Array.from(new Set(notasAno.map(n => n.periodo)));
+    const periodos  = (periodosNotas.length > 0 ? periodosNotas : (a.nivel === "superior" ? ["1_semestre", "2_semestre"] : ["1_trimestre", "2_trimestre", "3_trimestre"])).sort((x, y) => ORDEM_PERIODOS.indexOf(x) - ORDEM_PERIODOS.indexOf(y));
     const notas     = notasAno.filter(n => n.periodo === periodo);
     const isSup     = a.nivel === "superior" || notas.some(n => n.tipo === "superior");
+    const materiasPeriodo = materias.filter(m =>
+      (m.anos_academicos ?? []).includes(anoAcademico) &&
+      (!isSup || !m.periodo || m.periodo === periodo)
+    );
 
     return (
       <div className="space-y-6">
@@ -454,8 +503,8 @@ export default function NotasEstudante() {
         {loadingLayer
           ? <LoadingSpinner message="Carregando notas..." />
           : isSup
-            ? <TabelaNotasSuperiorEstudante notas={notas} />
-            : <TabelaNotasEscolarEstudante notas={notas} categoriasMap={categoriasMap} />
+            ? <TabelaNotasSuperiorEstudante notas={notas} materias={materiasPeriodo} />
+            : <TabelaNotasEscolarEstudante notas={notas} categoriasMap={categoriasMap} materias={materiasPeriodo} />
         }
       </div>
     );
