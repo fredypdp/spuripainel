@@ -106,8 +106,12 @@ function categoriasSuperioresDoAno(anoAcademico: string, notas: Nota[], categori
 type Layer =
   | { type: "academias" }
   | { type: "anos_letivos"; a: AcadInfo }
-  | { type: "ano_academico"; a: AcadInfo; anoLetivo: string }
-  | { type: "periodo"; a: AcadInfo; anoLetivo: string; anoAcademico: string; periodo: string };
+  | { type: "tipo_ensino"; a: AcadInfo; anoLetivo: string }
+  | { type: "cursos"; a: AcadInfo; anoLetivo: string; tipoEnsino: "medio" | "superior" }
+  | { type: "ano_academico"; a: AcadInfo; anoLetivo: string; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string }
+  | { type: "turmas"; a: AcadInfo; anoLetivo: string; anoAcademico: string; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string }
+  | { type: "periodos"; a: AcadInfo; anoLetivo: string; anoAcademico: string; turma: Turma; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string }
+  | { type: "periodo"; a: AcadInfo; anoLetivo: string; anoAcademico: string; periodo: string; turma?: Turma; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string };
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
@@ -317,7 +321,7 @@ export default function NotasEstudante() {
         codigo: perfilAcademia.codigo,
         nome: perfilAcademia.nome ?? info?.nome ?? perfilAcademia.codigo,
         nivel: perfilAcademia.nivel ?? info?.nivel ?? "escola",
-        nivel_escolar: info?.nivel_escolar,
+        nivel_escolar: (perfilAcademia as any).nivel_escolar ?? info?.nivel_escolar,
       });
     }
     todasNotas.forEach(n => {
@@ -335,6 +339,33 @@ export default function NotasEstudante() {
   }, [todasNotas, acadList, user]);
 
   const notasDe = (codigoAcad: string) => todasNotas.filter(n => n.codigo_academia === codigoAcad);
+
+  const nivelDoTipo = (nivel: string, tipo?: "fundamental" | "medio" | "superior") => {
+    if (!tipo) return true;
+    return nivel.includes(tipo);
+  };
+
+  const turmasDoContexto = (codigoAcad: string, anoLetivo: string, anoAcademico: string, tipoEnsino?: "fundamental" | "medio" | "superior", cursoId?: string) => turmas.filter(t => {
+    const estudantesAno = t.historico_estudantes_ano_letivo?.[anoLetivo] ?? t.estudantes ?? [];
+    if (t.codigo_academia !== codigoAcad || t.nivel !== anoAcademico || !estudantesAno.includes(codigoEstudante)) return false;
+    if (!nivelDoTipo(t.nivel, tipoEnsino)) return false;
+    if (cursoId && t.curso_id !== cursoId) return false;
+    return true;
+  });
+
+  const cursosDaAcademia = (codigoAcad: string, anoLetivo: string, tipoEnsino: "medio" | "superior") => Array.from(new Set(
+    turmas
+      .filter(t => t.codigo_academia === codigoAcad && nivelDoTipo(t.nivel, tipoEnsino) && ((t.historico_estudantes_ano_letivo?.[anoLetivo] ?? t.estudantes ?? []).includes(codigoEstudante)))
+      .map(t => t.curso_id)
+      .filter(Boolean) as string[]
+  )).sort();
+
+  const proximaLayerAnoLetivo = (a: AcadInfo, anoLetivo: string): Layer => {
+    if (a.nivel === "superior") return { type: "cursos", a, anoLetivo, tipoEnsino: "superior" };
+    if (a.nivel_escolar === "misto") return { type: "tipo_ensino", a, anoLetivo };
+    if (a.nivel_escolar === "medio") return { type: "cursos", a, anoLetivo, tipoEnsino: "medio" };
+    return { type: "ano_academico", a, anoLetivo, tipoEnsino: "fundamental" };
+  };
 
   // Anos letivos de uma academia
   const anosLetivosDe = (codigoAcad: string) => {
@@ -374,16 +405,31 @@ export default function NotasEstudante() {
     const base = { label: "Academias", onClick: () => setLayer({ type: "academias" }) };
     if (layer.type === "academias")    return [base];
     if (layer.type === "anos_letivos") return [base, { label: layer.a.nome }];
+    if (layer.type === "tipo_ensino") return [base, { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) }, { label: layer.anoLetivo.replace("_", "/") }];
+    if (layer.type === "cursos") return [base, { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) }, { label: layer.anoLetivo.replace("_", "/") }, { label: layer.tipoEnsino === "superior" ? "Ensino Superior" : "Ensino Médio" }];
     if (layer.type === "ano_academico") return [
       base,
       { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
       { label: layer.anoLetivo.replace("_", "/") },
     ];
+    if (layer.type === "turmas") return [
+      base,
+      { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
+      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
+      { label: labelNivel(layer.anoAcademico) },
+    ];
+    if (layer.type === "periodos") return [
+      base,
+      { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
+      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
+      { label: labelNivel(layer.anoAcademico), onClick: () => setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
+      { label: `Turma ${layer.turma.codigo_turma}` },
+    ];
     if (layer.type === "periodo") return [
       base,
       { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
-      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo }) },
-      { label: labelNivel(layer.anoAcademico), onClick: () => setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo }) },
+      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
+      { label: labelNivel(layer.anoAcademico), onClick: () => setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
       { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo },
     ];
     return [base];
@@ -393,8 +439,13 @@ export default function NotasEstudante() {
 
   const goBack = () => {
     if (layer.type === "anos_letivos") return setLayer({ type: "academias" });
-    if (layer.type === "ano_academico") return setLayer({ type: "anos_letivos", a: layer.a });
-    if (layer.type === "periodo") return setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo });
+    if (layer.type === "tipo_ensino") return setLayer({ type: "anos_letivos", a: layer.a });
+    if (layer.type === "cursos") return setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a });
+    if (layer.type === "ano_academico") return setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a });
+    if (layer.type === "turmas") return setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId });
+    if (layer.type === "periodos") return setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId });
+    if (layer.type === "periodo" && layer.turma) return setLayer({ type: "periodos", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, turma: layer.turma, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId });
+    if (layer.type === "periodo") return setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId });
   };
 
   const BotaoVoltar = canGoBack() ? (
@@ -464,7 +515,7 @@ export default function NotasEstudante() {
                 title={`${anoLetivo.replace("_", "/")}`}
                 subtitle={`${np.length} nota(s)`}
                 badge={anoLetivo === anos[0] ? "actual" : undefined}
-                onClick={() => setLayer({ type: "ano_academico", a, anoLetivo })}
+                onClick={() => setLayer(proximaLayerAnoLetivo(a, anoLetivo))}
               />
             );
           })}
@@ -473,10 +524,41 @@ export default function NotasEstudante() {
     );
   }
 
+
+  // ── Tipo de ensino ──
+  if (layer.type === "tipo_ensino") {
+    return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div><h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2><p className="text-sm text-gray-500 mt-1">Selecione o tipo de ensino</p></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="Selecione o ano acadêmico" onClick={() => navegar({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "fundamental" })} />
+          <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Selecione o curso" onClick={() => navegar({ type: "cursos", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "medio" })} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Cursos ──
+  if (layer.type === "cursos") {
+    const cursos = cursosDaAcademia(layer.a.codigo, layer.anoLetivo, layer.tipoEnsino);
+    return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div><h2 className="text-2xl font-bold text-gray-900 dark:text-white">Selecione o curso</h2><p className="text-sm text-gray-500 mt-1">{layer.a.nome} · {layer.anoLetivo.replace("_", "/")}</p></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {cursos.map(cursoId => <CardBtn key={cursoId} icon="mdi:book-education" title={cursoId} onClick={() => navegar({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId })} />)}
+        </div>
+      </div>
+    );
+  }
+
   // ── Ano Académico ──
   if (layer.type === "ano_academico") {
     const { a, anoLetivo } = layer;
-    const anosAcademicos = anosAcademicosDe(a.codigo, anoLetivo);
+    const anosAcademicos = anosAcademicosDe(a.codigo, anoLetivo).filter(ano => nivelDoTipo(ano, layer.tipoEnsino));
     const notasAno = notasDe(a.codigo).filter(n => n.ano_lectivo === anoLetivo);
     return (
       <div className="space-y-6">
@@ -496,21 +578,44 @@ export default function NotasEstudante() {
                 icon="mdi:numeric"
                 title={labelNivel(anoAcad)}
                 subtitle={`${np.length} nota(s)`}
-                onClick={() => {
-                  const periodosNotas = Array.from(new Set(np.map(n => n.periodo)));
-                  const periodos = (periodosNotas.length > 0 ? periodosNotas : (a.nivel === "superior" ? ["1_semestre", "2_semestre"] : ["1_trimestre", "2_trimestre", "3_trimestre"])).sort(
-                    (x, y) => ORDEM_PERIODOS.indexOf(x) - ORDEM_PERIODOS.indexOf(y)
-                  );
-                  // Se só um período, vai directo para ele
-                  if (periodos.length === 1) {
-                    navegar({ type: "periodo", a, anoLetivo, anoAcademico: anoAcad, periodo: periodos[0] });
-                  } else {
-                    navegar({ type: "periodo", a, anoLetivo, anoAcademico: anoAcad, periodo: periodos[0] });
-                  }
-                }}
+                onClick={() => navegar({ type: "turmas", a, anoLetivo, anoAcademico: anoAcad, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId })}
               />
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── Turmas ──
+  if (layer.type === "turmas") {
+    const turmasCtx = turmasDoContexto(layer.a.codigo, layer.anoLetivo, layer.anoAcademico, layer.tipoEnsino, layer.cursoId);
+    return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div><h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.anoAcademico)}</h2><p className="text-sm text-gray-500 mt-1">Selecione a turma</p></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {turmasCtx.map(t => <CardBtn key={t.codigo_turma} icon="mdi:account-group" title={`Turma ${t.codigo_turma}`} subtitle={t.turno} onClick={() => navegar({ type: "periodos", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, turma: t, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId })} />)}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── Períodos ──
+  if (layer.type === "periodos") {
+    const notasAno = notasDe(layer.a.codigo).filter(n => n.ano_lectivo === layer.anoLetivo && n.ano_academico === layer.anoAcademico);
+    const periodosNotas = Array.from(new Set(notasAno.map(n => n.periodo)));
+    const periodos = (periodosNotas.length > 0 ? periodosNotas : (layer.a.nivel === "superior" ? ["1_semestre", "2_semestre"] : ["1_trimestre", "2_trimestre", "3_trimestre"])).sort((x, y) => ORDEM_PERIODOS.indexOf(x) - ORDEM_PERIODOS.indexOf(y));
+    return (
+      <div className="space-y-6">
+        {BotaoVoltar}
+        <Breadcrumb crumbs={crumbs} />
+        <div><h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {layer.turma.codigo_turma}</h2><p className="text-sm text-gray-500 mt-1">Selecione o período</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {periodos.map(p => <CardBtn key={p} icon="mdi:calendar-range" title={PERIODOS_LABEL[p] ?? p} onClick={() => navegar({ type: "periodo", a: layer.a, anoLetivo: layer.anoLetivo, anoAcademico: layer.anoAcademico, periodo: p, turma: layer.turma, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId })} />)}
         </div>
       </div>
     );
@@ -544,7 +649,7 @@ export default function NotasEstudante() {
             {periodos.map(p => (
               <button
                 key={p}
-                onClick={() => navegar({ type: "periodo", a, anoLetivo, anoAcademico, periodo: p })}
+                onClick={() => navegar({ type: "periodo", a, anoLetivo, anoAcademico, periodo: p, turma: layer.turma, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId })}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   p === periodo
                     ? "bg-brand-500 text-white"
