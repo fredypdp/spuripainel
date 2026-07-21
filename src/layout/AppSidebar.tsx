@@ -64,7 +64,7 @@ const navItems: NavItem[] = [
     path: "/solicitacoes",
   },
   {
-    name: "Registros",
+    name: "Notas & Faltas",
     icon: <Icon width="24px" icon="vaadin:records" />,
     subItems: [
       { name: "Notas",  path: "/notas"  },
