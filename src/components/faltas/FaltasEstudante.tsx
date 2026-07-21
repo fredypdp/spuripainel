@@ -248,6 +248,25 @@ export default function FaltasEstudante() {
     return [{ label: "Academias" }];
   }, [layer]);
 
+  const canGoBack = () => layer.type !== "academias";
+
+  const goBack = () => {
+    if (layer.type === "anos_letivos") return setLayer({ type: "academias" });
+    if (layer.type === "turmas") return setLayer({ type: "anos_letivos", a: layer.a });
+    if (layer.type === "materias") return setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo });
+    if (layer.type === "faltas") return setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: layer.turma });
+  };
+
+  const BotaoVoltar = canGoBack() ? (
+    <button
+      onClick={goBack}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
+    >
+      <Icon icon="mdi:arrow-left" width={16} />
+      Voltar para estudantes
+    </button>
+  ) : null;
+
   if (loadingFaltas || loadingTurmas) return <LoadingSpinner message="Carregando faltas..." />;
 
   // ── Academias ──────────────────────────────────────────────────────────────
@@ -291,6 +310,7 @@ export default function FaltasEstudante() {
     const anos = anosLetivosDaAcademia(layer.a.codigo);
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2>
@@ -315,6 +335,7 @@ export default function FaltasEstudante() {
     const turmas = turmasDaAcademia(layer.a.codigo, layer.anoLetivo);
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2>
@@ -352,6 +373,7 @@ export default function FaltasEstudante() {
     const materias = materiasDaTurma(layer.a.codigo, layer.turma, layer.anoLetivo);
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -399,6 +421,7 @@ export default function FaltasEstudante() {
 
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
