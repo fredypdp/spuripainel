@@ -1170,7 +1170,7 @@ function TelaDocumentacaoEstudante({ estudante, onVoltar, onConcluido }: { estud
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Adicionar documentação</h3>
-            <p className="mt-1 text-sm text-gray-500 capitalize">{estudante.nome} · {estudante.codigo_estudante}</p>
+            <p className="mt-1 text-sm text-gray-500 capitalize dark:text-gray-300">{estudante.nome} · {estudante.codigo_estudante}</p>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
             <Icon icon="mdi:file-clock-outline" width={14} /> Documentos pendentes
