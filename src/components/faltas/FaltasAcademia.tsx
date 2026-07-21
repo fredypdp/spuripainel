@@ -794,7 +794,7 @@ export default function FaltasAcademia() {
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
       >
         <Icon icon="mdi:arrow-left" width={16} />
-        Voltar
+        Voltar para estudantes
       </button>
     ) : null;
 
