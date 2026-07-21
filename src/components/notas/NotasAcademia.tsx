@@ -311,7 +311,7 @@ function TabelaNotasSuperior({
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
 }) {
-  const categoriasOrdem = Array.from(new Set(notas.map(n => n.categoria))).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+  const categoriasOrdem = Array.from(new Set(["nota_professor", ...notas.map(n => n.categoria)])).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
 
   if (codigosTurma.length === 0) {
     return (

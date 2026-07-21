@@ -256,7 +256,7 @@ function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
       </div>
     );
 
-  const categoriasOrdem = Array.from(new Set(notas.map(n => n.categoria))).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+  const categoriasOrdem = Array.from(new Set(["nota_professor", ...notas.map(n => n.categoria)])).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
   const porEst = new Map<string, Nota[]>();
   notas.forEach(n => {
     const k = normCodigo(n.codigo_estudante);

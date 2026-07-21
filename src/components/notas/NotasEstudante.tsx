@@ -134,13 +134,6 @@ function StatsNotas({ notas }: { notas: Nota[] }) {
 }
 
 function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; categoriasMap: Record<string, string> }) {
-  if (!notas.length) return (
-    <div className="text-center py-12 text-gray-400">
-      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
-      <p className="text-sm">Nenhuma nota neste período.</p>
-    </div>
-  );
-
   const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
   notas.forEach(n => {
     const id = n.materia_disciplinar_id;
@@ -163,6 +156,11 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {porMateria.size === 0 && (
+            <tr className="bg-white dark:bg-gray-800">
+              <td className="px-4 py-6 text-gray-400 dark:text-gray-600" colSpan={categoriasOrdem.length + 1}></td>
+            </tr>
+          )}
           {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([, { nome, notas: nm }]) => {
             const notaProf  = nm.find(n => n.categoria === "nota_professor");
             const provaTrimestral = nm.find(n => n.categoria === "prova_trimestral");
@@ -192,13 +190,6 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
 }
 
 function TabelaNotasSuperiorEstudante({ notas }: { notas: Nota[] }) {
-  if (!notas.length) return (
-    <div className="text-center py-12 text-gray-400">
-      <Icon icon="mdi:notebook-outline" width={40} className="mx-auto mb-2 opacity-50" />
-      <p className="text-sm">Nenhuma nota neste período.</p>
-    </div>
-  );
-
   const porMateria = new Map<string, { nome: string; notas: Nota[] }>();
   notas.forEach(n => {
     const id = n.materia_disciplinar_id;
@@ -217,6 +208,11 @@ function TabelaNotasSuperiorEstudante({ notas }: { notas: Nota[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {porMateria.size === 0 && (
+            <tr className="bg-white dark:bg-gray-800">
+              <td className="px-4 py-6 text-gray-400 dark:text-gray-600" colSpan={3}></td>
+            </tr>
+          )}
           {Array.from(porMateria.entries()).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([, { nome, notas: nm }]) =>
             nm.map((n, i) => (
               <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
