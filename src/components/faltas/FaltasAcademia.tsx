@@ -790,11 +790,12 @@ export default function FaltasAcademia() {
 
     const BotaoVoltar = canGoBack() ? (
       <button
+        type="button"
         onClick={goBack}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors mb-4"
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300 mb-4"
       >
-        <Icon icon="mdi:arrow-left" width={16} />
-        Voltar
+        <Icon icon="mdi:arrow-left" width={18} />
+        Voltar para estudantes
       </button>
     ) : null;
 

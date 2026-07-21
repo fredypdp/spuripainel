@@ -389,6 +389,25 @@ export default function NotasEstudante() {
     return [base];
   }, [layer]);
 
+  const canGoBack = () => layer.type !== "academias";
+
+  const goBack = () => {
+    if (layer.type === "anos_letivos") return setLayer({ type: "academias" });
+    if (layer.type === "ano_academico") return setLayer({ type: "anos_letivos", a: layer.a });
+    if (layer.type === "periodo") return setLayer({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo });
+  };
+
+  const BotaoVoltar = canGoBack() ? (
+    <button
+      type="button"
+      onClick={goBack}
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300 mb-4"
+    >
+      <Icon icon="mdi:arrow-left" width={18} />
+      Voltar para estudantes
+    </button>
+  ) : null;
+
   if (loading) return <LoadingSpinner message="Carregando notas..." />;
 
   // ── Academias ──
@@ -429,6 +448,7 @@ export default function NotasEstudante() {
     const anos = anosLetivosDe(a.codigo);
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{a.nome}</h2>
@@ -460,6 +480,7 @@ export default function NotasEstudante() {
     const notasAno = notasDe(a.codigo).filter(n => n.ano_lectivo === anoLetivo);
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ano Letivo {anoLetivo.replace("_", "/")}</h2>
@@ -510,6 +531,7 @@ export default function NotasEstudante() {
 
     return (
       <div className="space-y-6">
+        {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{PERIODOS_LABEL[periodo] ?? periodo}</h2>
