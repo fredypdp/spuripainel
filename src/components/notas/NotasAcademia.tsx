@@ -147,6 +147,30 @@ function exibirCodigoEstudante(codigo: string): string {
   return (codigo ?? "").trim().toUpperCase();
 }
 
+function nomeEstudante(estudante: EstudanteDetalhado | undefined, notas: Nota[], codigo: string): string {
+  const nome = estudante?.nome?.trim() || notas.find(n => n.estudante_nome?.trim())?.estudante_nome?.trim();
+  return nome || exibirCodigoEstudante(codigo);
+}
+
+function categoriasEscolaresDoAno(anoAcademico: string, notas: Nota[]): string[] {
+  const categoriasFixas = CATEGORIAS_ESCOLAR
+    .filter(cat => cat.anos_academicos.includes(anoAcademico))
+    .map(cat => cat.value);
+  return Array.from(new Set([...categoriasFixas, ...notas.map(n => n.categoria)]));
+}
+
+function categoriasSuperioresDoAno(anoAcademico: string, notas: Nota[], categorias: any[]): string[] {
+  const categoriasConfiguradas = categorias
+    .filter((cat: any) => cat.status !== "inativo")
+    .filter((cat: any) => {
+      const anos = cat.anos_academicos ?? [];
+      return anos.length === 0 || anos.includes(anoAcademico);
+    })
+    .map((cat: any) => cat.codigo);
+  return Array.from(new Set([...categoriasConfiguradas, ...notas.map(n => n.categoria)]))
+    .sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+}
+
 // ─── tipos de layer ───────────────────────────────────────────────────────────
 // Fluxo: anos → turmas → periodos → notas (com seletor de matéria inline)
 
@@ -226,12 +250,14 @@ function TabelaNotasEscolar({
   notas,
   estudantes,
   codigosTurma,
+  anoAcademico,
 }: {
   notas: Nota[];
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
+  anoAcademico: string;
 }) {
-  const categoriasOrdem = Array.from(new Set(["nota_professor", "prova_trimestral", "exame_final", "exame_recurso", "nota_pap", ...notas.map(n => n.categoria)]));
+  const categoriasOrdem = categoriasEscolaresDoAno(anoAcademico, notas);
 
   if (codigosTurma.length === 0) {
     return (
@@ -268,7 +294,7 @@ function TabelaNotasEscolar({
               const est      = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
               return {
                 codigo,
-                nome: est?.nome ?? "-",
+                nome: nomeEstudante(est, notasEst, codigo),
                 notasEst,
               };
             })
@@ -306,12 +332,16 @@ function TabelaNotasSuperior({
   notas,
   estudantes,
   codigosTurma,
+  anoAcademico,
+  categorias,
 }: {
   notas: Nota[];
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
+  anoAcademico: string;
+  categorias: any[];
 }) {
-  const categoriasOrdem = Array.from(new Set(["nota_professor", ...notas.map(n => n.categoria)])).sort((a, b) => formatCategoria(a).localeCompare(formatCategoria(b), "pt", { sensitivity: "base" }));
+  const categoriasOrdem = categoriasSuperioresDoAno(anoAcademico, notas, categorias);
 
   if (codigosTurma.length === 0) {
     return (
@@ -346,7 +376,7 @@ function TabelaNotasSuperior({
             .map(codigo => {
               const notasEst = porEstudante.get(codigo) ?? [];
               const est = estudantes.find(e => normCodigoEstudante(e.codigo_estudante) === codigo);
-              return { codigo, nome: est?.nome ?? "-", notasEst };
+              return { codigo, nome: nomeEstudante(est, notasEst, codigo), notasEst };
             })
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }))
             .map(({ codigo, nome, notasEst }) => (
@@ -401,10 +431,12 @@ function ModalGestao({
   const [anosCateg, setAnosCateg] = useState<Set<string>>(new Set());
 
   const CATS_FIXAS = isSuperior ? [] : CATEGORIAS_ESCOLAR;
-  const anoSelecionado = anoAcademicoDoEstudante(estudantes.find((estudante) => estudante.codigo_estudante === codigoEst));
+  const anoSelecionado = anoAcademicoDoEstudante(estudantes.find((estudante) => normCodigoEstudante(estudante.codigo_estudante) === normCodigoEstudante(codigoEst)));
   const todasCatsBase  = [
     ...CATS_FIXAS,
-    ...categorias.map((c: any) => ({ label: c.nome, value: c.codigo, anos_academicos: c.anos_academicos ?? [] })),
+    ...categorias
+      .filter((c: any) => c.status !== "inativo")
+      .map((c: any) => ({ label: c.nome, value: c.codigo, anos_academicos: c.anos_academicos ?? [] })),
   ];
   const todasCats = todasCatsBase.filter((cat: any) => !cat.anos_academicos?.length || !anoSelecionado || cat.anos_academicos.includes(anoSelecionado));
 
@@ -1055,8 +1087,8 @@ export default function NotasAcademia() {
         {/* Tabela */}
         {materiasDisponiveis.length > 0 && (
           usarTabelaSuperior
-            ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
-            : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} />
+            ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} categorias={categorias} />
+            : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} />
         )}
       </div>
     );
