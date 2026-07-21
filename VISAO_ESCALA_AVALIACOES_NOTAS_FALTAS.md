@@ -1,6 +1,10 @@
-# Visão textual em escala — Avaliações finais, notas e faltas
+---
+modificado: 2026-07-21 23:11
+criado: 2026-07-21 21:09
+---
+# Visão em árvore de navegação — Avaliações finais, notas e faltas
 
-Este documento representa textualmente os fluxos de navegação em escala das visões de avaliações finais, notas e faltas para os perfis Academia, Admin e Estudante, separados por nível de ensino quando a tela possui caminhos distintos.
+Este documento representa em árvore de navegação os fluxos das visões de avaliações finais, notas e faltas para os perfis Academia, Admin e Estudante, separados por nível de ensino quando a tela possui caminhos distintos.
 
 ## Avaliações finais
 
@@ -8,90 +12,100 @@ Este documento representa textualmente os fluxos de navegação em escala das vi
 
 AvaliacoesFinaisAcademia.tsx (Academia mista)
 │
-└── Seleção do tipo de ensino
+└── Seleção do tipo de ensino (botão atualizar só aparece aqui)
     ├── Ensino fundamental
     │   └── Seleção do ano letivo
-    │       └── Visão geral do ensino fundamental
+    │       └── Seleção do ano acadêmico
     │           └── Seleção da turma
     │               └── Tela de exibição dos resultados finais dos estudantes da turma
-    └── Ensino médio / superior
+    └── Ensino médio
         └── Seleção do ano letivo
             └── Seleção do curso
-                └── Visão geral do curso
+                └── Seleção do ano acadêmico
                     └── Seleção da turma
                         └── Tela de exibição dos resultados finais dos estudantes da turma
 
 AvaliacoesFinaisAcademia.tsx (Ensino fundamental)
 │
-└── Seleção do ano letivo
-    └── Visão geral do ensino fundamental
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do ano acadêmico
         └── Seleção da turma
             └── Tela de exibição dos resultados finais dos estudantes da turma
 
 AvaliacoesFinaisAcademia.tsx (Ensino médio)
 │
-└── Seleção do ano letivo
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
     └── Seleção do curso
-        └── Visão geral do curso
+        └── Seleção do ano acadêmico
             └── Seleção da turma
                 └── Tela de exibição dos resultados finais dos estudantes da turma
 
 AvaliacoesFinaisAcademia.tsx (Ensino superior)
 │
-└── Seleção do ano letivo
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
     └── Seleção do curso
-        └── Visão geral do curso
+        └── Seleção do ano acadêmico
             └── Seleção da turma
                 └── Tela de exibição dos resultados finais dos estudantes da turma
 
 ### AvaliacoesFinaisAdmin.tsx
 
+AvaliacoesFinaisAdmin.tsx
+│
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma Academia mista)
+        └── Seleção do ano letivo (botão atualizar só aparece aqui)
+            └── Seleção do tipo de ensino
+                ├── Ensino fundamental
+                │   └── Seleção do ano acadêmico
+                │       └── Seleção da turma
+                │           └── Seleção do período
+                │               └── Tela de exibição das notas dos estudantes
+                └── Ensino médio
+                    └── Seleção do curso
+                        └── Seleção do ano acadêmico
+                            └── Seleção da turma
+                                └── Seleção do período
+                                    └── Tela de exibição das notas dos estudantes
+
 AvaliacoesFinaisAdmin.tsx (Ensino fundamental)
 │
-└── Seleção do ano letivo global
+└── Seleção do ano letivo (o ano letivo global) (botão atualizar só aparece aqui)
     └── Seleção da província
         └── Seleção da academia
             └── Seleção do ano letivo da academia
                 └── Seleção do ano acadêmico
-                    └── Tela de exibição dos resultados finais dos estudantes
+                    └── Seleção da turma
+                        └── Tela de exibição dos resultados finais dos estudantes
 
 AvaliacoesFinaisAdmin.tsx (Ensino médio)
 │
-└── Seleção do ano letivo global
+└── Seleção do ano letivo global (botão atualizar só aparece aqui)
     └── Seleção da província
         └── Seleção da academia
             └── Seleção do ano letivo da academia
-                └── Seleção do ano acadêmico
-                    └── Tela de exibição dos resultados finais dos estudantes
+                └── Seleção do curso
+                    └── Seleção do ano acadêmico
+                        └── Seleção da turma
+                            └── Tela de exibição dos resultados finais dos estudantes
 
 AvaliacoesFinaisAdmin.tsx (Ensino superior)
 │
-└── Seleção do ano letivo global
+└── Seleção do ano letivo global (botão atualizar só aparece aqui)
     └── Seleção da província
         └── Seleção da academia
             └── Seleção do ano letivo da academia
-                └── Seleção do ano acadêmico
-                    └── Tela de exibição dos resultados finais dos estudantes
+                └── Seleção do curso
+                    └── Seleção do ano acadêmico
+                        └── Seleção da turma
+                            └── Tela de exibição dos resultados finais dos estudantes
 
 ### AvaliacoesFinaisEstudante.tsx
 
-AvaliacoesFinaisEstudante.tsx (Ensino fundamental)
+AvaliacoesFinaisEstudante.tsx
 │
-└── Seleção do ano letivo
-    └── Seleção do ciclo de ensino
-        └── Tela de exibição dos resultados finais do estudante
-
-AvaliacoesFinaisEstudante.tsx (Ensino médio)
-│
-└── Seleção do ano letivo
-    └── Seleção do ciclo de ensino
-        └── Tela de exibição dos resultados finais do estudante
-
-AvaliacoesFinaisEstudante.tsx (Ensino superior)
-│
-└── Seleção do ano letivo
-    └── Seleção do ciclo de ensino
-        └── Tela de exibição dos resultados finais do estudante
+└── Seleção do ano letivo (tabelas colapsáveis das secções Ensino fundamental, médio e superior)
+    └── Exibição dos resultados finais do estudante
 
 ## Notas
 
@@ -99,96 +113,145 @@ AvaliacoesFinaisEstudante.tsx (Ensino superior)
 
 NotasAcademia.tsx (Academia mista)
 │
-└── Seleção do tipo de ensino
-    ├── Ensino fundamental / médio
-    │   └── Seleção do ano acadêmico
-    │       └── Seleção da turma
-    │           └── Seleção do período
-    │               └── Tela de exibição e registro das notas dos estudantes
-    └── Ensino superior
-        └── Seleção do curso
-            └── Seleção do ano acadêmico
-                └── Seleção da turma
-                    └── Seleção do período
-                        └── Tela de exibição e registro das notas dos estudantes
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do tipo de ensino
+        ├── Ensino fundamental
+        │   └── Seleção do ano acadêmico
+        │       └── Seleção da turma
+        │           └── Seleção do período
+        │               └── Tela de exibição das notas dos estudantes
+        └── Ensino médio
+            └── Seleção do curso
+                └── Seleção do ano acadêmico
+                    └── Seleção da turma
+                        └── Seleção do período
+                            └── Tela de exibição das notas dos estudantes
 
 NotasAcademia.tsx (Ensino fundamental)
 │
-└── Seleção do ano acadêmico
-    └── Seleção da turma
-        └── Seleção do período
-            └── Tela de exibição e registro das notas dos estudantes
-
-NotasAcademia.tsx (Ensino médio)
-│
-└── Seleção do ano acadêmico
-    └── Seleção da turma
-        └── Seleção do período
-            └── Tela de exibição e registro das notas dos estudantes
-
-NotasAcademia.tsx (Ensino superior)
-│
-└── Seleção do curso
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
     └── Seleção do ano acadêmico
         └── Seleção da turma
             └── Seleção do período
-                └── Tela de exibição e registro das notas dos estudantes
+                └── Tela de exibição das notas dos estudantes
+
+NotasAcademia.tsx (Ensino médio)
+│
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do curso
+        └── Seleção do ano acadêmico
+            └── Seleção da turma
+                └── Seleção do período
+                    └── Tela de exibição das notas dos estudantes
+
+NotasAcademia.tsx (Ensino superior)
+│
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do curso
+        └── Seleção do ano acadêmico
+            └── Seleção da turma
+                └── Seleção do período
+                    └── Tela de exibição das notas dos estudantes
 
 ### NotasAdmin.tsx
 
+NotasAdmin.tsx (Academia mista)
+│
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma Academia mista)
+        └── Seleção do ano letivo (botão atualizar só aparece aqui)
+            └── Seleção do tipo de ensino
+                ├── Ensino fundamental
+                │   └── Seleção do ano acadêmico
+                │       └── Seleção da turma
+                │           └── Seleção do período
+                │               └── Tela de exibição das notas dos estudantes
+                └── Ensino médio
+                    └── Seleção do curso
+                        └── Seleção do ano acadêmico
+                            └── Seleção da turma
+                                └── Seleção do período
+                                    └── Tela de exibição das notas dos estudantes
+
 NotasAdmin.tsx (Ensino fundamental)
 │
-└── Seleção da província
-    └── Seleção da academia
-        └── Seleção do ano acadêmico
-            └── Seleção da turma
-                └── Seleção do período
-                    └── Tela de exibição das notas dos estudantes
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma academia do Ensino fundamental)
+        └── Seleção do ano letivo da academia
+            └── Seleção do ano acadêmico
+                └── Seleção da turma
+                    └── Seleção do período
+                        └── Tela de exibição das notas dos estudantes
 
 NotasAdmin.tsx (Ensino médio)
 │
-└── Seleção da província
-    └── Seleção da academia
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma academia do Ensino médio)
+        └── Seleção do ano letivo da academia
+            └── Seleção do curso
+                └── Seleção do ano acadêmico
+                    └── Seleção da turma
+                        └── Seleção do período
+                            └── Tela de exibição das notas dos estudantes
+
+NotasAdmin.tsx (Ensino superior)
+│
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma academia do Ensino superior)
+        └── Seleção do ano letivo da academia
+            └── Seleção do curso
+                └── Seleção do ano acadêmico
+                    └── Seleção da turma
+                        └── Seleção do período
+                            └── Tela de exibição das notas dos estudantes
+
+### NotasEstudante.tsx
+
+NotasEstudante.tsx (Academia mista)
+│
+└── Seleção da academia (selecionado uma academia mista)
+    └── Seleção do ano letivo (botão atualizar só aparece aqui)
+        └── Seleção do tipo de ensino
+            ├── Ensino fundamental (botão atualizar só aparece aqui)
+            │   └── Seleção do ano acadêmico
+            │       └── Seleção da turma
+            │           └── Seleção do período
+            │               └── Tela de exibição das notas dos estudantes
+            └── Ensino médio
+                └── Seleção do curso
+                    └── Seleção do ano acadêmico
+                        └── Seleção da turma
+                            └── Seleção do período
+                                └── Tela de exibição das notas dos estudantes
+
+NotasEstudante.tsx (Ensino fundamental)
+│
+└── Seleção da academia (selecionado uma academia do Ensino fundamental) (botão atualizar só aparece aqui)
+    └── Seleção do ano letivo da academia
         └── Seleção do ano acadêmico
             └── Seleção da turma
                 └── Seleção do período
                     └── Tela de exibição das notas dos estudantes
 
-NotasAdmin.tsx (Ensino superior)
+NotasEstudante.tsx (Ensino médio)
 │
-└── Seleção da província
-    └── Seleção da academia
+└── Seleção da academia (selecionado uma academia do Ensino médio) (botão atualizar só aparece aqui)
+    └── Seleção do ano letivo da academia
         └── Seleção do curso
             └── Seleção do ano acadêmico
                 └── Seleção da turma
                     └── Seleção do período
                         └── Tela de exibição das notas dos estudantes
 
-### NotasEstudante.tsx
-
-NotasEstudante.tsx (Ensino fundamental)
-│
-└── Seleção da academia
-    └── Seleção do ano letivo
-        └── Seleção do ano acadêmico
-            └── Seleção do período
-                └── Tela de exibição das notas do estudante
-
-NotasEstudante.tsx (Ensino médio)
-│
-└── Seleção da academia
-    └── Seleção do ano letivo
-        └── Seleção do ano acadêmico
-            └── Seleção do período
-                └── Tela de exibição das notas do estudante
-
 NotasEstudante.tsx (Ensino superior)
 │
-└── Seleção da academia
-    └── Seleção do ano letivo
-        └── Seleção do ano acadêmico
-            └── Seleção do período
-                └── Tela de exibição das notas do estudante
+└── Seleção da academia (selecionado uma academia do Ensino superior) (botão atualizar só aparece aqui)
+    └── Seleção do ano letivo da academia
+        └── Seleção do curso
+            └── Seleção do ano acadêmico
+                └── Seleção da turma
+                    └── Seleção do período
+                        └── Tela de exibição das notas dos estudantes
 
 ## Faltas
 
@@ -196,85 +259,127 @@ NotasEstudante.tsx (Ensino superior)
 
 FaltasAcademia.tsx (Academia mista)
 │
-└── Seleção do tipo de ensino
-    ├── Ensino fundamental / médio
-    │   └── Seleção do ano acadêmico
-    │       └── Seleção da turma
-    │           └── Tela de exibição e registro das faltas dos estudantes
-    └── Ensino superior
-        └── Seleção do curso
-            └── Seleção do ano acadêmico
-                └── Seleção da turma
-                    └── Tela de exibição e registro das faltas dos estudantes
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do tipo de ensino
+        ├── Ensino fundamental
+        │   └── Seleção do ano acadêmico
+        │       └── Seleção da turma
+        │           └── Tela de exibição e registro das faltas dos estudantes
+        └── Ensino médio
+            └── Seleção do curso
+                └── Seleção do ano acadêmico
+                    └── Seleção da turma
+                        └── Tela de exibição e registro das faltas dos estudantes
 
 FaltasAcademia.tsx (Ensino fundamental)
 │
-└── Seleção do ano acadêmico
-    └── Seleção da turma
-        └── Tela de exibição e registro das faltas dos estudantes
-
-FaltasAcademia.tsx (Ensino médio)
-│
-└── Seleção do ano acadêmico
-    └── Seleção da turma
-        └── Tela de exibição e registro das faltas dos estudantes
-
-FaltasAcademia.tsx (Ensino superior)
-│
-└── Seleção do curso
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
     └── Seleção do ano acadêmico
         └── Seleção da turma
             └── Tela de exibição e registro das faltas dos estudantes
 
+FaltasAcademia.tsx (Ensino médio)
+│
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do curso
+        └── Seleção do ano acadêmico
+            └── Seleção da turma
+                └── Tela de exibição e registro das faltas dos estudantes
+
+FaltasAcademia.tsx (Ensino superior)
+│
+└── Seleção do ano letivo (botão atualizar só aparece aqui)
+    └── Seleção do curso
+        └── Seleção do ano acadêmico
+            └── Seleção da turma
+                └── Tela de exibição e registro das faltas dos estudantes
+
 ### FaltasAdmin.tsx
+
+FaltasAdmin.tsx (Academia mista)
+│
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma Academia mista)
+        └── Seleção do ano letivo (botão atualizar só aparece aqui)
+            └── Seleção do tipo de ensino
+                ├── Ensino fundamental
+                │   └── Seleção do ano acadêmico
+                │       └── Seleção da turma
+                │           └── Tela de exibição das faltas dos estudantes
+                └── Ensino médio
+                    └── Seleção do curso
+                        └── Seleção do ano acadêmico
+                            └── Seleção da turma
+                                └── Tela de exibição das faltas dos estudantes
 
 FaltasAdmin.tsx (Ensino fundamental)
 │
-└── Seleção da província
-    └── Seleção da academia
-        └── Seleção do ano acadêmico
-            └── Seleção da turma
-                └── Tela de exibição das faltas dos estudantes
-
-FaltasAdmin.tsx (Ensino médio)
-│
-└── Seleção da província
-    └── Seleção da academia
-        └── Seleção do ano acadêmico
-            └── Seleção da turma
-                └── Tela de exibição das faltas dos estudantes
-
-FaltasAdmin.tsx (Ensino superior)
-│
-└── Seleção da província
-    └── Seleção da academia
-        └── Seleção do curso
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma academia do Ensino fundamental)
+        └── Seleção do ano letivo da academia
             └── Seleção do ano acadêmico
                 └── Seleção da turma
                     └── Tela de exibição das faltas dos estudantes
 
+FaltasAdmin.tsx (Ensino médio)
+│
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma academia do Ensino médio)
+        └── Seleção do ano letivo da academia
+            └── Seleção do curso
+                └── Seleção do ano acadêmico
+                    └── Seleção da turma
+                        └── Tela de exibição das faltas dos estudantes
+
+FaltasAdmin.tsx (Ensino superior)
+│
+└── Seleção da província (botão atualizar só aparece aqui)
+    └── Seleção da academia (selecionado uma academia do Ensino superior)
+        └── Seleção do ano letivo da academia
+            └── Seleção do curso
+                └── Seleção do ano acadêmico
+                    └── Seleção da turma
+                        └── Tela de exibição das faltas dos estudantes
+
 ### FaltasEstudante.tsx
+
+FaltasEstudante.tsx (Academia mista)
+│
+└── Seleção da academia (selecionado uma academia mista)
+    └── Seleção do ano letivo (botão atualizar só aparece aqui)
+        └── Seleção do tipo de ensino
+            ├── Ensino fundamental
+            │   └── Seleção da turma
+            │       └── Seleção da matéria
+            │           └── Tela de exibição das faltas do estudante
+            └── Ensino médio
+                └── Seleção do curso
+                    └── Seleção da turma
+                        └── Seleção da matéria
+                            └── Tela de exibição das faltas do estudante
 
 FaltasEstudante.tsx (Ensino fundamental)
 │
-└── Seleção da academia
-    └── Seleção do ano letivo
+└── Seleção da academia (selecionado uma academia do Ensino fundamental) (botão atualizar só aparece aqui)
+    └── Seleção do ano letivo da academia
         └── Seleção da turma
             └── Seleção da matéria
                 └── Tela de exibição das faltas do estudante
 
 FaltasEstudante.tsx (Ensino médio)
 │
-└── Seleção da academia
-    └── Seleção do ano letivo
-        └── Seleção da turma
-            └── Seleção da matéria
-                └── Tela de exibição das faltas do estudante
+└── Seleção da academia (selecionado uma academia do Ensino médio) (botão atualizar só aparece aqui)
+    └── Seleção do ano letivo da academia
+        └── Seleção do curso
+            └── Seleção da turma
+                └── Seleção da matéria
+                    └── Tela de exibição das faltas do estudante
 
 FaltasEstudante.tsx (Ensino superior)
 │
-└── Seleção da academia
-    └── Seleção do ano letivo
-        └── Seleção da turma
-            └── Seleção da matéria
-                └── Tela de exibição das faltas do estudante
+└── Seleção da academia (selecionado uma academia do Ensino superior) (botão atualizar só aparece aqui)
+    └── Seleção do ano letivo da academia
+        └── Seleção do curso
+            └── Seleção da turma
+                └── Seleção da matéria
+                    └── Tela de exibição das faltas do estudante
