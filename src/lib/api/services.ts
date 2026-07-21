@@ -1050,11 +1050,16 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
-  listarCategoriasNota: (token?: string) =>
-    api.get<ListarCategoriasNotaResponse>(
-      '/academia/categorias-nota',
+  listarCategoriasNota: (params?: string | { codigo_academia?: string; token?: string }) => {
+    const token = typeof params === 'string' ? params : params?.token;
+    const qs = new URLSearchParams();
+    if (typeof params !== 'string' && params?.codigo_academia) qs.append('codigo_academia', params.codigo_academia);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<ListarCategoriasNotaResponse>(
+      `/academia/categorias-nota${query}`,
       { token: token || tokenStorage.get() || undefined }
-    ),
+    );
+  },
 
   deletarCategoriaNota: (codigo: string, token?: string) =>
     api.delete<{ message: string; categoria: string }>(
