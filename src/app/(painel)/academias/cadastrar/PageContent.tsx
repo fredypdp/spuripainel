@@ -208,8 +208,8 @@ export default function CadastrarAcademiaPageContent() {
     if (!numeroTelefone.trim()) {
       erros.push('Número de telefone é obrigatório');
     } else {
-      const apenasDigitos = numeroTelefone.replace(/\D/g, '');
-      if (apenasDigitos.length < 9) erros.push('Informe um telefone válido com pelo menos 9 números');
+      const apenasDigitos = onlyDigits(numeroTelefone);
+      if (apenasDigitos.length !== 9) erros.push('Informe um telefone válido com exatamente 9 números locais');
     }
 
     if (!email.trim()) {
@@ -296,7 +296,7 @@ export default function CadastrarAcademiaPageContent() {
           alvara:          alvara as File,
           provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
           endereco:        endereco.trim(),
-          telefone: numeroTelefone.trim(),
+          telefone: onlyDigits(numeroTelefone),
           email:           email.trim(),
           website:         website.trim() || undefined,
           nivel_escolar:   nivel_es,          // NivelEscolar: 'fundamental' | 'medio' | 'misto'
@@ -313,7 +313,7 @@ export default function CadastrarAcademiaPageContent() {
           alvara:          alvara as File,
           provincia:       provinciaCodigo,   // código da província: 'LUA', 'BGO', etc.
           endereco:        endereco.trim(),
-          telefone: numeroTelefone.trim(),
+          telefone: onlyDigits(numeroTelefone),
           email:           email.trim(),
           website:         website.trim() || undefined,
           cursos:          [],
@@ -476,12 +476,14 @@ export default function CadastrarAcademiaPageContent() {
               <div className="col-span-2 sm:col-span-1">
                 <Label>Telefone *</Label>
                 <Input
-                  type="text"
-                  placeholder="+244 900 000 000"
-                  value={numeroTelefone}
-                  onChange={(e) => setNumeroTelefone(e.target.value)}
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="923 456 789"
+                  value={maskTelefoneAngola(numeroTelefone)}
+                  onChange={(e) => setNumeroTelefone(onlyDigits(e.target.value).slice(0, 9))}
                   disabled={carregandoCadastro}
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Informe apenas os 9 dígitos locais, sem DDI.</p>
               </div>
 
               {/* E-mail */}
@@ -631,4 +633,12 @@ export default function CadastrarAcademiaPageContent() {
       </div>
     </div>
   );
+}
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function maskTelefoneAngola(value: string) {
+  const digits = onlyDigits(value).slice(0, 9);
+  return digits.replace(/(\d{3})(?=\d)/g, "$1 ").trim();
 }
