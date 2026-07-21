@@ -71,6 +71,10 @@ function nomeProvinciaDeCodigo(codigo: string): string {
   return Provincias.find(p => p.codigo === codigo?.toUpperCase())?.nome ?? codigo;
 }
 
+function notaText(n?: number | null): string {
+  return n == null || n === 0 ? "" : String(n);
+}
+
 function corNota(n: number): string {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
@@ -229,7 +233,7 @@ function TabelaNotasEscolar({ notas, estudantes, codigosTurma }: {
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = ne.find(n => n.categoria === cat);
-                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaCat != null ? notaCat.nota : "—"}</td>;
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
                 })}
               </tr>
             ))}
@@ -287,7 +291,7 @@ function TabelaNotasSuperior({ notas, estudantes, codigosTurma }: {
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = ne.find(n => n.categoria === cat);
-                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaCat?.nota ?? "—"}</td>;
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
                 })}
               </tr>
             ))}
@@ -356,6 +360,7 @@ export default function NotasAdmin() {
   const turmas: Turma[]                  = useMemo(() => (dataTurmas    as any)?.turmas   ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => (dataCursos    as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
   const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const materias                         = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
   const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
 
@@ -641,9 +646,19 @@ export default function NotasAdmin() {
     const anoFiltro           = anoLetivoSelecionado || anoLectivo;
     const codigosTurma        = codigosTurmaDoAnoLetivo(turma, anoFiltro).filter(Boolean);
     const notasContexto       = notasDaTurmaEmPeriodo(turma, nivel, periodo);
-    const materiaIdsCtx       = [...new Set(notasContexto.map(n => n.materia_disciplinar_id))];
+    const materiaIdsConfiguradas = materias
+      .filter((m: any) =>
+        (m.anos_academicos ?? []).includes(nivel) &&
+        (!turma.curso_id || !m.curso_id || m.curso_id === turma.curso_id) &&
+        (!usarTabelaSuperior || !m.periodo || m.periodo === periodo)
+      )
+      .map((m: any) => m.id);
+    const materiaIdsCtx       = [...new Set([...materiaIdsConfiguradas, ...notasContexto.map(n => n.materia_disciplinar_id)])];
     const materiasDisponiveis = materiaIdsCtx
-      .map(id => materiasCache[id] ?? { id, nome: id })
+      .map(id => {
+        const materia = materias.find((m: any) => m.id === id);
+        return materia ? { id: materia.id, nome: materia.nome } : (materiasCache[id] ?? { id, nome: id });
+      })
       .sort((a, b) => a.nome.localeCompare(b.nome));
     const notasFiltradas = materiaSelecionada
       ? notasContexto.filter(n => n.materia_disciplinar_id === materiaSelecionada)
@@ -658,7 +673,7 @@ export default function NotasAdmin() {
         {materiasDisponiveis.length === 0 && !carregandoMaterias ? (
           <div className="text-center py-10 text-gray-400">
             <Icon icon="mdi:book-outline" width={40} className="mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nenhuma nota registada neste período.</p>
+            <p className="text-sm">Nenhuma matéria configurada para este contexto.</p>
           </div>
         ) : (
           <div className="space-y-3">
