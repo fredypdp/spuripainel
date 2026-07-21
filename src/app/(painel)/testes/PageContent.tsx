@@ -40,7 +40,19 @@ interface Estudante {
   bilhete_identidade_encarregado?: string;
   total_notas?: number;
   total_faltas?: number;
+  status?: string;
+  documentos?: Record<string, unknown>;
 }
+
+const DOCUMENT_LABELS: Record<string, string> = {
+  bi_estudante: "BI do estudante",
+  bi_encarregado: "BI do encarregado",
+  cedula_estudante: "Cédula do estudante",
+  declaracao: "Declaração do ano anterior",
+  certificado_6_ano_fundamental: "Certificado da 6ª classe",
+  certificado_9_ano_fundamental: "Certificado da 9ª classe",
+  certificado_ensino_medio: "Certificado do ensino médio",
+};
 
 interface Turma {
   id?: string;
@@ -181,6 +193,39 @@ const camposDocumentaisObrigatorios = (payload: Record<string, any>) => {
   if (payload.ano_escolar_fundamental === "7_ano_fundamental") campos.push("certificado_6_ano_fundamental");
   else if (payload.ano_escolar_medio === "1_ano_medio") campos.push("certificado_9_ano_fundamental");
   else if (anoAcademico && anoAcademico !== "1_ano_fundamental" && anoAnteriorAcademico(anoAcademico)) campos.push("declaracao");
+  return campos;
+};
+
+const getDocumentoChaves = (estudante: Estudante) => new Set(Object.keys(estudante.documentos || {}));
+
+const documentoPendenteJaEnviado = (chaves: Set<string>, campo: string, estudante: Estudante) => {
+  if (chaves.has(campo)) return true;
+  const anoAtual = estudante.ano_superior || estudante.ano_escolar_medio || estudante.ano_escolar_fundamental;
+  const anoAnterior = anoAnteriorAcademico(anoAtual);
+  if (campo === "declaracao") {
+    return [...chaves].some(chave => chave.includes(".declaracao_") || chave === `declaracao_${anoAnterior}`);
+  }
+  return [...chaves].some(chave => chave.endsWith(`.${campo}`));
+};
+
+const camposDocumentaisPendentes = (estudante: Estudante) => {
+  const obrigatorios = camposDocumentaisObrigatorios(estudante as Record<string, any>);
+  const chaves = getDocumentoChaves(estudante);
+  return obrigatorios.filter(campo => !documentoPendenteJaEnviado(chaves, campo, estudante));
+};
+
+const camposDocumentaisParaRegularizacao = (estudante: Estudante) => {
+  const campos = camposDocumentaisPendentes(estudante);
+  const anoAtual = estudante.ano_superior || estudante.ano_escolar_medio || estudante.ano_escolar_fundamental;
+  const certificadoAlternativo =
+    anoAtual === "7_ano_fundamental" ? "certificado_6_ano_fundamental" :
+    anoAtual === "1_ano_medio" ? "certificado_9_ano_fundamental" :
+    anoAtual === "1_ano_superior" ? "certificado_ensino_medio" :
+    undefined;
+
+  if (certificadoAlternativo && campos.includes(certificadoAlternativo) && Math.random() < 0.5) {
+    return campos.map(campo => campo === certificadoAlternativo ? "declaracao" : campo);
+  }
   return campos;
 };
 
@@ -1169,6 +1214,67 @@ export default function PageContent() {
 
     addLog(`Estudantes (lotes): ${okTotal} ✓  ${errTotal} ✗`, okTotal > 0 && errTotal === 0 ? "ok" : errTotal > 0 ? "warn" : "err");
     await sleep(3000);
+    await refreshData();
+  };
+
+  // ─── Regularizar Documentos Pendentes ────────────────────────────────────────
+  const regularizarDocumentosPendentes = async () => {
+    if (!academia) return;
+
+    addLog("Consultando estudantes com status pendente_documentos...", "step");
+    const { ok, data, status } = await callApi("GET", "/estudantes?status=pendente_documentos&limit=100", undefined, academia.token);
+    const base = ok ? ((data as any)?.estudantes || []) as Estudante[] : estudantes.filter(e => e.status === "pendente_documentos");
+
+    if (!ok) {
+      addLog(`  ⚠ Consulta filtrada falhou (HTTP ${status}); usando os estudantes já carregados na página.`, "warn");
+    }
+    if (base.length === 0) {
+      addLog("Nenhum estudante com pendência documental encontrado.", "ok");
+      return;
+    }
+
+    let regularizados = 0;
+    let falhas = 0;
+    addLog(`Encontrados ${base.length} estudante(s) pendente(s); consultando detalhes e documentos faltantes...`, "info");
+
+    for (const resumido of base) {
+      if (cancelRef.current) break;
+      const codigo = resumido.codigo_estudante;
+      const detalheResp = await callApi("GET", `/consultar-estudante/${encodeURIComponent(codigo)}`, undefined, academia.token);
+      const estudanteDetalhado = (detalheResp.ok ? ((detalheResp.data as any)?.estudante || detalheResp.data) : resumido) as Estudante;
+      const estudanteAlvo = { ...resumido, ...estudanteDetalhado };
+      const campos = camposDocumentaisParaRegularizacao(estudanteAlvo);
+
+      if (campos.length === 0) {
+        addLog(`  • ${codigo}: sem documentos pendentes detectados após consulta detalhada.`, "dim");
+        continue;
+      }
+
+      const form = new FormData();
+      const anoAtual = estudanteAlvo.ano_superior || estudanteAlvo.ano_escolar_medio || estudanteAlvo.ano_escolar_fundamental;
+      const anoAnterior = anoAnteriorAcademico(anoAtual);
+      campos.forEach(campo => form.append(campo, criarPdfTeste(`${codigo}-${campo}`)));
+      if (campos.includes("declaracao") && anoAnterior) form.append("declaracao_ano_academico", anoAnterior);
+
+      const labels = campos.map(c => DOCUMENT_LABELS[c] || c).join(", ");
+      addLog(`  → ${codigo} (${estudanteAlvo.nome}): gerando PDF(s) para ${labels} e enviando pela rota /academia/estudante/{codigo}/documentos...`, "info");
+      const envio = await callApi("POST", `/academia/estudante/${encodeURIComponent(codigo)}/documentos`, form, academia.token);
+
+      if (envio.ok) {
+        regularizados++;
+        const novoStatus = (envio.data as any)?.status || "ativo";
+        addLog(`    ✓ Documentos adicionados; status retornado: ${novoStatus}`, "ok");
+      } else {
+        falhas++;
+        const msg = (envio.data as any)?.message || (envio.data as any)?.error || `HTTP ${envio.status}`;
+        addLog(`    ✗ Falha ao adicionar documentos: ${msg}`, "err");
+      }
+
+      await sleep(300);
+    }
+
+    addLog(`Regularização documental concluída: ${regularizados} estudante(s) ativo(s), ${falhas} falha(s).`, falhas > 0 ? "warn" : "ok");
+    await sleep(1500);
     await refreshData();
   };
 
@@ -2318,6 +2424,25 @@ export default function PageContent() {
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
                 Criação em massa via /academia/estudante/register/async: JSON usa com_arquivo=false e deixa status pendente_documentos; multipart usa com_arquivo=true, codigo_temporario e PDFs obrigatórios.
+              </p>
+            </Section>
+
+            {/* Documentos pendentes */}
+            <Section
+              title="Documentos pendentes"
+              badge={`${estudantes.filter(e => e.status === "pendente_documentos").length} pendente(s)`}
+            >
+              <Row>
+                <Btn
+                  onClick={() => withLoading(regularizarDocumentosPendentes)}
+                  color="#d97706"
+                  disabled={estudantes.length === 0}
+                >
+                  Gerar PDFs e adicionar documentos pendentes
+                </Btn>
+              </Row>
+              <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                Consulta /estudantes?status=pendente_documentos, confirma cada estudante em /consultar-estudante/:codigo, gera PDFs de teste e envia multipart para /academia/estudante/:codigo/documentos. Quando certificado e declaração são alternativas válidas, a escolha pode ser aleatória.
               </p>
             </Section>
 
