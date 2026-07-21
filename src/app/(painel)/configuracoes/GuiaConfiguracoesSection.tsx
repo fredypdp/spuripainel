@@ -14,6 +14,7 @@ const stepRouteReferences: Record<string, { href: string; label: string }[]> = {
 export default function GuiaConfiguracoesSection() {
   const { steps, completedCount, totalCount, nextStep, loading, error, retry } = useAcademiaConfiguracaoStatus();
   const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const nextStepRouteReferences = nextStep ? stepRouteReferences[nextStep.id] ?? [] : [];
 
   if (loading) {
     return <div className="space-y-5 sm:space-y-6">{[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800 sm:h-28" />)}</div>;
@@ -44,10 +45,21 @@ export default function GuiaConfiguracoesSection() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a academia sem pular dependências. No telemóvel, cada ação fica destacada e ocupa a largura completa para facilitar o toque.</p>
           </div>
           {nextStep ? (
-            <Link href={nextStep.href} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 sm:w-auto sm:px-5">
-              Continuar: {nextStep.title}
-              <Icon icon="mdi:arrow-right" className="h-4 w-4" />
-            </Link>
+            nextStepRouteReferences.length > 0 ? (
+              <div className="grid w-full gap-3 sm:w-auto sm:grid-flow-col sm:auto-cols-max">
+                {nextStepRouteReferences.map((route) => (
+                  <Link key={route.href} href={route.href} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 sm:w-auto sm:px-5">
+                    Continuar: {route.label}
+                    <Icon icon="mdi:arrow-right" className="h-4 w-4" />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <Link href={nextStep.href} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 sm:w-auto sm:px-5">
+                Continuar: {nextStep.title}
+                <Icon icon="mdi:arrow-right" className="h-4 w-4" />
+              </Link>
+            )
           ) : (
             <span className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-300"><Icon icon="mdi:check-circle" className="h-4 w-4" /> Guia concluído</span>
           )}
