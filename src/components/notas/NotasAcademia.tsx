@@ -990,7 +990,10 @@ export default function NotasAcademia() {
   // ─── voltar à secção anterior ────────────────────────────────────────────────
 
   function goBack() {
-    if (layer.mode === "misto" && layer.type === "choose") return;
+    if (layer.mode === "misto" && layer.type === "choose") {
+      if (anoLetivoSelecionado) setAnoLetivoSelecionado("");
+      return;
+    }
 
     // Se estiver na secção de anos com um ano letivo já selecionado,
     // o "Voltar" limpa o ano letivo (volta à lista de anos letivos) antes de mudar de secção
@@ -1031,7 +1034,7 @@ export default function NotasAcademia() {
 
   /** Retorna true se há uma secção anterior para onde voltar */
   function canGoBack(): boolean {
-    if (layer.mode === "misto" && layer.type === "choose") return false;
+    if (layer.mode === "misto" && layer.type === "choose") return Boolean(anoLetivoSelecionado);
     if (layer.mode === "fund" && layer.type === "anos" && !isMisto && !anoLetivoSelecionado) return false;
     if (layer.mode === "sup"  && layer.type === "cursos" && !isMisto) return false;
     return true;
@@ -1151,13 +1154,27 @@ export default function NotasAcademia() {
       <div className="space-y-6">
         {BotaoVoltar}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas</h2>
-          <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{anoLetivoSelecionado ? "Notas" : "Anos Letivos"}</h2>
+          <p className="text-sm text-gray-500 mt-1">{anoLetivoSelecionado ? "Selecione o nível de ensino" : "Selecione o ano letivo"}</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
-          <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
-        </div>
+        {!anoLetivoSelecionado ? (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <CardBtn
+                key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace("_", "/")}`}
+                subtitle="Entrar para selecionar o nível de ensino"
+                onClick={() => setAnoLetivoSelecionado(ano)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+            <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
+          </div>
+        )}
       </div>
     );
 
@@ -1288,8 +1305,20 @@ export default function NotasAcademia() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Cursos</h2>
-        {cursos.length === 0 ? (
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{anoLetivoSelecionado ? "Cursos" : "Anos Letivos"}</h2>
+        {!anoLetivoSelecionado ? (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {anosLetivosDisponiveis.map((ano: string) => (
+              <CardBtn
+                key={ano}
+                icon="mdi:calendar-school"
+                title={`Ano Letivo ${ano.replace("_", "/")}`}
+                subtitle="Entrar para selecionar o curso"
+                onClick={() => setAnoLetivoSelecionado(ano)}
+              />
+            ))}
+          </div>
+        ) : cursos.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Icon icon="mdi:book-open-outline" width={48} className="mx-auto mb-3 opacity-40" />
             <p className="text-sm">Nenhum curso ativo.</p>

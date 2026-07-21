@@ -110,34 +110,6 @@ function MiniStats({ avs }: { avs: AvaliacaoFinal[] }) {
   );
 }
 
-// Selector de ano letivo inline
-function AnoLetivoSelector({
-  anos,
-  anoSel,
-  onChange,
-}: {
-  anos: string[];
-  anoSel: string;
-  onChange: (ano: string) => void;
-}) {
-  if (anos.length <= 1) return null;
-  return (
-    <div className="flex items-center gap-2">
-      <Icon icon="mdi:calendar-school" width={16} className="text-gray-400 flex-shrink-0" />
-      <select
-        value={anoSel}
-        onChange={e => onChange(e.target.value)}
-        className="h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-      >
-        <option value="">Todos os anos</option>
-        {anos.map(al => (
-          <option key={al} value={al}>{al.replace("_", "/")} {al === anos[0] ? "(mais recente)" : ""}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
 function TabelaCiclo({ avs, anoSel }: { avs: AvaliacaoFinal[]; anoSel: string }) {
   // Filtrar pelo ano letivo seleccionado
   const avsFilt = anoSel ? avs.filter(a => a.ano_lectivo === anoSel) : avs;
@@ -211,13 +183,6 @@ export default function AvaliacoesFinaisEstudante() {
 
   const [anoSel, setAnoSel] = useState<string>("");
 
-  // Selecciona o ano mais recente por defeito
-  useEffect(() => {
-    if (anosLetivos.length > 0 && !anoSel) {
-      setAnoSel(anosLetivos[0]);
-    }
-  }, [anosLetivos, anoSel]);
-
   // Ciclos presentes nas avaliações
   const ciclosPresentes = useMemo((): TipoEnsino[] => {
     const set = new Set<TipoEnsino>();
@@ -254,16 +219,60 @@ export default function AvaliacoesFinaisEstudante() {
     </div>
   );
 
-  // ── Ciclos overview ──
+  // ── Ano letivo e resumo dos ciclos ──
   if (layer.type === "ciclos") {
+    if (!anoSel) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o ano letivo</p>
+          </div>
+          {anosLetivos.length === 0 ? (
+            <div className="text-center py-16">
+              <Icon icon="mdi:clipboard-check-outline" width={52} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ainda não tens avaliações finais registadas.</p>
+              <p className="text-xs text-gray-400 mt-1">As avaliações são registadas pela tua instituição de ensino.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {anosLetivos.map(ano => (
+                <button
+                  key={ano}
+                  onClick={() => setAnoSel(ano)}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-brand-400 hover:shadow-sm transition-all text-left group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+                    <Icon icon="mdi:calendar-school" width={22} className="text-brand-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">Ano Letivo {ano.replace("_", "/")}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Ver resultados finais por secção</p>
+                  </div>
+                  <Icon icon="mdi:chevron-right" width={18} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Historial das avaliações anuais por ciclo de ensino</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ano letivo {anoSel.replace("_", "/")} · secções por nível de ensino</p>
           </div>
-          <AnoLetivoSelector anos={anosLetivos} anoSel={anoSel} onChange={setAnoSel} />
+          <button
+            type="button"
+            onClick={() => setAnoSel("")}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+          >
+            <Icon icon="mdi:arrow-left" width={16} />
+            Alterar ano letivo
+          </button>
         </div>
 
         {ciclosPresentes.length === 0 ? (
@@ -340,7 +349,6 @@ export default function AvaliacoesFinaisEstudante() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{info.label}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{info.sub}</p>
           </div>
-          <AnoLetivoSelector anos={anosLetivos} anoSel={anoSel} onChange={setAnoSel} />
         </div>
         <MiniStats avs={anoSel ? avs.filter(a => a.ano_lectivo === anoSel) : avs} />
         <TabelaCiclo avs={avs} anoSel={anoSel} />

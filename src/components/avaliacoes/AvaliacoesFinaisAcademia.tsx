@@ -67,39 +67,14 @@ function getUserFromCookie(): MeuPerfilResponse | null {
 
 type Layer =
   | { type: "choose" }
+  | { type: "anos_letivos"; destino: "fund" | "cursos" }
   | { type: "fund_overview" }
-  | { type: "fund_turma"; turma: Turma }
+  | { type: "fund_turmas"; nivel: string }
+  | { type: "fund_turma"; nivel: string; turma: Turma }
   | { type: "cursos" }
   | { type: "curso_overview"; curso: Curso }
-  | { type: "curso_turma"; curso: Curso; turma: Turma };
-
-// ─── AnoLetivoSelector ───────────────────────────────────────────────────────
-
-function AnoLetivoSelector({
-  anosDisponiveis,
-  anoSelecionado,
-  onChange,
-}: {
-  anosDisponiveis: string[];
-  anoSelecionado: string;
-  onChange: (ano: string) => void;
-}) {
-  if (anosDisponiveis.length <= 1) return null;
-  return (
-    <div className="flex items-center gap-2">
-      <Icon icon="mdi:calendar-school" width={16} className="text-gray-400 flex-shrink-0" />
-      <select
-        value={anoSelecionado}
-        onChange={e => onChange(e.target.value)}
-        className="h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-      >
-        {anosDisponiveis.map(al => (
-          <option key={al} value={al}>{al.replace("_", "/")} {al === anosDisponiveis[0] ? "(actual)" : ""}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
+  | { type: "curso_turmas"; curso: Curso; nivel: string }
+  | { type: "curso_turma"; curso: Curso; nivel: string; turma: Turma };
 
 // ─── Breadcrumb ───────────────────────────────────────────────────────────────
 
@@ -297,8 +272,8 @@ export default function AvaliacoesFinaisAcademia() {
 
   const initLayer = (): Layer => {
     if (isMisto)       return { type: "choose" };
-    if (isFundamental) return { type: "fund_overview" };
-    return { type: "cursos" };
+    if (isFundamental) return { type: "anos_letivos", destino: "fund" };
+    return { type: "anos_letivos", destino: "cursos" };
   };
 
   const [layer, setLayer]             = useState<Layer>(initLayer);
@@ -371,15 +346,6 @@ export default function AvaliacoesFinaisAcademia() {
     </div>
   );
 
-  // Selector de ano letivo comum a todas as views
-  const anoSelectorEl = (
-    <AnoLetivoSelector
-      anosDisponiveis={anosDisponiveis}
-      anoSelecionado={anoLetivoSel}
-      onChange={setAnoLetivoSel}
-    />
-  );
-
   // ── Misto: escolher nivel ──
   if (layer.type === "choose") {
     const fundAvs  = todasAvaliacoes.filter(a => a.tipo_ensino === "fundamental");
@@ -391,7 +357,14 @@ export default function AvaliacoesFinaisAcademia() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o nível de ensino</p>
           </div>
-          {anoSelectorEl}
+          <button
+            type="button"
+            onClick={reload}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+          >
+            <Icon icon="mdi:refresh" width={16} />
+            Atualizar
+          </button>
         </div>
         <StatsBar avaliacoes={todasAvaliacoes} anoLetivo={anoLetivoSel} />
         <div className="flex items-start gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
@@ -403,10 +376,48 @@ export default function AvaliacoesFinaisAcademia() {
         <div className="grid gap-4 sm:grid-cols-2">
           <CardBtn icon="mdi:school" title="Ensino Fundamental" subtitle="1º ao 9º Ano"
             stats={{ approved: fundAvs.filter(a => a.aprovado).length, reprovated: fundAvs.filter(a => !a.aprovado).length, pending: 0 }}
-            onClick={() => setLayer({ type: "fund_overview" })} />
+            onClick={() => setLayer({ type: "anos_letivos", destino: "fund" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Cursos Médios"
             stats={{ approved: medioAvs.filter(a => a.aprovado).length, reprovated: medioAvs.filter(a => !a.aprovado).length, pending: 0 }}
-            onClick={() => setLayer({ type: "cursos" })} />
+            onClick={() => setLayer({ type: "anos_letivos", destino: "cursos" })} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Ano letivo: primeira escala após o tipo de ensino ──
+  if (layer.type === "anos_letivos") {
+    const titulo = layer.destino === "fund" ? "Avaliações Finais — Fundamental" : (isSuperior ? "Avaliações Finais — Superior" : "Avaliações Finais — Médio");
+    return (
+      <div className="space-y-6">
+        {isMisto && <Breadcrumb crumbs={[{ label: "Início", onClick: () => setLayer({ type: "choose" }) }, { label: layer.destino === "fund" ? "Ensino Fundamental" : "Ensino Médio" }]} />}
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{titulo}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o ano letivo</p>
+          </div>
+          <button
+            type="button"
+            onClick={reload}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+          >
+            <Icon icon="mdi:refresh" width={16} />
+            Atualizar
+          </button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {anosDisponiveis.map(ano => (
+            <CardBtn
+              key={ano}
+              icon="mdi:calendar-school"
+              title={`Ano Letivo ${ano.replace("_", "/")}`}
+              subtitle={ano === anoLetivoSel ? "Ano atualmente selecionado" : "Entrar"}
+              onClick={() => {
+                setAnoLetivoSel(ano);
+                setLayer(layer.destino === "fund" ? { type: "fund_overview" } : { type: "cursos" });
+              }}
+            />
+          ))}
         </div>
       </div>
     );
@@ -414,39 +425,68 @@ export default function AvaliacoesFinaisAcademia() {
 
   // ── Fundamental: Turmas overview ──
   if (layer.type === "fund_overview") {
-    const fundTurmas = turmas.filter(t => t.nivel.includes("fundamental"))
-      .sort((a, b) => NIVEL_ORDER.indexOf(a.nivel) - NIVEL_ORDER.indexOf(b.nivel));
+    const fundTurmas = turmas.filter(t => t.nivel.includes("fundamental"));
+    const fundAnos = Array.from(new Set(fundTurmas.map(t => t.nivel)))
+      .sort((a, b) => NIVEL_ORDER.indexOf(a) - NIVEL_ORDER.indexOf(b));
     const fundAvs = todasAvaliacoes.filter(a => a.tipo_ensino === "fundamental");
     return (
       <div className="space-y-6">
-        {isMisto && <Breadcrumb crumbs={[{ label: "Início", onClick: () => setLayer({ type: "choose" }) }, { label: "Ensino Fundamental" }]} />}
+        <Breadcrumb crumbs={[...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []), { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) }, { label: "Ensino Fundamental" }]} />
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais — Fundamental</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma turma para ver resultados calculados automaticamente</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o ano acadêmico</p>
           </div>
-          {anoSelectorEl}
         </div>
         <StatsBar avaliacoes={fundAvs} anoLetivo={anoLetivoSel} />
-        {fundTurmas.length === 0 ? (
+        {fundAnos.length === 0 ? (
           <div className="text-center py-14">
-            <Icon icon="mdi:account-group" width={44} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
-            <p className="text-sm text-gray-400">Nenhuma turma do ensino fundamental.</p>
+            <Icon icon="mdi:numeric" width={44} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+            <p className="text-sm text-gray-400">Nenhum ano acadêmico do ensino fundamental.</p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {fundTurmas.map(t => {
-              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_academico_atual === t.nivel);
+            {fundAnos.map(nivel => {
+              const turmasDoAno = fundTurmas.filter(t => t.nivel === nivel);
+              const avs = todasAvaliacoes.filter(a => a.ano_academico_atual === nivel);
               return (
-                <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma}
-                  subtitle={`${labelNivel(t.nivel)} · ${t.estudantes.length} estudante(s)`}
-                  badge={t.turno}
-                  stats={{ approved: avs.filter(a => a.aprovado).length, reprovated: avs.filter(a => !a.aprovado).length, pending: Math.max(0, t.estudantes.length - avs.length) }}
-                  onClick={() => setLayer({ type: "fund_turma", turma: t })} />
+                <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)}
+                  subtitle={`${turmasDoAno.length} turma(s)`}
+                  stats={{ approved: avs.filter(a => a.aprovado).length, reprovated: avs.filter(a => !a.aprovado).length, pending: 0 }}
+                  onClick={() => setLayer({ type: "fund_turmas", nivel })} />
               );
             })}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Fundamental: Turmas por ano acadêmico ──
+  if (layer.type === "fund_turmas") {
+    const turmasDoAno = turmas.filter(t => t.nivel === layer.nivel);
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={[
+          ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
+          { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) },
+          { label: "Ensino Fundamental", onClick: () => setLayer({ type: "fund_overview" }) },
+          { label: labelNivel(layer.nivel) },
+        ]} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(layer.nivel)}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione a turma</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {turmasDoAno.map(t => {
+            const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_academico_atual === t.nivel);
+            return <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma}
+              subtitle={`${t.estudantes.length} estudante(s)`}
+              badge={t.turno}
+              stats={{ approved: avs.filter(a => a.aprovado).length, reprovated: avs.filter(a => !a.aprovado).length, pending: Math.max(0, t.estudantes.length - avs.length) }}
+              onClick={() => setLayer({ type: "fund_turma", nivel: layer.nivel, turma: t })} />;
+          })}
+        </div>
       </div>
     );
   }
@@ -458,7 +498,9 @@ export default function AvaliacoesFinaisAcademia() {
       <div className="space-y-6">
         <Breadcrumb crumbs={[
           ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
+          { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) },
           { label: "Fundamental", onClick: () => setLayer({ type: "fund_overview" }) },
+          { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "fund_turmas", nivel: layer.nivel }) },
           { label: turma.codigo_turma },
         ]} />
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -467,7 +509,6 @@ export default function AvaliacoesFinaisAcademia() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{labelNivel(turma.nivel, true)} · Turno {turma.turno}</p>
           </div>
           <div className="flex items-center gap-3">
-            {anoSelectorEl}
             <span className="text-xs px-2.5 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-full whitespace-nowrap">
               {turma.estudantes.length} estudante(s)
             </span>
@@ -491,7 +532,6 @@ export default function AvaliacoesFinaisAcademia() {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{tipoLabel}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione um curso</p>
           </div>
-          {anoSelectorEl}
         </div>
         <StatsBar avaliacoes={filteredAvs} anoLetivo={anoLetivoSel} />
         {cursos.length === 0 ? (
@@ -521,44 +561,76 @@ export default function AvaliacoesFinaisAcademia() {
   // ── Curso: turmas overview ──
   if (layer.type === "curso_overview") {
     const { curso } = layer;
-    const turmasDoCurso = turmas.filter(t => t.curso_id === curso.id)
-      .sort((a, b) => NIVEL_ORDER.indexOf(a.nivel) - NIVEL_ORDER.indexOf(b.nivel));
+    const turmasDoCurso = turmas.filter(t => t.curso_id === curso.id);
+    const anosDoCurso = Array.from(new Set(turmasDoCurso.map(t => t.nivel)))
+      .sort((a, b) => NIVEL_ORDER.indexOf(a) - NIVEL_ORDER.indexOf(b));
     const estudsDoCurso = new Set(turmasDoCurso.flatMap(t => t.estudantes));
     const avsDosCurso   = todasAvaliacoes.filter(a => estudsDoCurso.has(a.codigo_estudante));
     return (
       <div className="space-y-6">
         <Breadcrumb crumbs={[
           ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
+          { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "cursos" }) },
           { label: isSuperior ? "Cursos" : "Médio", onClick: () => setLayer({ type: "cursos" }) },
           { label: curso.nome },
         ]} />
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{curso.nome}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione uma turma</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o ano acadêmico</p>
           </div>
-          {anoSelectorEl}
         </div>
         <StatsBar avaliacoes={avsDosCurso} anoLetivo={anoLetivoSel} />
-        {turmasDoCurso.length === 0 ? (
+        {anosDoCurso.length === 0 ? (
           <div className="text-center py-14">
-            <Icon icon="mdi:account-group" width={44} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
-            <p className="text-sm text-gray-400">Nenhuma turma para este curso.</p>
+            <Icon icon="mdi:numeric" width={44} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+            <p className="text-sm text-gray-400">Nenhum ano acadêmico para este curso.</p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {turmasDoCurso.map(t => {
-              const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante));
+            {anosDoCurso.map(nivel => {
+              const turmasDoAno = turmasDoCurso.filter(t => t.nivel === nivel);
+              const avs = todasAvaliacoes.filter(a => a.ano_academico_atual === nivel && turmasDoAno.some(t => t.estudantes.includes(a.codigo_estudante)));
               return (
-                <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma}
-                  subtitle={`${labelNivel(t.nivel)} · ${t.estudantes.length} estudante(s)`}
-                  badge={t.turno}
-                  stats={{ approved: avs.filter(a => a.aprovado).length, reprovated: avs.filter(a => !a.aprovado).length, pending: Math.max(0, t.estudantes.length - avs.length) }}
-                  onClick={() => setLayer({ type: "curso_turma", curso, turma: t })} />
+                <CardBtn key={nivel} icon="mdi:numeric" title={labelNivel(nivel)}
+                  subtitle={`${turmasDoAno.length} turma(s)`}
+                  stats={{ approved: avs.filter(a => a.aprovado).length, reprovated: avs.filter(a => !a.aprovado).length, pending: 0 }}
+                  onClick={() => setLayer({ type: "curso_turmas", curso, nivel })} />
               );
             })}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Curso: turmas por ano acadêmico ──
+  if (layer.type === "curso_turmas") {
+    const { curso, nivel } = layer;
+    const turmasDoAno = turmas.filter(t => t.curso_id === curso.id && t.nivel === nivel);
+    return (
+      <div className="space-y-6">
+        <Breadcrumb crumbs={[
+          ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
+          { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "cursos" }) },
+          { label: isSuperior ? "Cursos" : "Médio", onClick: () => setLayer({ type: "cursos" }) },
+          { label: curso.nome, onClick: () => setLayer({ type: "curso_overview", curso }) },
+          { label: labelNivel(nivel) },
+        ]} />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{labelNivel(nivel)}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{curso.nome} · Selecione a turma</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {turmasDoAno.map(t => {
+            const avs = todasAvaliacoes.filter(a => t.estudantes.includes(a.codigo_estudante) && a.ano_academico_atual === t.nivel);
+            return <CardBtn key={t.id} icon="mdi:account-group" title={t.codigo_turma}
+              subtitle={`${t.estudantes.length} estudante(s)`}
+              badge={t.turno}
+              stats={{ approved: avs.filter(a => a.aprovado).length, reprovated: avs.filter(a => !a.aprovado).length, pending: Math.max(0, t.estudantes.length - avs.length) }}
+              onClick={() => setLayer({ type: "curso_turma", curso, nivel, turma: t })} />;
+          })}
+        </div>
       </div>
     );
   }
@@ -570,8 +642,10 @@ export default function AvaliacoesFinaisAcademia() {
       <div className="space-y-6">
         <Breadcrumb crumbs={[
           ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
+          { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "cursos" }) },
           { label: isSuperior ? "Cursos" : "Médio", onClick: () => setLayer({ type: "cursos" }) },
           { label: curso.nome, onClick: () => setLayer({ type: "curso_overview", curso }) },
+          { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "curso_turmas", curso, nivel: layer.nivel }) },
           { label: turma.codigo_turma },
         ]} />
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -580,7 +654,6 @@ export default function AvaliacoesFinaisAcademia() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{curso.nome} · {labelNivel(turma.nivel, true)} · Turno {turma.turno}</p>
           </div>
           <div className="flex items-center gap-3">
-            {anoSelectorEl}
             <span className="text-xs px-2.5 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-full whitespace-nowrap">
               {turma.estudantes.length} estudante(s)
             </span>

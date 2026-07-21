@@ -51,8 +51,8 @@ type Layer =
   | { type: "tipo_ensino"; a: AcadInfo; anoLetivo: string }
   | { type: "cursos"; a: AcadInfo; anoLetivo: string; tipoEnsino: "medio" | "superior" }
   | { type: "turmas"; a: AcadInfo; anoLetivo: string; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string }
-  | { type: "materias"; a: AcadInfo; anoLetivo: string; turma: Turma }
-  | { type: "faltas"; a: AcadInfo; anoLetivo: string; turma: Turma; materiaId: string; materiaNome: string };
+  | { type: "materias"; a: AcadInfo; anoLetivo: string; turma: Turma; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string }
+  | { type: "faltas"; a: AcadInfo; anoLetivo: string; turma: Turma; materiaId: string; materiaNome: string; tipoEnsino?: "fundamental" | "medio" | "superior"; cursoId?: string };
 
 // ─── sub-componentes ─────────────────────────────────────────────────────────
 
@@ -272,16 +272,16 @@ export default function FaltasEstudante() {
     if (layer.type === "materias") return [
       { label: "Academias", onClick: goAcademias },
       { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
-      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo }) },
+      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
       { label: `Turma ${layer.turma.codigo_turma}` },
     ];
     if (layer.type === "faltas") return [
       { label: "Academias", onClick: goAcademias },
       { label: layer.a.nome, onClick: () => setLayer({ type: "anos_letivos", a: layer.a }) },
-      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo }) },
+      { label: layer.anoLetivo.replace("_", "/"), onClick: () => setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }) },
       {
         label: `Turma ${layer.turma.codigo_turma}`,
-        onClick: () => setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: layer.turma }),
+        onClick: () => setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: layer.turma, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId }),
       },
       { label: layer.materiaNome },
     ];
@@ -295,8 +295,8 @@ export default function FaltasEstudante() {
     if (layer.type === "tipo_ensino") return setLayer({ type: "anos_letivos", a: layer.a });
     if (layer.type === "cursos") return setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a });
     if (layer.type === "turmas") return setLayer(layer.a.nivel_escolar === "misto" ? { type: "tipo_ensino", a: layer.a, anoLetivo: layer.anoLetivo } : { type: "anos_letivos", a: layer.a });
-    if (layer.type === "materias") return setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo });
-    if (layer.type === "faltas") return setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: layer.turma });
+    if (layer.type === "materias") return setLayer({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId });
+    if (layer.type === "faltas") return setLayer({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: layer.turma, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId });
   };
 
   const BotaoVoltar = canGoBack() ? (
@@ -437,7 +437,7 @@ export default function FaltasEstudante() {
                   title={`Turma ${t.codigo_turma}`}
                   subtitle={`${labelNivel(t.nivel)} · ${total} falta(s)`}
                   badge={t.turno}
-                  onClick={() => navegar({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: t })}
+                  onClick={() => navegar({ type: "materias", a: layer.a, anoLetivo: layer.anoLetivo, turma: t, tipoEnsino: layer.tipoEnsino, cursoId: layer.cursoId })}
                 />
               );
             })}
@@ -483,6 +483,8 @@ export default function FaltasEstudante() {
                   turma: layer.turma,
                   materiaId: m.id,
                   materiaNome: m.nome,
+                  tipoEnsino: layer.tipoEnsino,
+                  cursoId: layer.cursoId,
                 })}
               />
             ))}
