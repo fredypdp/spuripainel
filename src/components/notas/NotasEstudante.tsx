@@ -47,6 +47,10 @@ function formatCategoria(c: string) {
   return m[c] ?? c.replace(/^nota_/, "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
+function notaText(n?: number | null): string {
+  return n == null || n === 0 ? "" : String(n);
+}
+
 function corNota(n: number) {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
@@ -166,8 +170,8 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
               return nm.map((n, i) => (
                 <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
-                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600">—</td>
-                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
+                  <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600"></td>
+                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{notaText(n.nota)}</td>
                 </tr>
               ));
             }
@@ -176,7 +180,7 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap }: { notas: Nota[]; 
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = nm.find(n => n.categoria === cat);
-                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaCat?.nota ?? "—"}</td>;
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
                 })}
               </tr>
             );
@@ -218,7 +222,7 @@ function TabelaNotasSuperiorEstudante({ notas }: { notas: Nota[] }) {
               <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                 {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatCategoria(n.categoria)}</td>
-                <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{n.nota}</td>
+                <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{notaText(n.nota)}</td>
               </tr>
             ))
           )}

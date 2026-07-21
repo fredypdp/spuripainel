@@ -113,6 +113,10 @@ function labelNivel(v: string): string {
   return `${n}º Ano Superior`;
 }
 
+function notaText(n?: number | null): string {
+  return n == null || n === 0 ? "" : String(n);
+}
+
 function corNota(n: number): string {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
@@ -284,7 +288,7 @@ function TabelaNotasEscolar({
                   const notaCat = notasEst.find(n => n.categoria === cat);
                   return (
                     <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>
-                      {notaCat != null ? notaCat.nota : "—"}
+                      {notaText(notaCat?.nota)}
                     </td>
                   );
                 })}
@@ -351,7 +355,7 @@ function TabelaNotasSuperior({
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = notasEst.find(n => n.categoria === cat);
-                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaCat?.nota ?? "—"}</td>;
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
                 })}
               </tr>
             ))}
@@ -996,11 +1000,21 @@ export default function NotasAcademia() {
     const anoFiltro      = anoLetivoSelecionado || anoLectivo;
     const codigosTurma   = codigosTurmaDoAnoLetivo(turma, anoFiltro).filter(Boolean);
     const notasContexto  = notasDaTurmaEmPeriodo(turma, nivel, periodo);
-    const materiaIdsCtx  = [...new Set(notasContexto.map(n => n.materia_disciplinar_id))];
+    const materiaIdsConfiguradas = materias
+      .filter((m: any) =>
+        (m.anos_academicos ?? []).includes(nivel) &&
+        (!turma.curso_id || !m.curso_id || m.curso_id === turma.curso_id) &&
+        (!usarTabelaSuperior || !m.periodo || m.periodo === periodo)
+      )
+      .map((m: any) => m.id);
+    const materiaIdsCtx  = [...new Set([...materiaIdsConfiguradas, ...notasContexto.map(n => n.materia_disciplinar_id)])];
 
-    // Mapear IDs para nomes (usa cache; fallback = ID se ainda não carregado)
+    // Mapear IDs para nomes (usa a lista configurada e, como fallback, cache/ID)
     const materiasDisponiveis = materiaIdsCtx
-      .map(id => materiasCache[id] ?? { id, nome: id })
+      .map(id => {
+        const materia = materias.find((m: any) => m.id === id);
+        return materia ? { id: materia.id, nome: materia.nome } : (materiasCache[id] ?? { id, nome: id });
+      })
       .sort((a, b) => a.nome.localeCompare(b.nome));
 
     const notasFiltradas = materiaSelecionada
@@ -1020,7 +1034,7 @@ export default function NotasAcademia() {
         {materiasDisponiveis.length === 0 && !carregandoMaterias ? (
           <div className="text-center py-10 text-gray-400">
             <Icon icon="mdi:book-outline" width={40} className="mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nenhuma nota registada neste período.</p>
+            <p className="text-sm">Nenhuma matéria configurada para este contexto.</p>
           </div>
         ) : (
           <div className="space-y-3">
