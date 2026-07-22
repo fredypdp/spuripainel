@@ -63,6 +63,30 @@ const getUserFromCookie = (): MeuPerfilResponse | null => {
 
 interface BatchResultItem { codigo: string; nome: string; status: 'pending' | 'success' | 'error'; message?: string; }
 
+type EstudantesParams = NonNullable<Parameters<typeof consultasService.listarEstudantes>[0]>;
+
+function paramsEstudantesSemTurmaPorTurma(turma: Turma, token?: string): EstudantesParams {
+  const params: EstudantesParams = { token, com_turma: false };
+  if (turma.nivel.includes("fundamental")) params.ano_escolar_fundamental = turma.nivel;
+  if (turma.nivel.includes("medio")) params.ano_escolar_medio = turma.nivel;
+  if (turma.nivel.includes("superior")) params.ano_superior = turma.nivel;
+  if (turma.curso_id) params.curso_id = turma.curso_id;
+  return params;
+}
+
+function chaveConsultaEstudantesSemTurma(turma: Turma): string {
+  return [turma.nivel, turma.curso_id ?? "__sem_curso__"].join(":");
+}
+
+function anexarEstudantesUnicos(
+  atuais: EstudanteDetalhado[],
+  novos: EstudanteDetalhado[],
+): EstudanteDetalhado[] {
+  const mapa = new Map(atuais.map(estudante => [estudante.codigo_estudante, estudante]));
+  novos.forEach(estudante => mapa.set(estudante.codigo_estudante, estudante));
+  return Array.from(mapa.values());
+}
+
 async function pollJobUntilDone(jobId: string, onProgress: (pct: number) => void, maxMs = 5 * 60 * 1000): Promise<{ ok: number; err: number }> {
   const token = tokenStorage.get();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
@@ -234,7 +258,7 @@ export default function TurmasPainel() {
 
   const { execute: listarTurmas, data: dataTurmas, loading: carregando } = useApi(academiaService.listarTurmas);
   const { execute: listarCursos, data: dataCursos } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantesSemTurma, execute: listarEstudantesSemTurma } = useApi(consultasService.listarEstudantes);
+  const [estudantesSemTurma, setEstudantesSemTurma] = useState<EstudanteDetalhado[]>([]);
   const { execute: criarTurma, loading: criando } = useApi(academiaService.criarTurma);
   const { execute: atualizarTurma, loading: atualizando } = useApi(academiaService.atualizarTurma);
   const { execute: ativarTurma } = useApi(academiaService.ativarTurma);
@@ -243,13 +267,17 @@ export default function TurmasPainel() {
   const { execute: removerEstudante, loading: removendo } = useApi(academiaService.removerEstudanteDaTurma);
   const { execute: executarDeletarTurma } = useApi(academiaService.deletarTurma);
 
+  // nivel === 'escola' indica escola; nivel === 'superior' indica superior
+  const academiaNivel = user?.academia?.nivel;
+  const nivelEscolar = user?.academia?.nivel_escolar;
+  const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
+  const isMisto = academiaNivel === "escola" && nivelEscolar === "misto";
+
   useEffect(() => {
     const t = tokenStorage.get() ?? undefined;
     listarTurmas(t);
-    listarCursos(t);
-    setCarregandoEstudantesSemTurma(true);
-    listarEstudantesSemTurma({ token: t, com_turma: false }).finally(() => setCarregandoEstudantesSemTurma(false));
-  }, [listarCursos, listarEstudantesSemTurma, listarTurmas]);
+    if (!isFundamental) listarCursos(t);
+  }, [isFundamental, listarCursos, listarTurmas]);
 
   const showMsg = (variant: "success" | "error" | "warning" | "info", msg: string) => {
     setAlert({ variant, message: msg });
@@ -259,21 +287,43 @@ export default function TurmasPainel() {
   const reload = () => {
     const t = tokenStorage.get() ?? undefined;
     listarTurmas(t);
-    setCarregandoEstudantesSemTurma(true);
-    listarEstudantesSemTurma({ token: t, com_turma: false }).finally(() => setCarregandoEstudantesSemTurma(false));
     if (turmaEmFoco) carregarEstudantesDaTurma(turmaEmFoco);
   };
 
-  // nivel === 'escola' indica escola; nivel === 'superior' indica superior
-  const academiaNivel = user?.academia?.nivel;
-  const nivelEscolar = user?.academia?.nivel_escolar;
-  const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
-  const isMisto = academiaNivel === "escola" && nivelEscolar === "misto";
-
   const turmas: Turma[] = useMemo(() => dataTurmas?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[] = useMemo(() => dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [], [dataCursos]);
-  const estudantesSemTurma: EstudanteDetalhado[] = useMemo(() => dataEstudantesSemTurma?.estudantes ?? [], [dataEstudantesSemTurma]);
   const estudantesParaAdicionar = estudantesSemTurma;
+
+  useEffect(() => {
+    let cancelled = false;
+    const t = tokenStorage.get() ?? undefined;
+    const turmasAtivasParaConsulta = turmas.filter(turma => turma.status !== "inativo" && turma.status !== "deletado");
+    const consultas = Array.from(
+      new Map(turmasAtivasParaConsulta.map(turma => [chaveConsultaEstudantesSemTurma(turma), turma])).values(),
+    );
+
+    setEstudantesSemTurma([]);
+    if (consultas.length === 0) {
+      setCarregandoEstudantesSemTurma(false);
+      return () => { cancelled = true; };
+    }
+
+    setCarregandoEstudantesSemTurma(true);
+    let pendentes = consultas.length;
+    consultas.forEach(async (turma) => {
+      try {
+        const data = await consultasService.listarEstudantes(paramsEstudantesSemTurmaPorTurma(turma, t));
+        if (!cancelled) setEstudantesSemTurma(prev => anexarEstudantesUnicos(prev, data.estudantes ?? []));
+      } catch {
+        // Mantém os resultados já retornados para não bloquear a tela inteira.
+      } finally {
+        pendentes -= 1;
+        if (!cancelled && pendentes === 0) setCarregandoEstudantesSemTurma(false);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [turmas]);
 
   const getNivelOptions = (cursoId?: string) => {
     if (isFundamental) return ANOS_FUNDAMENTAL;
