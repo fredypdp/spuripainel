@@ -197,6 +197,30 @@ function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes):
   });
 }
 
+
+type EstudantesParams = NonNullable<Parameters<typeof consultasService.listarEstudantes>[0]>;
+
+function paramsEstudantesPorTurma(turma: Turma, token?: string, comTurma?: boolean): EstudantesParams {
+  const params: EstudantesParams = { token, com_turma: comTurma };
+  if (turma.nivel.includes('fundamental')) params.ano_escolar_fundamental = turma.nivel;
+  if (turma.nivel.includes('medio')) params.ano_escolar_medio = turma.nivel;
+  if (turma.nivel.includes('superior')) params.ano_superior = turma.nivel;
+  if (turma.curso_id) params.curso_id = turma.curso_id;
+  return params;
+}
+
+function chaveConsultaTurma(turma: Turma): string {
+  return [turma.nivel, turma.curso_id ?? '__sem_curso__'].join(':');
+}
+
+function turmasAtivasUnicasPorContexto(turmas: Turma[]): Turma[] {
+  return Array.from(new Map(
+    turmas
+      .filter(turma => turma.status !== 'inativo' && turma.status !== 'deletado')
+      .map(turma => [chaveConsultaTurma(turma), turma]),
+  ).values());
+}
+
 function filtroAceitaValor(filtro: string, valor?: string): boolean {
   if (!filtro) return true;
   const valores = filtro.split(',').map(item => item.trim()).filter(Boolean);
@@ -1316,17 +1340,21 @@ export default function Estudantes() {
   useEffect(() => {
     if (isAcademia) {
       const token = tokenStorage.get();
-      carregarCursos(token || undefined);
+      if (!visibilidadeFiltros.anoFundamental || visibilidadeFiltros.anoMedio || visibilidadeFiltros.anoSuperior) {
+        carregarCursos(token || undefined);
+      }
       if (vistaEscala) carregarTurmas(token || undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vistaEscala, isAcademia]);
+  }, [vistaEscala, isAcademia, visibilidadeFiltros.anoFundamental, visibilidadeFiltros.anoMedio, visibilidadeFiltros.anoSuperior]);
 
-  // ─── Vista em Escala: carrega TODOS os estudantes da academia em apenas
-  // duas consultas paginadas (com_turma / sem_turma), cada uma percorrendo
-  // automaticamente todas as páginas disponíveis na API. A divisão por
-  // ano/nível/curso é feita inteiramente no cliente (estudantePertenceAoAno /
-  // estudantePertenceAoCurso), evitando uma requisição por ano acadêmico.
+  const turmas: Turma[]  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
+  const cursos: Curso[]  = useMemo(() => dataCursos?.cursos ?? [], [dataCursos]);
+
+  // ─── Vista em Escala: consulta estudantes por contexto de turma (ano/nível
+  // e curso quando aplicável), usando com_turma true/false em conjunto com os
+  // filtros acadêmicos aceitos pela API. Cada retorno é anexado imediatamente
+  // para deixar a tela mais fluida enquanto as demais consultas terminam.
   useEffect(() => {
     if (!vistaEscala || !isAcademia || !carregado) return;
     let cancelled = false;
@@ -1343,18 +1371,16 @@ export default function Estudantes() {
       setCarregandoEscala(true);
       setEstudantesEscala(dataEstudantes?.estudantes ?? []);
       try {
-        // Uma única consulta (o serviço pagina automaticamente todas as páginas
-        // quando limit/offset não são informados) para todos os estudantes
-        // COM turma da academia.
-        const comTurma = await consultasService.listarEstudantes({ token, com_turma: true });
-        if (cancelled) return;
-        appendUnique(comTurma.estudantes ?? []);
+        const contextos = turmasAtivasUnicasPorContexto(turmas);
+        const consultas = contextos.flatMap(turma => [
+          paramsEstudantesPorTurma(turma, token, true),
+          paramsEstudantesPorTurma(turma, token, false),
+        ]);
 
-        // Uma única consulta (idem, todas as páginas) para todos os estudantes
-        // SEM turma da academia.
-        const semTurma = await consultasService.listarEstudantes({ token, com_turma: false });
-        if (cancelled) return;
-        appendUnique(semTurma.estudantes ?? []);
+        await Promise.allSettled(consultas.map(async (params) => {
+          const pagina = await consultasService.listarEstudantes(params);
+          if (!cancelled) appendUnique(pagina.estudantes ?? []);
+        }));
       } catch {
         /* mantém a vista parcial em caso de falha de alguma das duas consultas */
       } finally {
@@ -1363,7 +1389,7 @@ export default function Estudantes() {
     })();
 
     return () => { cancelled = true; };
-  }, [carregado, dataEstudantes?.estudantes, isAcademia, vistaEscala]);
+  }, [carregado, dataEstudantes?.estudantes, isAcademia, turmas, vistaEscala]);
 
   const filtrosVisiveis = useMemo(
     () => sanitizarFiltrosPorVisibilidade(filtrosAplicados, visibilidadeFiltros, !!isAdmin),
@@ -1378,8 +1404,6 @@ export default function Estudantes() {
   const totalPaginas = Math.max(1, Math.ceil(totalEstudantes / ITEMS_POR_PAGINA));
   const estudantesPaginados = estudantesFiltradosOrdenados;
 
-  const turmas: Turma[]  = (dataTurmas as any)?.turmas ?? [];
-  const cursos: Curso[]  = dataCursos?.cursos ?? [];
   const academiasMap = useMemo<Record<string, string>>(() => ({}), []);
 
   const handleMudarPagina = (pagina: number) => {
