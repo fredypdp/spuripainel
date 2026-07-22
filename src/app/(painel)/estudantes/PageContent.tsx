@@ -6,8 +6,8 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
 import Button from "@/components/ui/button/Button";
 import { ConsultarEstudanteResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
-import { useUserType } from '@/hooks/useRoutePermission';
-import { useUserCookie } from '@/hooks/useUserCookie';
+import { useUserType } from "@/hooks/useRoutePermission";
+import { useUserCookie } from "@/hooks/useUserCookie";
 import Icon from "@/components/ui/Icon";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
@@ -1322,19 +1322,11 @@ export default function Estudantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vistaEscala, isAcademia]);
 
-  const anosParaBuscaEscala = useMemo<Array<string | { ano: string; cursoId: string }>>(() => {
-    const anosFundamental = anosAcademicosAcademia.filter(a => a.includes('fundamental'));
-    const anosFundamentalBusca = anosFundamental.length > 0 ? anosFundamental : ANOS_FUNDAMENTAL_LIST.map(a => a.value);
-    const cursosAtivos = dataCursos?.cursos?.filter(c => c.status === 'ativo') ?? [];
-    if (nivelParaVista === 'fundamental') return anosFundamentalBusca;
-    if (nivelParaVista === 'medio') return cursosAtivos.filter(c => c.type === 'medio').flatMap(c => c.anos_academicos.map(ano => ({ ano, cursoId: c.id })));
-    if (nivelParaVista === 'superior') return cursosAtivos.filter(c => c.type === 'superior').flatMap(c => c.anos_academicos.map(ano => ({ ano, cursoId: c.id })));
-    return [
-      ...anosFundamentalBusca,
-      ...cursosAtivos.filter(c => c.type === 'medio').flatMap(c => c.anos_academicos.map(ano => ({ ano, cursoId: c.id }))),
-    ];
-  }, [anosAcademicosAcademia, dataCursos, nivelParaVista]);
-
+  // ─── Vista em Escala: carrega TODOS os estudantes da academia em apenas
+  // duas consultas paginadas (com_turma / sem_turma), cada uma percorrendo
+  // automaticamente todas as páginas disponíveis na API. A divisão por
+  // ano/nível/curso é feita inteiramente no cliente (estudantePertenceAoAno /
+  // estudantePertenceAoCurso), evitando uma requisição por ano acadêmico.
   useEffect(() => {
     if (!vistaEscala || !isAcademia || !carregado) return;
     let cancelled = false;
@@ -1351,34 +1343,27 @@ export default function Estudantes() {
       setCarregandoEscala(true);
       setEstudantesEscala(dataEstudantes?.estudantes ?? []);
       try {
-        let offset = 0;
-        while (!cancelled) {
-          const pagina = await consultasService.listarEstudantes({ token, limit: ITEMS_POR_PAGINA, offset, com_turma: true });
-          if (cancelled) return;
-          appendUnique(pagina.estudantes ?? []);
-          if ((pagina.estudantes ?? []).length < ITEMS_POR_PAGINA) break;
-          offset += ITEMS_POR_PAGINA;
-        }
+        // Uma única consulta (o serviço pagina automaticamente todas as páginas
+        // quando limit/offset não são informados) para todos os estudantes
+        // COM turma da academia.
+        const comTurma = await consultasService.listarEstudantes({ token, com_turma: true });
+        if (cancelled) return;
+        appendUnique(comTurma.estudantes ?? []);
+
+        // Uma única consulta (idem, todas as páginas) para todos os estudantes
+        // SEM turma da academia.
+        const semTurma = await consultasService.listarEstudantes({ token, com_turma: false });
+        if (cancelled) return;
+        appendUnique(semTurma.estudantes ?? []);
+      } catch {
+        /* mantém a vista parcial em caso de falha de alguma das duas consultas */
       } finally {
         if (!cancelled) setCarregandoEscala(false);
       }
-
-      anosParaBuscaEscala.forEach(async item => {
-        const ano = typeof item === 'string' ? item : item.ano;
-        const cursoId = typeof item === 'string' ? undefined : item.cursoId;
-        const params: Parameters<typeof consultasService.listarEstudantes>[0] = { token, limit: ITEMS_POR_PAGINA, offset: 0, com_turma: false, curso_id: cursoId };
-        if (ano.includes('fundamental')) params.ano_escolar_fundamental = ano;
-        if (ano.includes('medio')) params.ano_escolar_medio = ano;
-        if (ano.includes('superior')) params.ano_superior = ano;
-        try {
-          const pagina = await consultasService.listarEstudantes(params);
-          if (!cancelled) appendUnique(pagina.estudantes ?? []);
-        } catch { /* mantém a vista parcial se algum escopo de sem turma falhar */ }
-      });
     })();
 
     return () => { cancelled = true; };
-  }, [anosParaBuscaEscala, carregado, dataEstudantes?.estudantes, isAcademia, vistaEscala]);
+  }, [carregado, dataEstudantes?.estudantes, isAcademia, vistaEscala]);
 
   const filtrosVisiveis = useMemo(
     () => sanitizarFiltrosPorVisibilidade(filtrosAplicados, visibilidadeFiltros, !!isAdmin),
