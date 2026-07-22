@@ -643,13 +643,15 @@ export default function PageContent() {
     }
   };
 
-  const listarTodosEstudantes = async (tok: string) => {
-    const limit = 500;
+  const listarTodosEstudantes = async (tok: string, filtros?: Record<string, string>) => {
+    const limit = 100;
     let offset = 0;
     const todos: Estudante[] = [];
+    const codigosVistos = new Set<string>();
 
     while (true) {
       const params = new URLSearchParams({
+        ...(filtros || {}),
         limit: String(limit),
         offset: String(offset),
       });
@@ -660,7 +662,12 @@ export default function PageContent() {
       }
 
       const pagina: Estudante[] = (data as any)?.estudantes || [];
-      todos.push(...pagina);
+      pagina.forEach(estudante => {
+        if (!codigosVistos.has(estudante.codigo_estudante)) {
+          codigosVistos.add(estudante.codigo_estudante);
+          todos.push(estudante);
+        }
+      });
       if (pagina.length < limit) break;
       offset += limit;
     }
@@ -1304,13 +1311,13 @@ export default function PageContent() {
 
   // ─── Vincular Estudantes a Turmas ─────────────────────────────────────────────
   const vincularEstudantesATurmas = async () => {
-    if (!academia || turmas.length === 0 || estudantes.length === 0) {
-      addLog("Sem turmas ou estudantes disponíveis", "warn");
+    if (!academia || turmas.length === 0) {
+      addLog("Sem turmas disponíveis", "warn");
       return;
     }
 
-    const estudantesEmTurma = new Set(turmas.flatMap(t => t.estudantes));
-    const semTurma = estudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
+    addLog("Consultando todas as páginas de estudantes sem turma (com_turma=false) antes de vincular...", "info");
+    const semTurma = await listarTodosEstudantes(academia.token, { com_turma: "false" });
 
     if (semTurma.length === 0) {
       addLog("Todos os estudantes já estão vinculados a alguma turma", "info");
