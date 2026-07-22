@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import type { Curso, MeuPerfilResponse, Turma, EstudanteDetalhado } from "@/types/api";
@@ -220,6 +220,9 @@ export default function TurmasPainel() {
   const [viewNivelTurmas, setViewNivelTurmas] = useState<"fundamental" | "cursos">("fundamental");
   const [turmaEmFoco, setTurmaEmFoco] = useState<Turma | null>(null);
   const [estudantesSemTurmaEmFoco, setEstudantesSemTurmaEmFoco] = useState<{ titulo: string; subtitulo: string; estudantes: EstudanteDetalhado[] } | null>(null);
+  const [estudantesTurmaEmFoco, setEstudantesTurmaEmFoco] = useState<EstudanteDetalhado[]>([]);
+  const [carregandoEstudantesTurma, setCarregandoEstudantesTurma] = useState(false);
+  const [carregandoEstudantesSemTurma, setCarregandoEstudantesSemTurma] = useState(false);
 
   // Lote
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -231,7 +234,7 @@ export default function TurmasPainel() {
 
   const { execute: listarTurmas, data: dataTurmas, loading: carregando } = useApi(academiaService.listarTurmas);
   const { execute: listarCursos, data: dataCursos } = useApi(academiaService.listarCursos);
-  const { execute: listarEstudantes, data: dataEstudantes } = useApi(consultasService.listarEstudantes);
+  const { data: dataEstudantesSemTurma, execute: listarEstudantesSemTurma } = useApi(consultasService.listarEstudantes);
   const { execute: criarTurma, loading: criando } = useApi(academiaService.criarTurma);
   const { execute: atualizarTurma, loading: atualizando } = useApi(academiaService.atualizarTurma);
   const { execute: ativarTurma } = useApi(academiaService.ativarTurma);
@@ -242,15 +245,24 @@ export default function TurmasPainel() {
 
   useEffect(() => {
     const t = tokenStorage.get() ?? undefined;
-    listarTurmas(t); listarCursos(t); listarEstudantes(t);
-  }, []);
+    listarTurmas(t);
+    listarCursos(t);
+    setCarregandoEstudantesSemTurma(true);
+    listarEstudantesSemTurma({ token: t, com_turma: false }).finally(() => setCarregandoEstudantesSemTurma(false));
+  }, [listarCursos, listarEstudantesSemTurma, listarTurmas]);
 
   const showMsg = (variant: "success" | "error" | "warning" | "info", msg: string) => {
     setAlert({ variant, message: msg });
     setTimeout(() => setAlert(null), 5000);
   };
 
-  const reload = () => listarTurmas(tokenStorage.get() ?? undefined);
+  const reload = () => {
+    const t = tokenStorage.get() ?? undefined;
+    listarTurmas(t);
+    setCarregandoEstudantesSemTurma(true);
+    listarEstudantesSemTurma({ token: t, com_turma: false }).finally(() => setCarregandoEstudantesSemTurma(false));
+    if (turmaEmFoco) carregarEstudantesDaTurma(turmaEmFoco);
+  };
 
   // nivel === 'escola' indica escola; nivel === 'superior' indica superior
   const academiaNivel = user?.academia?.nivel;
@@ -260,7 +272,8 @@ export default function TurmasPainel() {
 
   const turmas: Turma[] = useMemo(() => dataTurmas?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[] = useMemo(() => dataCursos?.cursos?.filter(c => c.status === "ativo") ?? [], [dataCursos]);
-  const estudantes: EstudanteDetalhado[] = useMemo(() => dataEstudantes?.estudantes ?? [], [dataEstudantes]);
+  const estudantesSemTurma: EstudanteDetalhado[] = useMemo(() => dataEstudantesSemTurma?.estudantes ?? [], [dataEstudantesSemTurma]);
+  const estudantesParaAdicionar = estudantesSemTurma;
 
   const getNivelOptions = (cursoId?: string) => {
     if (isFundamental) return ANOS_FUNDAMENTAL;
@@ -292,14 +305,38 @@ export default function TurmasPainel() {
 
   const turmasFundamental = turmas.filter(t => t.nivel.includes("fundamental"));
   const turmasCursos = turmas.filter(t => !t.nivel.includes("fundamental"));
-  const codigosComTurma = useMemo(() => new Set(turmas.flatMap(t => t.estudantes)), [turmas]);
-
   const estudantesSemTurmaPorAno = (ano: string, cursoId?: string) =>
-    estudantes.filter(estudante =>
+    estudantesSemTurma.filter(estudante =>
       estudantePertenceAoAno(estudante, ano) &&
-      estudantePertenceAoCurso(estudante, ano, cursoId) &&
-      !codigosComTurma.has(estudante.codigo_estudante)
+      estudantePertenceAoCurso(estudante, ano, cursoId)
     );
+
+  const carregarEstudantesDaTurma = useCallback(async (turma: Turma) => {
+    setCarregandoEstudantesTurma(true);
+    try {
+      const params: Parameters<typeof consultasService.listarEstudantes>[0] = {
+        token: tokenStorage.get() ?? undefined,
+        codigo_turma: turma.codigo_turma,
+        com_turma: true,
+      };
+      if (turma.nivel.includes("fundamental")) params.ano_escolar_fundamental = turma.nivel;
+      if (turma.nivel.includes("medio")) params.ano_escolar_medio = turma.nivel;
+      if (turma.nivel.includes("superior")) params.ano_superior = turma.nivel;
+      if (turma.curso_id) params.curso_id = turma.curso_id;
+      const data = await consultasService.listarEstudantes(params);
+      setEstudantesTurmaEmFoco(data.estudantes ?? []);
+    } catch (err: unknown) {
+      showMsg("error", formatApiError(err, "Erro ao consultar estudantes da turma"));
+      setEstudantesTurmaEmFoco([]);
+    } finally {
+      setCarregandoEstudantesTurma(false);
+    }
+  }, []);
+
+  const abrirTurmaEmFoco = (turma: Turma) => {
+    setTurmaEmFoco(turma);
+    carregarEstudantesDaTurma(turma);
+  };
 
   const calcularIdade = (dataNascimento?: string) => {
     if (!dataNascimento) return "—";
@@ -422,7 +459,7 @@ export default function TurmasPainel() {
     const isSelecionada = selecionadas.has(turma.codigo_turma);
     return (
       <div className={`border rounded-xl overflow-hidden transition-colors ${isSelecionada ? 'border-brand-300 dark:border-brand-700 bg-brand-50/30 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
-        <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => setTurmaEmFoco(turma)}>
+        <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" onClick={() => abrirTurmaEmFoco(turma)}>
           <div className="flex items-center gap-3">
             {mostrarCheckbox && (
               <div onClick={e => { e.stopPropagation(); handleToggleSelecao(turma.codigo_turma); }}>
@@ -668,7 +705,7 @@ export default function TurmasPainel() {
               addingTo === turmaEmFoco.codigo_turma ? (
                 <div className="flex gap-2 items-center">
                   <input type="text" value={codigoAdd} onChange={e => setCodigoAdd(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(turmaEmFoco.codigo_turma); } }} placeholder="Código do estudante" list="estudantes-list-dp" className="flex-1 text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white" />
-                  <datalist id="estudantes-list-dp">{estudantes.map(e => <option key={e.codigo_estudante} value={e.codigo_estudante}>{e.nome}</option>)}</datalist>
+                  <datalist id="estudantes-list-dp">{estudantesParaAdicionar.map(e => <option key={e.codigo_estudante} value={e.codigo_estudante}>{e.nome}</option>)}</datalist>
                   <button onClick={() => handleAdd(turmaEmFoco.codigo_turma)} disabled={adicionando || !codigoAdd.trim()} className="px-3 py-1.5 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors">{adicionando ? "…" : "Adicionar"}</button>
                   <button onClick={() => { setAddingTo(null); setCodigoAdd(""); }} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancelar</button>
                 </div>
@@ -692,11 +729,13 @@ export default function TurmasPainel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                {turmaEmFoco.estudantes.length === 0 ? (
+                {carregandoEstudantesTurma ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500 italic">Carregando estudantes da turma…</td></tr>
+                ) : turmaEmFoco.estudantes.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500 italic">Nenhum estudante nesta turma</td></tr>
                 ) : (
                   turmaEmFoco.estudantes.map(codigo => {
-                    const est = estudantes.find(e => e.codigo_estudante === codigo);
+                    const est = estudantesTurmaEmFoco.find(e => e.codigo_estudante === codigo);
                     return (
                       <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{est?.nome ?? "—"}</td>
@@ -751,9 +790,9 @@ export default function TurmasPainel() {
         />
       )}
 
-      {carregando && !showForm && <div className="flex justify-center items-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" /></div>}
+      {(carregando || carregandoEstudantesSemTurma) && !showForm && <div className="flex justify-center items-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" /></div>}
 
-      {!carregando && !showForm && (
+      {!carregando && !carregandoEstudantesSemTurma && !showForm && (
         <div className="space-y-4">
           {isMisto && turmas.length > 0 && (
             <div className="flex items-center">
