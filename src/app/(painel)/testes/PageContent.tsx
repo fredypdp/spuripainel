@@ -643,23 +643,47 @@ export default function PageContent() {
     }
   };
 
+  const listarTodosEstudantes = async (tok: string) => {
+    const limit = 500;
+    let offset = 0;
+    const todos: Estudante[] = [];
+
+    while (true) {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset),
+      });
+      const { ok, data, status } = await callApi("GET", `/estudantes?${params.toString()}`, undefined, tok);
+      if (!ok) {
+        addLog(`Falha ao consultar estudantes da academia (status ${status})`, "warn");
+        break;
+      }
+
+      const pagina: Estudante[] = (data as any)?.estudantes || [];
+      todos.push(...pagina);
+      if (pagina.length < limit) break;
+      offset += limit;
+    }
+
+    return todos;
+  };
+
   const refreshData = async (ac?: AcademiaInfo) => {
     const acad = ac || academia;
     if (!acad?.token) return;
     const tok = acad.token;
 
-    const [rCursos, rMaterias, rTurmas, rEstudantes, rAnoLetivo] = await Promise.all([
+    const [rCursos, rMaterias, rTurmas, estudantesData, rAnoLetivo] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
-      callApi("GET", "/estudantes?limit=100", undefined, tok),
+      listarTodosEstudantes(tok),
       callApi("GET", "/academia/ano-letivo", undefined, tok),
     ]);
 
     const cursosData: Curso[] = (rCursos.data as any)?.cursos || [];
     const materiasData: Materia[] = (rMaterias.data as any)?.materias?.filter((m: any) => m.status === "ativo") || [];
     const turmasData: Turma[] = (rTurmas.data as any)?.turmas || [];
-    const estudantesData: Estudante[] = (rEstudantes.data as any)?.estudantes || [];
 
     setCursos(cursosData);
     setMaterias(materiasData);
