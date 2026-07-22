@@ -644,9 +644,10 @@ export default function PageContent() {
   };
 
   const listarTodosEstudantes = async (tok: string) => {
-    const limit = 500;
+    const limit = 100;
     let offset = 0;
     const todos: Estudante[] = [];
+    const codigosVistos = new Set<string>();
 
     while (true) {
       const params = new URLSearchParams({
@@ -660,7 +661,12 @@ export default function PageContent() {
       }
 
       const pagina: Estudante[] = (data as any)?.estudantes || [];
-      todos.push(...pagina);
+      pagina.forEach(estudante => {
+        if (!codigosVistos.has(estudante.codigo_estudante)) {
+          codigosVistos.add(estudante.codigo_estudante);
+          todos.push(estudante);
+        }
+      });
       if (pagina.length < limit) break;
       offset += limit;
     }
@@ -1309,8 +1315,15 @@ export default function PageContent() {
       return;
     }
 
+    addLog("Consultando todas as páginas de estudantes antes de calcular quem está sem turma...", "info");
+    const estudantesAtualizados = await listarTodosEstudantes(academia.token);
+    if (estudantesAtualizados.length > estudantes.length) {
+      setEstudantes(estudantesAtualizados);
+    }
+
+    const baseEstudantes = estudantesAtualizados.length > 0 ? estudantesAtualizados : estudantes;
     const estudantesEmTurma = new Set(turmas.flatMap(t => t.estudantes));
-    const semTurma = estudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
+    const semTurma = baseEstudantes.filter(e => !estudantesEmTurma.has(e.codigo_estudante));
 
     if (semTurma.length === 0) {
       addLog("Todos os estudantes já estão vinculados a alguma turma", "info");
