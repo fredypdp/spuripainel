@@ -455,7 +455,7 @@ export default function NotasEstudante() {
       className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300 mb-4"
     >
       <Icon icon="mdi:arrow-left" width={18} />
-      Voltar para estudantes
+      Voltar
     </button>
   ) : null;
 
