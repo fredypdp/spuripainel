@@ -9,7 +9,6 @@ import { academiaService, adminService, estudanteService, perfilService, useApi 
 import { formatApiError } from "@/lib/api/client";
 import { setCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
-import PasswordSettingsCard from "../PasswordSettingsCard";
 
 type DadosForm = { nome: string; telefone_encarregado: string; bilhete_identidade: string; bilhete_identidade_encarregado: string; data_nascimento: string; provincia: string; endereco: string; website: string; };
 type ContatoForm = { email: string; telefone: string; };
@@ -24,7 +23,7 @@ function getDadosInitial(user: MeuPerfilResponse): DadosForm {
 }
 function getContatoInitial(user: MeuPerfilResponse): ContatoForm { return { email: user.estudante?.email ?? user.academia?.email ?? user.admin?.email ?? "", telefone: user.estudante?.telefone ?? user.academia?.telefone ?? user.admin?.telefone ?? "" }; }
 
-function ProfileSkeleton() { return <div className="space-y-6">{["h-44", "h-52", "h-56"].map((height, index) => <div key={index} className={`rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 ${height}`}><div className="h-5 w-48 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /><div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2"><div className="h-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /><div className="h-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /></div></div>)}</div>; }
+function ProfileSkeleton() { return <div className="space-y-6">{["h-44", "h-52"].map((height, index) => <div key={index} className={`rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 ${height}`}><div className="h-5 w-48 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /><div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2"><div className="h-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /><div className="h-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /></div></div>)}</div>; }
 function CardHeader({ icon, title, description }: { icon: string; title: string; description: string }) { return <div className="mb-5"><h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-white"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10"><Icon icon={icon} width="18px" className="text-brand-500" /></span>{title}</h2><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{description}</p></div>; }
 function Field({ id, label, type = "text", value, disabled, onChange }: { id: string; label: string; type?: string; value: string; disabled: boolean; onChange: (value: string) => void; }) { return <div><label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label><input id={id} type={type} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></div>; }
 
@@ -62,5 +61,5 @@ export default function PersonalizarPageContent() {
   const { data: profile, loading, error, execute: loadProfile } = useApi(perfilService.meuPerfil);
   useEffect(() => { loadProfile().catch(() => undefined); }, [loadProfile]);
   useEffect(() => { if (profile) setCookie("user", JSON.stringify(profile), 1); }, [profile]);
-  return <div><PageBreadcrumb pageTitle="Personalizar" />{loading && !profile ? <ProfileSkeleton /> : error ? <Alert title="Não foi possível carregar seu perfil" message="Tente atualizar a página. Se o problema continuar, entre novamente na sua conta." variant="error" /> : profile ? <div className="space-y-6"><DadosPessoaisSection user={profile} onUpdated={loadProfile} /><ContatoSection user={profile} onUpdated={loadProfile} /><PasswordSettingsCard /></div> : null}</div>;
+  return <div><PageBreadcrumb pageTitle="Personalizar" />{loading && !profile ? <ProfileSkeleton /> : error ? <Alert title="Não foi possível carregar seu perfil" message="Tente atualizar a página. Se o problema continuar, entre novamente na sua conta." variant="error" /> : profile ? <div className="space-y-6"><DadosPessoaisSection user={profile} onUpdated={loadProfile} /><ContatoSection user={profile} onUpdated={loadProfile} /></div> : null}</div>;
 }
