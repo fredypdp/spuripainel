@@ -87,6 +87,7 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
     name: "Configurações",
     subItems: [
+      { name: "Personalizar", path: "/configuracoes/personalizar" },
       { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
       { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
       { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
@@ -215,7 +216,7 @@ export default function AppSidebar() {
           }
           // Configurações: admin FPP, academia ou estudante (segurança)
           if (item.name === "Configurações") {
-            return isFpp || user.tipo === "academia" || user.tipo === "estudante";
+            return user.tipo === "admin" || user.tipo === "academia" || user.tipo === "estudante";
           }
           // Armazenamento: apenas admin
           if (item.path === "/armazenamento") {
@@ -252,6 +253,7 @@ export default function AppSidebar() {
         // Configurações: mostrar apenas páginas aplicáveis ao tipo de usuário
         if (item.name === "Configurações" && item.subItems) {
           const academiaSettingsPaths = [
+            "/configuracoes/personalizar",
             "/configuracoes/ano-letivo",
             ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
             "/configuracoes/regras-avaliacao-final",
@@ -260,9 +262,11 @@ export default function AppSidebar() {
           const visiblePaths = new Set(
             user?.tipo === "academia"
               ? academiaSettingsPaths
-              : user?.tipo === "admin" && isFpp
-                ? ["/configuracoes/ano-letivo", "/configuracoes/regras-avaliacao-final", "/configuracoes/seguranca"]
-                : ["/configuracoes/regras-avaliacao-final", "/configuracoes/seguranca"],
+              : user?.tipo === "admin"
+                ? isFpp
+                  ? ["/configuracoes/personalizar", "/configuracoes/ano-letivo", "/configuracoes/regras-avaliacao-final", "/configuracoes/seguranca"]
+                  : ["/configuracoes/personalizar"]
+                : ["/configuracoes/personalizar", "/configuracoes/regras-avaliacao-final", "/configuracoes/seguranca"],
           );
           return {
             ...item,

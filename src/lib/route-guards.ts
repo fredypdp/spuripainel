@@ -75,6 +75,11 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
+    path: '/configuracoes/personalizar',
+    allowedTypes: 'authenticated',
+    redirectIfUnauthorized: '/login',
+  },
+  {
     path: '/configuracoes/ano-letivo',
     allowedTypes: ['admin', 'academia'],
     redirectIfUnauthorized: '/',
