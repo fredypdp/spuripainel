@@ -6,13 +6,20 @@ import SearchableSelect from "@/components/form/SearchableSelect";
 import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService, adminService, consultasService, estudanteService } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
-import type { AcademiaDetalhada, SolicitacaoStatusAcademico, SolicitacaoStatusAcademicoTipo, TipoEnsino } from "@/types/api";
+import type { AcademiaDetalhada, SolicitacaoEdicaoDadoEstudante, SolicitacaoStatusAcademico, SolicitacaoStatusAcademicoTipo, TipoEnsino } from "@/types/api";
 
 const tipos: { value: SolicitacaoStatusAcademicoTipo; label: string }[] = [
   { value: "interrupcao", label: "Interrupção" },
   { value: "desvinculacao", label: "Desvinculação" },
   { value: "revinculacao", label: "Revinculação" },
 ];
+
+const camposEdicaoLabel: Record<string, string> = {
+  nome: "Nome",
+  bilhete_identidade: "BI do estudante",
+  bilhete_identidade_encarregado: "BI do encarregado",
+  data_nascimento: "Data de nascimento",
+};
 
 const tiposEnsino: { value: TipoEnsino | ""; label: string }[] = [
   { value: "", label: "Usar histórico" },
@@ -40,6 +47,7 @@ function tipoLabel(tipo: SolicitacaoStatusAcademicoTipo) {
 export default function SolicitacoesPageContent() {
   const { isEstudante, isAcademia, isAdmin, loading } = useUserType();
   const [items, setItems] = useState<SolicitacaoStatusAcademico[]>([]);
+  const [editItems, setEditItems] = useState<SolicitacaoEdicaoDadoEstudante[]>([]);
   const [academias, setAcademias] = useState<AcademiaDetalhada[]>([]);
   const [academiaSelecionada, setAcademiaSelecionada] = useState("");
   const [tipo, setTipo] = useState<SolicitacaoStatusAcademicoTipo>("interrupcao");
@@ -66,6 +74,16 @@ export default function SolicitacoesPageContent() {
           ? await academiaService.listarSolicitacoesStatusAcademico()
           : await adminService.listarSolicitacoesStatusAcademico({ codigo_academia: academiaSelecionada });
       setItems(response.solicitacoes ?? []);
+
+      if (isEstudante) {
+        const editResponse = await estudanteService.listarMinhasSolicitacoesEdicao();
+        setEditItems(editResponse.solicitacoes ?? []);
+      } else if (isAcademia) {
+        const editResponse = await academiaService.listarSolicitacoesEdicaoEstudante();
+        setEditItems(editResponse.solicitacoes ?? []);
+      } else {
+        setEditItems([]);
+      }
     } catch (err) {
       setError(formatApiError(err, "Não foi possível carregar as solicitações."));
     } finally {
@@ -80,6 +98,7 @@ export default function SolicitacoesPageContent() {
   useEffect(() => {
     if (!loading && isAdmin) {
       setItems([]);
+      setEditItems([]);
       setError(null);
       consultasService
         .listarAcademias({ status: "ativo" })
@@ -89,6 +108,7 @@ export default function SolicitacoesPageContent() {
   }, [isAdmin, loading]);
 
   const pendentes = useMemo(() => items.filter((item) => item.status === "pendente").length, [items]);
+  const edicoesPendentes = useMemo(() => editItems.filter((item) => item.status === "pendente").length, [editItems]);
 
   async function submitStudentRequest(event: FormEvent) {
     event.preventDefault();
@@ -160,7 +180,7 @@ export default function SolicitacoesPageContent() {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Status acadêmico</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">{isEstudante ? "Crie e acompanhe suas solicitações." : isAcademia ? "Analise solicitações pendentes da sua academia." : "Consulte solicitações por instituição."}</p>
             </div>
-            <button onClick={load} disabled={refreshing || (isAdmin && !academiaSelecionada)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-60 dark:border-gray-700 dark:text-gray-200">{refreshing ? "Atualizando..." : `Atualizar (${pendentes} pendentes)`}</button>
+            <button onClick={load} disabled={refreshing || (isAdmin && !academiaSelecionada)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-60 dark:border-gray-700 dark:text-gray-200">{refreshing ? "Atualizando..." : `Atualizar (${pendentes + edicoesPendentes} pendentes)`}</button>
           </div>
         </section>
 
@@ -205,6 +225,32 @@ export default function SolicitacoesPageContent() {
             <label className="md:col-span-2 text-sm font-medium text-gray-700 dark:text-gray-300">Motivo<textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} required rows={3} className="mt-1 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 dark:border-gray-700" /></label>
             <button disabled={saving} className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">{saving ? "Enviando..." : "Criar solicitação"}</button>
           </form>
+        )}
+
+        {(isEstudante || isAcademia) && (
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+            <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Solicitações de edição de dados</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Listagem somente para acompanhamento. Novas solicitações devem ser enviadas pela página Personalizar.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Campo", "Status", "Estudante", "Academia", "Valor solicitado", "Criada em"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {editItems.map((item) => <tr key={item.codigo_solicitacao}>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{item.codigo_solicitacao}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{camposEdicaoLabel[item.campo] ?? item.campo}</td>
+                    <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass[item.status] ?? statusClass.cancelada}`}>{item.status}</span></td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.codigo_estudante}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.codigo_academia}</td>
+                    <td className="max-w-xs px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.valor_solicitado}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(item.created_at)}</td>
+                  </tr>)}
+                  {editItems.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação de edição encontrada.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">

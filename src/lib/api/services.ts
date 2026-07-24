@@ -36,6 +36,12 @@ import type {
   ListarCursosResponse,
   ListarMateriasResponse,
   AtualizarDadosPessoaisEstudanteRequest,
+  AtualizarTelefoneEncarregadoEstudanteRequest,
+  CriarSolicitacaoEdicaoDadoEstudanteRequest,
+  CriarSolicitacaoEdicaoDadoEstudanteResponse,
+  CampoEdicaoDadoEstudante,
+  ListarSolicitacoesEdicaoDadoEstudanteParams,
+  ListarSolicitacoesEdicaoDadoEstudanteResponse,
   AtualizarEmailUsuarioRequest,
   AtualizarTelefoneUsuarioRequest,
   AtualizarDadosAcademiaRequest,
@@ -332,6 +338,40 @@ function prepareAtualizarDadosPessoaisEstudante(
     bilhete_identidade_encarregado: bilheteIdentidadeEncarregado,
     data_nascimento: ensureApiDate(data.data_nascimento, 'Data de nascimento'),
   };
+}
+
+
+function prepareAtualizarTelefoneEncarregadoEstudante(
+  data: AtualizarTelefoneEncarregadoEstudanteRequest
+): AtualizarTelefoneEncarregadoEstudanteRequest {
+  const telefone = data.telefone_encarregado?.trim();
+  if (!/^\d{9}$/.test(telefone || '')) {
+    throw new Error('Telefone do encarregado deve conter exatamente 9 dígitos.');
+  }
+  return { telefone_encarregado: telefone };
+}
+
+function prepareSolicitacaoEdicaoDadoEstudanteForm(
+  data: CriarSolicitacaoEdicaoDadoEstudanteRequest
+): FormData {
+  const novoValor = data.novo_valor?.trim();
+  if (!novoValor) throw new Error('Novo valor é obrigatório.');
+  if (!data.documento) throw new Error('Documento comprovativo em PDF é obrigatório.');
+
+  const form = new FormData();
+  form.append('novo_valor', novoValor);
+  form.append('documento', data.documento);
+  return form;
+}
+
+function buildSolicitacoesEdicaoDadoEstudanteQuery(params?: ListarSolicitacoesEdicaoDadoEstudanteParams): string {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.campo) qs.set('campo', params.campo);
+  if (params?.codigo_estudante) qs.set('codigo_estudante', params.codigo_estudante);
+  appendPageParams(qs, params);
+  const query = qs.toString();
+  return query ? `?${query}` : '';
 }
 
 function prepareSolicitacaoMatriculaForm(data: CriarSolicitacaoMatriculaRequest): FormData {
@@ -726,12 +766,40 @@ export const eventSourcingService = {
 // =====================
 
 export const estudanteService = {
+  /** @deprecated A API removeu PUT /estudante/dados-pessoais. Use as rotas dedicadas abaixo. */
   atualizarDadosPessoais: (data: AtualizarDadosPessoaisEstudanteRequest, token?: string) =>
     api.put<{ message: string }>(
       '/estudante/dados-pessoais',
       prepareAtualizarDadosPessoaisEstudante(data),
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  atualizarTelefoneEncarregado: (data: AtualizarTelefoneEncarregadoEstudanteRequest, token?: string) =>
+    api.put<{ message: string }>(
+      '/estudante/encarregado/telefone',
+      prepareAtualizarTelefoneEncarregadoEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarMinhasSolicitacoesEdicao: (params?: ListarSolicitacoesEdicaoDadoEstudanteParams, token?: string) =>
+    api.get<ListarSolicitacoesEdicaoDadoEstudanteResponse>(
+      `/estudante/solicitacoes-edicao${buildSolicitacoesEdicaoDadoEstudanteQuery(params)}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  criarSolicitacaoEdicao: (campo: CampoEdicaoDadoEstudante, data: CriarSolicitacaoEdicaoDadoEstudanteRequest, token?: string) => {
+    const endpointByCampo: Record<CampoEdicaoDadoEstudante, string> = {
+      nome: '/estudante/solicitacoes-edicao/nome',
+      bilhete_identidade: '/estudante/solicitacoes-edicao/bilhete-identidade',
+      bilhete_identidade_encarregado: '/estudante/solicitacoes-edicao/bilhete-identidade-encarregado',
+      data_nascimento: '/estudante/solicitacoes-edicao/data-nascimento',
+    };
+    return api.postForm<CriarSolicitacaoEdicaoDadoEstudanteResponse>(
+      endpointByCampo[campo],
+      prepareSolicitacaoEdicaoDadoEstudanteForm(data),
+      { token: token || tokenStorage.get() || undefined }
+    );
+  },
 
   minhasAvaliacoes: (token?: string) =>
     getAllPaginated(
@@ -840,6 +908,12 @@ export const academiaService = {
     api.put<{ message: string; aviso?: string; email_verificado?: boolean }>(
       '/academia/dados',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarSolicitacoesEdicaoEstudante: (params?: ListarSolicitacoesEdicaoDadoEstudanteParams, token?: string) =>
+    api.get<ListarSolicitacoesEdicaoDadoEstudanteResponse>(
+      `/academia/solicitacoes-edicao-estudante${buildSolicitacoesEdicaoDadoEstudanteQuery(params)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
