@@ -555,6 +555,7 @@ export interface SolicitacaoEdicaoDadoEstudante {
 export interface ListarSolicitacoesEdicaoDadoEstudanteParams {
   status?: StatusSolicitacaoEdicaoDadoEstudante;
   campo?: CampoEdicaoDadoEstudante;
+  codigo_estudante?: string;
   limit?: number;
   offset?: number;
 }

@@ -368,6 +368,7 @@ function buildSolicitacoesEdicaoDadoEstudanteQuery(params?: ListarSolicitacoesEd
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.campo) qs.set('campo', params.campo);
+  if (params?.codigo_estudante) qs.set('codigo_estudante', params.codigo_estudante);
   appendPageParams(qs, params);
   const query = qs.toString();
   return query ? `?${query}` : '';
@@ -907,6 +908,12 @@ export const academiaService = {
     api.put<{ message: string; aviso?: string; email_verificado?: boolean }>(
       '/academia/dados',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarSolicitacoesEdicaoEstudante: (params?: ListarSolicitacoesEdicaoDadoEstudanteParams, token?: string) =>
+    api.get<ListarSolicitacoesEdicaoDadoEstudanteResponse>(
+      `/academia/solicitacoes-edicao-estudante${buildSolicitacoesEdicaoDadoEstudanteQuery(params)}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
