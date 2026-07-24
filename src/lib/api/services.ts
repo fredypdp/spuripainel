@@ -36,6 +36,8 @@ import type {
   ListarCursosResponse,
   ListarMateriasResponse,
   AtualizarDadosPessoaisEstudanteRequest,
+  AtualizarEmailUsuarioRequest,
+  AtualizarTelefoneUsuarioRequest,
   AtualizarDadosAcademiaRequest,
   AtualizarDadosAdminRequest,
   AtualizarRoleAdminRequest,
@@ -325,8 +327,6 @@ function prepareAtualizarDadosPessoaisEstudante(
   return {
     ...data,
     nome: data.nome?.trim() || undefined,
-    email: data.email?.trim() || undefined,
-    telefone: data.telefone?.trim() || undefined,
     telefone_encarregado: data.telefone_encarregado?.trim() || undefined,
     bilhete_identidade: bilheteIdentidade,
     bilhete_identidade_encarregado: bilheteIdentidadeEncarregado,
@@ -428,6 +428,20 @@ export const perfilService = {
     api.put<{ message: string }>(
       '/alterar-senha',
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarEmail: (data: AtualizarEmailUsuarioRequest, token?: string) =>
+    api.put<{ message: string; email?: string; email_verificado?: boolean }>(
+      '/me/email',
+      { email: data.email.trim() },
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarTelefone: (data: AtualizarTelefoneUsuarioRequest, token?: string) =>
+    api.put<{ message: string; telefone?: string; telefone_verificado?: boolean }>(
+      '/me/telefone',
+      { telefone: data.telefone.trim() },
       { token: token || tokenStorage.get() || undefined }
     ),
 };

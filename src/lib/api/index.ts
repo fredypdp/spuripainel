@@ -97,6 +97,8 @@ export type {
   CriarMateriaRequest,
   AtualizarMateriaRequest,
   AtualizarDadosPessoaisEstudanteRequest,
+  AtualizarEmailUsuarioRequest,
+  AtualizarTelefoneUsuarioRequest,
   AtualizarDadosAcademicosEstudanteRequest,
   AtualizarDadosAcademiaRequest,
   AtualizarDadosAdminRequest,

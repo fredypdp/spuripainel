@@ -14,8 +14,6 @@ export default function EstudanteSection() {
   const initial = useMemo(
     () => ({
       nome: estudante?.nome ?? "",
-      email: estudante?.email ?? "",
-      telefone: estudante?.telefone ?? "",
       bilhete_identidade: estudante?.bilhete_identidade ?? "",
       bilhete_identidade_encarregado: estudante?.bilhete_identidade_encarregado ?? "",
       data_nascimento: estudante?.data_nascimento?.slice(0, 10) ?? "",
@@ -52,8 +50,6 @@ export default function EstudanteSection() {
     try {
       await atualizarDados({
         nome: form.nome || undefined,
-        email: form.email || undefined,
-        telefone: form.telefone || undefined,
         bilhete_identidade: biEstudante || undefined,
         bilhete_identidade_encarregado: biEncarregado || undefined,
         data_nascimento: form.data_nascimento || undefined,
@@ -76,7 +72,7 @@ export default function EstudanteSection() {
             Dados pessoais
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            O estudante pode atualizar os próprios dados pessoais. Género e dados académicos continuam sob responsabilidade da academia.
+            O estudante pode atualizar os próprios dados pessoais. E-mail e telefone são alterados na página de perfil pelas rotas dedicadas de contato.
           </p>
         </div>
 
@@ -84,8 +80,6 @@ export default function EstudanteSection() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {[
               ["nome", "Nome", "text"],
-              ["email", "Email", "email"],
-              ["telefone", "Telefone", "text"],
               ["data_nascimento", "Data de nascimento", "date"],
               ["bilhete_identidade", "Bilhete de identidade", "text"],
               ["bilhete_identidade_encarregado", "BI do encarregado de educação", "text"],

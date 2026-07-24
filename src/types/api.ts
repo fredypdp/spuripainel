@@ -498,8 +498,6 @@ export interface AtualizarMateriaRequest {
 
 export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
-  email?: string;
-  telefone?: string;
   telefone_encarregado?: string;
   /** Quando ambos forem enviados, não podem ser iguais (trim + case-insensitive). */
   bilhete_identidade?: string;
@@ -520,16 +518,19 @@ export interface AtualizarDadosAcademiaRequest {
   nome?: string;
   provincia?: string;
   endereco?: string;
-  telefone?: string;
-  email?: string;
   website?: string;
-  nivel_escolar?: string;
-  cursos?: string[];
+}
+
+export interface AtualizarEmailUsuarioRequest {
+  email: string;
+}
+
+export interface AtualizarTelefoneUsuarioRequest {
+  telefone: string;
 }
 
 export interface AtualizarDadosAdminRequest {
   nome?: string;
-  email?: string;
 }
 
 export interface AtualizarRoleAdminRequest {
