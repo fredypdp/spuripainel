@@ -1,9 +1,7 @@
 "use client";
 
 import Details from "@/components/user-profile/Details";
-import UserConfigCard from "@/components/user-profile/UserConfigCard";
 import UserInfoCard from "@/components/user-profile/UserInfoCard";
-import ProfileEditCard from "@/components/user-profile/ProfileEditCard";
 import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import Alert from "@/components/ui/alert/Alert";
 import { perfilService, useApi } from "@/lib/api";
@@ -68,9 +66,7 @@ export default function PerfilPageContent() {
         <div className="space-y-6">
           <UserMetaCard user={profile} />
           <UserInfoCard user={profile} />
-          <ProfileEditCard user={profile} onProfileUpdated={loadProfile} />
           <Details user={profile} />
-          <UserConfigCard />
         </div>
       ) : null}
     </div>
