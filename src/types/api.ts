@@ -496,6 +496,19 @@ export interface AtualizarMateriaRequest {
   pendencia_nivel_conclusao?: string;
 }
 
+export type CampoEdicaoDadoEstudante =
+  | 'nome'
+  | 'bilhete_identidade'
+  | 'bilhete_identidade_encarregado'
+  | 'data_nascimento';
+
+export type StatusSolicitacaoEdicaoDadoEstudante = 'pendente' | 'aprovada' | 'reprovada';
+
+/**
+ * @deprecated A rota genérica PUT /estudante/dados-pessoais foi removida.
+ * Use as solicitações documentadas de edição de dados sensíveis e
+ * AtualizarTelefoneEncarregadoEstudanteRequest para telefone do encarregado.
+ */
 export interface AtualizarDadosPessoaisEstudanteRequest {
   nome?: string;
   telefone_encarregado?: string;
@@ -503,6 +516,54 @@ export interface AtualizarDadosPessoaisEstudanteRequest {
   bilhete_identidade?: string;
   bilhete_identidade_encarregado?: string;
   data_nascimento?: ApiDate;
+}
+
+export interface AtualizarTelefoneEncarregadoEstudanteRequest {
+  telefone_encarregado: string;
+}
+
+export interface CriarSolicitacaoEdicaoDadoEstudanteRequest {
+  novo_valor: string;
+  documento: File;
+}
+
+export interface CriarSolicitacaoEdicaoDadoEstudanteResponse {
+  message: string;
+  codigo_solicitacao: string;
+  campo: CampoEdicaoDadoEstudante;
+  status: StatusSolicitacaoEdicaoDadoEstudante;
+}
+
+export interface SolicitacaoEdicaoDadoEstudante {
+  codigo_solicitacao: string;
+  codigo_estudante: string;
+  codigo_academia: string;
+  campo: CampoEdicaoDadoEstudante;
+  valor_atual: string;
+  valor_solicitado: string;
+  documento_temporario_path?: string;
+  documento_temporario_url?: string;
+  status: StatusSolicitacaoEdicaoDadoEstudante;
+  motivo_reprovacao?: string | null;
+  solicitado_por: string;
+  decidido_por?: string | null;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface ListarSolicitacoesEdicaoDadoEstudanteParams {
+  status?: StatusSolicitacaoEdicaoDadoEstudante;
+  campo?: CampoEdicaoDadoEstudante;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListarSolicitacoesEdicaoDadoEstudanteResponse {
+  solicitacoes: SolicitacaoEdicaoDadoEstudante[];
+  limit: number;
+  offset: number;
+  total: number;
 }
 
 export interface AtualizarDadosAcademicosEstudanteRequest {
