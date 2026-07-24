@@ -651,6 +651,7 @@ Cria o primeiro admin FPP do sistema. Bloqueado após o primeiro uso (retorna 40
 {
   "nome": "string",
   "email": "string",
+  "telefone": "923456789",
   "senha": "string"
 }
 ```
@@ -665,6 +666,7 @@ Cria o primeiro admin FPP do sistema. Bloqueado após o primeiro uso (retorna 40
     "id": "uuid",
     "nome": "string",
     "email": "string",
+    "telefone": "923456789",
     "role": "fpp"
   },
   "next_steps": ["string"]
@@ -817,6 +819,55 @@ Altera a senha do usuário autenticado.
 ## 5. Email
 
 Todos os endpoints de email têm rate limiting ativo.
+
+
+### PUT /me/email
+
+Atualiza o email do usuário autenticado (estudante, academia ou admin), identificado exclusivamente pelo token. Não envie identificadores ou tipo de usuário no body.
+
+**Proteção**: autenticado.
+
+**Request:**
+
+```json
+{
+  "email": "novo.email@exemplo.com"
+}
+```
+
+**Regras:** email válido e único no sistema. Se o valor mudar de fato, `email_verificado` volta para `false`; reenviar o mesmo email não altera a flag.
+
+**Response 200:**
+
+```json
+{
+  "message": "email atualizado com sucesso"
+}
+```
+
+### PUT /me/telefone
+
+Atualiza o telefone do usuário autenticado (estudante, academia ou admin), identificado exclusivamente pelo token.
+
+**Proteção**: autenticado.
+
+**Request:**
+
+```json
+{
+  "telefone": "923456789"
+}
+```
+
+**Regras:** telefone deve ser uma string com exatamente 9 dígitos do número nacional, sem DDI, sem `+`, sem espaços, sem hífens, sem parênteses e sem letras. Valores como `+244923456789`, `244923456789`, `923 456 789`, `923-456-789`, `(923)456789`, `923abc789` e número JSON sem aspas são rejeitados. Se o valor mudar de fato, `telefone_verificado` volta para `false`; reenviar o mesmo telefone não altera a flag.
+
+**Response 200:**
+
+```json
+{
+  "message": "telefone atualizado com sucesso"
+}
+```
 
 ### POST /email/verificar-email/:token
 
@@ -1185,15 +1236,9 @@ Atualiza os dados cadastrais da academia autenticada.
 ```json
 {
   "nome": "string",
-  "type": "private",
   "provincia": "luanda",
   "endereco": "string",
-  "telefone": "string",
-  "email": "string",
-  "website": "string",
-  "nivel_escolar": "fundamental",
-  "anos_academicos": ["1_ano_fundamental"],
-  "cursos": ["Curso A"]
+  "website": "string"
 }
 ```
 
@@ -1205,7 +1250,7 @@ Atualiza os dados cadastrais da academia autenticada.
 }
 ```
 
-**Nota**: se o email for alterado, `email_verificado` volta para `false`; se o telefone for alterado, `telefone_verificado` volta para `false`.
+**Nota**: `telefone`, `email`, `anos_academicos`, `cursos`, `type`, `nivel_escolar` e `nif` não são aceitos nesta rota. Use `PUT /me/email` e `PUT /me/telefone` para contatos, `POST/DELETE /academia/anos-academicos` para anos acadêmicos e as rotas `/academia/curso` para cursos. Alterações de `type` e `nivel_escolar` exigem documento comprobativo pelo fluxo dedicado da tarefa 07 e ficam indisponíveis por este caminho. Se qualquer campo não permitido aparecer no payload, a requisição falha inteira com `400` e nenhum campo é alterado.
 
 ---
 
@@ -2538,15 +2583,13 @@ Atualiza os dados pessoais do estudante autenticado.
 ```json
 {
   "nome": "string",
-  "email": "string",
-  "telefone": "string",
   "bilhete_identidade": "string",
   "bilhete_identidade_encarregado": "string",
   "data_nascimento": "2010-05-20"
 }
 ```
 
-**Nota**: `genero` não pode ser alterado. `data_nascimento` deve ser anterior à data atual.
+**Nota**: `genero` não pode ser alterado. `data_nascimento` deve ser anterior à data atual. `email` e `telefone` não são aceitos nesta rota; use `PUT /me/email` e `PUT /me/telefone`. Quando `telefone_encarregado` muda de fato, `telefone_encarregado_verificado` volta para `false`; reenviar o mesmo valor não altera a flag.
 
 **Response 200:**
 
@@ -4722,33 +4765,36 @@ Retorna avaliações finais de um estudante específico.
 
 ### Processos de Negócio — Administração e Integridade
 
+O escopo administrativo é dividido em dois prefixos reais do backend:
+
+- `/dominis` — painel operacional; nesta seção ficam apenas as rotas administrativas que não pertencem a escopos funcionais próprios (gestão de admins, métricas e rebuild de projeções).
+- `/admin` — configurações globais do sistema; as rotas de anos letivos permanecem documentadas no escopo próprio de anos letivos.
+
+Todas as rotas abaixo exigem `Authorization: Bearer <token>` de um usuário com `user_type=admin`. Algumas rotas adicionam guards de role:
+
+| Guard | Roles aceitas | Uso real |
+| --- | --- | --- |
+| `RequireAdmin()` | qualquer admin ativo e com e-mail verificado | Base dos grupos `/dominis` e `/admin` |
+| `RequireAdm()` / permissão mínima `adm` | `adm` e `fpp` | Ativar/desativar admins; consultar admins |
+| `RequireFPP()` | somente `fpp` | Criar admins, alterar roles e executar rebuilds |
+
 ### 16.1 Verificação de Integridade do Ledger
 
 O sistema suporta verificação da cadeia de hashes do ledger para qualquer estudante:
 
-```
+```http
 GET /verificar-integridade/:codigo
 ```
 
 A função SQL `verify_hash_chain` verifica se todos os hashes encadeados são válidos. Se qualquer evento foi adulterado, a verificação retorna `integro = false` indicando a versão onde a cadeia foi quebrada.
 
+> Observação: embora seja uma ferramenta importante para auditoria administrativa, esta rota está registrada no grupo autenticado geral (`/`) e não no grupo `/dominis`.
+
 ---
 
 ### 16.2 Rebuild de Projeções
 
-Admins com role `fpp` podem reconstruir projeções:
-
-```
-POST /dominis/projections/rebuild/:name
-```
-
-Para evitar timeout em rebuilds longos (ex.: projeções com alto volume de eventos no ledger), use a versão assíncrona:
-
-```
-POST /dominis/projections/rebuild/:name/async
-```
-
-Esse endpoint retorna `202 Accepted` com `job_id`, `poll_url` e `sse_url`; o cliente pode acompanhar em `GET /jobs/:id` e/ou receber eventos em `GET /jobs/stream`.
+Admins com role `fpp` podem reconstruir projeções a partir do ledger.
 
 **Concorrência de rebuild**: o manager permite apenas **1 rebuild por vez** (lock global). Se outro rebuild já estiver em execução, o endpoint síncrono retorna `409 Conflict`.
 
@@ -4762,39 +4808,118 @@ Esse endpoint retorna `202 Accepted` com `job_id`, `poll_url` e `sse_url`; o cli
 4. `estudantes`, `turmas`
 5. `notas`, `faltas`
 6. `avaliacao_final`
-### Regras de Negócio — Admin
+
+#### POST /dominis/projections/rebuild/:name
+
+Reconstrói uma projeção do zero a partir do ledger.
+
+**Proteção**: autenticado + admin role `fpp`
+
+**Path Params:**
+
+- `name` — nome da projeção registrada no projection manager (ex.: `admins`, `academias`, `estudantes`, `notas`).
+
+**Request:** sem payload
+
+**Response 200:**
+
+```json
+{
+  "message": "projeção reconstruída com sucesso",
+  "projection": "estudantes"
+}
+```
+
+**Erros principais:**
+
+| Status | Quando ocorre |
+| --- | --- |
+| `400`/`422` | `name` vazio ou inválido conforme validação do manager |
+| `409` | já existe outro rebuild em andamento |
+| `500` | projeção indisponível, falha interna ou integridade do ledger comprometida |
+
+#### POST /dominis/projections/rebuild/:name/async
+
+Enfileira o rebuild de uma projeção para execução em background. Use quando o rebuild puder demorar vários minutos.
+
+**Proteção**: autenticado + admin role `fpp`
+
+**Path Params:**
+
+- `name` — nome da projeção registrada no projection manager (ex.: `admins`, `estudantes`, `notas`).
+
+**Request:** sem payload
+
+**Response 202:**
+
+```json
+{
+  "message": "rebuild enfileirado com sucesso — use GET /jobs/:id ou GET /jobs/stream para acompanhar o progresso",
+  "projection": "admins",
+  "job_id": "8a362f5e-cfcd-4968-ab0a-b6a1cfce8812",
+  "status": "pending",
+  "total_items": 1,
+  "poll_url": "/jobs/8a362f5e-cfcd-4968-ab0a-b6a1cfce8812",
+  "sse_url": "/jobs/stream"
+}
+```
+
+**Acompanhamento:**
+
+- `GET /jobs/:id`
+- `GET /jobs/stream` (SSE)
+
+---
 
 ### 16.3 Regras de Admin
 
-| Regra                                    | Detalhe                                                                                            |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Hierarquia estrita                       | Só pode gerenciar roles estritamente inferiores                                                    |
-| Email verificado obrigatório para operar | Sem verificação, acesso ao painel é bloqueado                                                      |
-| Apenas FPP altera roles                  | Regra de negócio deliberada                                                                        |
-| Não pode desativar a si próprio          | Prevenção de bloqueio acidental                                                                    |
-| Bootstrap único                          | Primeiro FPP criado via endpoint especial com advisory lock                                        |
-| Senha gerada automaticamente             | Senha segura gerada com `crypto/rand` e enviada por email (apenas depois do e-mail ser verificado) |
+| Regra | Detalhe |
+| --- | --- |
+| Hierarquia estrita | Um admin só gerencia admins com role estritamente inferior. |
+| Email verificado obrigatório para operar | Sem verificação, o middleware bloqueia acesso ao painel. |
+| Apenas FPP cria admins | A rota `POST /dominis/register` tem `RequireFPP()` e ainda valida o criador no handler. |
+| Apenas FPP altera roles | A rota `PUT /dominis/admin/:id/role` tem `RequireFPP()`. |
+| ADM/FPP ativam e desativam | Rotas de ativação/desativação usam `RequireAdm()` e validação hierárquica no aggregate. |
+| Não pode desativar a si próprio | Prevenção de bloqueio acidental em `PUT /dominis/admin/:id/desativar`. |
+| Não pode alterar o próprio role | Prevenção explícita em `PUT /dominis/admin/:id/role`. |
+| Bootstrap único | Primeiro FPP é criado via `POST /bootstrap` com advisory lock. |
+| Senha gerada automaticamente | Senha segura gerada com `crypto/rand`, persistida com bcrypt e enviada por email; a resposta HTTP nunca expõe a senha. |
+| Falha de email não reverte criação | Se o email de boas-vindas falhar, a API retorna `201` com `aviso="email_nao_enviado"`. |
+| Auditoria | Ações administrativas relevantes registram eventos de auditoria no aggregate Admin. |
 
+---
 
-### POST /dominis/register
+### 16.4 Gestão de administradores
 
-Cria um novo admin. A senha é gerada automaticamente e enviada por email.
+#### POST /dominis/register
 
-**Proteção**: autenticado + admin (qualquer role)
+Cria um novo admin. A senha temporária é gerada automaticamente, persistida apenas como hash bcrypt e enviada por email.
 
-**Regra de hierarquia**: o admin criador deve ter role estritamente superior ao do novo admin.
+**Proteção real**: autenticado + admin role `fpp`.
 
 **Request:**
 
 ```json
 {
   "nome": "string",
-  "email": "string",
-  "role": "gerente"  // 'fpp' | 'adm' | 'gerente'
+  "email": "admin.exemplo@dominio.com",
+  "telefone": "923456789",
+  "role": "gerente"
 }
 ```
 
-**Response 201:**
+**Validações e regras reais:**
+
+- `nome`, `email`, `telefone` e `role` são obrigatórios.
+- `telefone` deve ser informado para qualquer role (`fpp`, `adm` ou `gerente`) e seguir o formato nativo de 9 dígitos, sem DDI.
+- `role` deve ser `fpp`, `adm` ou `gerente`.
+- O criador deve existir como admin e ter role `fpp`.
+- O aggregate também valida hierarquia via `ValidatePermission(role)`.
+- Email duplicado retorna conflito.
+- A senha temporária não aparece na resposta.
+- Se o envio de email falhar, o admin continua criado e a resposta inclui `aviso="email_nao_enviado"`.
+
+**Response 201 — email enviado:**
 
 ```json
 {
@@ -4802,108 +4927,185 @@ Cria um novo admin. A senha é gerada automaticamente e enviada por email.
   "data": {
     "id": "uuid",
     "nome": "string",
-    "email": "string",
+    "email": "admin.exemplo@dominio.com",
+    "telefone": "923456789",
     "role": "gerente"
   }
 }
 ```
 
----
+**Response 201 — criado, mas email falhou:**
 
-### GET /dominis/admin-lista
+```json
+{
+  "message": "administrador criado com sucesso. ATENÇÃO: falha ao enviar email — solicite reset de senha via /recuperar-senha/solicitar.",
+  "data": {
+    "id": "uuid",
+    "nome": "string",
+    "email": "admin.exemplo@dominio.com",
+    "telefone": "923456789",
+    "role": "gerente"
+  },
+  "aviso": "email_nao_enviado"
+}
+```
+
+#### GET /dominis/admin-lista
 
 Lista todos os admins.
 
-**Proteção**: autenticado + admin (qualquer role)
-
+**Proteção real**: autenticado + admin; o handler exige permissão mínima `adm` (`adm` ou `fpp`).
 
 **Request:** sem payload
+
 **Response 200:**
 
 ```json
 {
-  "admins": [AdminDTO],
-  "total": 5
+  "admins": [
+    {
+      "id": "uuid",
+      "nome": "string",
+      "email": "admin.exemplo@dominio.com",
+      "email_verificado": true,
+      "role": "adm",
+      "status": "ativo",
+      "telefone": "+244900000000",
+      "telefone_verificado": false,
+      "created_at": "2026-01-01T10:00:00Z",
+      "updated_at": "2026-01-02T10:00:00Z",
+      "created_by": "uuid",
+      "total_acoes_realizadas": 12
+    }
+  ],
+  "total": 1
 }
 ```
 
----
+> Cada item usa o `AdminDTO`, portanto inclui `email_verificado` para indicar se o e-mail do administrador foi confirmado. A serialização remove defensivamente `senha_hash`, embora o DTO já não exponha esse campo.
 
-### GET /dominis/consultar-admin/:email
+#### GET /dominis/consultar-admin/:email
 
 Busca um admin pelo email.
 
-**Proteção**: autenticado + admin role `adm` ou `fpp`
+**Proteção real**: autenticado + admin; o handler exige permissão mínima `adm` (`adm` ou `fpp`).
 
+**Path Params:**
 
-**Request:** sem payload
-**Response 200:**
+- `email` — email do admin consultado.
+
+**Response 200 — ADM:**
 
 ```json
 {
-  "admin": AdminDTO
+  "admin": {
+    "id": "uuid",
+    "nome": "string",
+    "email": "admin.exemplo@dominio.com",
+    "email_verificado": true,
+    "role": "adm",
+    "status": "ativo",
+    "created_at": "2026-01-01T10:00:00Z",
+    "updated_at": "2026-01-02T10:00:00Z"
+  }
 }
 ```
 
----
+**Response 200 — FPP inclui campos extras:**
 
-### PUT /dominis/admin/:id/ativar
+```json
+{
+  "admin": {
+    "id": "uuid",
+    "nome": "string",
+    "email": "admin.exemplo@dominio.com",
+    "email_verificado": true,
+    "role": "adm",
+    "status": "ativo",
+    "created_at": "2026-01-01T10:00:00Z",
+    "updated_at": "2026-01-02T10:00:00Z",
+    "created_by": "uuid",
+    "total_acoes_realizadas": 12
+  }
+}
+```
+
+#### PUT /dominis/admin/:id/ativar
 
 Ativa um admin inativo.
 
-**Proteção**: autenticado + admin role `adm` ou `fpp`
+**Proteção real**: autenticado + admin role `adm` ou `fpp`, com validação hierárquica contra o role do admin alvo.
 
+**Path Params:**
+
+- `id` — UUID do admin alvo.
 
 **Request:** sem payload
+
 **Response 200:**
 
 ```json
 {
   "message": "administrador ativado com sucesso",
-  "email": "string"
+  "email": "admin.exemplo@dominio.com"
 }
 ```
 
----
-
-### PUT /dominis/admin/:id/desativar
+#### PUT /dominis/admin/:id/desativar
 
 Desativa um admin ativo.
 
-**Proteção**: autenticado + admin role `adm` ou `fpp`
+**Proteção real**: autenticado + admin role `adm` ou `fpp`, com validação hierárquica contra o role do admin alvo.
+
+**Path Params:**
+
+- `id` — UUID do admin alvo.
 
 **Request:**
 
 ```json
 {
-  "motivo": "string"  // obrigatório
+  "motivo": "string"
 }
 ```
+
+**Validações reais:**
+
+- `motivo` é obrigatório.
+- O admin autenticado não pode desativar a própria conta.
 
 **Response 200:**
 
 ```json
 {
   "message": "administrador desativado com sucesso",
-  "email": "string"
+  "email": "admin.exemplo@dominio.com"
 }
 ```
 
----
+#### PUT /dominis/admin/:id/role
 
-### PUT /dominis/admin/:id/role
+Altera o role de um admin.
 
-Altera o role de um admin. Apenas FPP pode fazer isso.
+**Proteção real**: autenticado + admin role `fpp`, com validação hierárquica contra o role anterior do admin alvo.
 
-**Proteção**: autenticado + admin role `fpp`
+**Path Params:**
+
+- `id` — UUID do admin alvo.
 
 **Request:**
 
 ```json
 {
-  "novo_role": "adm"  // 'fpp' | 'adm' | 'gerente'
+  "novo_role": "adm"
 }
 ```
+
+**Validações reais:**
+
+- `novo_role` é obrigatório.
+- `novo_role` deve obedecer às regras do aggregate Admin.
+- O admin autenticado não pode alterar a própria role.
 
 **Response 200:**
 
@@ -4915,22 +5117,30 @@ Altera o role de um admin. Apenas FPP pode fazer isso.
 }
 ```
 
----
+#### PUT /dominis/admin/:id/dados
 
-### PUT /dominis/admin/:id/dados
+Atualiza somente o nome de um admin. Email e telefone do próprio usuário autenticado usam rotas dedicadas.
 
-Atualiza nome e/ou email de um admin.
+**Proteção real**: autenticado + admin. Para editar outro admin, o executor deve ter role estritamente superior ao alvo; autoedição do próprio `nome` é permitida.
 
-**Proteção**: autenticado + admin (qualquer role)
+**Path Params:**
 
-**Request:** (pelo menos um campo obrigatório)
+- `id` — UUID do admin alvo.
+
+**Request:** pelo menos um campo deve ser informado.
 
 ```json
 {
-  "nome": "string",
-  "email": "string"
+  "nome": "Novo Nome"
 }
 ```
+
+**Validações reais:**
+
+- Body JSON deve ser válido.
+- `nome` deve ser fornecido.
+- `email` e `telefone` são rejeitados nesta rota; use `PUT /me/email` e `PUT /me/telefone` para o contato do admin autenticado. Nessas rotas dedicadas, mudanças efetivas resetam `email_verificado`/`telefone_verificado` para `false`; reenviar o mesmo valor não altera a flag.
+- Ao editar outro admin, aplica-se a hierarquia estrita (`fpp` > `adm` > `gerente`); roles iguais ou superiores ao executor retornam `403`.
 
 **Response 200:**
 
@@ -4942,14 +5152,16 @@ Atualiza nome e/ou email de um admin.
 
 ---
 
-### GET /dominis/metrics
+### 16.5 Métricas administrativas
 
-Retorna métricas do sistema (requisições, erros, latência por endpoint).
+#### GET /dominis/metrics
 
-**Proteção**: autenticado + admin (qualquer role)
+Retorna métricas do sistema (requisições, erros, autenticação e latência por endpoint).
 
+**Proteção real**: autenticado + admin. Para editar outro admin, o executor deve ter role estritamente superior ao alvo; autoedição do próprio `nome` é permitida.
 
 **Request:** sem payload
+
 **Response 200:**
 
 ```json
@@ -4974,73 +5186,64 @@ Retorna métricas do sistema (requisições, erros, latência por endpoint).
 }
 ```
 
----
+#### GET /dominis/storage/quota
 
-### POST /dominis/projections/rebuild/:name
+Retorna o uso de armazenamento da conta configurada no provider ativo, discriminando totais, uso gerenciado pela aplicação, uso fora das pastas de academias e arquivos/pastas encontrados na conta.
 
-Reconstrói uma projeção do zero a partir do ledger.
-
-**Proteção**: autenticado + admin role `fpp`
-
-**Path Params:**
-
-- `name` — nome da projeção (ex: `estudantes`, `academias`, `notas`)
-
+**Proteção real**: autenticado + admin. Para editar outro admin, o executor deve ter role estritamente superior ao alvo; autoedição do próprio `nome` é permitida.
 
 **Request:** sem payload
+
 **Response 200:**
 
 ```json
 {
-  "message": "projeção reconstruída com sucesso",
-  "projection": "estudantes"
+  "provider": "mega",
+  "total_bytes": 53687091200,
+  "used_bytes": 10737418240,
+  "available_bytes": 42949672960,
+  "managed_bytes": 8589934592,
+  "outside_academias_bytes": 2147483648,
+  "unmanaged_bytes": 2147483648,
+  "total_human": "50.0 GB",
+  "used_human": "10.0 GB",
+  "available_human": "40.0 GB",
+  "managed_human": "8.0 GB",
+  "outside_academias_human": "2.0 GB",
+  "unmanaged_human": "2.0 GB",
+  "academias": [
+    {
+      "codigo_academia": "ACA-001",
+      "used_bytes": 1048576,
+      "used_human": "1.0 MB"
+    }
+  ],
+  "account_files": [
+    {
+      "path": "/academias/ACA-001/documento.pdf",
+      "name": "documento.pdf",
+      "size_bytes": 1048576,
+      "size_human": "1.0 MB",
+      "managed": true
+    }
+  ],
+  "account_folders": [
+    {
+      "path": "/academias/ACA-001",
+      "name": "ACA-001",
+      "size_bytes": 1048576,
+      "size_human": "1.0 MB",
+      "managed": true
+    }
+  ]
 }
 ```
 
-**Erros:**
+**Erros principais:**
 
-- `409` — já existe outro rebuild em andamento
-- `404` — projeção não encontrada
-- `500` — integridade do ledger comprometida (rebuild abortado), com motivo detalhado no campo `message`
-
----
-
-### POST /dominis/projections/rebuild/:name/async
-
-Enfileira o rebuild de uma projeção para execução em background (job assíncrono).
-
-Use este endpoint quando o rebuild puder demorar vários minutos.
-
-**Proteção**: autenticado + admin role `fpp`
-
-**Path Params:**
-
-- `name` — nome da projeção (ex: `admins`, `estudantes`, `notas`)
-
-
-**Request:** sem payload
-**Response 202:**
-
-```json
-{
-  "message": "rebuild enfileirado com sucesso — use GET /jobs/:id ou GET /jobs/stream para acompanhar o progresso",
-  "projection": "admins",
-  "job_id": "8a362f5e-cfcd-4968-ab0a-b6a1cfce8812",
-  "status": "pending",
-  "total_items": 1,
-  "poll_url": "/jobs/8a362f5e-cfcd-4968-ab0a-b6a1cfce8812",
-  "sse_url": "/jobs/stream"
-}
-```
-
-**Acompanhamento:**
-
-- `GET /jobs/:id`
-- `GET /jobs/stream` (SSE)
-
----
-
----
+| Status | Quando ocorre |
+| --- | --- |
+| `503` | provider de armazenamento indisponível ou falha ao obter quota |
 
 ## 17. Jobs Assíncronos
 
