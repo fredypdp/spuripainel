@@ -1,17 +1,24 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import { useUserType } from "@/hooks/useRoutePermission";
-import { academiaService, adminService, consultasService, estudanteService } from "@/lib/api";
-import { formatApiError } from "@/lib/api/client";
+import { academiaService, adminService, consultasService, documentosService, estudanteService } from "@/lib/api";
+import { formatApiError, tokenStorage } from "@/lib/api/client";
 import type { AcademiaDetalhada, SolicitacaoEdicaoDadoEstudante, SolicitacaoStatusAcademico, SolicitacaoStatusAcademicoTipo, TipoEnsino } from "@/types/api";
 
 const tipos: { value: SolicitacaoStatusAcademicoTipo; label: string }[] = [
   { value: "interrupcao", label: "Interrupção" },
   { value: "desvinculacao", label: "Desvinculação" },
   { value: "revinculacao", label: "Revinculação" },
+];
+
+type AbaSolicitacao = SolicitacaoStatusAcademicoTipo | "edicao";
+
+const abasSolicitacoes: { value: AbaSolicitacao; label: string }[] = [
+  ...tipos,
+  { value: "edicao", label: "Edição de dados" },
 ];
 
 const camposEdicaoLabel: Record<string, string> = {
@@ -56,10 +63,15 @@ export default function SolicitacoesPageContent() {
   const [tipoEnsino, setTipoEnsino] = useState<TipoEnsino | "">("");
   const [cursoMedioId, setCursoMedioId] = useState("");
   const [cursoSuperiorId, setCursoSuperiorId] = useState("");
+  const [aba, setAba] = useState<AbaSolicitacao>("interrupcao");
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editSelecionadaCodigo, setEditSelecionadaCodigo] = useState<string | null>(null);
+  const [documentoAbrindo, setDocumentoAbrindo] = useState(false);
+  const [documentoBaixando, setDocumentoBaixando] = useState(false);
+  const [documentoAberto, setDocumentoAberto] = useState<{ titulo: string; url: string } | null>(null);
   const canDecide = isAcademia;
 
   const load = useCallback(async () => {
@@ -109,6 +121,87 @@ export default function SolicitacoesPageContent() {
 
   const pendentes = useMemo(() => items.filter((item) => item.status === "pendente").length, [items]);
   const edicoesPendentes = useMemo(() => editItems.filter((item) => item.status === "pendente").length, [editItems]);
+  const itemsDaAba = useMemo(() => items.filter((item) => item.tipo === aba), [aba, items]);
+  const editSelecionada = useMemo(() => editItems.find((item) => item.codigo_solicitacao === editSelecionadaCodigo) ?? null, [editItems, editSelecionadaCodigo]);
+
+  useEffect(() => () => { if (documentoAberto?.url) URL.revokeObjectURL(documentoAberto.url); }, [documentoAberto?.url]);
+
+  function documentoEdicao(item: SolicitacaoEdicaoDadoEstudante) {
+    if (item.documento) return item.documento;
+    const primeiro = item.documentos ? Object.values(item.documentos).find((doc) => doc && typeof doc === "object") : undefined;
+    return primeiro && typeof primeiro === "object" ? primeiro : null;
+  }
+
+  function nomeDocumentoEdicao(item: SolicitacaoEdicaoDadoEstudante) {
+    const doc = documentoEdicao(item);
+    const origem = (doc?.file_url || doc?.path || "").split("?")[0].split("#")[0];
+    const ultimo = origem.split("/").filter(Boolean).pop();
+    return ultimo ? decodeURIComponent(ultimo) : `documento_${item.campo}_${item.codigo_solicitacao}.pdf`;
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function obterBlobDocumentoEdicao(item: SolicitacaoEdicaoDadoEstudante) {
+    const token = tokenStorage.get() || undefined;
+    const doc = documentoEdicao(item);
+    if (doc?.download_url) return documentosService.baixarDocumentoSolicitacaoEdicaoEstudantePorUrl(doc.download_url, token);
+    return documentosService.baixarDocumentoSolicitacaoEdicaoEstudante(item.codigo_solicitacao, token);
+  }
+
+  async function abrirDocumentoEdicao(item: SolicitacaoEdicaoDadoEstudante) {
+    setDocumentoAbrindo(true);
+    setError(null);
+    try {
+      const blob = await obterBlobDocumentoEdicao(item);
+      const url = URL.createObjectURL(blob);
+      setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return { titulo: nomeDocumentoEdicao(item), url }; });
+    } catch (err) {
+      setError(formatApiError(err, "Não foi possível abrir o PDF da solicitação."));
+    } finally {
+      setDocumentoAbrindo(false);
+    }
+  }
+
+  async function baixarDocumentoEdicao(item: SolicitacaoEdicaoDadoEstudante) {
+    setDocumentoBaixando(true);
+    setError(null);
+    try {
+      const blob = await obterBlobDocumentoEdicao(item);
+      downloadBlob(blob, nomeDocumentoEdicao(item));
+    } catch (err) {
+      setError(formatApiError(err, "Não foi possível baixar o PDF da solicitação."));
+    } finally {
+      setDocumentoBaixando(false);
+    }
+  }
+
+  async function decidirEdicao(item: SolicitacaoEdicaoDadoEstudante, action: "aprovar" | "reprovar") {
+    const resposta = action === "reprovar" ? window.prompt("Motivo da reprovação", "") : null;
+    if (action === "reprovar" && !resposta?.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      if (action === "aprovar") await academiaService.aprovarSolicitacaoEdicaoEstudante(item.campo, item.codigo_solicitacao);
+      else await academiaService.reprovarSolicitacaoEdicaoEstudante(item.campo, item.codigo_solicitacao, { motivo_reprovacao: resposta!.trim() });
+      setMessage(action === "aprovar" ? "Solicitação de edição aprovada." : "Solicitação de edição reprovada.");
+      setEditSelecionadaCodigo(null);
+      setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; });
+      await load();
+    } catch (err) {
+      setError(formatApiError(err, "Não foi possível decidir a solicitação de edição."));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function submitStudentRequest(event: FormEvent) {
     event.preventDefault();
@@ -210,6 +303,21 @@ export default function SolicitacoesPageContent() {
         {message && <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300">{message}</div>}
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">{error}</div>}
 
+        {isAcademia && !editSelecionada && (
+          <section className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div className="hidden flex-wrap gap-2 sm:flex">
+              {abasSolicitacoes.map((item) => (
+                <button key={item.value} type="button" onClick={() => setAba(item.value)} className={`rounded-lg px-4 py-2 text-sm font-medium transition ${aba === item.value ? "bg-brand-500 text-white" : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"}`}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="sm:hidden">
+              <SearchableSelect value={aba} options={abasSolicitacoes} onChange={(value) => setAba(value as AbaSolicitacao)} isSearchable={false} />
+            </div>
+          </section>
+        )}
+
         {isEstudante && (
           <form onSubmit={submitStudentRequest} className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -227,15 +335,15 @@ export default function SolicitacoesPageContent() {
           </form>
         )}
 
-        {(isEstudante || isAcademia) && (
+        {(isEstudante || (isAcademia && aba === "edicao")) && !editSelecionada && (
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
             <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">Solicitações de edição de dados</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Listagem somente para acompanhamento. Novas solicitações devem ser enviadas pela página Personalizar.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{isAcademia ? "Abra uma solicitação para analisar o PDF e aprovar ou reprovar." : "Listagem somente para acompanhamento. Novas solicitações devem ser enviadas pela página Personalizar."}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-                <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Campo", "Status", "Estudante", "Academia", "Valor solicitado", "Criada em"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
+                <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Campo", "Status", "Estudante", "Academia", "Valor solicitado", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {editItems.map((item) => <tr key={item.codigo_solicitacao}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{item.codigo_solicitacao}</td>
@@ -245,20 +353,31 @@ export default function SolicitacoesPageContent() {
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.codigo_academia}</td>
                     <td className="max-w-xs px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.valor_solicitado}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(item.created_at)}</td>
+                    <td className="px-4 py-3 text-sm">{isAcademia ? <button type="button" onClick={() => setEditSelecionadaCodigo(item.codigo_solicitacao)} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white">Abrir</button> : "—"}</td>
                   </tr>)}
-                  {editItems.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação de edição encontrada.</td></tr>}
+                  {editItems.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação de edição encontrada.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        {isAcademia && editSelecionada && (
+          <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+            <button type="button" onClick={() => { setEditSelecionadaCodigo(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700 dark:text-gray-200">Voltar para edição de dados</button>
+            <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{camposEdicaoLabel[editSelecionada.campo] ?? editSelecionada.campo}</h3><p className="text-sm text-gray-500">{editSelecionada.codigo_solicitacao} · {editSelecionada.codigo_estudante}</p></div><span className={`h-fit rounded-full px-3 py-1 text-xs font-medium ${statusClass[editSelecionada.status] ?? statusClass.cancelada}`}>{editSelecionada.status}</span></div>
+            <div className="grid gap-3 text-sm md:grid-cols-2"><Info label="Valor atual" value={editSelecionada.valor_atual || "—"} /><Info label="Valor solicitado" value={editSelecionada.valor_solicitado || "—"} /><Info label="Academia" value={editSelecionada.codigo_academia} /><Info label="Criada em" value={formatDate(editSelecionada.created_at)} /></div>
+            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documento PDF</h4><div className="flex flex-wrap gap-2"><button type="button" onClick={() => abrirDocumentoEdicao(editSelecionada)} disabled={documentoAbrindo} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{documentoAbrindo ? "Abrindo..." : "Visualizar PDF"}</button><button type="button" onClick={() => baixarDocumentoEdicao(editSelecionada)} disabled={documentoBaixando} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700 dark:text-gray-200 disabled:opacity-60">{documentoBaixando ? "Baixando..." : "Baixar PDF"}</button></div>{documentoAberto && <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"><div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700"><span className="text-sm font-semibold text-gray-800 dark:text-white/90">{documentoAberto.titulo}</span><button type="button" onClick={() => setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; })} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Fechar</button></div><iframe title={`Pré-visualização de ${documentoAberto.titulo}`} src={documentoAberto.url} className="h-[70vh] w-full bg-white" /></div>}</div>
+            {editSelecionada.status === "pendente" && <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button type="button" onClick={() => decidirEdicao(editSelecionada, "aprovar")} disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Aprovar</button><button type="button" onClick={() => decidirEdicao(editSelecionada, "reprovar")} disabled={saving} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Reprovar</button></div>}
+          </section>
+        )}
+
+        {(!isAcademia || (aba !== "edicao" && !editSelecionada)) && <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
               <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Tipo", "Status", "Estudante", "Academia", "Motivo", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {items.map((item) => <tr key={item.codigo_solicitacao}>
+                {itemsDaAba.map((item) => <tr key={item.codigo_solicitacao}>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{item.codigo_solicitacao}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{tipoLabel(item.tipo)}</td>
                   <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass[item.status] ?? statusClass.cancelada}`}>{item.status}</span></td>
@@ -268,12 +387,17 @@ export default function SolicitacoesPageContent() {
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(item.created_at)}</td>
                   <td className="px-4 py-3 text-sm">{canDecide && item.status === "pendente" ? <div className="flex gap-2"><button onClick={() => decidir(item, "aprovar")} disabled={saving} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white">Aprovar</button><button onClick={() => decidir(item, "reprovar")} disabled={saving} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white">Reprovar</button></div> : "—"}</td>
                 </tr>)}
-                {items.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação encontrada.</td></tr>}
+                {itemsDaAba.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação encontrada.</td></tr>}
               </tbody>
             </table>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );
+}
+
+
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><span className="block text-xs text-gray-500">{label}</span><b className="text-gray-800 dark:text-white/90">{value}</b></div>;
 }
