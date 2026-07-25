@@ -44,56 +44,70 @@ const PROJECTIONS: ProjectionMeta[] = [
     label: "Academias",
     description:
       "Instituições de ensino registadas, status, níveis, províncias e ano letivo activo.",
-    tier: 1,
+    tier: 2,
   },
   {
     name: "cursos",
     label: "Cursos",
     description: "Cursos médios e superiores vinculados a cada academia.",
-    tier: 1,
+    tier: 3,
   },
   {
     name: "materias",
     label: "Matérias",
     description: "Disciplinas académicas por academia e curso.",
-    tier: 1,
+    tier: 3,
   },
   {
     name: "categorias_nota",
     label: "Categorias de Nota",
     description: "Categorias de avaliação personalizadas por academia.",
-    tier: 1,
+    tier: 3,
   },
   {
     name: "estudantes",
     label: "Estudantes",
     description: "Perfis de estudantes, status escolar e vínculos com academias.",
-    tier: 2,
+    tier: 4,
   },
   {
     name: "turmas",
     label: "Turmas",
     description: "Turmas com listas de estudantes matriculados.",
-    tier: 2,
+    tier: 4,
+  },
+  {
+    name: "solicitacoes_matricula",
+    label: "Solicitações de Matrícula",
+    description:
+      "Pedidos de matrícula, documentos enviados e decisões de aprovação, reprovação ou cancelamento.",
+    tier: 5,
+  },
+  {
+    name: "solicitacoes_edicao_dados_estudante",
+    label: "Solicitações de Edição",
+    description:
+      "Pedidos de alteração de dados de estudantes, documentos de suporte e estados de aprovação.",
+    tier: 5,
   },
   {
     name: "notas",
     label: "Notas",
     description: "Notas académicas de todos os estudantes e períodos.",
-    tier: 3,
+    tier: 6,
   },
   {
     name: "faltas",
     label: "Faltas",
     description: "Registos de faltas por estudante, matéria e data.",
-    tier: 3,
+    tier: 6,
   },
   {
     name: "avaliacao_final",
     label: "Avaliação Final",
     description:
       "Avaliações finais de ciclo, transições entre níveis, aprovações e reprovações.",
-    tier: 4,
+    tier: 7,
   },
 ];
 
@@ -126,10 +140,13 @@ function atualizarMesPeriodo(periodo: string, posicao: 0 | 1, mes: string): stri
 }
 
 const TIER_LABELS: Record<number, string> = {
-  1: "Base — Sem dependências",
-  2: "Nível 2 — Dependem de Academias",
-  3: "Nível 3 — Dependem de Estudantes",
-  4: "Nível 4 — Avaliações Finais",
+  1: "Base — Admins",
+  2: "Nível 2 — Academias",
+  3: "Nível 3 — Cursos, matérias e categorias",
+  4: "Nível 4 — Estudantes e turmas",
+  5: "Nível 5 — Solicitações",
+  6: "Nível 6 — Notas e faltas",
+  7: "Nível 7 — Avaliações finais",
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -385,7 +402,7 @@ function RebuildAllModal({
               <strong className="text-gray-700 dark:text-gray-300">
                 todas as {PROJECTIONS.length} projeções
               </strong>{" "}
-              a partir do ledger de eventos, uma a uma em ordem de tier.
+              a partir do ledger de eventos, uma a uma na ordem recomendada pela documentação.
             </p>
             <ul className="mt-2 space-y-1">
               {[
@@ -804,7 +821,7 @@ export default function AdminSection({ section = "all" }: { section?: AdminSetti
     setRebuildAllLoading(false);
   }
 
-  const tiers = [1, 2, 3, 4];
+  const tiers = [1, 2, 3, 4, 5, 6, 7];
   const showAnoLetivo = section === "all" || section === "ano-letivo";
   const showSeguranca = section === "all" || section === "seguranca";
   const showProjecoes =
