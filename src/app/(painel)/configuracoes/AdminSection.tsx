@@ -807,7 +807,8 @@ export default function AdminSection({ section = "all" }: { section?: AdminSetti
   const tiers = [1, 2, 3, 4];
   const showAnoLetivo = section === "all" || section === "ano-letivo";
   const showSeguranca = section === "all" || section === "seguranca";
-  const showProjecoes = section === "all" || section === "projecoes";
+  const showProjecoes =
+    section === "all" || section === "projecoes" || (section === "seguranca" && isFPP);
 
   return (
     <div>
