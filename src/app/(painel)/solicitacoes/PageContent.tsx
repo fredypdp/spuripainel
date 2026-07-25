@@ -3,10 +3,13 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import SearchableSelect from "@/components/form/SearchableSelect";
+import Icon from "@/components/ui/Icon";
 import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService, adminService, consultasService, documentosService, estudanteService } from "@/lib/api";
 import { formatApiError, tokenStorage } from "@/lib/api/client";
 import type { AcademiaDetalhada, SolicitacaoEdicaoDadoEstudante, SolicitacaoStatusAcademico, SolicitacaoStatusAcademicoTipo, TipoEnsino } from "@/types/api";
+
+const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
 
 const tipos: { value: SolicitacaoStatusAcademicoTipo; label: string }[] = [
   { value: "interrupcao", label: "Interrupção" },
@@ -364,7 +367,7 @@ export default function SolicitacoesPageContent() {
 
         {isAcademia && editSelecionada && (
           <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-            <button type="button" onClick={() => { setEditSelecionadaCodigo(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700 dark:text-gray-200">Voltar para edição de dados</button>
+            <button type="button" onClick={() => { setEditSelecionadaCodigo(null); setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; }); }} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar</button>
             <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{camposEdicaoLabel[editSelecionada.campo] ?? editSelecionada.campo}</h3><p className="text-sm text-gray-500">{editSelecionada.codigo_solicitacao} · {editSelecionada.codigo_estudante}</p></div><span className={`h-fit rounded-full px-3 py-1 text-xs font-medium ${statusClass[editSelecionada.status] ?? statusClass.cancelada}`}>{editSelecionada.status}</span></div>
             <div className="grid gap-3 text-sm md:grid-cols-2"><Info label="Valor atual" value={editSelecionada.valor_atual || "—"} /><Info label="Valor solicitado" value={editSelecionada.valor_solicitado || "—"} /><Info label="Academia" value={editSelecionada.codigo_academia} /><Info label="Criada em" value={formatDate(editSelecionada.created_at)} /></div>
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documento PDF</h4><div className="flex flex-wrap gap-2"><button type="button" onClick={() => abrirDocumentoEdicao(editSelecionada)} disabled={documentoAbrindo} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{documentoAbrindo ? "Abrindo..." : "Visualizar PDF"}</button><button type="button" onClick={() => baixarDocumentoEdicao(editSelecionada)} disabled={documentoBaixando} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700 dark:text-gray-200 disabled:opacity-60">{documentoBaixando ? "Baixando..." : "Baixar PDF"}</button></div>{documentoAberto && <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"><div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700"><span className="text-sm font-semibold text-gray-800 dark:text-white/90">{documentoAberto.titulo}</span><button type="button" onClick={() => setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; })} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Fechar</button></div><iframe title={`Pré-visualização de ${documentoAberto.titulo}`} src={documentoAberto.url} className="h-[70vh] w-full bg-white" /></div>}</div>
