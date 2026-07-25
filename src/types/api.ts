@@ -543,6 +543,8 @@ export interface SolicitacaoEdicaoDadoEstudante {
   valor_solicitado: string;
   documento_temporario_path?: string;
   documento_temporario_url?: string;
+  documento?: SolicitacaoMatriculaDocumento | null;
+  documentos?: Record<string, SolicitacaoMatriculaDocumento | string | null | undefined>;
   status: StatusSolicitacaoEdicaoDadoEstudante;
   motivo_reprovacao?: string | null;
   solicitado_por: string;
@@ -558,6 +560,16 @@ export interface ListarSolicitacoesEdicaoDadoEstudanteParams {
   codigo_estudante?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface DecidirSolicitacaoEdicaoDadoEstudanteResponse {
+  message: string;
+  codigo_solicitacao: string;
+  status: StatusSolicitacaoEdicaoDadoEstudante;
+}
+
+export interface ReprovarSolicitacaoEdicaoDadoEstudanteRequest {
+  motivo_reprovacao: string;
 }
 
 export interface ListarSolicitacoesEdicaoDadoEstudanteResponse {

@@ -42,6 +42,8 @@ import type {
   CampoEdicaoDadoEstudante,
   ListarSolicitacoesEdicaoDadoEstudanteParams,
   ListarSolicitacoesEdicaoDadoEstudanteResponse,
+  DecidirSolicitacaoEdicaoDadoEstudanteResponse,
+  ReprovarSolicitacaoEdicaoDadoEstudanteRequest,
   AtualizarEmailUsuarioRequest,
   AtualizarTelefoneUsuarioRequest,
   AtualizarDadosAcademiaRequest,
@@ -897,6 +899,18 @@ export const documentosService = {
       normalizarDocumentoEndpoint(downloadUrl, '/documentos/solicitacoes-matricula/'),
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  baixarDocumentoSolicitacaoEdicaoEstudante: (codigoSolicitacao: string, token?: string) =>
+    fetchApiBlob(
+      `/academia/documentos/solicitacoes-edicao-estudante/${encodeURIComponent(codigoSolicitacao)}/documento/download`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  baixarDocumentoSolicitacaoEdicaoEstudantePorUrl: (downloadUrl: string, token?: string) =>
+    fetchApiBlob(
+      normalizarDocumentoEndpoint(downloadUrl, '/academia/documentos/solicitacoes-edicao-estudante/'),
+      { token: token || tokenStorage.get() || undefined }
+    ),
 };
 
 // =====================
@@ -914,6 +928,21 @@ export const academiaService = {
   listarSolicitacoesEdicaoEstudante: (params?: ListarSolicitacoesEdicaoDadoEstudanteParams, token?: string) =>
     api.get<ListarSolicitacoesEdicaoDadoEstudanteResponse>(
       `/academia/solicitacoes-edicao-estudante${buildSolicitacoesEdicaoDadoEstudanteQuery(params)}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+
+  aprovarSolicitacaoEdicaoEstudante: (campo: CampoEdicaoDadoEstudante, codigo: string, token?: string) =>
+    api.put<DecidirSolicitacaoEdicaoDadoEstudanteResponse>(
+      `/academia/solicitacoes-edicao-estudante/${campo.replace(/_/g, '-')}/${encodeURIComponent(codigo)}/aprovar`,
+      undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  reprovarSolicitacaoEdicaoEstudante: (campo: CampoEdicaoDadoEstudante, codigo: string, data: ReprovarSolicitacaoEdicaoDadoEstudanteRequest, token?: string) =>
+    api.put<DecidirSolicitacaoEdicaoDadoEstudanteResponse>(
+      `/academia/solicitacoes-edicao-estudante/${campo.replace(/_/g, '-')}/${encodeURIComponent(codigo)}/reprovar`,
+      { motivo_reprovacao: data.motivo_reprovacao?.trim() },
       { token: token || tokenStorage.get() || undefined }
     ),
 
