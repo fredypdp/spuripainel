@@ -306,17 +306,17 @@ export default function SolicitacoesPageContent() {
         {message && <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300">{message}</div>}
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">{error}</div>}
 
-        {isAcademia && !editSelecionada && (
+        {(isEstudante || isAcademia) && !editSelecionada && (
           <section className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
             <div className="hidden flex-wrap gap-2 sm:flex">
               {abasSolicitacoes.map((item) => (
-                <button key={item.value} type="button" onClick={() => setAba(item.value)} className={`rounded-lg px-4 py-2 text-sm font-medium transition ${aba === item.value ? "bg-brand-500 text-white" : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"}`}>
+                <button key={item.value} type="button" onClick={() => { setAba(item.value); if (item.value !== "edicao") setTipo(item.value); }} className={`rounded-lg px-4 py-2 text-sm font-medium transition ${aba === item.value ? "bg-brand-500 text-white" : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"}`}>
                   {item.label}
                 </button>
               ))}
             </div>
             <div className="sm:hidden">
-              <SearchableSelect value={aba} options={abasSolicitacoes} onChange={(value) => setAba(value as AbaSolicitacao)} isSearchable={false} />
+              <SearchableSelect value={aba} options={abasSolicitacoes} onChange={(value) => { const nextAba = value as AbaSolicitacao; setAba(nextAba); if (nextAba !== "edicao") setTipo(nextAba); }} isSearchable={false} />
             </div>
           </section>
         )}
@@ -338,7 +338,7 @@ export default function SolicitacoesPageContent() {
           </form>
         )}
 
-        {(isEstudante || (isAcademia && aba === "edicao")) && !editSelecionada && (
+        {(isEstudante || isAcademia) && aba === "edicao" && !editSelecionada && (
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
             <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">Solicitações de edição de dados</h3>
@@ -375,7 +375,7 @@ export default function SolicitacoesPageContent() {
           </section>
         )}
 
-        {(!isAcademia || (aba !== "edicao" && !editSelecionada)) && <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        {aba !== "edicao" && (!isAcademia || !editSelecionada) && <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
               <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Tipo", "Status", "Estudante", "Academia", "Motivo", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
