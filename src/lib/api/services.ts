@@ -1485,7 +1485,10 @@ export const academiaService = {
   cadastrarEstudanteBatchAsync: (data: CriarEstudanteRequest[], token?: string) =>
     api.post<AsyncBatchResponse>(
       '/academia/estudante/register/async',
-      data.map(prepareCriarEstudante),
+      {
+        com_arquivo: false,
+        estudantes: data.map(prepareCriarEstudante),
+      },
       { token: token || tokenStorage.get() || undefined }
     ),
 
