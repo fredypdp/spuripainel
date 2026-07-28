@@ -2,11 +2,15 @@
 // Leitura e validação, linha a linha e coluna a coluna, da planilha Excel de
 // cadastro em massa. Todas as mensagens de erro são didáticas e indicam
 // exatamente a linha, a coluna e a célula onde está o problema.
+//
+// Não há limite de número de estudantes aqui: qualquer quantidade de linhas
+// válidas é aceite. A divisão em lotes para respeitar o limite da API
+// acontece apenas no momento do envio (ver massaHelpers.dividirEmLotes e
+// CadastroMassaForm.tsx).
 
 import * as XLSX from 'xlsx';
 import type { ContextoModelo, EstudanteBulkRow, ErroValidacao, ResultadoAnalise } from './massaTypes';
 import type { NivelBulk } from './massaHelpers';
-import { LIMITE_ESTUDANTES_POR_LOTE } from './massaHelpers';
 
 const REGEX_BI = /^\d{9}[A-Za-z]{2}\d{3}$/;
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -303,15 +307,7 @@ export async function analisarPlanilha(file: File, codigoAcademiaAtual?: string)
     erros.push(...validarLinha(linha, contexto));
   }
 
-  if (linhas.length > LIMITE_ESTUDANTES_POR_LOTE) {
-    erros.unshift({
-      linha: 0,
-      coluna: '-',
-      campo: 'Planilha',
-      valor: String(linhas.length),
-      mensagem: `Esta planilha tem ${linhas.length} estudante(s), mas o limite é de ${LIMITE_ESTUDANTES_POR_LOTE} estudantes por envio. Divida os dados em vários ficheiros de até ${LIMITE_ESTUDANTES_POR_LOTE} estudantes cada e envie um de cada vez.`,
-    });
-  }
-
+  // Nenhum limite de quantidade é aplicado aqui — quando o utilizador
+  // confirmar o cadastro, o envio é dividido automaticamente em lotes.
   return { contexto, linhas, erros, totalLinhas: linhas.length };
 }

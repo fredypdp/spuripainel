@@ -8,13 +8,13 @@ import UploadPlanilhaMassa from './UploadPlanilhaMassa';
 import RelatorioValidacaoMassa from './RelatorioValidacaoMassa';
 import BatchProgressScreen from './BatchProgressScreen';
 import type { ContextoModelo, ResultadoAnalise } from './massaTypes';
-import { labelNivel } from './massaHelpers';
+import { labelNivel, LIMITE_ESTUDANTES_POR_LOTE, dividirEmLotes } from './massaHelpers';
 import { construirPayloadEstudante } from './massaPayload';
 import { registrarEstudantesBatchSemArquivo } from './massaApi';
 
 type Fase =
   | { tipo: 'verificando' }
-  | { tipo: 'progresso'; jobId: string; contexto: ContextoModelo | null }
+  | { tipo: 'progresso'; jobIds: string[]; contexto: ContextoModelo | null; avisoSubmissao?: string | null }
   | { tipo: 'normal' };
 
 export default function CadastroMassaForm() {
@@ -27,9 +27,11 @@ export default function CadastroMassaForm() {
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState('');
 
-  // Ao montar, verifica se já existe um cadastro em massa em andamento para
-  // esta academia. Se existir, a tela mostra apenas o progresso dessa
-  // requisição — impedindo iniciar um novo cadastro em massa em paralelo.
+  // Ao montar, verifica se já existem lotes de cadastro em massa em andamento
+  // para esta academia (pode haver mais de um, quando um envio anterior foi
+  // dividido em vários lotes). Se existirem, a tela mostra apenas o
+  // progresso dessa requisição — impedindo iniciar um novo cadastro em massa
+  // em paralelo.
   useEffect(() => {
     let ativo = true;
     (async () => {
@@ -40,11 +42,15 @@ export default function CadastroMassaForm() {
       }
       try {
         const { jobs } = await jobApiService.list(token);
-        const jobAtivo = (jobs || []).find(
+        const jobsAtivos = (jobs || []).filter(
           (j) => j.type === 'register_estudante_batch' && (j.status === 'pending' || j.status === 'processing')
         );
         if (ativo) {
-          setFase(jobAtivo ? { tipo: 'progresso', jobId: jobAtivo.id, contexto: null } : { tipo: 'normal' });
+          setFase(
+            jobsAtivos.length > 0
+              ? { tipo: 'progresso', jobIds: jobsAtivos.map((j) => j.id), contexto: null }
+              : { tipo: 'normal' }
+          );
         }
       } catch {
         if (ativo) setFase({ tipo: 'normal' });
@@ -67,14 +73,38 @@ export default function CadastroMassaForm() {
     if (!resultado?.contexto) return;
     setEnviando(true);
     setErroEnvio('');
-    try {
-      const payload = resultado.linhas.map((linha) => construirPayloadEstudante(linha, resultado.contexto!));
-      const resposta = await registrarEstudantesBatchSemArquivo(payload);
-      setFase({ tipo: 'progresso', jobId: resposta.job_id, contexto: resultado.contexto });
-    } catch (err: any) {
-      setErroEnvio(err?.message || 'Não foi possível iniciar o cadastro em massa. Tente novamente.');
-    } finally {
-      setEnviando(false);
+
+    const contexto = resultado.contexto;
+    const payloadCompleto = resultado.linhas.map((linha) => construirPayloadEstudante(linha, contexto));
+    const lotes = dividirEmLotes(payloadCompleto, LIMITE_ESTUDANTES_POR_LOTE);
+
+    const jobIds: string[] = [];
+    let itensEnviados = 0;
+    let avisoSubmissao: string | null = null;
+
+    // Envia lote a lote — se um lote falhar ao ser submetido, os lotes já
+    // enviados continuam normalmente e o utilizador é avisado sobre o
+    // restante, podendo reenviar a mesma planilha depois (estudantes já
+    // cadastrados não são duplicados pelo backend).
+    for (let i = 0; i < lotes.length; i++) {
+      try {
+        const resposta = await registrarEstudantesBatchSemArquivo(lotes[i]);
+        jobIds.push(resposta.job_id);
+        itensEnviados += lotes[i].length;
+      } catch (err: any) {
+        avisoSubmissao = `Foram enviados ${itensEnviados} de ${payloadCompleto.length} estudante(s) com sucesso. O envio do restante falhou: ${
+          err?.message || 'erro desconhecido'
+        }. Depois de concluído este processamento, pode enviar novamente a planilha completa — estudantes já cadastrados não serão duplicados.`;
+        break;
+      }
+    }
+
+    setEnviando(false);
+
+    if (jobIds.length > 0) {
+      setFase({ tipo: 'progresso', jobIds, contexto, avisoSubmissao });
+    } else {
+      setErroEnvio(avisoSubmissao || 'Não foi possível iniciar o cadastro em massa. Tente novamente.');
     }
   };
 
@@ -83,14 +113,23 @@ export default function CadastroMassaForm() {
       <div className="flex items-center justify-center py-16">
         <div className="flex flex-col items-center gap-3">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">A verificar se já existe um cadastro em massa em andamento...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            A verificar se já existe um cadastro em massa em andamento...
+          </p>
         </div>
       </div>
     );
   }
 
   if (fase.tipo === 'progresso') {
-    return <BatchProgressScreen jobId={fase.jobId} contexto={fase.contexto} onConcluido={reiniciar} />;
+    return (
+      <BatchProgressScreen
+        jobIds={fase.jobIds}
+        contexto={fase.contexto}
+        avisoSubmissao={fase.avisoSubmissao}
+        onConcluido={reiniciar}
+      />
+    );
   }
 
   return (

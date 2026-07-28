@@ -5,10 +5,21 @@
 export type NivelBulk = 'fundamental' | 'medio' | 'superior';
 
 /**
- * Limite máximo de estudantes por envio, alinhado ao limite documentado da API
+ * Tamanho máximo de cada lote enviado à API, alinhado ao limite documentado
  * para `POST /academia/estudante/register/async` no modo `com_arquivo: false`.
+ *
+ * Este valor NÃO limita o modelo de Excel nem a validação — o utilizador pode
+ * preencher quantos estudantes precisar. Se o total ultrapassar este limite,
+ * o envio é dividido automaticamente em vários lotes (ver `dividirEmLotes`).
  */
 export const LIMITE_ESTUDANTES_POR_LOTE = 100;
+
+/**
+ * Número de linhas em branco pré-formatadas no modelo de Excel descarregado.
+ * É apenas uma folga confortável para preencher um número grande de
+ * estudantes num único ficheiro — não é um limite de cadastro.
+ */
+export const LINHAS_MODELO_EXCEL = 1000;
 
 export const ANOS_FUNDAMENTAL_LIST = [
   { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
@@ -52,4 +63,18 @@ export function labelNivel(nivel: NivelBulk): string {
   if (nivel === 'medio') return 'Ensino Médio';
   if (nivel === 'superior') return 'Ensino Superior';
   return 'Ensino Fundamental';
+}
+
+/**
+ * Divide um array em sub-arrays (lotes) de tamanho máximo `tamanho`.
+ * Usado para respeitar o limite de itens por requisição da API, mantendo o
+ * modelo de Excel e a validação livres de qualquer limite artificial.
+ */
+export function dividirEmLotes<T>(items: T[], tamanho: number): T[][] {
+  if (tamanho <= 0) return [items];
+  const lotes: T[][] = [];
+  for (let i = 0; i < items.length; i += tamanho) {
+    lotes.push(items.slice(i, i + tamanho));
+  }
+  return lotes;
 }

@@ -8,59 +8,81 @@ import { baixarEstudantesComFalha } from './massaErrorExport';
 import type { ContextoModelo } from './massaTypes';
 
 interface BatchProgressScreenProps {
-  jobId: string;
+  /** Um cadastro em massa pode gerar vários lotes (jobs) quando ultrapassa o
+   * limite de estudantes por requisição da API. Esta tela acompanha todos em
+   * paralelo e agrega o progresso. */
+  jobIds: string[];
   contexto?: ContextoModelo | null;
+  /** Aviso opcional quando algum lote não foi sequer submetido ao servidor. */
+  avisoSubmissao?: string | null;
   onConcluido: () => void;
 }
 
-export default function BatchProgressScreen({ jobId, contexto, onConcluido }: BatchProgressScreenProps) {
-  const [summary, setSummary] = useState<JobSummary | null>(null);
-  const [detail, setDetail] = useState<JobDetail | null>(null);
-  const [erro, setErro] = useState('');
+interface EstadoLote {
+  summary: JobSummary | null;
+  detail: JobDetail | null;
+  erro?: string;
+}
+
+export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, onConcluido }: BatchProgressScreenProps) {
+  const [estadoLotes, setEstadoLotes] = useState<Record<string, EstadoLote>>(() =>
+    Object.fromEntries(jobIds.map((id) => [id, { summary: null, detail: null }]))
+  );
   const canceladoRef = useRef(false);
 
   useEffect(() => {
     canceladoRef.current = false;
 
-    jobApiService
-      .getStatus(jobId)
-      .then((s) => {
-        if (!canceladoRef.current) setSummary(s);
-      })
-      .catch(() => {});
+    jobIds.forEach((jobId) => {
+      jobApiService
+        .getStatus(jobId)
+        .then((s) => {
+          if (canceladoRef.current) return;
+          setEstadoLotes((prev) => ({ ...prev, [jobId]: { ...prev[jobId], summary: s } }));
+        })
+        .catch(() => {});
 
-    pollJob(jobId, {
-      onProgress: (s) => {
-        if (!canceladoRef.current) setSummary(s);
-      },
-      onComplete: (d) => {
-        if (!canceladoRef.current) {
-          setDetail(d);
-          setSummary(d);
-        }
-      },
-      onError: () => {},
-    }).catch((err) => {
-      if (!canceladoRef.current) {
-        setErro(err instanceof Error ? err.message : 'Erro ao acompanhar o processamento deste cadastro.');
-      }
+      pollJob(jobId, {
+        onProgress: (s) => {
+          if (canceladoRef.current) return;
+          setEstadoLotes((prev) => ({ ...prev, [jobId]: { ...prev[jobId], summary: s } }));
+        },
+        onComplete: (d) => {
+          if (canceladoRef.current) return;
+          setEstadoLotes((prev) => ({ ...prev, [jobId]: { ...prev[jobId], summary: d, detail: d } }));
+        },
+        onError: () => {},
+      }).catch((err) => {
+        if (canceladoRef.current) return;
+        setEstadoLotes((prev) => ({
+          ...prev,
+          [jobId]: { ...prev[jobId], erro: err instanceof Error ? err.message : 'Erro ao acompanhar este lote.' },
+        }));
+      });
     });
 
     return () => {
       canceladoRef.current = true;
     };
-  }, [jobId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobIds.join(',')]);
 
-  const total = summary?.total_items ?? 0;
-  const feitos = (summary?.done_items ?? 0) + (summary?.fail_items ?? 0);
-  const progresso = total > 0 ? Math.round((feitos / total) * 100) : summary?.progress ?? 0;
-  const concluido = summary?.status === 'done' || summary?.status === 'failed';
-  const falhas = detail?.results?.filter((r) => !r.sucesso) ?? [];
+  const lotes = jobIds.map((id) => ({ jobId: id, ...estadoLotes[id] }));
+  const total = lotes.reduce((acc, l) => acc + (l.summary?.total_items ?? 0), 0);
+  const doneItems = lotes.reduce((acc, l) => acc + (l.summary?.done_items ?? 0), 0);
+  const failItems = lotes.reduce((acc, l) => acc + (l.summary?.fail_items ?? 0), 0);
+  const feitos = doneItems + failItems;
+  const progresso = total > 0 ? Math.round((feitos / total) * 100) : 0;
+  const concluido = lotes.every((l) => l.summary?.status === 'done' || l.summary?.status === 'failed');
+  const algumFalhou = lotes.some((l) => l.summary?.status === 'failed');
+  const falhas = lotes.flatMap((l) => l.detail?.results?.filter((r) => !r.sucesso) ?? []);
+  const errosPolling = lotes.filter((l) => l.erro).map((l) => l.erro as string);
+  const multiploLotes = jobIds.length > 1;
 
   const handleBaixarFalhas = () => {
-    if (!detail) return;
+    if (falhas.length === 0) return;
     const resultados = falhas.map((f) => ({ payload: f.payload, erro: f.erro }));
-    baixarEstudantesComFalha(contexto ?? null, resultados, `cadastro-em-massa-${jobId.slice(0, 8)}`);
+    baixarEstudantesComFalha(contexto ?? null, resultados, `cadastro-em-massa-${jobIds[0]?.slice(0, 8) || 'lote'}`);
   };
 
   return (
@@ -72,14 +94,21 @@ export default function BatchProgressScreen({ jobId, contexto, onConcluido }: Ba
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
           {concluido
             ? 'Veja abaixo o resultado do processamento.'
-            : 'Isto pode demorar alguns instantes. Pode navegar para outra página — ao voltar aqui, o progresso continua a ser mostrado.'}
+            : multiploLotes
+            ? `Este cadastro foi dividido em ${jobIds.length} lotes para respeitar o limite da plataforma. Isto pode demorar alguns instantes. `
+            : 'Isto pode demorar alguns instantes. '}
+          {!concluido && 'Pode navegar para outra página — ao voltar aqui, o progresso continua a ser mostrado.'}
         </p>
+
+        {avisoSubmissao && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            {avisoSubmissao}
+          </div>
+        )}
 
         <div className="h-3 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden mb-3">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              summary?.status === 'failed' ? 'bg-orange-500' : 'bg-brand-500'
-            }`}
+            className={`h-full rounded-full transition-all duration-500 ${algumFalhou ? 'bg-orange-500' : 'bg-brand-500'}`}
             style={{ width: `${Math.min(100, Math.max(concluido ? 100 : 4, progresso))}%` }}
           />
         </div>
@@ -88,15 +117,44 @@ export default function BatchProgressScreen({ jobId, contexto, onConcluido }: Ba
           <span>
             {feitos} de {total || '...'} processados
           </span>
-          {!!summary?.done_items && (
-            <span className="text-green-600 dark:text-green-400">{summary.done_items} com sucesso</span>
-          )}
-          {!!summary?.fail_items && <span className="text-red-600 dark:text-red-400">{summary.fail_items} com falha</span>}
+          {!!doneItems && <span className="text-green-600 dark:text-green-400">{doneItems} com sucesso</span>}
+          {!!failItems && <span className="text-red-600 dark:text-red-400">{failItems} com falha</span>}
         </div>
 
-        {erro && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
-            {erro}
+        {multiploLotes && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {lotes.map((l, i) => {
+              const status = l.summary?.status;
+              const label =
+                status === 'done'
+                  ? 'Concluído'
+                  : status === 'failed'
+                  ? 'Concluído com falhas'
+                  : status === 'processing'
+                  ? 'Processando'
+                  : 'Na fila';
+              const cor =
+                status === 'done'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                  : status === 'failed'
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                  : status === 'processing'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300';
+              return (
+                <span key={l.jobId} className={`rounded-full px-3 py-1 text-xs font-medium ${cor}`}>
+                  Lote {i + 1}: {label}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {errosPolling.length > 0 && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 space-y-1">
+            {errosPolling.map((e, i) => (
+              <p key={i}>{e}</p>
+            ))}
           </div>
         )}
 

@@ -5,7 +5,7 @@ import Button from '@/components/ui/button/Button';
 import Icon from '@/components/ui/Icon';
 import type { ResultadoAnalise, ErroValidacao } from './massaTypes';
 import { baixarLinhasComErro } from './massaErrorExport';
-import { labelNivel } from './massaHelpers';
+import { labelNivel, LIMITE_ESTUDANTES_POR_LOTE } from './massaHelpers';
 
 interface RelatorioValidacaoMassaProps {
   resultado: ResultadoAnalise;
@@ -38,6 +38,7 @@ export default function RelatorioValidacaoMassa({
 
   const linhasComErroCount = Object.keys(errosAgrupados).length;
   const tudoValido = !!contexto && totalLinhas > 0 && erros.length === 0;
+  const totalLotes = Math.max(1, Math.ceil(totalLinhas / LIMITE_ESTUDANTES_POR_LOTE));
 
   if (!contexto) {
     return (
@@ -147,7 +148,10 @@ export default function RelatorioValidacaoMassa({
 
       {tudoValido && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 mb-4">
-          Todos os dados foram validados com sucesso. Confirme abaixo para iniciar o cadastro em massa.
+          Todos os dados foram validados com sucesso.{' '}
+          {totalLotes > 1
+            ? `Como são ${totalLinhas} estudantes, o envio será dividido automaticamente em ${totalLotes} lotes de até ${LIMITE_ESTUDANTES_POR_LOTE} estudantes cada, para respeitar o limite da plataforma.`
+            : 'Confirme abaixo para iniciar o cadastro em massa.'}
         </div>
       )}
 
@@ -162,7 +166,11 @@ export default function RelatorioValidacaoMassa({
           Enviar outro ficheiro
         </Button>
         <Button size="sm" onClick={onConfirmar} disabled={!tudoValido || enviando}>
-          {enviando ? 'Enviando...' : `Confirmar cadastro de ${totalLinhas} estudante(s)`}
+          {enviando
+            ? 'Enviando...'
+            : totalLotes > 1
+            ? `Confirmar cadastro de ${totalLinhas} estudante(s) em ${totalLotes} lotes`
+            : `Confirmar cadastro de ${totalLinhas} estudante(s)`}
         </Button>
       </div>
     </div>
