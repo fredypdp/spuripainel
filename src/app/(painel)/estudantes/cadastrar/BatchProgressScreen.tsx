@@ -104,16 +104,6 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
     );
   };
 
-  const handleBaixarRascunho = () => {
-    const rascunho = lerRascunhoCadastroMassa();
-    if (!rascunho?.estudantesPendentes.length) return;
-    baixarRascunhoEstudantesPendentes(
-      rascunho.contexto ?? contexto ?? null,
-      rascunho.estudantesPendentes,
-      jobIds[0]?.slice(0, 8) || 'lote'
-    );
-  };
-
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
