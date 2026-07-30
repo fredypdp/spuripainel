@@ -14,6 +14,8 @@ import type { NivelBulk } from './massaHelpers';
 
 const REGEX_BI = /^\d{9}[A-Za-z]{2}\d{3}$/;
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REGEX_NOME = /^[\p{L}\p{M} '’ʻ]+$/u;
+const REGEX_CARACTERES_BLOQUEADOS = /[;\"`]|--|\/\*|\*\//;
 const TOTAL_COLUNAS = 8;
 
 function celulaTexto(ws: any, r: number, c: number): string {
@@ -55,8 +57,18 @@ function celulaData(ws: any, r: number, c: number): { texto: string; iso?: strin
   const [, dd, mm, yyyy] = match;
   const diaNum = Number(dd);
   const mesNum = Number(mm);
-  if (mesNum < 1 || mesNum > 12 || diaNum < 1 || diaNum > 31) {
-    return { texto, erro: `Data inválida ("${texto}"). Confirme o dia e o mês.` };
+  const anoNum = Number(yyyy);
+  const data = new Date(anoNum, mesNum - 1, diaNum);
+  if (
+    mesNum < 1 ||
+    mesNum > 12 ||
+    diaNum < 1 ||
+    diaNum > 31 ||
+    data.getFullYear() !== anoNum ||
+    data.getMonth() !== mesNum - 1 ||
+    data.getDate() !== diaNum
+  ) {
+    return { texto, erro: `Data inválida ("${texto}"). Confirme o dia, o mês e o ano.` };
   }
 
   return { texto, iso: `${yyyy}-${mm}-${dd}` };
@@ -106,6 +118,10 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
 
   if (!linha.nome) {
     add('A', 'Nome Completo', linha.nome, 'O nome completo do estudante é obrigatório.');
+  } else if (linha.nome.length < 2 || linha.nome.length > 255) {
+    add('A', 'Nome Completo', linha.nome, 'O nome deve ter entre 2 e 255 caracteres.');
+  } else if (!REGEX_NOME.test(linha.nome)) {
+    add('A', 'Nome Completo', linha.nome, 'O nome deve conter apenas letras, acentos, espaços e apóstrofos.');
   }
 
   const generoNormalizado = linha.genero.toLowerCase();
@@ -137,8 +153,12 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
     }
   }
 
-  if (linha.email && !REGEX_EMAIL.test(linha.email)) {
-    add('D', 'Email', linha.email, `O email "${linha.email}" não é válido. Exemplo: nome@exemplo.com`);
+  if (linha.email && linha.email.length > 255) {
+    add('H', 'Email', linha.email, 'O email deve ter no máximo 255 caracteres.');
+  } else if (linha.email && REGEX_CARACTERES_BLOQUEADOS.test(linha.email)) {
+    add('H', 'Email', linha.email, 'O email contém caracteres não permitidos.');
+  } else if (linha.email && !REGEX_EMAIL.test(linha.email)) {
+    add('H', 'Email', linha.email, `O email "${linha.email}" não é válido. Exemplo: nome@exemplo.com`);
   }
 
   const isSuperior = contexto.nivel === 'superior';
@@ -146,10 +166,10 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
   const telefoneEncDigitos = linha.telefoneEncarregado.replace(/\D/g, '');
 
   if (isSuperior && !linha.telefone) {
-    add('E', 'Telefone do Estudante', linha.telefone, 'No ensino superior, o telefone do estudante é obrigatório.');
+    add('F', 'Telefone do Estudante', linha.telefone, 'No ensino superior, o telefone do estudante é obrigatório.');
   } else if (linha.telefone && telefoneDigitos.length !== 9) {
     add(
-      'E',
+      'F',
       'Telefone do Estudante',
       linha.telefone,
       'O telefone deve ter exatamente 9 dígitos, sem +244, espaços ou traços. Exemplo: 923456789.'
@@ -158,15 +178,15 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
 
   if (!isSuperior && !linha.telefoneEncarregado) {
     add(
-      'F',
-      'Telefone do Encarregado de Educação',
+      'G',
+      'Telefone do Encarregado',
       linha.telefoneEncarregado,
       'Para o ensino fundamental/médio, o telefone do encarregado de educação é obrigatório.'
     );
   } else if (linha.telefoneEncarregado && telefoneEncDigitos.length !== 9) {
     add(
-      'F',
-      'Telefone do Encarregado de Educação',
+      'G',
+      'Telefone do Encarregado',
       linha.telefoneEncarregado,
       'O telefone deve ter exatamente 9 dígitos, sem +244, espaços ou traços. Exemplo: 924000000.'
     );
@@ -174,8 +194,8 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
 
   if (linha.telefone && linha.telefoneEncarregado && telefoneDigitos && telefoneDigitos === telefoneEncDigitos) {
     add(
-      'F',
-      'Telefone do Encarregado de Educação',
+      'G',
+      'Telefone do Encarregado',
       linha.telefoneEncarregado,
       'O telefone do encarregado de educação não pode ser igual ao telefone do estudante.'
     );
@@ -187,22 +207,22 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
 
   if (primeiroAnoFundamental && linha.bilheteIdentidade) {
     add(
-      'G',
-      'Bilhete de Identidade do Estudante',
+      'D',
+      'BI do Estudante',
       linha.bilheteIdentidade,
       'Para o 1º Ano Fundamental, deixe este campo em branco. Este ano usa Cédula, anexada depois na ficha do estudante.'
     );
   } else if (isSuperior && !linha.bilheteIdentidade) {
     add(
-      'G',
-      'Bilhete de Identidade do Estudante',
+      'D',
+      'BI do Estudante',
       linha.bilheteIdentidade,
       'No ensino superior, o Bilhete de Identidade do estudante é obrigatório.'
     );
   } else if (linha.bilheteIdentidade && !REGEX_BI.test(biEstudante)) {
     add(
-      'G',
-      'Bilhete de Identidade do Estudante',
+      'D',
+      'BI do Estudante',
       linha.bilheteIdentidade,
       'Formato inválido. Use o padrão 123456789LA041 (9 números, 2 letras, 3 números).'
     );
@@ -210,15 +230,15 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
 
   if (!isSuperior && !primeiroAnoFundamental && !linha.bilheteIdentidadeEncarregado) {
     add(
-      'H',
-      'Bilhete de Identidade do Encarregado de Educação',
+      'E',
+      'BI do Encarregado',
       linha.bilheteIdentidadeEncarregado,
       'O Bilhete de Identidade do encarregado de educação é obrigatório para o ensino fundamental/médio.'
     );
   } else if (linha.bilheteIdentidadeEncarregado && !REGEX_BI.test(biEncarregado)) {
     add(
-      'H',
-      'Bilhete de Identidade do Encarregado de Educação',
+      'E',
+      'BI do Encarregado',
       linha.bilheteIdentidadeEncarregado,
       'Formato inválido. Use o padrão 123456789LA041 (9 números, 2 letras, 3 números).'
     );
@@ -226,8 +246,8 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
 
   if (linha.bilheteIdentidade && linha.bilheteIdentidadeEncarregado && biEstudante === biEncarregado) {
     add(
-      'H',
-      'Bilhete de Identidade do Encarregado de Educação',
+      'E',
+      'BI do Encarregado',
       linha.bilheteIdentidadeEncarregado,
       'O BI do encarregado de educação não pode ser igual ao BI do estudante.'
     );
@@ -296,11 +316,11 @@ export async function analisarPlanilha(file: File, codigoAcademiaAtual?: string)
       dataNascimento: dataCell.texto,
       dataNascimentoIso: dataCell.iso,
       dataNascimentoErro: dataCell.erro,
-      email: valores[3],
-      telefone: valores[4],
-      telefoneEncarregado: valores[5],
-      bilheteIdentidade: valores[6],
-      bilheteIdentidadeEncarregado: valores[7],
+      bilheteIdentidade: valores[3],
+      bilheteIdentidadeEncarregado: valores[4],
+      telefone: valores[5],
+      telefoneEncarregado: valores[6],
+      email: valores[7],
     };
 
     linhas.push(linha);

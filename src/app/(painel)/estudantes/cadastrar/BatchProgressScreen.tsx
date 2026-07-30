@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { pollJob, jobApiService } from '@/lib/api';
 import type { JobSummary, JobDetail } from '@/lib/api';
 import Button from '@/components/ui/button/Button';
-import { baixarEstudantesComFalha } from './massaErrorExport';
+import { baixarEstudantesComFalha, baixarRascunhoEstudantesPendentes } from './massaErrorExport';
+import { lerRascunhoCadastroMassa, removerEstudantesCadastradosDoRascunho } from './massaDraft';
 import type { ContextoModelo } from './massaTypes';
 
 interface BatchProgressScreenProps {
@@ -29,6 +30,11 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
     Object.fromEntries(jobIds.map((id) => [id, { summary: null, detail: null }]))
   );
   const canceladoRef = useRef(false);
+  const [totalRascunho, setTotalRascunho] = useState(0);
+
+  useEffect(() => {
+    setTotalRascunho(lerRascunhoCadastroMassa()?.estudantesPendentes.length ?? 0);
+  }, []);
 
   useEffect(() => {
     canceladoRef.current = false;
@@ -49,6 +55,9 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
         },
         onComplete: (d) => {
           if (canceladoRef.current) return;
+          const cadastrados = d.results.filter((r) => r.sucesso).map((r) => r.payload);
+          const rascunhoAtualizado = removerEstudantesCadastradosDoRascunho(cadastrados);
+          setTotalRascunho(rascunhoAtualizado?.estudantesPendentes.length ?? 0);
           setEstadoLotes((prev) => ({ ...prev, [jobId]: { ...prev[jobId], summary: d, detail: d } }));
         },
         onError: () => {},
@@ -83,6 +92,16 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
     if (falhas.length === 0) return;
     const resultados = falhas.map((f) => ({ payload: f.payload, erro: f.erro }));
     baixarEstudantesComFalha(contexto ?? null, resultados, `cadastro-em-massa-${jobIds[0]?.slice(0, 8) || 'lote'}`);
+  };
+
+  const handleBaixarRascunho = () => {
+    const rascunho = lerRascunhoCadastroMassa();
+    if (!rascunho?.estudantesPendentes.length) return;
+    baixarRascunhoEstudantesPendentes(
+      rascunho.contexto ?? contexto ?? null,
+      rascunho.estudantesPendentes,
+      jobIds[0]?.slice(0, 8) || 'lote'
+    );
   };
 
   return (
@@ -159,11 +178,24 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
         )}
 
         {!concluido && (
-          <p className="mt-4 text-xs text-gray-400">
-            Não é necessário permanecer nesta tela — o cadastro continua a ser processado no servidor.
-          </p>
+          <div className="mt-4 space-y-1 text-xs text-gray-400">
+            <p>Não é necessário permanecer nesta tela — o cadastro continua a ser processado no servidor.</p>
+            {totalRascunho > 0 && (
+              <p>
+                Um rascunho local mantém {totalRascunho} estudante(s) desta planilha ainda sem confirmação de cadastro,
+                para reutilização em caso de erro ou interrupção.
+              </p>
+            )}
+          </div>
         )}
       </div>
+
+      {concluido && totalRascunho > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          Rascunho atualizado com {totalRascunho} estudante(s) desta planilha ainda não confirmado(s) como cadastrado(s).
+          Pode corrigir/reutilizar esses dados se precisar retomar o cadastro.
+        </div>
+      )}
 
       {concluido && falhas.length > 0 && (
         <div className="rounded-2xl border border-red-200 dark:border-red-800/60 overflow-hidden">
@@ -190,6 +222,11 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
 
       {concluido && (
         <div className="flex flex-col sm:flex-row gap-3">
+          {totalRascunho > 0 && (
+            <Button variant="outline" size="sm" onClick={handleBaixarRascunho}>
+              Baixar rascunho pendente ({totalRascunho})
+            </Button>
+          )}
           {falhas.length > 0 && (
             <Button variant="outline" size="sm" onClick={handleBaixarFalhas}>
               Baixar estudantes com falha ({falhas.length})
