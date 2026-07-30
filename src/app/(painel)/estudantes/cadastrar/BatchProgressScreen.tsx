@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { pollJob, jobApiService } from '@/lib/api';
 import type { JobSummary, JobDetail } from '@/lib/api';
 import Button from '@/components/ui/button/Button';
-import { baixarEstudantesComFalha } from './massaErrorExport';
+import { baixarEstudantesComFalha, baixarRascunhoEstudantesPendentes } from './massaErrorExport';
+import { lerRascunhoCadastroMassa, removerEstudantesCadastradosDoRascunho } from './massaDraft';
 import type { ContextoModelo } from './massaTypes';
 
 interface BatchProgressScreenProps {
@@ -29,6 +30,11 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
     Object.fromEntries(jobIds.map((id) => [id, { summary: null, detail: null }]))
   );
   const canceladoRef = useRef(false);
+  const [totalRascunho, setTotalRascunho] = useState(0);
+
+  useEffect(() => {
+    setTotalRascunho(lerRascunhoCadastroMassa()?.estudantesPendentes.length ?? 0);
+  }, []);
 
   useEffect(() => {
     canceladoRef.current = false;
@@ -49,6 +55,9 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
         },
         onComplete: (d) => {
           if (canceladoRef.current) return;
+          const cadastrados = d.results.filter((r) => r.sucesso).map((r) => r.payload);
+          const rascunhoAtualizado = removerEstudantesCadastradosDoRascunho(cadastrados);
+          setTotalRascunho(rascunhoAtualizado?.estudantesPendentes.length ?? 0);
           setEstadoLotes((prev) => ({ ...prev, [jobId]: { ...prev[jobId], summary: d, detail: d } }));
         },
         onError: () => {},
@@ -56,7 +65,7 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
         if (canceladoRef.current) return;
         setEstadoLotes((prev) => ({
           ...prev,
-          [jobId]: { ...prev[jobId], erro: err instanceof Error ? err.message : 'Erro ao acompanhar este lote.' },
+          [jobId]: { ...prev[jobId], erro: err instanceof Error ? err.message : 'Não foi possível acompanhar este grupo de envio.' },
         }));
       });
     });
@@ -82,7 +91,17 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
   const handleBaixarFalhas = () => {
     if (falhas.length === 0) return;
     const resultados = falhas.map((f) => ({ payload: f.payload, erro: f.erro }));
-    baixarEstudantesComFalha(contexto ?? null, resultados, `cadastro-em-massa-${jobIds[0]?.slice(0, 8) || 'lote'}`);
+    baixarEstudantesComFalha(contexto ?? null, resultados, `cadastro-em-massa-${jobIds[0]?.slice(0, 8) || 'grupo'}`);
+  };
+
+  const handleBaixarRascunho = () => {
+    const rascunho = lerRascunhoCadastroMassa();
+    if (!rascunho?.estudantesPendentes.length) return;
+    baixarRascunhoEstudantesPendentes(
+      rascunho.contexto ?? contexto ?? null,
+      rascunho.estudantesPendentes,
+      jobIds[0]?.slice(0, 8) || 'grupo'
+    );
   };
 
   return (
@@ -93,9 +112,9 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
           {concluido
-            ? 'Veja abaixo o resultado do processamento.'
+            ? 'Veja abaixo o resultado do cadastro.'
             : multiploLotes
-            ? `Este cadastro foi dividido em ${jobIds.length} lotes para respeitar o limite da plataforma. Isto pode demorar alguns instantes. `
+            ? `Os estudantes serão cadastrados em ${jobIds.length} grupos, automaticamente, para que tudo seja enviado com segurança. Isto pode demorar alguns instantes. `
             : 'Isto pode demorar alguns instantes. '}
           {!concluido && 'Pode navegar para outra página — ao voltar aqui, o progresso continua a ser mostrado.'}
         </p>
@@ -143,7 +162,7 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
                   : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300';
               return (
                 <span key={l.jobId} className={`rounded-full px-3 py-1 text-xs font-medium ${cor}`}>
-                  Lote {i + 1}: {label}
+                  Grupo {i + 1}: {label}
                 </span>
               );
             })}
@@ -159,11 +178,24 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
         )}
 
         {!concluido && (
-          <p className="mt-4 text-xs text-gray-400">
-            Não é necessário permanecer nesta tela — o cadastro continua a ser processado no servidor.
-          </p>
+          <div className="mt-4 space-y-1 text-xs text-gray-400">
+            <p>Não é necessário permanecer nesta tela — o cadastro continua em andamento.</p>
+            {totalRascunho > 0 && (
+              <p>
+                Uma cópia de segurança neste navegador guardou {totalRascunho} estudante(s) desta planilha que ainda não foram cadastrados.
+                Assim, pode retomar o envio se ocorrer algum problema.
+              </p>
+            )}
+          </div>
         )}
       </div>
+
+      {concluido && totalRascunho > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          Cópia de segurança atualizada com {totalRascunho} estudante(s) desta planilha que ainda não foram cadastrados.
+          Pode baixar essa cópia para corrigir e tentar novamente.
+        </div>
+      )}
 
       {concluido && falhas.length > 0 && (
         <div className="rounded-2xl border border-red-200 dark:border-red-800/60 overflow-hidden">
@@ -174,12 +206,12 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
           </div>
           <div className="max-h-72 overflow-y-auto divide-y divide-red-100 dark:divide-red-900/30 bg-white dark:bg-transparent">
             {falhas.map((f, i) => {
-              const nome = (f.payload as any)?.nome || `Item #${(f.index ?? i) + 1}`;
+              const nome = (f.payload as any)?.nome || `Estudante #${(f.index ?? i) + 1}`;
               return (
                 <div key={i} className="px-4 py-3">
                   <p className="text-sm font-medium text-gray-800 dark:text-white/90">{nome}</p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                    {f.erro || 'Falha não especificada pelo servidor.'}
+                    {f.erro || 'Não foi possível identificar o motivo da falha.'}
                   </p>
                 </div>
               );
@@ -190,6 +222,11 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
 
       {concluido && (
         <div className="flex flex-col sm:flex-row gap-3">
+          {totalRascunho > 0 && (
+            <Button variant="outline" size="sm" onClick={handleBaixarRascunho}>
+              Baixar estudantes por cadastrar ({totalRascunho})
+            </Button>
+          )}
           {falhas.length > 0 && (
             <Button variant="outline" size="sm" onClick={handleBaixarFalhas}>
               Baixar estudantes com falha ({falhas.length})

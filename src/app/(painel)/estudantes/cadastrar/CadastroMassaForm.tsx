@@ -11,6 +11,7 @@ import type { ContextoModelo, ResultadoAnalise } from './massaTypes';
 import { labelNivel, LIMITE_ESTUDANTES_POR_LOTE, dividirEmLotes } from './massaHelpers';
 import { construirPayloadEstudante } from './massaPayload';
 import { registrarEstudantesBatchSemArquivo } from './massaApi';
+import { lerRascunhoCadastroMassa, salvarRascunhoCadastroMassa } from './massaDraft';
 
 type Fase =
   | { tipo: 'verificando' }
@@ -46,9 +47,10 @@ export default function CadastroMassaForm() {
           (j) => j.type === 'register_estudante_batch' && (j.status === 'pending' || j.status === 'processing')
         );
         if (ativo) {
+          const rascunho = lerRascunhoCadastroMassa();
           setFase(
             jobsAtivos.length > 0
-              ? { tipo: 'progresso', jobIds: jobsAtivos.map((j) => j.id), contexto: null }
+              ? { tipo: 'progresso', jobIds: jobsAtivos.map((j) => j.id), contexto: rascunho?.contexto ?? null }
               : { tipo: 'normal' }
           );
         }
@@ -82,6 +84,13 @@ export default function CadastroMassaForm() {
     let itensEnviados = 0;
     let avisoSubmissao: string | null = null;
 
+    salvarRascunhoCadastroMassa({
+      contexto,
+      nomeArquivo,
+      jobIds,
+      estudantesPendentes: payloadCompleto,
+    });
+
     // Envia lote a lote — se um lote falhar ao ser submetido, os lotes já
     // enviados continuam normalmente e o utilizador é avisado sobre o
     // restante, podendo reenviar a mesma planilha depois (estudantes já
@@ -91,10 +100,16 @@ export default function CadastroMassaForm() {
         const resposta = await registrarEstudantesBatchSemArquivo(lotes[i]);
         jobIds.push(resposta.job_id);
         itensEnviados += lotes[i].length;
+        salvarRascunhoCadastroMassa({
+          contexto,
+          nomeArquivo,
+          jobIds,
+          estudantesPendentes: payloadCompleto,
+        });
       } catch (err: any) {
-        avisoSubmissao = `Foram enviados ${itensEnviados} de ${payloadCompleto.length} estudante(s) com sucesso. O envio do restante falhou: ${
+        avisoSubmissao = `Foram enviados ${itensEnviados} de ${payloadCompleto.length} estudante(s) com sucesso. Não foi possível enviar os demais: ${
           err?.message || 'erro desconhecido'
-        }. Depois de concluído este processamento, pode enviar novamente a planilha completa — estudantes já cadastrados não serão duplicados.`;
+        }. Quando o cadastro em andamento terminar, pode tentar novamente — os estudantes já cadastrados não serão repetidos.`;
         break;
       }
     }
