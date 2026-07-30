@@ -22,11 +22,11 @@ export const COLUNAS_MODELO_MASSA = [
   'Nome Completo',
   'Género (masculino ou feminino)',
   'Data de Nascimento (DD/MM/AAAA)',
-  'Email (opcional)',
+  'BI do Estudante',
+  'BI do Encarregado',
   'Telefone do Estudante',
-  'Telefone do Encarregado de Educação',
-  'Bilhete de Identidade do Estudante',
-  'Bilhete de Identidade do Encarregado de Educação',
+  'Telefone do Encarregado',
+  'Email (opcional)',
 ];
 
 function slugify(value: string): string {
@@ -96,8 +96,22 @@ export function gerarModeloExcel(contexto: ContextoModelo): void {
   // preencher — o envio à API é dividido em lotes automaticamente depois.
   const wsDados: any = XLSX.utils.aoa_to_sheet([COLUNAS_MODELO_MASSA]);
   wsDados['!cols'] = [
-    { wch: 30 }, { wch: 24 }, { wch: 24 }, { wch: 28 }, { wch: 20 }, { wch: 28 }, { wch: 28 }, { wch: 34 },
+    { wch: 30 }, { wch: 24 }, { wch: 24 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 24 }, { wch: 28 },
   ];
+
+  for (let c = 0; c < COLUNAS_MODELO_MASSA.length; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    wsDados[addr] = {
+      ...(wsDados[addr] || { t: 's', v: COLUNAS_MODELO_MASSA[c] }),
+      s: {
+        fill: { patternType: 'solid', fgColor: { rgb: 'ABDBE3' } },
+        font: { bold: true, color: { rgb: '000000' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      },
+    };
+  }
+  wsDados['!rows'] = [{ hpt: 30 }];
+  wsDados['!autofilter'] = { ref: `A1:${XLSX.utils.encode_col(COLUNAS_MODELO_MASSA.length - 1)}1` };
 
   for (let r = 1; r <= LINHAS_MODELO_EXCEL; r++) {
     for (let c = 0; c < COLUNAS_MODELO_MASSA.length; c++) {
