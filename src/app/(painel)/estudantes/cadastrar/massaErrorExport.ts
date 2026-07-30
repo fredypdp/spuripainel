@@ -114,7 +114,7 @@ export function baixarEstudantesComFalha(contexto: ContextoModelo | null, result
       p.telefone || '',
       p.telefone_encarregado || '',
       p.email || '',
-      erro || 'Falha não especificada pelo servidor.',
+      erro || 'Não foi possível identificar o motivo da falha.',
     ];
   });
 
@@ -125,7 +125,7 @@ export function baixarEstudantesComFalha(contexto: ContextoModelo | null, result
 export function baixarRascunhoEstudantesPendentes(contexto: ContextoModelo | null, estudantes: any[], nomeBase: string) {
   const resultados = estudantes.map((payload) => ({
     payload,
-    erro: 'Ainda não confirmado como cadastrado. Reutilize este rascunho para retomar o envio.',
+    erro: 'Ainda não foi cadastrado. Use esta cópia para corrigir e tentar novamente.',
   }));
   baixarEstudantesComFalha(contexto, resultados, `rascunho-${nomeBase}`);
 }

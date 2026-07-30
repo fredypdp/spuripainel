@@ -107,9 +107,9 @@ export default function CadastroMassaForm() {
           estudantesPendentes: payloadCompleto,
         });
       } catch (err: any) {
-        avisoSubmissao = `Foram enviados ${itensEnviados} de ${payloadCompleto.length} estudante(s) com sucesso. O envio do restante falhou: ${
+        avisoSubmissao = `Foram enviados ${itensEnviados} de ${payloadCompleto.length} estudante(s) com sucesso. Não foi possível enviar os demais: ${
           err?.message || 'erro desconhecido'
-        }. Depois de concluído este processamento, pode enviar novamente a planilha completa — estudantes já cadastrados não serão duplicados.`;
+        }. Quando o cadastro em andamento terminar, pode tentar novamente — os estudantes já cadastrados não serão repetidos.`;
         break;
       }
     }

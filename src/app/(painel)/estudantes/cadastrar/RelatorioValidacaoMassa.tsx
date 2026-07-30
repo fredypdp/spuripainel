@@ -150,7 +150,7 @@ export default function RelatorioValidacaoMassa({
         <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 mb-4">
           Todos os dados foram validados com sucesso.{' '}
           {totalLotes > 1
-            ? `Como são ${totalLinhas} estudantes, o envio será dividido automaticamente em ${totalLotes} lotes de até ${LIMITE_ESTUDANTES_POR_LOTE} estudantes cada, para respeitar o limite da plataforma.`
+            ? `Como são ${totalLinhas} estudantes, o sistema vai enviar automaticamente em ${totalLotes} grupos de até ${LIMITE_ESTUDANTES_POR_LOTE} estudantes cada.`
             : 'Confirme abaixo para iniciar o cadastro em massa.'}
         </div>
       )}
@@ -169,7 +169,7 @@ export default function RelatorioValidacaoMassa({
           {enviando
             ? 'Enviando...'
             : totalLotes > 1
-            ? `Confirmar cadastro de ${totalLinhas} estudante(s) em ${totalLotes} lotes`
+            ? `Confirmar cadastro de ${totalLinhas} estudante(s) em ${totalLotes} grupos`
             : `Confirmar cadastro de ${totalLinhas} estudante(s)`}
         </Button>
       </div>

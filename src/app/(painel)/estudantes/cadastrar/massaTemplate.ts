@@ -62,7 +62,7 @@ function montarLinhasInstrucoes(contexto: ContextoModelo): (string | undefined)[
   linhas.push(['2. Não altere os cabeçalhos, nem o nome ou a ordem das folhas.']);
   linhas.push(['3. Não é preciso indicar curso ou ano acadêmico: este modelo já está definido para o contexto acima.']);
   linhas.push([
-    '4. Pode preencher quantos estudantes precisar, sem limite neste ficheiro. Se ultrapassar 100 estudantes, o cadastro é enviado automaticamente em vários lotes de até 100, sem necessidade de dividir o ficheiro.',
+    '4. Pode preencher quantos estudantes precisar neste ficheiro. Se houver mais de 100 estudantes, o sistema envia automaticamente em grupos de até 100; não precisa separar o ficheiro.',
   ]);
   linhas.push(['5. A Data de Nascimento deve ser escrita como texto no formato DD/MM/AAAA. Exemplo: 15/05/2010.']);
   linhas.push(['6. O Género deve ser escrito exatamente como "masculino" ou "feminino".']);
