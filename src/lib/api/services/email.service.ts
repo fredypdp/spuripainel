@@ -23,7 +23,10 @@ class EmailAuthService {
 
     return api.post<TokenResponse>(
       '/email/gerar-token/verificacao',
-      {}, // body vazio — o backend usa o JWT para identificar o usuário
+      {
+        identificador: data.identificador,
+        tipo: data.tipo,
+      },
       { token } // ← passa via FetchOptions para o Authorization header
     );
   }
