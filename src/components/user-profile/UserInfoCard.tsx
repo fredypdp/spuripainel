@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import Alert from "@/components/ui/alert/Alert";
-import type { MeuPerfilResponse } from '@/types/api';
+import type { MeuPerfilResponse, UserType } from '@/types/api';
 import { VerificarEmailComFrontend } from "@/lib/utils/email"
 
 type UserInfoCardProps = {
@@ -23,18 +23,40 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
     [user]
   );
 
-  // ✅ CORREÇÃO: Identificador correto para cada tipo de usuário
+  const emailVerificado = useMemo(() => {
+    if (user?.tipo === "estudante") {
+      return Boolean(user.estudante?.email_verificado);
+    }
+    if (user?.tipo === "academia") {
+      return Boolean(user.academia?.email_verificado);
+    }
+    if (user?.tipo === "admin") {
+      return Boolean(user.admin?.email_verificado);
+    }
+    return false;
+  }, [user]);
+
+  // Identificador correto para cada tipo de usuário. Mantemos esta lógica
+  // separada da renderização para que a verificação fique disponível para
+  // estudante, academia e admin, não apenas para administradores.
   const userIdentificador = useMemo(() => {
-    if (user?.estudante) {
-      return user.estudante.codigo_estudante;
+    if (user?.tipo === "estudante") {
+      return user.estudante?.codigo_estudante || "";
     }
-    if (user?.academia) {
-      return user.academia.codigo_academia;
+    if (user?.tipo === "academia") {
+      return user.academia?.codigo_academia || "";
     }
-    if (user?.admin) {
-      return user.admin.email; // Admin usa email como identificador
+    if (user?.tipo === "admin") {
+      return user.admin?.email || "";
     }
     return "";
+  }, [user]);
+
+  const userTipo = useMemo<UserType | null>(() => {
+    if (user?.tipo === "estudante" || user?.tipo === "academia" || user?.tipo === "admin") {
+      return user.tipo;
+    }
+    return null;
   }, [user]);
 
   const userTelefone = useMemo(() => 
@@ -60,7 +82,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
     
     try {
       // ✅ Validações antes de chamar a API
-      if (!user?.tipo) {
+      if (!userTipo) {
         throw new Error('Tipo de usuário não identificado');
       }
 
@@ -72,7 +94,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
         throw new Error('Email não cadastrado');
       }
       
-      const res = await VerificarEmailComFrontend(userIdentificador, user.tipo);     
+      const res = await VerificarEmailComFrontend(userIdentificador, userTipo);     
       setEmailEnviado(res.success || true);
       
     } catch (error: any) {
@@ -144,7 +166,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium text-gray-800 dark:text-white/90">{userEmail}</p>
                     {userEmail && (
-                      user?.estudante?.email_verificado || user?.academia?.email_verificado || user?.admin?.email_verificado ? (
+                      emailVerificado ? (
                         <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
