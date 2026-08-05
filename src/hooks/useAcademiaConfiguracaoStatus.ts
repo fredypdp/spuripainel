@@ -31,8 +31,9 @@ interface RawStatus {
 }
 
 const hasAnoLetivo = (value: any) => Boolean(value?.ano_letivo || value?.academia?.ano_letivo || value?.data?.ano_letivo);
-const active = <T extends { status?: string }>(items: T[] = []) => items.filter((item) => item.status === "ativo" || !item.status);
-const includes = (values: string[] | undefined, value: string) => values?.includes(value) ?? false;
+const asArray = <T,>(value: T[] | null | undefined): T[] => Array.isArray(value) ? value : [];
+const active = <T extends { status?: string }>(items: T[] | null | undefined) => asArray(items).filter((item) => item.status === "ativo" || !item.status);
+const includes = (values: string[] | null | undefined, value: string) => asArray(values).includes(value);
 
 function hasStudentsInInstitutionLevels(estudantes: EstudanteDetalhado[], nivel?: string, nivelEscolar?: string) {
   if (nivel === "superior") return estudantes.some((estudante) => Boolean(estudante.ano_superior || estudante.curso_superior_id));
@@ -48,17 +49,20 @@ function hasStudentsInInstitutionLevels(estudantes: EstudanteDetalhado[], nivel?
 }
 
 function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string): ConfiguracaoGuiaStep[] {
-  const fundamentalYears = raw.academia?.anos_academicos ?? [];
+  const fundamentalYears = asArray(raw.academia?.anos_academicos);
   const cursos = active(raw.cursos);
   const materias = active(raw.materias);
   const turmas = active(raw.turmas);
-  const estudantes = raw.estudantes ?? [];
+  const estudantes = asArray(raw.estudantes);
   const isFundamental = nivel === "escola" && ["fundamental", "misto"].includes(nivelEscolar ?? "");
   const needsCourses = nivel === "superior" || (nivel === "escola" && ["medio", "misto"].includes(nivelEscolar ?? ""));
 
   const base = (id: ConfiguracaoGuiaStepId, title: string, description: string, href: string, completed: boolean, details: string): ConfiguracaoGuiaStep => ({ id, title, description, href, completed, details, unlocked: false, current: false });
   const hasFundamentalCoverage = (predicate: (year: string) => boolean) => !isFundamental || (fundamentalYears.length > 0 && fundamentalYears.every(predicate));
-  const hasCourseCoverage = (predicate: (course: Curso, year: string) => boolean) => !needsCourses || (cursos.length > 0 && cursos.every((course) => course.anos_academicos.length > 0 && course.anos_academicos.every((year) => predicate(course, year))));
+  const hasCourseCoverage = (predicate: (course: Curso, year: string) => boolean) => !needsCourses || (cursos.length > 0 && cursos.every((course) => {
+    const years = asArray(course.anos_academicos);
+    return years.length > 0 && years.every((year) => predicate(course, year));
+  }));
 
   const materiaComplete = hasFundamentalCoverage((year) => materias.some((materia) => materia.type === "fundamental" && includes(materia.anos_academicos, year)))
     && hasCourseCoverage((course, year) => {
@@ -67,8 +71,8 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string): Conf
     });
   const turmaComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year))
     && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year));
-  const studentsInTurmasComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year && turma.estudantes.length > 0))
-    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && turma.estudantes.length > 0));
+  const studentsInTurmasComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year && asArray(turma.estudantes).length > 0))
+    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && asArray(turma.estudantes).length > 0));
 
   const steps: ConfiguracaoGuiaStep[] = [
     base("ano-letivo", "Definir ano letivo", "Ative o primeiro ciclo letivo da academia.", "/configuracoes/ano-letivo", hasAnoLetivo(raw.anoLetivo), hasAnoLetivo(raw.anoLetivo) ? "Ano letivo ativo encontrado." : "Nenhum ano letivo ativo encontrado."),
