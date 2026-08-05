@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useApi, academiaService } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
-import type { Curso, CursoType, MeuPerfilResponse } from "@/types/api";
+import type { Curso, MeuPerfilResponse } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -24,7 +24,6 @@ const getApiErrorMessage = formatApiError;
 
 interface CursoFormData {
   nome: string;
-  type: CursoType;
   modelo: 'liceu' | 'tecnico';
   numSemestres: number;
 }
@@ -134,7 +133,6 @@ export default function CursosPainel() {
   const [editingCurso, setEditingCurso] = useState<Curso | null>(null);
   const [cursoParaDelete, setCursoParaDelete] = useState<Curso | null>(null);
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
-  const [viewTipoCurso, setViewTipoCurso] = useState<"medio" | "superior">("medio");
   const [secaoAberta, setSecaoAberta] = useState<Record<string, boolean>>({});
 
   // Lote
@@ -145,13 +143,9 @@ export default function CursosPainel() {
   const [loteCarregando, setLoteCarregando] = useState(false);
   const [loteModalOpen, setLoteModalOpen] = useState(false);
 
-  const getDefaultType = (): CursoType => {
-    if (!user?.academia) return "medio";
-    // nivel === 'superior' indica universidade
-    return user.academia.nivel === "superior" ? "superior" : "medio";
-  };
+  const isSuperior = user?.academia?.nivel === "superior";
 
-  const [formData, setFormData] = useState<CursoFormData>({ nome: "", type: getDefaultType(), modelo: "liceu", numSemestres: 6 });
+  const [formData, setFormData] = useState<CursoFormData>({ nome: "", modelo: "liceu", numSemestres: 6 });
 
   const { execute: executarListarCursos, data: cursos, loading: ListandoCursos } = useApi(academiaService.listarCursos);
   const { execute: executarCriarCurso, loading: CriandoCurso } = useApi(academiaService.criarCurso);
@@ -160,8 +154,6 @@ export default function CursosPainel() {
   const { execute: executarDesativarCurso, error: erroDesativarCurso } = useApi(academiaService.desativarCurso);
   const { execute: executarDeletarCurso } = useApi(academiaService.deletarCurso);
 
-  // nivel === 'escola' && nivel_escolar === 'misto' → academia mista
-  const isAcademiaMista = () => user?.academia?.nivel === "escola" && user?.academia?.nivel_escolar === "misto";
   const toggleSecao = (key: string) => setSecaoAberta(p => ({ ...p, [key]: p[key] === false ? true : false }));
   const isSecaoAberta = (key: string) => secaoAberta[key] !== false;
 
@@ -241,9 +233,9 @@ export default function CursosPainel() {
         await executarAtualizarCurso(editingCurso.id, { nome: formData.nome.trim() });
         showAlert("success", "Dados cadastrais do curso atualizados com sucesso");
       } else {
-        const payload = formData.type === "superior"
-          ? { nome: formData.nome.trim(), type: "superior" as const, periodos: formData.numSemestres }
-          : { nome: formData.nome.trim(), type: "medio" as const, modelo: formData.modelo };
+        const payload = isSuperior
+          ? { nome: formData.nome.trim(), quantidade_semestres: formData.numSemestres }
+          : { nome: formData.nome.trim(), modelo: formData.modelo };
         await executarCriarCurso(payload);
         showAlert("success", "Curso criado com sucesso");
       }
@@ -253,7 +245,7 @@ export default function CursosPainel() {
 
   const handleEdit = (curso: Curso) => {
     setEditingCurso(curso);
-    setFormData({ nome: curso.nome, type: curso.type, modelo: curso.modelo ?? "liceu", numSemestres: curso.periodos?.length || 6 });
+    setFormData({ nome: curso.nome, modelo: curso.modelo ?? "liceu", numSemestres: curso.periodos?.length || 6 });
     setShowForm(true);
   };
 
@@ -276,9 +268,7 @@ export default function CursosPainel() {
     } catch (e: unknown) { showAlert("error", getApiErrorMessage(e, "Erro ao deletar curso")); }
   };
 
-  const resetForm = () => { setFormData({ nome: "", type: getDefaultType(), modelo: "liceu", numSemestres: 6 }); setEditingCurso(null); setShowForm(false); };
-  // tipo é imutável após criação; se academia.nivel === 'superior', forçar 'superior'
-  const isTipoDisabled = () => !!editingCurso || user?.academia?.nivel === "superior";
+  const resetForm = () => { setFormData({ nome: "", modelo: "liceu", numSemestres: 6 }); setEditingCurso(null); setShowForm(false); };
   const listaCursos = cursos?.cursos ?? [];
 
   return (
@@ -312,14 +302,7 @@ export default function CursosPainel() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome *</label>
               <input type="text" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} placeholder="Nome do curso" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
-              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as CursoType })} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-                <option value="medio">Ensino Médio</option>
-                <option value="superior">Ensino Superior</option>
-              </select>
-            </div>
-            {formData.type === "medio" && !editingCurso && (
+            {!isSuperior && !editingCurso && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo do curso *</label>
                 <select
@@ -335,7 +318,7 @@ export default function CursosPainel() {
                 </p>
               </div>
             )}
-            {formData.type === "superior" && (
+            {isSuperior && !editingCurso && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Número de semestres *
@@ -399,9 +382,9 @@ export default function CursosPainel() {
           </div>
         );
 
-        const cursosVisiveis = isAcademiaMista() ? listaCursos.filter(c => c.type === viewTipoCurso) : listaCursos;
+        const cursosVisiveis = listaCursos;
         const tiposPresentes = Array.from(new Set(cursosVisiveis.map(c => c.type))) as Array<"medio" | "superior">;
-        const mostrarSecoes = !isAcademiaMista() && tiposPresentes.length > 1;
+        const mostrarSecoes = tiposPresentes.length > 1;
         const labelTipo = (t: string) => t === "medio" ? "Ensino Médio" : "Ensino Superior";
         const iconeTipo = (t: string) => t === "medio" ? "mdi:school" : "mdi:book-education";
 
@@ -495,15 +478,6 @@ export default function CursosPainel() {
 
         return (
           <div className="space-y-4">
-            {isAcademiaMista() && (
-              <div className="flex items-center">
-                <button onClick={() => setViewTipoCurso(v => v === "medio" ? "superior" : "medio")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
-                  <Icon icon={viewTipoCurso === "medio" ? "mdi:book-education" : "mdi:school"} width={16} />
-                  {viewTipoCurso === "medio" ? "Ver Cursos do Ensino Superior" : "Ver Cursos do Ensino Médio"}
-                </button>
-              </div>
-            )}
-
             {/* Selecionar todas / barra de lote */}
             {cursosVisiveis.length > 1 && (
               <div className="flex items-center gap-2 px-1">

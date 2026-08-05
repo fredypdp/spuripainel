@@ -472,6 +472,8 @@ export default function MateriaPainel() {
       if (editingMateria) {
         await executarAtualizarMateria(editingMateria.id, {
           nome: formData.nome.trim(),
+          anos_academicos: formData.anos_academicos,
+          ...(formData.type !== "fundamental" ? { curso_id: formData.curso_id } : {}),
           ...(editingMateria.type === "superior" ? {
             pendencia_permitida: formData.pendencia_permitida,
             pendencia_nivel_conclusao: formData.pendencia_permitida ? formData.pendencia_nivel_conclusao : undefined,
@@ -590,13 +592,12 @@ export default function MateriaPainel() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome *</label>
               <input type="text" value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} placeholder="Ex: Matemática" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white" />
             </div>
-            {!editingMateria && (
-              <>
-                {isAcademiaMista() && (
+            <>
+                {!editingMateria && isAcademiaMista() && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
                     <select value={formData.type} onChange={e => handleTypeChange(e.target.value as MateriaType)} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-                      <option value="fundamental">Fundamental</option><option value="medio">Médio</option><option value="superior">Superior</option>
+                      <option value="fundamental">Fundamental</option><option value="medio">Médio</option>
                     </select>
                   </div>
                 )}
@@ -622,7 +623,7 @@ export default function MateriaPainel() {
                     </div>
                   )}
                 </div>
-                {formData.type === "superior" && formData.curso_id && (
+                {!editingMateria && formData.type === "superior" && formData.curso_id && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Período/semestre *</label>
                     <select value={formData.periodo ?? ""} onChange={e => setFormData({ ...formData, periodo: e.target.value || undefined })} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
@@ -631,7 +632,7 @@ export default function MateriaPainel() {
                     </select>
                   </div>
                 )}
-                {formData.type === "superior" && formData.curso_id && (
+                {!editingMateria && formData.type === "superior" && formData.curso_id && (
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                       <input type="checkbox" checked={formData.pendencia_permitida} onChange={e => setFormData({ ...formData, pendencia_permitida: e.target.checked, pendencia_nivel_conclusao: e.target.checked ? formData.pendencia_nivel_conclusao : undefined })} />
@@ -647,8 +648,7 @@ export default function MateriaPainel() {
                     )}
                   </div>
                 )}
-              </>
-            )}
+            </>
             {editingMateria?.type === "superior" && (
               <div className="grid gap-3 md:grid-cols-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                 <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

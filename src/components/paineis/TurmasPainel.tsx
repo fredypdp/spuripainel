@@ -238,6 +238,7 @@ export default function TurmasPainel() {
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
   const [turmaParaDelete, setTurmaParaDelete] = useState<Turma | null>(null);
   const [formData, setFormData] = useState({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined as string | undefined });
+  const [formTipo, setFormTipo] = useState<"fundamental" | "curso">("fundamental");
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [codigoAdd, setCodigoAdd] = useState("");
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
@@ -272,6 +273,7 @@ export default function TurmasPainel() {
   const nivelEscolar = user?.academia?.nivel_escolar;
   const isFundamental = academiaNivel === "escola" && nivelEscolar === "fundamental";
   const isMisto = academiaNivel === "escola" && nivelEscolar === "misto";
+  const turmaUsaCurso = !isFundamental && (!isMisto || formTipo === "curso");
 
   useEffect(() => {
     const t = tokenStorage.get() ?? undefined;
@@ -326,7 +328,10 @@ export default function TurmasPainel() {
   }, [turmas]);
 
   const getNivelOptions = (cursoId?: string) => {
-    if (isFundamental) return ANOS_FUNDAMENTAL;
+    if (isFundamental || (isMisto && formTipo === "fundamental")) {
+      const anosOfertados = user?.academia?.anos_academicos ?? [];
+      return ANOS_FUNDAMENTAL.filter((ano) => anosOfertados.includes(ano.value));
+    }
     if (!cursoId) return [];
     const curso = cursos.find(c => c.id === cursoId);
     if (!curso) return [];
@@ -459,11 +464,12 @@ export default function TurmasPainel() {
     executarBatchAsync(() => academiaService.deletarTurmaBatchAsync(payload), `Deletar ${sel.length} turma(s)`, sel.map(t => ({ codigo: t.codigo_turma, nome: t.codigo_turma })));
   };
 
-  const resetForm = () => { setFormData({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined }); setEditingTurma(null); setShowForm(false); };
+  const resetForm = () => { setFormData({ codigo_turma: "", nivel: "", turno: "manha", curso_id: undefined }); setFormTipo(isMisto ? "fundamental" : "curso"); setEditingTurma(null); setShowForm(false); };
 
   const handleEdit = (t: Turma) => {
     setEditingTurma(t);
     setFormData({ codigo_turma: t.codigo_turma, nivel: t.nivel, turno: t.turno, curso_id: t.curso_id });
+    setFormTipo(t.curso_id ? "curso" : "fundamental");
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -471,9 +477,11 @@ export default function TurmasPainel() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.codigo_turma.trim() || !formData.nivel || !formData.turno) { showMsg("error", "Preencha todos os campos obrigatórios"); return; }
+    if (turmaUsaCurso && !formData.curso_id) { showMsg("error", "Selecione o curso da turma."); return; }
     try {
-      if (editingTurma) { await atualizarTurma(editingTurma.codigo_turma, { nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined }); showMsg("success", "Turma actualizada com sucesso"); }
-      else { await criarTurma({ codigo_turma: formData.codigo_turma, nivel: formData.nivel, turno: formData.turno, curso_id: formData.curso_id || undefined }); showMsg("success", "Turma criada com sucesso"); }
+      const payload = { nivel: formData.nivel, turno: formData.turno, ...(turmaUsaCurso ? { curso_id: formData.curso_id! } : {}) };
+      if (editingTurma) { await atualizarTurma(editingTurma.codigo_turma, payload); showMsg("success", "Turma actualizada com sucesso"); }
+      else { await criarTurma({ codigo_turma: formData.codigo_turma, ...payload }); showMsg("success", "Turma criada com sucesso"); }
       resetForm(); reload();
     } catch (err: unknown) { showMsg("error", formatApiError(err, "Erro ao guardar turma")); }
   };
@@ -555,7 +563,16 @@ export default function TurmasPainel() {
           <input type="text" value={formData.codigo_turma} onChange={e => setFormData({ ...formData, codigo_turma: e.target.value })} disabled={!!editingTurma} placeholder="Ex: 7A, 8B, Turma-1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50" />
           {editingTurma && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">O código não pode ser alterado após a criação</p>}
         </div>
-        {!isFundamental && (
+        {isMisto && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível de ensino *</label>
+            <select value={formTipo} onChange={e => { const tipo = e.target.value as "fundamental" | "curso"; setFormTipo(tipo); setFormData({ ...formData, curso_id: undefined, nivel: "" }); }} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
+              <option value="fundamental">Ensino Fundamental</option>
+              <option value="curso">Ensino Médio</option>
+            </select>
+          </div>
+        )}
+        {turmaUsaCurso && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
             <select value={formData.curso_id ?? ""} onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, nivel: "" })} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
@@ -566,7 +583,7 @@ export default function TurmasPainel() {
         )}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível / Ano *</label>
-          <select value={formData.nivel} onChange={e => setFormData({ ...formData, nivel: e.target.value })} disabled={!isFundamental && !formData.curso_id} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
+          <select value={formData.nivel} onChange={e => setFormData({ ...formData, nivel: e.target.value })} disabled={turmaUsaCurso && !formData.curso_id} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
             <option value="">Selecione o ano</option>
             {getNivelOptions(formData.curso_id).map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
           </select>

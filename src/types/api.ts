@@ -431,16 +431,14 @@ export interface MateriasChaveCursoAnoDTO {
 
 export type CriarCursoMedioRequest = {
   nome: string;
-  type: 'medio';
   /** Modelo do curso médio. O backend usa essa escolha para montar os anos automaticamente. */
   modelo: ModeloCursoMedio;
 };
 
 export type CriarCursoSuperiorRequest = {
   nome: string;
-  type: 'superior';
   /** Obrigatório para superior: quantidade total de semestres. */
-  periodos: number;
+  quantidade_semestres: number;
 };
 
 export type CriarCursoRequest = CriarCursoMedioRequest | CriarCursoSuperiorRequest;
@@ -490,6 +488,8 @@ export type CriarMateriaRequest =
 
 export interface AtualizarMateriaRequest {
   nome?: string;
+  anos_academicos?: string[];
+  curso_id?: string;
   /** Apenas matérias superiores podem aceitar pendência. */
   pendencia_permitida?: boolean;
   /** Apenas matérias superiores: semestre limite para concluir a pendência. */
