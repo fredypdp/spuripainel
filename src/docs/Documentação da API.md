@@ -315,7 +315,7 @@ interface MateriaDTO {
   id: string
   nome: string
   type: MateriaType          // preenchido automaticamente (exceto escola mista, que informa no create)
-  anos_academicos?: string[]  // ex: ['2_ano_fundamental'] ou ['1_ano_medio']
+  anos_academicos?: string[]  // ex: ['2_ano_fundamental'] ou ['1_ano_medio', '2_ano_medio']; médio aceita múltiplos anos, exceto 4_ano_medio
   periodo?: string            // ex: '1_semestre' — obrigatório para superior
   pendencia_permitida: boolean // disponível apenas para superior; define se pode ficar pendente
   pendencia_nivel_conclusao?: string // ex: '2_semestre'; limite máximo com pendência superior
@@ -566,7 +566,7 @@ interface AsyncBatchAcceptedResponse {
 
 As rotas `GET /academias` e `GET /consultar-academia/:codigo` são públicas com autenticação opcional. Usuários não autenticados podem consultar a lista de academias ou uma academia específica pelo código, mas a resposta expõe somente os campos públicos: `nivel`, `type`, `nome`, `codigo_academia`, `provincia`, `endereco`, `nivel_escolar` e `anos_academicos`. Para escolas fundamentais ou mistas, `anos_academicos` informa os anos acadêmicos ofertados sem exigir sessão. Usuários autenticados recebem também `documentos.alvara.download_url` apontando para `/documentos/academias/{codigo_academia}/alvara/download`, permitindo download do alvará pelo backend sem expor links diretos do storage.
 
-As rotas `GET /academia/cursos?codigo_academia=...` e `GET /academia/curso/:id` também são públicas com autenticação opcional para consulta dos cursos e dos anos desses cursos em escolas do médio e academias do nível superior. Academias autenticadas continuam consultando os próprios cursos sem informar `codigo_academia`; admins autenticados continuam informando `codigo_academia` na listagem.
+As rotas `GET /academia/cursos?codigo_academia=...` e `GET /academia/curso/:id` também são públicas com autenticação opcional para consulta dos cursos e dos anos desses cursos em escolas de nível `medio` ou `misto` e academias do nível superior. Academias autenticadas continuam consultando os próprios cursos sem informar `codigo_academia`; admins autenticados continuam informando `codigo_academia` na listagem.
 
 Quando a requisição envia `Authorization: Bearer <jwt_token>` válido, a API preserva o contrato autenticado anterior, retornando também campos operacionais para usuários autenticados e campos administrativos adicionais para admins. Tokens enviados em formato inválido, expirados ou pertencentes a contas inativas devem ser rejeitados com `401`.
 
@@ -3691,7 +3691,7 @@ Authorization: Bearer <token>
 
 ## 10. Cursos
 
-Cursos são cadastros próprios da academia e são a fonte de verdade para vínculo de estudantes, matérias, turmas e regras acadêmicas. Cursos médios existem apenas para escolas de nível `medio`; cursos superiores existem apenas para academias de nível `superior`. IDs são UUIDs e o tipo do curso é imutável.
+Cursos são cadastros próprios da academia e são a fonte de verdade para vínculo de estudantes, matérias, turmas e regras acadêmicas. Cursos médios existem para escolas de nível `medio` ou `misto`; em escolas mistas, eles representam o domínio do ensino médio, enquanto os anos do fundamental permanecem configurados na própria academia. Cursos superiores existem apenas para academias de nível `superior`. IDs são UUIDs e o tipo do curso é imutável.
 
 ### 10.1 `GET /academia/cursos`
 
@@ -3755,7 +3755,7 @@ Cria um curso da academia autenticada.
 | Campo | Tipo | Obrigatório | Observações |
 | --- | --- | --- | --- |
 | `nome` | string | sim | Nome cadastral do curso. |
-| `modelo` | enum | sim apenas para escola `medio` | Aceita `liceu` ou `tecnico`; proibido em academia `superior`. |
+| `modelo` | enum | sim apenas para escola `medio` ou `misto` | Aceita `liceu` ou `tecnico`; proibido em academia `superior`. |
 | `quantidade_semestres` | inteiro | sim apenas para academia `superior` | Define os períodos/semestres derivados; proibido em curso `medio`. |
 
 **Request body — curso médio:**
@@ -3792,7 +3792,7 @@ Content-Type: application/json
 **Regras de negócio:**
 
 - `nome` é obrigatório.
-- O tipo é inferido da academia: escola `medio` cria curso `medio`; academia `superior` cria curso `superior`; outros níveis não criam cursos.
+- O tipo é inferido da academia: escola `medio` ou `misto` cria curso `medio`; academia `superior` cria curso `superior`; outros níveis não criam cursos. Em uma escola `misto`, o curso médio não substitui os anos acadêmicos fundamentais configurados na academia.
 - Curso médio exige `modelo` (`liceu` ou `tecnico`), rejeita `anos_academicos` e deriva anos fixos do modelo.
 - Curso superior exige quantidade/períodos válidos, rejeita `modelo` e deriva `anos_academicos` a partir dos semestres/períodos.
 - A academia deve estar `ativo`.
@@ -4089,7 +4089,7 @@ Remove cursos em lote por job assíncrono.
 
 ### Processos de negócio — Matérias
 
-Matérias pertencem sempre a uma academia e são a base para notas, faltas, turmas e avaliações finais. Em academias escolares, o tipo é inferido pelo `nivel_escolar`; academias mistas devem informar `type` como `fundamental` ou `medio`; academias superiores criam apenas matérias `superior`, vinculadas a curso superior e a um `periodo` acadêmico. Campos de pendência (`pendencia_permitida` e `pendencia_nivel_conclusao`) são exclusivos do superior.
+Matérias pertencem sempre a uma academia e são a base para notas, faltas, turmas e avaliações finais. Em academias escolares, o tipo é inferido pelo `nivel_escolar`; academias mistas devem informar `type` como `fundamental` ou `medio`; academias superiores criam apenas matérias `superior`, vinculadas a curso superior e a um `periodo` acadêmico. Uma matéria do médio pode declarar mais de um ano acadêmico em `anos_academicos`, mas o backend bloqueia `4_ano_medio` para matérias convencionais do médio. Campos de pendência (`pendencia_permitida` e `pendencia_nivel_conclusao`) são exclusivos do superior.
 
 Todas as escritas exigem autenticação de academia ativa. Consultas de academia usam a própria instituição; admins podem consultar uma academia específica quando a rota aceitar `codigo_academia`. IDs de matéria são UUIDs.
 
@@ -4114,7 +4114,7 @@ Lista as matérias da academia alvo.
       "type": "medio",
       "status": "ativa",
       "codigo_academia": "ACAD001",
-      "anos_academicos": ["10_ano_medio"],
+      "anos_academicos": ["1_ano_medio", "2_ano_medio"],
       "curso_id": "uuid-do-curso",
       "periodo": null,
       "pendencia_permitida": null,
@@ -4157,7 +4157,7 @@ Cria uma matéria disciplinar no escopo da academia autenticada.
 {
   "nome": "Matemática",
   "type": "medio",
-  "anos_academicos": ["10_ano_medio"],
+  "anos_academicos": ["1_ano_medio", "2_ano_medio"],
   "curso_id": "uuid-do-curso-medio"
 }
 ```
@@ -4178,6 +4178,7 @@ Cria uma matéria disciplinar no escopo da academia autenticada.
 **Regras de validação:**
 
 - `nome` e `anos_academicos` são obrigatórios.
+- Matérias do médio podem informar múltiplos anos acadêmicos no mesmo array, desde que nenhum item seja `4_ano_medio`.
 - Em academia mista, `type` é obrigatório e deve ser `fundamental` ou `medio`.
 - Em ensino superior, `curso_id` e `periodo` são obrigatórios.
 - Campos de pendência só são aceitos para matérias superiores.
@@ -4253,7 +4254,7 @@ Atualiza dados editáveis da matéria.
 ```json
 {
   "nome": "Matemática Aplicada",
-  "anos_academicos": ["10_ano_medio", "11_ano_medio"],
+  "anos_academicos": ["1_ano_medio", "2_ano_medio"],
   "curso_id": "uuid-do-curso",
   "pendencia_permitida": false,
   "pendencia_nivel_conclusao": null
@@ -4264,6 +4265,7 @@ Atualiza dados editáveis da matéria.
 
 - `periodo` não é editável nesta rota.
 - `curso_id` deve apontar para curso compatível com a academia e o tipo da matéria.
+- Matérias do médio continuam podendo ter múltiplos anos acadêmicos, mas atualizações com `4_ano_medio` são rejeitadas.
 - Pendência continua exclusiva de matérias superiores.
 - A atualização preserva o mesmo ID e grava evento de alteração no ledger.
 
