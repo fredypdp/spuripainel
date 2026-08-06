@@ -13,6 +13,7 @@ import Icon from "@/components/ui/Icon";
 import SidebarWidget from "./SidebarWidget";
 import { getCookie } from '@/lib/utils/cookies';
 import type { MeuPerfilResponse } from '@/types/api';
+import { isTestesPageEnabled } from '@/lib/app-env';
 
 type NavItem = {
   name: string;
@@ -181,9 +182,13 @@ export default function AppSidebar() {
     };
   }, [isDesktop]);
 
-  // Filtrar navItems baseado no tipo de usuário
+  // Filtrar navItems baseado no tipo de usuário e no ambiente atual
   const filteredNavItems = useMemo(() => {
-    if (!mounted) return navItems;
+    const environmentNavItems = isTestesPageEnabled()
+      ? navItems
+      : navItems.filter((item) => item.path !== "/testes");
+
+    if (!mounted) return environmentNavItems;
 
     /*
      * user?.academia?.nivel distingue o tipo de instituição: 'escola' | 'superior'
@@ -199,7 +204,7 @@ export default function AppSidebar() {
     const isAdmin = user?.tipo === "admin";
     const isFpp = isAdmin && user?.admin?.role === "fpp";
 
-    return navItems
+    return environmentNavItems
       .filter((item) => {
         if (user?.tipo) {
           // Academias: apenas admin

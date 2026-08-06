@@ -1,6 +1,7 @@
 // src/lib/route-guards.ts
 
 import { UserType } from '@/types/api';
+import { isTestesPageEnabled } from '@/lib/app-env';
 
 export interface RouteConfig {
   path: string;
@@ -125,8 +126,13 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
 
   // ==========================================
-  // ROTAS DE TESTES — apenas academia
+  // ROTAS DE TESTES — apenas academia em ambiente de teste/desenvolvimento
   // ==========================================
+  {
+    path: '/testes',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/painel',
+  },
   {
     path: '/dev/seed',
     allowedTypes: ['academia'],
@@ -192,6 +198,10 @@ export function checkRoutePermission(
   const normalizedPath = pathname.endsWith('/') && pathname !== '/'
     ? pathname.slice(0, -1)
     : pathname;
+
+  if (normalizedPath === '/testes' && !isTestesPageEnabled()) {
+    return { allowed: false, redirectTo: '/painel' };
+  }
 
   const routeConfig = ROUTE_PERMISSIONS.find(route => {
     if (route.path === normalizedPath) return true;
