@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/ui/Icon";
 import { useAcademiaConfiguracaoStatus } from "@/hooks/useAcademiaConfiguracaoStatus";
+import { useUserType } from "@/hooks/useRoutePermission";
+import { VerificarEmailComFrontend } from "@/lib/utils/email";
 
 const stepRouteReferences: Record<string, { href: string; label: string }[]> = {
   estudantes: [
@@ -12,9 +15,32 @@ const stepRouteReferences: Record<string, { href: string; label: string }[]> = {
 };
 
 export default function GuiaConfiguracoesSection() {
+  const { user } = useUserType();
   const { steps, completedCount, totalCount, nextStep, loading, error, retry } = useAcademiaConfiguracaoStatus();
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const nextStepRouteReferences = nextStep ? stepRouteReferences[nextStep.id] ?? [] : [];
+  const academia = user?.academia;
+
+  const handleEnviarVerificacaoEmail = async () => {
+    setSendingVerification(true);
+    setVerificationMessage(null);
+    setVerificationError(null);
+
+    try {
+      if (!academia?.codigo_academia) throw new Error("Código da instituição não disponível.");
+      if (!academia.email) throw new Error("Cadastre um e-mail para a instituição antes de solicitar a verificação.");
+
+      const response = await VerificarEmailComFrontend(academia.codigo_academia, "academia");
+      setVerificationMessage(response.message || "E-mail de verificação enviado com sucesso.");
+    } catch (err) {
+      setVerificationError(err instanceof Error ? err.message : "Não foi possível enviar o e-mail de verificação.");
+    } finally {
+      setSendingVerification(false);
+    }
+  };
 
   if (loading) {
     return <div className="space-y-5 sm:space-y-6">{[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800 sm:h-28" />)}</div>;
@@ -42,7 +68,7 @@ export default function GuiaConfiguracoesSection() {
           <div>
             <p className="text-sm font-medium text-brand-500">Configuração inicial</p>
             <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">{completedCount} de {totalCount} passos concluídos</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a academia sem pular dependências. No telemóvel, cada ação fica destacada e ocupa a largura completa para facilitar o toque.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a instituição sem pular dependências.</p>
           </div>
           {nextStep ? (
             nextStepRouteReferences.length > 0 ? (
@@ -54,6 +80,16 @@ export default function GuiaConfiguracoesSection() {
                   </Link>
                 ))}
               </div>
+            ) : nextStep.id === "email-verificacao" ? (
+              <button
+                type="button"
+                onClick={handleEnviarVerificacaoEmail}
+                disabled={sendingVerification || !academia?.email}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-5"
+              >
+                {sendingVerification ? "Enviando..." : "Enviar e-mail de verificação"}
+                <Icon icon="mdi:email-fast-outline" className="h-4 w-4" />
+              </button>
             ) : (
               <Link href={nextStep.href} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 sm:w-auto sm:px-5">
                 Continuar: {nextStep.title}
@@ -65,6 +101,8 @@ export default function GuiaConfiguracoesSection() {
           )}
         </div>
         <div className="mt-6 h-2.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"><div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} /></div>
+        {verificationMessage && <p className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{verificationMessage}</p>}
+        {verificationError && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{verificationError}</p>}
       </section>
 
       <ol className="grid gap-5 sm:gap-6 lg:gap-7">
@@ -105,7 +143,18 @@ export default function GuiaConfiguracoesSection() {
                     ))}
                   </div>
                 )}
-                {step.unlocked && !step.completed && routeReferences.length === 0 && <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-500">Abrir configuração <Icon icon="mdi:open-in-new" className="h-4 w-4" /></span>}
+                {step.id === "email-verificacao" && step.unlocked && !step.completed && (
+                  <button
+                    type="button"
+                    onClick={handleEnviarVerificacaoEmail}
+                    disabled={sendingVerification || !academia?.email}
+                    className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    {sendingVerification ? "Enviando..." : "Enviar e-mail de verificação"}
+                    <Icon icon="mdi:email-fast-outline" className="h-4 w-4" />
+                  </button>
+                )}
+                {step.id !== "email-verificacao" && step.unlocked && !step.completed && routeReferences.length === 0 && <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-500">Abrir configuração <Icon icon="mdi:open-in-new" className="h-4 w-4" /></span>}
                 {!step.unlocked && <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-gray-400"><Icon icon="mdi:lock-outline" className="h-4 w-4" /> Conclua os passos anteriores para liberar</span>}
               </div>
             </div>
@@ -113,7 +162,7 @@ export default function GuiaConfiguracoesSection() {
 
           const cardClassName = `rounded-2xl border p-4 shadow-sm transition hover:shadow-md sm:p-5 lg:p-6 ${step.current ? "border-brand-300 bg-brand-50/60 dark:border-brand-700 dark:bg-brand-900/10" : "border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"} ${!step.unlocked ? "opacity-75" : ""}`;
 
-          if (routeReferences.length > 0 || !step.unlocked) {
+          if (step.id === "email-verificacao" || routeReferences.length > 0 || !step.unlocked) {
             return <li key={step.id} className={cardClassName}>{cardContent}</li>;
           }
 
