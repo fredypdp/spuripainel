@@ -68,7 +68,7 @@ export default function GuiaConfiguracoesSection() {
           <div>
             <p className="text-sm font-medium text-brand-500">Configuração inicial</p>
             <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">{completedCount} de {totalCount} passos concluídos</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a instituição sem pular dependências. No telemóvel, cada ação fica destacada e ocupa a largura completa para facilitar o toque.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a instituição sem pular dependências.</p>
           </div>
           {nextStep ? (
             nextStepRouteReferences.length > 0 ? (
