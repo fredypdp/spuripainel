@@ -78,16 +78,16 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, email
     base(
       "email-verificacao",
       "Verificar e-mail",
-      "Envie o e-mail de verificação para confirmar o endereço da academia antes de continuar.",
+      "Envie o e-mail de verificação para confirmar o endereço da instituição antes de continuar.",
       "",
       emailVerificado,
       emailVerificado
-        ? "E-mail da academia verificado."
+        ? "E-mail da instituição verificado."
         : email
           ? `Será enviado um link de verificação para ${email}.`
-          : "Cadastre um e-mail para a academia antes de solicitar a verificação.",
+          : "Cadastre um e-mail para a instituição antes de solicitar a verificação.",
     ),
-    base("ano-letivo", "Definir ano letivo", "Ative o primeiro ciclo letivo da academia.", "/configuracoes/ano-letivo", hasAnoLetivo(raw.anoLetivo), hasAnoLetivo(raw.anoLetivo) ? "Ano letivo ativo encontrado." : "Nenhum ano letivo ativo encontrado."),
+    base("ano-letivo", "Definir ano letivo", "Ative o primeiro ciclo letivo da instituição.", "/configuracoes/ano-letivo", hasAnoLetivo(raw.anoLetivo), hasAnoLetivo(raw.anoLetivo) ? "Ano letivo ativo encontrado." : "Nenhum ano letivo ativo encontrado."),
   ];
   if (needsCourses) steps.push(base("cursos", "Criar cursos", "Cadastre os cursos da sua instituição", "/gerenciamento/cursos", cursos.length > 0, `${cursos.length} curso(s) ativo(s).`));
   steps.push(base("materias", "Criar matérias disciplinares", "Garanta matérias disciplinares para cada ano acadêmico ofertado.", "/gerenciamento/materias-disciplinares", materiaComplete, "Cobertura exigida para cada ano ofertado e, no superior, para cada período do curso."));

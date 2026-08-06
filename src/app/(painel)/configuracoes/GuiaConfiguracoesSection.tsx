@@ -30,8 +30,8 @@ export default function GuiaConfiguracoesSection() {
     setVerificationError(null);
 
     try {
-      if (!academia?.codigo_academia) throw new Error("Código da academia não disponível.");
-      if (!academia.email) throw new Error("Cadastre um e-mail para a academia antes de solicitar a verificação.");
+      if (!academia?.codigo_academia) throw new Error("Código da instituição não disponível.");
+      if (!academia.email) throw new Error("Cadastre um e-mail para a instituição antes de solicitar a verificação.");
 
       const response = await VerificarEmailComFrontend(academia.codigo_academia, "academia");
       setVerificationMessage(response.message || "E-mail de verificação enviado com sucesso.");
@@ -68,7 +68,7 @@ export default function GuiaConfiguracoesSection() {
           <div>
             <p className="text-sm font-medium text-brand-500">Configuração inicial</p>
             <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">{completedCount} de {totalCount} passos concluídos</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a academia sem pular dependências. No telemóvel, cada ação fica destacada e ocupa a largura completa para facilitar o toque.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Siga a sequência liberada para preparar a instituição sem pular dependências. No telemóvel, cada ação fica destacada e ocupa a largura completa para facilitar o toque.</p>
           </div>
           {nextStep ? (
             nextStepRouteReferences.length > 0 ? (
