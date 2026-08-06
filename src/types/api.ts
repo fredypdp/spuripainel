@@ -461,7 +461,7 @@ export type CriarMateriaFundamentalRequest = {
 export type CriarMateriaMedioRequest = {
   nome: string;
   type?: 'medio';
-  /** Médio exige exatamente um ano acadêmico pertencente ao curso. */
+  /** Médio permite múltiplos anos acadêmicos pertencentes ao curso, exceto 4_ano_medio para matérias convencionais. */
   anos_academicos: AnoMedio[];
   curso_id: string;
   periodo?: never;
