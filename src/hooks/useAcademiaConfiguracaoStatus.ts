@@ -6,7 +6,7 @@ import { tokenStorage } from "@/lib/api";
 import { useUserType } from "@/hooks/useRoutePermission";
 import type { CategoriaNotaItem, Curso, EstudanteDetalhado, Materia, RegraAvaliacaoFinal, Turma } from "@/types/api";
 
-export type ConfiguracaoGuiaStepId = "ano-letivo" | "cursos" | "materias" | "categorias-superiores" | "regras-superiores" | "turmas" | "estudantes" | "estudantes-turmas";
+export type ConfiguracaoGuiaStepId = "email-verificacao" | "ano-letivo" | "cursos" | "materias" | "categorias-superiores" | "regras-superiores" | "turmas" | "estudantes" | "estudantes-turmas";
 
 export interface ConfiguracaoGuiaStep {
   id: ConfiguracaoGuiaStepId;
@@ -48,7 +48,7 @@ function hasStudentsInInstitutionLevels(estudantes: EstudanteDetalhado[], nivel?
   return required.every(Boolean);
 }
 
-function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string): ConfiguracaoGuiaStep[] {
+function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, emailVerificado = false, email?: string): ConfiguracaoGuiaStep[] {
   const fundamentalYears = asArray(raw.academia?.anos_academicos);
   const cursos = active(raw.cursos);
   const materias = active(raw.materias);
@@ -75,7 +75,19 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string): Conf
     && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && asArray(turma.estudantes).length > 0));
 
   const steps: ConfiguracaoGuiaStep[] = [
-    base("ano-letivo", "Definir ano letivo", "Ative o primeiro ciclo letivo da academia.", "/configuracoes/ano-letivo", hasAnoLetivo(raw.anoLetivo), hasAnoLetivo(raw.anoLetivo) ? "Ano letivo ativo encontrado." : "Nenhum ano letivo ativo encontrado."),
+    base(
+      "email-verificacao",
+      "Verificar e-mail",
+      "Envie o e-mail de verificação para confirmar o endereço da instituição antes de continuar.",
+      "",
+      emailVerificado,
+      emailVerificado
+        ? "E-mail da instituição verificado."
+        : email
+          ? `Será enviado um link de verificação para ${email}.`
+          : "Cadastre um e-mail para a instituição antes de solicitar a verificação.",
+    ),
+    base("ano-letivo", "Definir ano letivo", "Ative o primeiro ciclo letivo da instituição.", "/configuracoes/ano-letivo", hasAnoLetivo(raw.anoLetivo), hasAnoLetivo(raw.anoLetivo) ? "Ano letivo ativo encontrado." : "Nenhum ano letivo ativo encontrado."),
   ];
   if (needsCourses) steps.push(base("cursos", "Criar cursos", "Cadastre os cursos da sua instituição", "/gerenciamento/cursos", cursos.length > 0, `${cursos.length} curso(s) ativo(s).`));
   steps.push(base("materias", "Criar matérias disciplinares", "Garanta matérias disciplinares para cada ano acadêmico ofertado.", "/gerenciamento/materias-disciplinares", materiaComplete, "Cobertura exigida para cada ano ofertado e, no superior, para cada período do curso."));
@@ -130,7 +142,7 @@ export function useAcademiaConfiguracaoStatus() {
   }, [isAcademia, nivel, nivelEscolar]);
 
   useEffect(() => { reload(); }, [reload]);
-  const steps = useMemo(() => buildSteps(raw, nivel, nivelEscolar), [raw, nivel, nivelEscolar]);
+  const steps = useMemo(() => buildSteps(raw, nivel, nivelEscolar, Boolean(user?.academia?.email_verificado), user?.academia?.email), [raw, nivel, nivelEscolar, user?.academia?.email, user?.academia?.email_verificado]);
   const completedCount = steps.filter((step) => step.completed).length;
   return { steps, completedCount, totalCount: steps.length, nextStep: steps.find((step) => step.current) ?? null, loading, error, retry: reload, mutate: reload };
 }
