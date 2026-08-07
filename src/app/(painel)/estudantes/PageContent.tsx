@@ -200,8 +200,9 @@ function ordenarEstudantes(lista: EstudanteDetalhado[], ordem: OrdemEstudantes):
 
 type EstudantesParams = NonNullable<Parameters<typeof consultasService.listarEstudantes>[0]>;
 
-function paramsEstudantesPorTurma(turma: Turma, token?: string, comTurma?: boolean): EstudantesParams {
+function paramsEstudantesPorTurma(turma: Turma, token?: string, comTurma?: boolean, porCodigoTurma = false): EstudantesParams {
   const params: EstudantesParams = { token, com_turma: comTurma };
+  if (porCodigoTurma) params.codigo_turma = turma.codigo_turma;
   if (turma.nivel.includes('fundamental')) params.ano_escolar_fundamental = turma.nivel;
   if (turma.nivel.includes('medio')) params.ano_escolar_medio = turma.nivel;
   if (turma.nivel.includes('superior')) params.ano_superior = turma.nivel;
@@ -219,6 +220,12 @@ function turmasAtivasUnicasPorContexto(turmas: Turma[]): Turma[] {
       .filter(turma => turma.status !== 'inativo' && turma.status !== 'deletado')
       .map(turma => [chaveConsultaTurma(turma), turma]),
   ).values());
+}
+
+function codigosEstudantesTurma(turma: Turma): string[] {
+  return (turma.estudantes ?? [])
+    .map(item => typeof item === 'string' ? item : (item as { codigo_estudante?: string })?.codigo_estudante)
+    .filter((codigo): codigo is string => Boolean(codigo));
 }
 
 function filtroAceitaValor(filtro: string, valor?: string): boolean {
@@ -582,9 +589,9 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
 }) {
   const [aberto, setAberto] = useState(false);
   const estudantesDaTurma = useMemo(() => {
-    const lista = turma.estudantes.map(cod => estudantesMapa.get(cod)).filter(Boolean) as EstudanteDetalhado[];
+    const lista = codigosEstudantesTurma(turma).map(cod => estudantesMapa.get(cod)).filter(Boolean) as EstudanteDetalhado[];
     return ordenarEstudantes(aplicarFiltros(lista, filtros), ordem);
-  }, [turma.estudantes, estudantesMapa, filtros, ordem]);
+  }, [turma, estudantesMapa, filtros, ordem]);
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
@@ -596,7 +603,7 @@ function TurmaColapsavel({ turma, estudantesMapa, filtros, ordem, onVerDetalhes 
           <span className={`text-xs px-2 py-0.5 rounded-full ${turma.status === 'ativo' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>{turma.status}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantesDaTurma.length}/{turma.estudantes.length}</span>
+          <span className="text-xs text-gray-500 flex items-center gap-1"><Icon icon="mdi:account-group" className="w-4 h-4" />{estudantesDaTurma.length}/{codigosEstudantesTurma(turma).length}</span>
           <Icon icon={aberto ? 'mdi:chevron-up' : 'mdi:chevron-down'} className="w-5 h-5 text-gray-400" />
         </div>
       </div>
@@ -637,7 +644,7 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
 }) {
   const [aberto, setAberto] = useState(false);
   const turmasDoAno = turmas.filter(t => t.nivel === ano);
-  const codigosComTurma = useMemo(() => new Set(turmas.flatMap(t => t.estudantes)), [turmas]);
+  const codigosComTurma = useMemo(() => new Set(turmas.flatMap(codigosEstudantesTurma)), [turmas]);
   const estudantesSemTurma = useMemo(() => {
     const lista = Array.from(estudantesMapa.values()).filter(estudante =>
       estudantePertenceAoAno(estudante, ano) &&
@@ -646,7 +653,7 @@ function AnoColapsavel({ ano, label, turmas, estudantesMapa, filtros, ordem, onV
     );
     return ordenarEstudantes(aplicarFiltros(lista, filtros), ordem);
   }, [ano, codigosComTurma, cursoId, estudantesMapa, filtros, ordem]);
-  const totalEstTurmas = turmasDoAno.reduce((s, t) => s + t.estudantes.length, 0);
+  const totalEstTurmas = turmasDoAno.reduce((s, t) => s + codigosEstudantesTurma(t).length, 0);
   const totalEst = totalEstTurmas + estudantesSemTurma.length;
   const temTurmasOuSemTurma = turmasDoAno.length > 0 || estudantesSemTurma.length > 0;
   return (
@@ -689,7 +696,7 @@ function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhe
       turmas.some(t => t.nivel === a.value) ||
       Array.from(estudantesMapa.values()).some(estudante =>
         estudantePertenceAoAno(estudante, a.value) &&
-        !turmas.some(t => t.estudantes.includes(estudante.codigo_estudante))
+        !turmas.some(t => codigosEstudantesTurma(t).includes(estudante.codigo_estudante))
       )
     )
   );
@@ -1377,10 +1384,14 @@ export default function Estudantes() {
       setEstudantesEscala(dataEstudantes?.estudantes ?? []);
       try {
         const contextos = turmasAtivasUnicasPorContexto(turmas);
-        const consultas = contextos.flatMap(turma => [
+        const consultasContexto = contextos.flatMap(turma => [
           paramsEstudantesPorTurma(turma, token, true),
           paramsEstudantesPorTurma(turma, token, false),
         ]);
+        const consultasPorTurma = turmas
+          .filter(turma => turma.status !== 'inativo' && turma.status !== 'deletado')
+          .map(turma => paramsEstudantesPorTurma(turma, token, true, true));
+        const consultas = [...consultasContexto, ...consultasPorTurma];
 
         await Promise.allSettled(consultas.map(async (params) => {
           const pagina = await consultasService.listarEstudantes(params);
