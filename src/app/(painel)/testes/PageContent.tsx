@@ -972,7 +972,7 @@ export default function PageContent() {
   };
 
   // ─── Gerar Turmas ─────────────────────────────────────────────────────────────
-  const gerarTurmas = async () => {
+  const gerarTurmas = async (focoMisto?: "fundamental" | "medio") => {
     if (!academia) return;
     const { qtd } = turmaConfig;
     let criadas = 0;
@@ -991,9 +991,13 @@ export default function PageContent() {
       for (const curso of cursosSup) niveisDisponiveis.push(...curso.anos_academicos);
     }
 
-    const niveisFiltrados = turmaConfig.niveisSelecionados.length > 0
-      ? niveisDisponiveis.filter(nivel => turmaConfig.niveisSelecionados.includes(nivel))
+    const niveisPorFocoMisto = academia.nivel === "misto" && focoMisto
+      ? niveisDisponiveis.filter(nivel => focoMisto === "fundamental" ? nivel.includes("fundamental") : nivel.includes("medio"))
       : niveisDisponiveis;
+
+    const niveisFiltrados = turmaConfig.niveisSelecionados.length > 0
+      ? niveisPorFocoMisto.filter(nivel => turmaConfig.niveisSelecionados.includes(nivel))
+      : niveisPorFocoMisto;
 
     if (niveisFiltrados.length === 0) {
       addLog("  ✗ Nenhum nível disponível para criar turmas.", "err");
@@ -1003,12 +1007,18 @@ export default function PageContent() {
     const tipoCurso = academia.tipo === "superior" ? "superior" : "medio";
     const cursosAtivos = cursos.filter(c => c.type === tipoCurso && c.status === "ativo");
 
-    const cursoEspecifico = turmaConfig.cursoId !== "random"
+    const usaCursoNaTurma = academia.tipo === "superior" || focoMisto === "medio" || academia.nivel === "medio" || (academia.nivel !== "fundamental" && academia.nivel !== "misto");
+    const cursoEspecifico = usaCursoNaTurma && turmaConfig.cursoId !== "random"
       ? cursosAtivos.find(c => c.id === turmaConfig.cursoId)
       : undefined;
 
-    if (turmaConfig.cursoId !== "random" && !cursoEspecifico) {
+    if (usaCursoNaTurma && turmaConfig.cursoId !== "random" && !cursoEspecifico) {
       addLog(`  ✗ Curso selecionado não encontrado ou inativo`, "err");
+      return;
+    }
+
+    if (turmaConfig.nivel !== "random" && !niveisFiltrados.includes(turmaConfig.nivel)) {
+      addLog(`  ✗ Nível selecionado não pertence ao foco ${focoMisto || "da academia"}. Selecione "Aleatório" ou um nível compatível.`, "err");
       return;
     }
 
@@ -1016,7 +1026,7 @@ export default function PageContent() {
       ? turmaConfig.niveisSelecionados.filter(nivel => niveisFiltrados.includes(nivel))
       : [];
     const totalTurmas = niveisParaGerar.length > 0 ? qtd * niveisParaGerar.length : qtd;
-    addLog(`Gerando ${totalTurmas} turma(s) via /academia/turma/async...`, "step");
+    addLog(`Gerando ${totalTurmas} turma(s)${focoMisto ? ` de ${focoMisto}` : ""} via /academia/turma/async...`, "step");
     const payloads: any[] = [];
 
     const planoGeracaoNiveis = niveisParaGerar.length > 0
@@ -1064,10 +1074,11 @@ export default function PageContent() {
   };
 
   // ─── Gerar Estudantes ─────────────────────────────────────────────────────────
-  const gerarEstudantes = async () => {
+  const gerarEstudantes = async (focoMisto?: "fundamental" | "medio") => {
     if (!academia) return;
     const cfg = estudanteConfig;
-    const modo = getEscolaMode(academia);
+    const modoAcademia = getEscolaMode(academia);
+    const modo = modoAcademia === "misto" && focoMisto ? focoMisto : modoAcademia;
 
     const cursoMedioAlvo = cfg.cursoMedioId === "random"
       ? cursos.find(c => c.type === "medio" && c.status === "ativo")
@@ -1102,17 +1113,9 @@ export default function PageContent() {
       addLog("Selecione/crie um curso superior ativo com anos acadêmicos antes de cadastrar estudantes do superior.", "warn");
       return;
     }
-    if (modo === "misto") {
-      const qtdFundamental = Math.floor(cfg.qtd * cfg.pctFundamental / 100);
-      const qtdMedio = cfg.qtd - qtdFundamental;
-      if (qtdFundamental > 0 && anosFSelecionados.length === 0) {
-        addLog("A geração mista inclui fundamental, mas não há anos fundamentais disponíveis.", "warn");
-        return;
-      }
-      if (qtdMedio > 0 && (!cursoMedioAlvo || anosMedioSelecionados.length === 0)) {
-        addLog("A geração mista inclui médio, mas falta curso médio ativo com anos acadêmicos.", "warn");
-        return;
-      }
+    if (modoAcademia === "misto" && !focoMisto) {
+      addLog("Escola mista: use os botões separados para criar estudantes do Fundamental ou do Médio sem misturar os níveis.", "warn");
+      return;
     }
 
     const anosFundamentaisGeracao = cfg.anoFundamental === "random" && cfg.anosFundamentalSelecionados.length > 0
@@ -1181,20 +1184,6 @@ export default function PageContent() {
             ? (anoFundamentalDoItem || pick(anosFSelecionados))
             : cfg.anoFundamental;
           payload.ano_escolar_fundamental = ano;
-        }
-      } else if (modo === "misto") {
-        const isFund = idx < Math.floor(cfg.qtd * cfg.pctFundamental / 100);
-        if (isFund) {
-          if (anosFSelecionados.length > 0) {
-            const ano = cfg.anoFundamental === "random" ? pick(anosFSelecionados) : cfg.anoFundamental;
-            payload.ano_escolar_fundamental = ano;
-          }
-        } else {
-          if (cursoMedioAlvo && anosMedioSelecionados.length > 0) {
-            const ano = cfg.anoMedio === "random" ? pick(anosMedioSelecionados) : cfg.anoMedio;
-            payload.ano_escolar_medio = ano;
-            payload.curso_medio_id = cursoMedioAlvo.id;
-          }
         }
       }
 
@@ -2352,7 +2341,14 @@ export default function PageContent() {
                         ))}
                       </Sel>
                     </Field>
-                    <Btn onClick={() => withLoading(gerarTurmas)} color="#0891b2">Gerar Turmas</Btn>
+                    {academia.nivel === "misto" ? (
+                      <>
+                        <Btn onClick={() => withLoading(() => gerarTurmas("fundamental"))} color="#2563eb">Gerar turmas Fundamental</Btn>
+                        <Btn onClick={() => withLoading(() => gerarTurmas("medio"))} color="#b45309" disabled={cursosParaTurma.length === 0}>Gerar turmas Médio</Btn>
+                      </>
+                    ) : (
+                      <Btn onClick={() => withLoading(() => gerarTurmas())} color="#0891b2">Gerar Turmas</Btn>
+                    )}
                   </Row>
                   {turmaConfig.nivel === "random" && (
                     <div style={{ marginTop: 8 }}>
@@ -2532,29 +2528,28 @@ export default function PageContent() {
               )}
 
               {modo === "misto" && (
-                <SubSection title="Distribuição Misto">
-                  <Row>
-                    <NumberStepper
-                      label="% Fundamental"
-                      value={estudanteConfig.pctFundamental}
-                      min={0}
-                      max={100}
-                      step={5}
-                      onChange={v => setEstudanteConfig(p => ({ ...p, pctFundamental: v }))}
-                    />
-                  </Row>
-                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>
-                    ≈ {Math.floor(estudanteConfig.qtd * estudanteConfig.pctFundamental / 100)} fundamental
-                    · {estudanteConfig.qtd - Math.floor(estudanteConfig.qtd * estudanteConfig.pctFundamental / 100)} médio
+                <SubSection title="Geração separada — escola mista">
+                  <p style={{ margin: "0 0 10px", fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+                    Para não misturar níveis, cada clique cria apenas estudantes do Fundamental ou apenas do Médio usando as configurações acima.
                   </p>
+                  <Row>
+                    <Btn onClick={() => withLoading(() => gerarEstudantes("fundamental"))} color="#2563eb" disabled={anosDispFundamental.length === 0}>
+                      Criar {estudanteConfig.qtd} Fundamental
+                    </Btn>
+                    <Btn onClick={() => withLoading(() => gerarEstudantes("medio"))} color="#b45309" disabled={cursosMedioAtivos.length === 0}>
+                      Criar {estudanteConfig.qtd} Médio
+                    </Btn>
+                  </Row>
                 </SubSection>
               )}
 
-              <div style={{ marginTop: 8 }}>
-                <Btn onClick={() => withLoading(gerarEstudantes)} color="#059669">
-                  Criar {estudanteConfig.qtd} estudante(s) em lote {estudanteConfig.comArquivos ? "com arquivos" : "sem arquivos"}
-                </Btn>
-              </div>
+              {modo !== "misto" && (
+                <div style={{ marginTop: 8 }}>
+                  <Btn onClick={() => withLoading(() => gerarEstudantes())} color="#059669">
+                    Criar {estudanteConfig.qtd} estudante(s) em lote {estudanteConfig.comArquivos ? "com arquivos" : "sem arquivos"}
+                  </Btn>
+                </div>
+              )}
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
                 Criação em massa via /academia/estudante/register/async: JSON usa com_arquivo=false e deixa status pendente_documentos; multipart usa com_arquivo=true, codigo_temporario e PDFs obrigatórios.
               </p>
