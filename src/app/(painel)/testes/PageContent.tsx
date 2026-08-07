@@ -72,6 +72,11 @@ interface Curso {
   status?: string;
 }
 
+interface CategoriaNota {
+  codigo: string;
+  nome: string;
+}
+
 // ─── Categorias de Nota ───────────────────────────────────────────────────────
 
 const CATEGORIAS_ESCOLAR: { value: string; label: string }[] = [
@@ -113,7 +118,7 @@ const MATERIAS_MEDIO = ["Língua Portuguesa","Matemática","Física","Química",
 const MATERIAS_SUPERIOR = ["Álgebra Linear","Cálculo I","Programação","Estruturas de Dados","Redes","Sistemas Operativos","Base de Dados","Engenharia de Software","Inteligência Artificial","Segurança Informática"];
 
 const TURNOS = ["manha","tarde","noite"] as const;
-const DATAS_FALTA: ApiDate[] = ["2026-03-10","2026-04-07","2026-05-05","2026-06-02","2026-07-07","2026-09-01","2026-10-06","2026-11-03"];
+const DATAS_FALTA_FALLBACK: ApiDate[] = ["2026-03-10","2026-04-07","2026-05-05","2026-06-02","2026-07-07","2026-09-01","2026-10-06","2026-11-03"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -339,6 +344,18 @@ function getNotaAleatoria(anoAcademico: string): number {
   return parseFloat((rnd(min, max) + Math.random()).toFixed(1));
 }
 
+function gerarDatasFaltaParaAnoLetivo(anoLetivo?: string, tipo?: "escola" | "superior"): ApiDate[] {
+  const match = anoLetivo?.match(/^(\d{4})_(\d{4})$/);
+  if (!match) return DATAS_FALTA_FALLBACK;
+
+  const inicio = Number(match[1]);
+  const fim = Number(match[2]);
+  const datasEscolares = [`${inicio}-09-15`, `${inicio}-10-14`, `${inicio}-11-18`, `${fim}-02-10`, `${fim}-03-17`, `${fim}-05-12`, `${fim}-06-09`] as ApiDate[];
+  const datasSuperiores = [`${inicio}-10-15`, `${inicio}-11-12`, `${fim}-02-12`, `${fim}-03-19`, `${fim}-04-16`, `${fim}-05-21`, `${fim}-06-18`] as ApiDate[];
+
+  return tipo === "superior" ? datasSuperiores : datasEscolares;
+}
+
 // ─── NumberStepper Component ───────────────────────────────────────────────────
 
 function NumberStepper({
@@ -523,6 +540,7 @@ export default function PageContent() {
   const [materias, setMaterias] = useState<Materia[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [estudantes, setEstudantes] = useState<Estudante[]>([]);
+  const [categoriasNotaApi, setCategoriasNotaApi] = useState<CategoriaNota[]>([]);
 
   const [cursoConfig, setCursoConfig] = useState({ tipo: "medio" as "medio"|"superior", qtd: 2 });
   const [materiaConfig, setMateriaConfig] = useState({ tipo: "fundamental" as "fundamental"|"medio"|"superior", qtd: 5, cursoId: "" });
@@ -613,6 +631,15 @@ export default function PageContent() {
 
   useEffect(() => { if (academia) refreshData(academia); }, [academia?.codigo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (academia?.tipo !== "superior" || categoriasNotaApi.length === 0) return;
+    const codigos = categoriasNotaApi.map(c => c.codigo);
+    setCategoriaSuperiorSel(prev => {
+      const validas = prev.filter(codigo => codigos.includes(codigo));
+      return validas.length > 0 ? validas : codigos.slice(0, Math.min(3, codigos.length));
+    });
+  }, [academia?.tipo, categoriasNotaApi]);
+
   const apiUrl = () => {
     const url = process.env.NEXT_PUBLIC_API_URL || "";
     if (url && !url.startsWith("http://") && !url.startsWith("https://")) return `https://${url}`;
@@ -680,22 +707,25 @@ export default function PageContent() {
     if (!acad?.token) return;
     const tok = acad.token;
 
-    const [rCursos, rMaterias, rTurmas, estudantesData, rAnoLetivo] = await Promise.all([
+    const [rCursos, rMaterias, rTurmas, estudantesData, rAnoLetivo, rCategoriasNota] = await Promise.all([
       callApi("GET", "/academia/cursos", undefined, tok),
       callApi("GET", "/academia/materias", undefined, tok),
       callApi("GET", "/academia/turmas", undefined, tok),
       listarTodosEstudantes(tok),
       callApi("GET", "/academia/ano-letivo", undefined, tok),
+      callApi("GET", "/academia/categorias-nota", undefined, tok),
     ]);
 
     const cursosData: Curso[] = (rCursos.data as any)?.cursos || [];
     const materiasData: Materia[] = (rMaterias.data as any)?.materias?.filter((m: any) => m.status === "ativo") || [];
     const turmasData: Turma[] = (rTurmas.data as any)?.turmas || [];
+    const categoriasApiData: CategoriaNota[] = (rCategoriasNota.data as any)?.categorias || [];
 
     setCursos(cursosData);
     setMaterias(materiasData);
     setTurmas(turmasData);
     setEstudantes(estudantesData);
+    setCategoriasNotaApi(categoriasApiData);
 
     const anoLetivoAtual = (rAnoLetivo.data as any)?.ano_letivo as string | undefined;
     if (anoLetivoAtual) {
@@ -704,7 +734,7 @@ export default function PageContent() {
 
     addLog(
       `Dados atualizados: ${cursosData.length} cursos, ${materiasData.length} matérias ativas, ` +
-      `${turmasData.length} turmas, ${estudantesData.length} estudantes` +
+      `${turmasData.length} turmas, ${estudantesData.length} estudantes, ${categoriasApiData.length} categorias de nota` +
       (anoLetivoAtual ? `, ano letivo: ${anoLetivoAtual.replace("_", "/")}` : ""),
       "dim"
     );
@@ -1811,7 +1841,7 @@ export default function PageContent() {
       const materiasSample = pickN(materiasDoAno, Math.min(2, materiasDoAno.length));
 
       for (const mat of materiasSample) {
-        const dataFalta = pick(DATAS_FALTA);
+        const dataFalta = pick(gerarDatasFaltaParaAnoLetivo(academia.ano_letivo, academia.tipo));
         const key = `${est.codigo_estudante}|${mat.id}|${dataFalta}`;
 
         if (faltasExistentes.has(key)) {
@@ -1907,6 +1937,44 @@ export default function PageContent() {
     }
   };
 
+  const aplicarPresetMaximo = () => {
+    if (!academia) return;
+
+    const anosFund = academia.anos_academicos?.filter(a => a.includes("fundamental")) || [];
+    const anosMedio = cursosMedioAtivos.flatMap(c => c.anos_academicos || []);
+    const anosSuperior = cursosSuperiorAtivos.flatMap(c => c.anos_academicos || []);
+
+    setCursoConfig(p => ({ ...p, qtd: 5 }));
+    setMateriaConfig(p => ({ ...p, qtd: 10 }));
+    setTurmaConfig(p => ({
+      ...p,
+      qtd: 4,
+      turno: "random",
+      nivel: "random",
+      cursoId: "random",
+      niveisSelecionados: ordenarAnosAcademicos([...new Set([...anosFund, ...anosMedio, ...anosSuperior])]),
+    }));
+    setEstudanteConfig(p => ({
+      ...p,
+      qtd: 50,
+      anoFundamental: "random",
+      anosFundamentalSelecionados: anosFund,
+      anoMedio: "random",
+      anosMedioSelecionados: [...new Set(anosMedio)],
+      cursoMedioId: "random",
+      anoSuperior: "random",
+      anosSuperiorSelecionados: [...new Set(anosSuperior)],
+      cursoSuperiorId: "random",
+      pctFundamental: academia.nivel === "misto" ? 50 : p.pctFundamental,
+    }));
+    setNotaConfig(p => ({ ...p, qtdEstudantes: 0, periodo: "random" }));
+    setFaltaConfig(p => ({ ...p, qtdEstudantes: 0 }));
+    setCategoriaEscolarSel(CATEGORIAS_ESCOLAR.map(c => c.value));
+    setCategoriaSuperiorSel(categoriasNotaApi.length > 0 ? categoriasNotaApi.map(c => c.codigo) : CATEGORIAS_SUPERIOR.map(c => c.value));
+    addLog("Preset máximo aplicado: múltiplos anos, todos os trimestres/categorias disponíveis e estudantes em volume.", "ok");
+  };
+
+
   // ─── Derived ──────────────────────────────────────────────────────────────────
 
   const estudantesEmTurmaSet = new Set(turmas.flatMap(t => t.estudantes));
@@ -1950,9 +2018,20 @@ export default function PageContent() {
 
   const tipoNota = academia?.tipo === "superior" ? "superior" : "escolar";
   const tiposMateriaParaNota = academia?.tipo === "superior" ? ["superior"] : ["fundamental", "medio"];
-  const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : CATEGORIAS_SUPERIOR;
+  const categoriasSuperioresDisponiveis = categoriasNotaApi.length > 0
+    ? categoriasNotaApi.map(c => ({ value: c.codigo, label: c.nome || c.codigo }))
+    : CATEGORIAS_SUPERIOR;
+  const categoriasDisponiveis = tipoNota === "escolar" ? CATEGORIAS_ESCOLAR : categoriasSuperioresDisponiveis;
   const categoriasAtivas = tipoNota === "escolar" ? categoriaEscolarSel : categoriaSuperiorSel;
   const setCategoriasAtivas = tipoNota === "escolar" ? setCategoriaEscolarSel : setCategoriaSuperiorSel;
+
+  const perfilVisual = academia?.tipo === "superior"
+    ? { titulo: "Ensino Superior", icon: "🎓", cor: "#7c3aed", descricao: "Cursos superiores, semestres, categorias configuráveis e avaliação final com regras do superior." }
+    : academia?.nivel === "medio"
+      ? { titulo: "Academia Escola — Médio", icon: "🧪", cor: "#b45309", descricao: "Cursos médios obrigatórios, trimestres escolares e categorias fixas conforme o ano acadêmico." }
+      : academia?.nivel === "misto"
+        ? { titulo: "Academia Escola — Misto", icon: "🧩", cor: "#0f766e", descricao: "Combina fundamental e médio com distribuição percentual e vínculos separados por nível/curso." }
+        : { titulo: "Academia Escola — Fundamental", icon: "📘", cor: "#2563eb", descricao: "Anos fundamentais próprios da academia, sem cursos, com notas escolares fixas." };
 
   // ─── Render helpers ────────────────────────────────────────────────────────────
 
@@ -2053,16 +2132,39 @@ export default function PageContent() {
       `}</style>
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 20 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#f8fafc", letterSpacing: "-0.02em" }}>
-            <span style={{ color: "#3b82f6" }}>⬡</span> Painel de Testes
+            <span style={{ color: perfilVisual.cor }}>⬡</span> Painel de Testes
           </h1>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>
             Academia: <span style={{ color: "#60a5fa", fontWeight: 700 }}>{academia.codigo}</span>
             {" · "}{academia.tipo}{academia.nivel ? ` · ${academia.nivel}` : ""}
             {academia.ano_letivo ? ` · Ano letivo: ${academia.ano_letivo.replace("_", "/")}` : " · ⚠ sem ano letivo"}
-            {" · "}<span style={{ color: "#facc15" }}>⚡ Modo Assíncrono</span>
+            {" · "}<span style={{ color: "#facc15" }}>⚡ API v2.2.0 / Modo Assíncrono</span>
           </p>
+        </div>
+
+        <div style={{ border: `1px solid ${perfilVisual.cor}`, borderRadius: 16, background: "linear-gradient(135deg, #0f172a 0%, #020817 100%)", padding: 18, marginBottom: 20, boxShadow: `0 0 0 1px rgba(255,255,255,0.02), 0 18px 50px ${perfilVisual.cor}22` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ maxWidth: 680 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 28 }}>{perfilVisual.icon}</span>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 18, color: "#f8fafc" }}>{perfilVisual.titulo}</h2>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>{perfilVisual.descricao}</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                {(academia.tipo === "superior" ? ["/academia/curso/async", "/academia/materia", "/academia/notas-aluno/async", "/academia/faltas-aluno/async"] : ["/academia/categorias-nota", "/academia/estudante/register/async", "/academia/turma/async", "/academia/notas-aluno/async"]).map(endpoint => (
+                  <span key={endpoint} style={{ border: "1px solid #334155", borderRadius: 999, padding: "4px 9px", color: "#cbd5e1", fontSize: 11, background: "#0a1929" }}>{endpoint}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Btn onClick={aplicarPresetMaximo} color={perfilVisual.cor}>Aplicar preset máximo</Btn>
+              <Btn onClick={() => addLog("Use o preset máximo e execute as seções na ordem: ano letivo → cursos → matérias → turmas → estudantes → documentos → vínculos → notas → faltas.", "info")} color="#16a34a">Ver roteiro máximo</Btn>
+            </div>
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
