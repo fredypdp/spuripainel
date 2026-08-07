@@ -564,8 +564,6 @@ export default function PageContent() {
     anoSuperior: "random",
     anosSuperiorSelecionados: [] as string[],
     cursoSuperiorId: "random",
-    modoPrincipal: "fundamental" as "fundamental" | "medio",
-    pctFundamental: 60,
     comArquivos: false,
   });
 
@@ -616,9 +614,6 @@ export default function PageContent() {
       const tiposMateria = tiposMateriaValidos(acInfo);
       if (tiposMateria.length > 0) setMateriaConfig(p => ({ ...p, tipo: tiposMateria[0].value }));
 
-      if (acInfo.nivel === "misto") {
-        setEstudanteConfig(p => ({ ...p, modoPrincipal: "fundamental" }));
-      }
     } catch { setAuthError("Erro ao ler dados da sessão. Faça login novamente."); }
   }, []);
 
@@ -1926,43 +1921,6 @@ export default function PageContent() {
     }
   };
 
-  const aplicarPresetMaximo = () => {
-    if (!academia) return;
-
-    const anosFund = academia.anos_academicos?.filter(a => a.includes("fundamental")) || [];
-    const anosMedio = cursosMedioAtivos.flatMap(c => c.anos_academicos || []);
-    const anosSuperior = cursosSuperiorAtivos.flatMap(c => c.anos_academicos || []);
-
-    setCursoConfig(p => ({ ...p, qtd: 5 }));
-    setMateriaConfig(p => ({ ...p, qtd: 10 }));
-    setTurmaConfig(p => ({
-      ...p,
-      qtd: 4,
-      turno: "random",
-      nivel: "random",
-      cursoId: "random",
-      niveisSelecionados: ordenarAnosAcademicos([...new Set([...anosFund, ...anosMedio, ...anosSuperior])]),
-    }));
-    setEstudanteConfig(p => ({
-      ...p,
-      qtd: 50,
-      anoFundamental: "random",
-      anosFundamentalSelecionados: anosFund,
-      anoMedio: "random",
-      anosMedioSelecionados: [...new Set(anosMedio)],
-      cursoMedioId: "random",
-      anoSuperior: "random",
-      anosSuperiorSelecionados: [...new Set(anosSuperior)],
-      cursoSuperiorId: "random",
-      pctFundamental: academia.nivel === "misto" ? 50 : p.pctFundamental,
-    }));
-    setNotaConfig(p => ({ ...p, qtdEstudantes: 0, periodo: "random" }));
-    setFaltaConfig(p => ({ ...p, qtdEstudantes: 0 }));
-    setCategoriaEscolarSel(CATEGORIAS_ESCOLAR.map(c => c.value));
-    setCategoriaSuperiorSel(categoriasNotaApi.length > 0 ? categoriasNotaApi.map(c => c.codigo) : CATEGORIAS_SUPERIOR.map(c => c.value));
-    addLog("Preset máximo aplicado: múltiplos anos, todos os trimestres/categorias disponíveis e estudantes em volume.", "ok");
-  };
-
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
 
@@ -2148,10 +2106,6 @@ export default function PageContent() {
                   <span key={endpoint} style={{ border: "1px solid #334155", borderRadius: 999, padding: "4px 9px", color: "#cbd5e1", fontSize: 11, background: "#0a1929" }}>{endpoint}</span>
                 ))}
               </div>
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Btn onClick={aplicarPresetMaximo} color={perfilVisual.cor}>Aplicar preset máximo</Btn>
-              <Btn onClick={() => addLog("Use o preset máximo e execute as seções na ordem: ano letivo → cursos → matérias → turmas → estudantes → documentos → vínculos → notas → faltas.", "info")} color="#16a34a">Ver roteiro máximo</Btn>
             </div>
           </div>
         </div>
