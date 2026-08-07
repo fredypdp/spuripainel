@@ -231,11 +231,12 @@ function formatarSecaoLabel(ano: string): string {
   return `${m[1]}º Ano — ${tipo[m[2]] ?? m[2]}`;
 }
 
-function MateriasAgrupadas({ materias, getCursoNome, onEdit, onToggleStatus, onDelete, selecionadas, onToggleSelecao, onToggleTodas }: {
+function MateriasAgrupadas({ materias, getCursoNome, onEdit, onToggleStatus, onDelete, selecionadas, onToggleSelecao, onToggleTodas, agruparPorCurso = false }: {
   materias: Materia[]; getCursoNome: (id?: string) => string;
   onEdit: (m: Materia) => void; onToggleStatus: (m: Materia) => void;
   onDelete: (m: Materia) => void; selecionadas: Set<string>;
   onToggleSelecao: (id: string) => void; onToggleTodas: (lista: Materia[]) => void;
+  agruparPorCurso?: boolean;
 }) {
   const [secaoAberta, setSecaoAberta] = useState<Record<string, boolean>>({});
 
@@ -243,8 +244,9 @@ function MateriasAgrupadas({ materias, getCursoNome, onEdit, onToggleStatus, onD
   for (const m of materias) {
     const anos = m.anos_academicos && m.anos_academicos.length > 0 ? m.anos_academicos : ["__sem_ano__"];
     for (const ano of anos) {
-      if (!grupos[ano]) grupos[ano] = [];
-      if (!grupos[ano].find(x => x.id === m.id)) grupos[ano].push(m);
+      const chave = agruparPorCurso ? `${m.curso_id ?? "__sem_curso__"}::${ano}` : ano;
+      if (!grupos[chave]) grupos[chave] = [];
+      if (!grupos[chave].find(x => x.id === m.id)) grupos[chave].push(m);
     }
   }
 
@@ -255,14 +257,22 @@ function MateriasAgrupadas({ materias, getCursoNome, onEdit, onToggleStatus, onD
     return (peso[m[2]] ?? 300) + parseInt(m[1]);
   };
 
+  const getAnoFromSecao = (secao: string) => agruparPorCurso ? secao.split("::")[1] ?? "__sem_ano__" : secao;
+  const getCursoFromSecao = (secao: string) => agruparPorCurso ? secao.split("::")[0] ?? "__sem_curso__" : undefined;
+
   const secoes = Object.keys(grupos).sort((a, b) => {
-    if (a === "__sem_ano__") return 1;
-    if (b === "__sem_ano__") return -1;
-    return ordenarAno(a) - ordenarAno(b);
+    const cursoA = getCursoFromSecao(a);
+    const cursoB = getCursoFromSecao(b);
+    if (cursoA !== cursoB) return getCursoNome(cursoA === "__sem_curso__" ? undefined : cursoA).localeCompare(getCursoNome(cursoB === "__sem_curso__" ? undefined : cursoB));
+    const anoA = getAnoFromSecao(a);
+    const anoB = getAnoFromSecao(b);
+    if (anoA === "__sem_ano__") return 1;
+    if (anoB === "__sem_ano__") return -1;
+    return ordenarAno(anoA) - ordenarAno(anoB);
   });
 
-  const isAberta = (ano: string) => secaoAberta[ano] !== false;
-  const toggleSecao = (ano: string) => setSecaoAberta(p => ({ ...p, [ano]: !isAberta(ano) }));
+  const isAberta = (secao: string) => secaoAberta[secao] !== false;
+  const toggleSecao = (secao: string) => setSecaoAberta(p => ({ ...p, [secao]: !isAberta(secao) }));
 
   const todasMaterias = materias;
   const todasSelecionadas = todasMaterias.length > 0 && todasMaterias.every(m => selecionadas.has(m.id));
@@ -275,17 +285,21 @@ function MateriasAgrupadas({ materias, getCursoNome, onEdit, onToggleStatus, onD
           <Checkbox checked={todasSelecionadas} indeterminate={algumasSelecionadas && !todasSelecionadas} onChange={() => onToggleTodas(todasMaterias)} label={todasSelecionadas ? "Desselecionar todas" : "Selecionar todas"} />
         </div>
       )}
-      {secoes.map(ano => {
-        const lista = grupos[ano];
-        const aberta = isAberta(ano);
-        const heading = ano === "__sem_ano__" ? "Sem ano definido" : formatarSecaoLabel(ano);
+      {secoes.map(secao => {
+        const ano = getAnoFromSecao(secao);
+        const cursoId = getCursoFromSecao(secao);
+        const lista = grupos[secao];
+        const aberta = isAberta(secao);
+        const anoLabel = ano === "__sem_ano__" ? "Sem ano definido" : formatarSecaoLabel(ano);
+        const cursoLabel = cursoId && cursoId !== "__sem_curso__" ? getCursoNome(cursoId) : "Curso não definido";
+        const heading = agruparPorCurso ? `${cursoLabel} — ${anoLabel}` : anoLabel;
         const secaoSelecionadas = lista.every(m => selecionadas.has(m.id));
         const secaoAlgumas = lista.some(m => selecionadas.has(m.id));
         return (
-          <section key={ano}>
+          <section key={secao}>
             <div className="flex items-center gap-2 mb-2">
               <Checkbox checked={secaoSelecionadas} indeterminate={secaoAlgumas && !secaoSelecionadas} onChange={() => onToggleTodas(lista)} />
-              <button onClick={() => toggleSecao(ano)} className="flex-1 flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
+              <button onClick={() => toggleSecao(secao)} className="flex-1 flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors">
                 <div className="flex items-center gap-3">
                   <Icon icon="mdi:school-outline" className="w-4 h-4 text-brand-500" />
                   <span className="font-semibold text-sm text-gray-800 dark:text-white">{heading}</span>
@@ -718,6 +732,7 @@ export default function MateriaPainel() {
               onEdit={handleEdit} onToggleStatus={handleToggleStatus}
               onDelete={setMateriaParaDelete} selecionadas={selecionadas}
               onToggleSelecao={handleToggleSelecao} onToggleTodas={handleToggleTodas}
+              agruparPorCurso={isAcademiaMista() && viewNivel === "medio"}
             />
           </>
         )

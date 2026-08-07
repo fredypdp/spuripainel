@@ -59,8 +59,8 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, email
 
   const base = (id: ConfiguracaoGuiaStepId, title: string, description: string, href: string, completed: boolean, details: string): ConfiguracaoGuiaStep => ({ id, title, description, href, completed, details, unlocked: false, current: false });
   const hasFundamentalCoverage = (predicate: (year: string) => boolean) => !isFundamental || (fundamentalYears.length > 0 && fundamentalYears.every(predicate));
-  const hasCourseCoverage = (predicate: (course: Curso, year: string) => boolean) => !needsCourses || (cursos.length > 0 && cursos.every((course) => {
-    const years = asArray(course.anos_academicos);
+  const hasCourseCoverage = (predicate: (course: Curso, year: string) => boolean, options?: { ignoreFourthYearMedio?: boolean }) => !needsCourses || (cursos.length > 0 && cursos.every((course) => {
+    const years = asArray(course.anos_academicos).filter((year) => !(options?.ignoreFourthYearMedio && course.type === "medio" && year === "4_ano_medio"));
     return years.length > 0 && years.every((year) => predicate(course, year));
   }));
 
@@ -68,7 +68,7 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, email
     && hasCourseCoverage((course, year) => {
       if (course.type === "superior") return (course.periodos ?? []).length > 0 && course.periodos!.every((periodo) => materias.some((materia) => materia.type === "superior" && materia.curso_id === course.id && materia.periodo === periodo && includes(materia.anos_academicos, year)));
       return materias.some((materia) => materia.type === "medio" && materia.curso_id === course.id && includes(materia.anos_academicos, year));
-    });
+    }, { ignoreFourthYearMedio: true });
   const turmaComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year))
     && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year));
   const studentsInTurmasComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year && asArray(turma.estudantes).length > 0))
