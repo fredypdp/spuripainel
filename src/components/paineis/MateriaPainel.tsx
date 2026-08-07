@@ -464,7 +464,8 @@ export default function MateriaPainel() {
     if (!formData.nome.trim()) { showMsg("error", "Nome da matéria é obrigatório"); return; }
     if (!editingMateria) {
       if (formData.anos_academicos.length === 0) { showMsg("error", "Selecione pelo menos um ano ou nível"); return; }
-      if (formData.type !== "fundamental" && formData.anos_academicos.length !== 1) { showMsg("error", "Selecione apenas um ano do curso para esta matéria."); return; }
+      if (formData.type === "medio" && formData.anos_academicos.includes("4_ano_medio")) { showMsg("error", "Matérias convencionais do Médio não podem usar o 4º Ano Médio."); return; }
+      if (formData.type === "superior" && formData.anos_academicos.length !== 1) { showMsg("error", "Selecione apenas um ano do curso para esta matéria superior."); return; }
       if (formData.type !== "fundamental" && !formData.curso_id) { showMsg("error", `Selecione o curso desta matéria de ${formData.type === "medio" ? "Médio" : "Superior"}.`); return; }
       if (formData.type === "superior" && !formData.periodo) { showMsg("error", "Selecione o semestre da matéria superior na criação."); return; }
     }
@@ -518,7 +519,8 @@ export default function MateriaPainel() {
   const handleAnosToggle = (ano: string) => {
     setFormData(prev => {
       const selecionado = prev.anos_academicos.includes(ano);
-      const anos_academicos = prev.type === "fundamental"
+      const permiteMultiplosAnos = prev.type === "fundamental" || prev.type === "medio";
+      const anos_academicos = permiteMultiplosAnos
         ? (selecionado ? prev.anos_academicos.filter(a => a !== ano) : [...prev.anos_academicos, ano])
         : (selecionado ? [] : [ano]);
       return { ...prev, anos_academicos, pendencia_nivel_conclusao: undefined };
@@ -545,7 +547,10 @@ export default function MateriaPainel() {
     if (!formData.curso_id) return [];
     const curso = listaCursos.find(c => c.id === formData.curso_id);
     if (!curso) return [];
-    return curso.anos_academicos.map(v => ({
+    const anosAcademicos = formData.type === "medio"
+      ? curso.anos_academicos.filter(v => v !== "4_ano_medio")
+      : curso.anos_academicos;
+    return anosAcademicos.map(v => ({
       value: v,
       label: v.replace(/^(\d+)_ano_(.+)$/, (_, n, tipo) => `${n}º Ano ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`),
     }));
@@ -613,6 +618,9 @@ export default function MateriaPainel() {
                 )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{formData.type === "superior" ? "Ano do curso *" : "Anos/Níveis *"}</label>
+                  {formData.type === "medio" && (
+                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Selecione um ou mais anos do curso. O 4º Ano Médio é reservado pela API e não pode ser usado em matérias convencionais.</p>
+                  )}
                   {formData.type !== "fundamental" && !formData.curso_id ? (
                     <p className="text-xs text-gray-500 dark:text-gray-400">Selecione o curso acima para ver os anos disponíveis.</p>
                   ) : (
