@@ -34,6 +34,13 @@ const navItems: NavItem[] = [
     path: "/perfil",
   },
   {
+    icon: <Icon width="24px" icon="mdi:credit-card-outline" />,
+    name: "Finanças",
+    subItems: [
+      { name: "Credenciais", path: "/financas/credenciais" },
+    ],
+  },
+  {
     name: "Gerenciamento",
     icon: <Icon width="24px" icon="eos-icons:cluster-management-outlined" />,
     subItems: [
@@ -83,13 +90,6 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="mdi:cloud-outline" />,
     name: "Armazenamento",
     path: "/armazenamento",
-  },
-  {
-    icon: <Icon width="24px" icon="mdi:credit-card-outline" />,
-    name: "Finanças",
-    subItems: [
-      { name: "Credenciais", path: "/financas/credenciais" },
-    ],
   },
   {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,

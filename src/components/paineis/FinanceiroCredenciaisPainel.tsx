@@ -9,7 +9,6 @@ import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
-import { Modal } from "@/components/ui/modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
@@ -82,7 +81,7 @@ export default function FinanceiroCredenciaisPainel() {
   const [contextFilter, setContextFilter] = useState<ContextFilter>("todas");
   const [codigoAcademia, setCodigoAcademia] = useState("");
   const [academias, setAcademias] = useState<AcademiaDetalhada[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<FinanceiroCredencial | null>(null);
   const [formData, setFormData] = useState<CredencialFormData>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
@@ -135,8 +134,8 @@ export default function FinanceiroCredenciaisPainel() {
     setShowWebhookSecret(false);
   };
 
-  const closeModal = () => {
-    setModalOpen(false);
+  const closeForm = () => {
+    setFormOpen(false);
     setEditing(null);
     resetForm();
   };
@@ -144,13 +143,13 @@ export default function FinanceiroCredenciaisPainel() {
   const openCreate = () => {
     setEditing(null);
     resetForm();
-    setModalOpen(true);
+    setFormOpen(true);
   };
 
   const openEdit = (credencial: FinanceiroCredencial) => {
     setEditing(credencial);
     resetForm();
-    setModalOpen(true);
+    setFormOpen(true);
   };
 
   const resolveContext = (): { contexto_tipo: FinanceiroContextoTipo; codigo_academia?: string } | null => {
@@ -195,7 +194,7 @@ export default function FinanceiroCredenciaisPainel() {
       if (editing) await atualizarCredencial(editing.id, payload);
       else await criarCredencial(payload);
       setAlert({ variant: "success", message: editing ? "Credencial atualizada com sucesso." : "Credencial configurada com sucesso." });
-      closeModal();
+      closeForm();
       await carregarCredenciais();
     } catch (err) {
       setAlert({ variant: "error", message: getErrorMessage(err) });
@@ -216,9 +215,9 @@ export default function FinanceiroCredenciaisPainel() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Credenciais AppyPay</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Configure as credenciais usadas pelo módulo financeiro. Segredos não são exibidos após salvar.</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Utilize as suas credenciais da AppyPay para configurar o seu módulo de finanças</p>
           </div>
-          <Button size="sm" onClick={openCreate} disabled={!canCreate} startIcon={<Icon icon="mdi:plus" width={16} />}>Configurar credencial</Button>
+          <Button size="sm" onClick={openCreate} disabled={!canCreate} startIcon={<Icon icon="mdi:plus" width={16} />}>Configurar credenciais</Button>
         </div>
 
         {isFpp && (
@@ -242,15 +241,15 @@ export default function FinanceiroCredenciaisPainel() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+      {!formOpen && <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         {listando ? <LoadingState /> : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <Icon icon="mdi:credit-card-remove-outline" width={44} className="text-gray-400" />
             <div>
-              <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">Nenhuma credencial configurada para este contexto.</h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Crie uma credencial para habilitar as próximas operações financeiras.</p>
+              <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">Nenhuma credencial configurada.</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Salve as credenciais para habilitar as próximas operações financeiras.</p>
             </div>
-            <Button size="sm" onClick={openCreate} disabled={!canCreate}>Configurar credencial</Button>
+            <Button size="sm" onClick={openCreate} disabled={!canCreate}>Configurar credenciais</Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -274,11 +273,12 @@ export default function FinanceiroCredenciaisPainel() {
             </Table>
           </div>
         )}
-      </div>
+      </div>}
 
-      <Modal isOpen={modalOpen} onClose={closeModal} className="max-w-[720px] p-5 lg:p-8">
-        <div className="space-y-5">
-          <div><h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{editing ? "Atualizar credencial" : "Configurar credencial"}</h3>{formErrors.contexto && <p className="mt-1 text-xs text-error-500">{formErrors.contexto}</p>}</div>
+      {formOpen && (
+        <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03] lg:p-8">
+          <Button variant="outline" size="sm" onClick={closeForm} disabled={saving} startIcon={<Icon icon="mdi:arrow-left" width={16} />}>Voltar</Button>
+          <div><h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{editing ? "Atualizar credencial" : "Configurar credenciais"}</h3>{formErrors.contexto && <p className="mt-1 text-xs text-error-500">{formErrors.contexto}</p>}</div>
           {editing && <Alert variant="warning" title="Rotação completa" message="Por segurança, a AppyPay não devolve os valores atuais dos campos sensíveis. Preencha novamente todos os campos abaixo para atualizar esta credencial — os valores mascarados atuais continuam visíveis na tabela até a atualização ser concluída." />}
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Client ID *"><Input value={formData.client_id} onChange={(e) => setFormData((p) => ({ ...p, client_id: e.target.value }))} error={!!formErrors.client_id} hint={formErrors.client_id} /></Field>
@@ -290,9 +290,9 @@ export default function FinanceiroCredenciaisPainel() {
             {formData.webhook_auth_type === "basic" && <Field label="Usuário do Webhook *"><Input value={formData.webhook_username} onChange={(e) => setFormData((p) => ({ ...p, webhook_username: e.target.value }))} error={!!formErrors.webhook_username} hint={formErrors.webhook_username} /></Field>}
             <PasswordField label="Segredo do Webhook *" value={formData.webhook_secret} show={showWebhookSecret} onToggle={() => setShowWebhookSecret((v) => !v)} onChange={(value) => setFormData((p) => ({ ...p, webhook_secret: value }))} error={formErrors.webhook_secret} />
           </div>
-          <div className="flex justify-end gap-3"><Button variant="outline" size="sm" onClick={closeModal} disabled={saving}>Cancelar</Button><Button size="sm" onClick={handleSubmit} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button></div>
+          <div className="flex justify-end gap-3"><Button variant="outline" size="sm" onClick={closeForm} disabled={saving}>Cancelar</Button><Button size="sm" onClick={handleSubmit} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button></div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 }
