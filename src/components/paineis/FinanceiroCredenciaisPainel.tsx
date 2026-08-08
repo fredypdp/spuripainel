@@ -215,7 +215,7 @@ export default function FinanceiroCredenciaisPainel() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Credenciais AppyPay</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Utilize as suas credenciais da AppyPay para configurar o seu módulo de finanças</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Utilize as suas credenciais de uso da API da AppyPay para configurar o seu módulo de finanças</p>
           </div>
           <Button size="sm" onClick={openCreate} disabled={!canCreate} startIcon={<Icon icon="mdi:plus" width={16} />}>Configurar credenciais</Button>
         </div>
