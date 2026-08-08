@@ -4,9 +4,6 @@
 **Orquestrador:** Claude (análise + especificação) · **Execução:** Codex
 **Fonte da verdade da API:** `src/docs/Documentação da API.md`, seção **19. Financeiro / AppyPay** (linhas 6862–7290, versão da API 2.2.0)
 
-> ⚠️ **Nota de escopo do repositório analisado.** O link fornecido (`spuripainel`) contém somente o **front-end**. Não há neste repositório nenhuma pasta `db/`, `aggregates`, `models.go`, `handlers` ou `projections` — essas pastas descrevem a arquitetura do **back-end Go** (event sourcing com aggregate `Financeiro`, projeções `financeiro_*`), mencionada na documentação mas cujo código-fonte não está neste repositório. Toda a especificação abaixo foi derivada **exclusivamente** do contrato descrito em `Documentação da API.md` (que já reflete a atualização do módulo financeiro) e da análise completa do código front-end existente. Se o backend estiver em outro repositório, ele deve ser conferido separadamente antes do merge — mas nada nesta tarefa depende disso, pois a página consome apenas os endpoints HTTP já documentados.
-
----
 
 ## 1. Objetivo desta etapa
 
