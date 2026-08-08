@@ -85,6 +85,13 @@ const navItems: NavItem[] = [
     path: "/armazenamento",
   },
   {
+    icon: <Icon width="24px" icon="mdi:credit-card-outline" />,
+    name: "Finanças",
+    subItems: [
+      { name: "Credenciais", path: "/financas/credenciais" },
+    ],
+  },
+  {
     icon: <Icon width="24px" icon="mdi:cog-outline" />,
     name: "Configurações",
     subItems: [
@@ -226,6 +233,10 @@ export default function AppSidebar() {
           // Armazenamento: apenas admin
           if (item.path === "/armazenamento") {
             return user.tipo === "admin";
+          }
+          // Finanças: apenas admin FPP ou academia
+          if (item.name === "Finanças") {
+            return (user.tipo === "admin" && isFpp) || user.tipo === "academia";
           }
           // Testes: apenas academia
           if (item.path === "/testes") {

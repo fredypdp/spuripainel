@@ -16,6 +16,7 @@ export {
   academiaService,
   adminService,
   solicitacaoMatriculaService,
+  financeiroService,
 } from './services';
 
 // Hooks
@@ -157,6 +158,14 @@ export type {
   ListarSolicitacoesMatriculaParams,
   ListarSolicitacoesMatriculaResponse,
   StorageQuotaResponse,
+  FinanceiroContextoTipo,
+  FinanceiroAmbiente,
+  FinanceiroWebhookAuthType,
+  FinanceiroCredencial,
+  CriarFinanceiroCredencialRequest,
+  AtualizarFinanceiroCredencialRequest,
+  ListarFinanceiroCredenciaisParams,
+  ListarFinanceiroCredenciaisResponse,
 } from '@/types/api';
 
 // Jobs

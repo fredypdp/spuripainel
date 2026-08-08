@@ -1183,6 +1183,52 @@ export interface Turma {
   version: number;
 }
 
+// =====================
+// FINANCEIRO / APPYPAY
+// =====================
+
+export type FinanceiroContextoTipo = 'spuri' | 'academia';
+export type FinanceiroAmbiente = 'test' | 'production';
+export type FinanceiroWebhookAuthType = 'basic' | 'api_key';
+
+/** Credencial AppyPay mascarada — retornada por criação, atualização e listagem. */
+export interface FinanceiroCredencial {
+  id: string;
+  contexto_tipo: FinanceiroContextoTipo;
+  codigo_academia?: string;
+  ambiente: FinanceiroAmbiente;
+  client_id_mask: string;
+  resource_mask: string;
+  gpo_payment_method_mask: string;
+  ref_payment_method_mask: string;
+  webhook_auth_type: FinanceiroWebhookAuthType;
+  updated_at: string;
+}
+
+/** Corpo de POST /financeiro/appypay/credenciais e PUT /financeiro/appypay/credenciais/:id. */
+export interface CriarFinanceiroCredencialRequest {
+  contexto_tipo: FinanceiroContextoTipo;
+  codigo_academia?: string;
+  client_id: string;
+  client_secret: string;
+  resource: string;
+  gpo_payment_method: string;
+  ref_payment_method: string;
+  webhook_auth_type: FinanceiroWebhookAuthType;
+  webhook_username?: string;
+  webhook_secret: string;
+}
+
+/** PUT é substituição completa — mesmo formato do POST. */
+export type AtualizarFinanceiroCredencialRequest = CriarFinanceiroCredencialRequest;
+
+export interface ListarFinanceiroCredenciaisParams {
+  contexto_tipo?: FinanceiroContextoTipo;
+  codigo_academia?: string;
+}
+
+export type ListarFinanceiroCredenciaisResponse = FinanceiroCredencial[];
+
 export interface CategoriaNotaItem {
   id?: string;
   codigo_academia: string;

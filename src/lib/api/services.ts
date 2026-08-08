@@ -113,6 +113,11 @@ import type {
   GerirAnosAcademicosRequest,
   GerirAnosAcademicosResponse,
   ListarAnosAcademicosResponse,
+  FinanceiroCredencial,
+  CriarFinanceiroCredencialRequest,
+  AtualizarFinanceiroCredencialRequest,
+  ListarFinanceiroCredenciaisParams,
+  ListarFinanceiroCredenciaisResponse,
 } from '@/types/api';
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -741,6 +746,36 @@ export const consultasService = {
   turmasEstudante: (codigoEstudante: string, token?: string) =>
     api.get<TurmasEstudanteResponse>(
       `/turmas-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+};
+
+// TODO(finanças): criarCobranca, criarQrCode, consultarCobranca — próximas etapas
+// ── Financeiro / AppyPay ────────────────────────────────────────────
+
+export const financeiroService = {
+  listarCredenciais: (params?: ListarFinanceiroCredenciaisParams & { token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.contexto_tipo) qs.set('contexto_tipo', params.contexto_tipo);
+    if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return api.get<ListarFinanceiroCredenciaisResponse>(
+      `/financeiro/appypay/credenciais${query}`,
+      { token: params?.token || tokenStorage.get() || undefined }
+    );
+  },
+
+  criarCredencial: (data: CriarFinanceiroCredencialRequest, token?: string) =>
+    api.post<FinanceiroCredencial, CriarFinanceiroCredencialRequest>(
+      '/financeiro/appypay/credenciais',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  atualizarCredencial: (id: string, data: AtualizarFinanceiroCredencialRequest, token?: string) =>
+    api.put<FinanceiroCredencial, AtualizarFinanceiroCredencialRequest>(
+      `/financeiro/appypay/credenciais/${id}`,
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 };

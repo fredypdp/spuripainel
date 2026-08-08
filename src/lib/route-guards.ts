@@ -102,6 +102,15 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
 
   // ==========================================
+  // ROTAS DE FINANÇAS — Admin FPP e Academia
+  // ==========================================
+  {
+    path: '/financas/credenciais',
+    allowedTypes: ['admin', 'academia'],
+    redirectIfUnauthorized: '/',
+  },
+
+  // ==========================================
   // ROTAS PARA ACADEMIA — Gerenciamento (sub-páginas)
   // ==========================================
   {
