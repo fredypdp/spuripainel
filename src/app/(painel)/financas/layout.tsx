@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/financas/credenciais": "Finanças — Credenciais AppyPay",
+  "/financas/credenciais": "Finanças",
 };
 
 export default function FinancasLayout({ children }: { children: React.ReactNode }) {
