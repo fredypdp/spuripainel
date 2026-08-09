@@ -11,11 +11,15 @@ import type {
   CriarEstudanteRequest,
   RegistrarNotasRequest,
   RegistrarNotaResponse,
+  CorrigirNotaRequest,
+  CorrigirNotaResponse,
   CriarRegraAvaliacaoFinalRequest,
   CriarRegraAvaliacaoFinalResponse,
   EditarRegraAvaliacaoFinalRequest,
   ListarRegrasAvaliacaoFinalResponse,
   RegistrarFaltasRequest,
+  CorrigirFaltaRequest,
+  CorrigirFaltaResponse,
   CriarAdminRequest,
   DesativarRequest,
   AlterarSenhaRequest,
@@ -28,6 +32,7 @@ import type {
   NotasEstudanteResponse,
   FaltasEstudanteResponse,
   EventosEstudanteResponse,
+  EventoAuditoriaResponse,
   VerificarIntegridadeResponse,
   CriarCursoRequest,
   AtualizarCursoRequest,
@@ -709,6 +714,7 @@ export const consultasService = {
     appendMultiValueParam(qs, 'categoria', params?.categoria);
     appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
     appendMultiValueParam(qs, 'type', params?.type);
+    if (params?.corrigido !== undefined) qs.set('corrigido', String(params.corrigido));
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarNotasResponse>(`/notas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -734,6 +740,7 @@ export const consultasService = {
     appendMultiValueParam(qs, 'materia_disciplinar_id', params?.materia_disciplinar_id);
     appendMultiValueParam(qs, 'codigo_academia', params?.codigo_academia);
     appendMultiValueParam(qs, 'type', params?.type);
+    if (params?.corrigido !== undefined) qs.set('corrigido', String(params.corrigido));
     const query = qs.toString() ? `?${qs.toString()}` : '';
     return api.get<ListarFaltasResponse>(`/faltas${query}`, {
       token: params?.token || tokenStorage.get() || undefined,
@@ -788,6 +795,12 @@ export const eventSourcingService = {
   eventosEstudante: (codigoEstudante: string, token?: string) =>
     api.get<EventosEstudanteResponse>(
       `/eventos-estudante/${codigoEstudante}`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  eventoAuditoria: (eventId: string, token?: string) =>
+    api.get<EventoAuditoriaResponse>(
+      `/eventos/${eventId}`,
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -1049,12 +1062,26 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  corrigirNota: (id: string, data: CorrigirNotaRequest, token?: string) =>
+    api.patch<CorrigirNotaResponse, CorrigirNotaRequest>(
+      `/academia/notas-aluno/${id}`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   // ── Faltas ──────────────────────────────────────────────────────────
 
   registrarFaltas: (data: RegistrarFaltasRequest, token?: string) =>
     api.post<{ message: string; estudante: string; materia: string; quantidade: number; ano_academico: string }>(
       '/academia/faltas-aluno',
       prepareRegistrarFalta(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  corrigirFalta: (id: string, data: CorrigirFaltaRequest, token?: string) =>
+    api.patch<CorrigirFaltaResponse, CorrigirFaltaRequest>(
+      `/academia/faltas-aluno/${id}`,
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 

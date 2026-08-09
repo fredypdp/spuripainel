@@ -41,6 +41,19 @@ function corQuantidade(q: number): string {
   return "text-gray-700 dark:text-gray-300";
 }
 
+
+function tituloCorrecaoFalta(falta: Falta): string | undefined {
+  if (!falta.corrigido_em) return undefined;
+  const anterior = falta.valor_anterior ?? "—";
+  const motivo = falta.motivo_correcao ? ` Motivo: ${falta.motivo_correcao}` : "";
+  return `Corrigido em ${falta.corrigido_em}: ${anterior} → ${falta.quantidade}.${motivo}`;
+}
+
+function FaltaCorrigidaBadge({ falta }: { falta: Falta }) {
+  if (!falta.corrigido_em) return null;
+  return <Icon icon="mdi:pencil-circle" width={14} className="ml-1 inline text-brand-500" />;
+}
+
 function formatarData(data: ApiDate): string {
   try {
     return new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
@@ -161,10 +174,12 @@ function TabelaFaltas({
   faltas,
   estudantesMap,
   codigosTurma,
+  onCorrigir,
 }: {
   faltas: Falta[];
   estudantesMap: Map<string, string>;
   codigosTurma: string[];
+  onCorrigir: (falta: Falta) => void;
 }) {
   if (codigosTurma.length === 0 && faltas.length === 0) return (
     <div className="text-center py-10 text-gray-400">
@@ -186,6 +201,7 @@ function TabelaFaltas({
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th>
             <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Qtd</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th>
+            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -212,10 +228,15 @@ function TabelaFaltas({
                     {formatarData(f.data)}
                   </td>
                   <td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}>
-                    {f.quantidade}
+                    <span title={tituloCorrecaoFalta(f)}>{f.quantidade}<FaltaCorrigidaBadge falta={f} /></span>
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                     {f.observacao || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button type="button" onClick={() => onCorrigir(f)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300">
+                      <Icon icon="mdi:pencil" width={14} /> Corrigir
+                    </button>
                   </td>
                 </tr>
               );
@@ -243,6 +264,7 @@ function TabelaFaltas({
                 <td className="px-4 py-3 text-gray-300 dark:text-gray-600">—</td>
                 <td className="px-4 py-3 text-center text-gray-300 dark:text-gray-600 font-bold"></td>
                 <td className="px-4 py-3 text-gray-300 dark:text-gray-600">Sem faltas</td>
+                <td className="px-4 py-3 text-gray-300 dark:text-gray-600"></td>
               </tr>
             ))}
         </tbody>
@@ -371,6 +393,52 @@ function ModalRegistrarFalta({
   );
 }
 
+
+function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm }: { falta: Falta | null; isOpen: boolean; onClose: () => void; onConfirm: (id: string, data: { quantidade: number; observacao?: string; motivo: string }) => Promise<void>; }) {
+  const [quantidade, setQuantidade] = useState("");
+  const [observacao, setObservacao] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!falta || !isOpen) return;
+    setQuantidade(String(falta.quantidade));
+    setObservacao(falta.observacao ?? "");
+    setMotivo("");
+    setError(null);
+  }, [falta, isOpen]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!falta) return;
+    setError(null);
+    const qtd = parseInt(quantidade, 10);
+    if (Number.isNaN(qtd) || qtd < 1 || qtd > 100) { setError("A quantidade deve estar entre 1 e 100."); return; }
+    if (!motivo.trim()) { setError("Informe o motivo da correção."); return; }
+    setLoading(true);
+    try {
+      await onConfirm(falta.id, { quantidade: qtd, observacao: observacao || undefined, motivo: motivo.trim() });
+      onClose();
+    } catch (err: any) { setError(err?.message ?? "Não foi possível corrigir a falta."); }
+    finally { setLoading(false); }
+  }
+
+  if (!isOpen || !falta) return null;
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[520px] p-5 lg:p-8">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">Corrigir Falta</h4>
+        {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
+        <div><Label>Quantidade (1–100) *</Label><Input type="number" min="1" max="100" value={quantidade} onChange={e => setQuantidade(e.target.value)} /></div>
+        <div><Label>Observação</Label><Input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" /></div>
+        <div><Label>Motivo da correção *</Label><Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique o motivo" /></div>
+        <div className="flex gap-3 justify-end"><Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button><Button disabled={loading}>{loading ? "Corrigindo..." : "Corrigir"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function FaltasAcademia() {
@@ -407,6 +475,8 @@ export default function FaltasAcademia() {
   const { execute: executarRegistrar }                                                      = useApi(academiaService.registrarFaltas);
 
   const { isOpen, openModal, closeModal } = useModal();
+  const { isOpen: isCorrigirOpen, openModal: openCorrigirModal, closeModal: closeCorrigirModal } = useModal();
+  const [faltaSelecionada, setFaltaSelecionada] = useState<Falta | null>(null);
   const materias = useMemo(
     () => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"),
     [dataMaterias]
@@ -587,6 +657,13 @@ export default function FaltasAcademia() {
   async function handleRegistrar(data: RegistrarFaltasRequest) {
     await executarRegistrar(data, token);
     showAlert("success", "Falta registrada com sucesso.");
+    const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
+  }
+
+  async function handleCorrigirFalta(id: string, data: { quantidade: number; observacao?: string; motivo: string }) {
+    await academiaService.corrigirFalta(id, data, token);
+    showAlert("success", "Falta corrigida com sucesso.");
     const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
     if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
   }
@@ -782,6 +859,7 @@ export default function FaltasAcademia() {
             faltas={faltas}
             estudantesMap={estudantesMap}
             codigosTurma={codigosTurma}
+            onCorrigir={(falta) => { setFaltaSelecionada(falta); openCorrigirModal(); }}
           />
         ) : null}
       </div>
@@ -1110,6 +1188,13 @@ export default function FaltasAcademia() {
       {renderLayer()}
 
       {/* Modal registrar */}
+      <ModalCorrigirFalta
+        falta={faltaSelecionada}
+        isOpen={isCorrigirOpen}
+        onClose={closeCorrigirModal}
+        onConfirm={handleCorrigirFalta}
+      />
+
       <ModalRegistrarFalta
         isOpen={isOpen}
         estudantes={estudantes}
