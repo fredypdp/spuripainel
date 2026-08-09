@@ -414,6 +414,17 @@ export interface RegistrarFaltasRequest {
   observacao?: string;
 }
 
+export interface CorrigirFaltaRequest {
+  quantidade: number;
+  observacao?: string;
+  motivo: string;
+}
+
+export interface CorrigirFaltaResponse {
+  message: string;
+  id: string;
+}
+
 export interface CriarAdminRequest {
   nome: string;
   email: string;
@@ -688,6 +699,8 @@ export interface ListarNotasParams {
   codigo_academia?: string | string[];
   /** Tipo de avaliação final, quando este filtro for usado pelo backend. */
   type?: string | string[];
+  /** Filtra registros que já receberam (true) ou não (false) evento compensatório de correção. */
+  corrigido?: boolean;
   /** Token JWT; usa tokenStorage.get() se omitido */
   token?: string;
 }
@@ -721,6 +734,8 @@ export interface ListarFaltasParams {
   codigo_academia?: string | string[];
   /** Filtro `type` aceito por GET /faltas. */
   type?: string | string[];
+  /** Filtra registros que já receberam (true) ou não (false) evento compensatório de correção. */
+  corrigido?: boolean;
   /** Token JWT; usa tokenStorage.get() se omitido */
   token?: string;
 }
@@ -940,6 +955,17 @@ export interface RegistrarNotasRequest {
   observacao?: string;
 }
 
+export interface CorrigirNotaRequest {
+  nota: number;
+  observacao?: string;
+  motivo: string;
+}
+
+export interface CorrigirNotaResponse {
+  message: string;
+  id: string;
+}
+
 
 export interface CriarCategoriaNotaRequest {
   codigo: string;
@@ -1032,6 +1058,11 @@ export interface Nota {
   categoria: CategoriaNota;
   nota: number;
   observacao?: string;
+  registrado_por?: string;
+  valor_anterior?: number;
+  motivo_correcao?: string;
+  corrigido_por?: string;
+  corrigido_em?: string;
   registered_at: string;
   event_id: string;
   version: number;
@@ -1050,6 +1081,11 @@ export interface Falta {
   materia_nome?: string;
   quantidade: number;
   observacao?: string;
+  registrado_por?: string;
+  valor_anterior?: number;
+  motivo_correcao?: string;
+  corrigido_por?: string;
+  corrigido_em?: string;
   registered_at: string;
   event_id: string;
   version: number;
@@ -1449,6 +1485,10 @@ export interface ListarReprovacoesResponse {
   total_geral?: number;
   limit?: number;
   offset?: number;
+}
+
+export interface EventoAuditoriaResponse {
+  evento: Evento;
 }
 
 export interface EventosEstudanteResponse {

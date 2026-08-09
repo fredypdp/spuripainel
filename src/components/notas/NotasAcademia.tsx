@@ -117,6 +117,19 @@ function notaText(n?: number | null): string {
   return n == null || n === 0 ? "" : String(n);
 }
 
+
+function tituloCorrecaoNota(nota: Nota): string | undefined {
+  if (!nota.corrigido_em) return undefined;
+  const anterior = nota.valor_anterior ?? "—";
+  const motivo = nota.motivo_correcao ? ` Motivo: ${nota.motivo_correcao}` : "";
+  return `Corrigido em ${nota.corrigido_em}: ${anterior} → ${nota.nota}.${motivo}`;
+}
+
+function NotaCorrigidaBadge({ nota }: { nota: Nota }) {
+  if (!nota.corrigido_em) return null;
+  return <Icon icon="mdi:pencil-circle" width={14} className="ml-1 inline text-brand-500" />;
+}
+
 function corNota(n: number): string {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
@@ -261,11 +274,13 @@ function TabelaNotasEscolar({
   estudantes,
   codigosTurma,
   anoAcademico,
+  onCorrigir,
 }: {
   notas: Nota[];
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
   anoAcademico: string;
+  onCorrigir: (nota: Nota) => void;
 }) {
   const categoriasOrdem = categoriasEscolaresDoAno(anoAcademico, notas);
 
@@ -324,7 +339,11 @@ function TabelaNotasEscolar({
                   const notaCat = notasEst.find(n => n.categoria === cat);
                   return (
                     <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>
-                      {notaText(notaCat?.nota)}
+                      {notaCat ? (
+                        <button type="button" onClick={() => onCorrigir(notaCat)} title={tituloCorrecaoNota(notaCat) ?? "Corrigir nota"} className="inline-flex items-center justify-end rounded px-1 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          {notaText(notaCat.nota)}<NotaCorrigidaBadge nota={notaCat} />
+                        </button>
+                      ) : ""}
                     </td>
                   );
                 })}
@@ -344,12 +363,14 @@ function TabelaNotasSuperior({
   codigosTurma,
   anoAcademico,
   categorias,
+  onCorrigir,
 }: {
   notas: Nota[];
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
   anoAcademico: string;
   categorias: CategoriaNotaItem[];
+  onCorrigir: (nota: Nota) => void;
 }) {
   const categoriasOrdem = categoriasSuperioresDoAno(anoAcademico, notas, categorias);
 
@@ -395,7 +416,7 @@ function TabelaNotasSuperior({
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{exibirCodigoEstudante(codigo)}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = notasEst.find(n => n.categoria === cat);
-                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-300 dark:text-gray-600"}`}>{notaCat ? <button type="button" onClick={() => onCorrigir(notaCat)} title={tituloCorrecaoNota(notaCat) ?? "Corrigir nota"} className="inline-flex items-center justify-end rounded px-1 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-700">{notaText(notaCat.nota)}<NotaCorrigidaBadge nota={notaCat} /></button> : ""}</td>;
                 })}
               </tr>
             ))}
@@ -656,6 +677,53 @@ function ModalGestao({
   );
 }
 
+
+function ModalCorrigirNota({ nota, isOpen, onClose, onConfirm }: { nota: Nota | null; isOpen: boolean; onClose: () => void; onConfirm: (id: string, data: { nota: number; observacao?: string; motivo: string }) => Promise<void>; }) {
+  const [valor, setValor] = useState<number | "">("");
+  const [observacao, setObservacao] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!nota || !isOpen) return;
+    setValor(nota.nota);
+    setObservacao(nota.observacao ?? "");
+    setMotivo("");
+    setError(null);
+  }, [nota, isOpen]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nota) return;
+    setError(null);
+    const n = Number(valor);
+    if (valor === "" || Number.isNaN(n) || n < 0 || n > 20) { setError("A nota deve estar entre 0 e 20."); return; }
+    if (!motivo.trim()) { setError("Informe o motivo da correção."); return; }
+    setLoading(true);
+    try {
+      await onConfirm(nota.id, { nota: n, observacao: observacao || undefined, motivo: motivo.trim() });
+      onClose();
+    } catch (err: any) {
+      setError(err?.message ?? "Não foi possível corrigir a nota.");
+    } finally { setLoading(false); }
+  }
+
+  if (!isOpen || !nota) return null;
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[520px] p-5 lg:p-8">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h4 className="font-semibold text-gray-900 dark:text-white">Corrigir Nota</h4>
+        {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
+        <div><Label>Nota (0–20) *</Label><Input type="number" min="0" max="20" step={0.01} value={valor} onChange={e => setValor(e.target.value === "" ? "" : Number(e.target.value))} /></div>
+        <div><Label>Observação</Label><Input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" /></div>
+        <div><Label>Motivo da correção *</Label><Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique o motivo" /></div>
+        <div className="flex gap-2 justify-end"><Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button><Button disabled={loading}>{loading ? "Corrigindo..." : "Corrigir"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── componente principal ─────────────────────────────────────────────────────
 
 export default function NotasAcademia() {
@@ -697,6 +765,8 @@ export default function NotasAcademia() {
   const { data: dataAnosLetivosLista,                        execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);
 
   const { isOpen, openModal, closeModal } = useModal();
+  const { isOpen: isCorrigirOpen, openModal: openCorrigirModal, closeModal: closeCorrigirModal } = useModal();
+  const [notaSelecionada, setNotaSelecionada] = useState<Nota | null>(null);
 
   // ─── carga inicial ──────────────────────────────────────────────────────────
 
@@ -920,6 +990,16 @@ export default function NotasAcademia() {
     }
   }
 
+  async function handleCorrigirNota(id: string, data: { nota: number; observacao?: string; motivo: string }) {
+    await academiaService.corrigirNota(id, data, token);
+    showAlert("success", "Nota corrigida com sucesso.");
+    const turmaAtual = layer.type === "notas" ? (layer as any).turma : null;
+    if (turmaAtual) {
+      const l = layer as any;
+      await carregarNotasDosEstudantesDaTurma(turmaAtual, true, { nivel: l.nivel, periodo: l.periodo, superior: l.mode === "sup" });
+    }
+  }
+
   async function handleCriarCategoria(d: CriarCategoriaNotaRequest) {
     await academiaService.criarCategoriaNota(d, token);
     carregarCategorias(token);
@@ -1115,8 +1195,8 @@ export default function NotasAcademia() {
         {/* Tabela */}
         {materiasDisponiveis.length > 0 && (
           usarTabelaSuperior
-            ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} categorias={categorias} />
-            : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} />
+            ? <TabelaNotasSuperior notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} categorias={categorias} onCorrigir={(nota) => { setNotaSelecionada(nota); openCorrigirModal(); }} />
+            : <TabelaNotasEscolar  notas={notasFiltradas} estudantes={estudantes} codigosTurma={codigosTurma} anoAcademico={nivel} onCorrigir={(nota) => { setNotaSelecionada(nota); openCorrigirModal(); }} />
         )}
       </div>
     );
@@ -1502,6 +1582,13 @@ export default function NotasAcademia() {
       </div>
 
       {renderLayer()}
+
+      <ModalCorrigirNota
+        nota={notaSelecionada}
+        isOpen={isCorrigirOpen}
+        onClose={closeCorrigirModal}
+        onConfirm={handleCorrigirNota}
+      />
 
       <ModalGestao
         isOpen={isOpen}

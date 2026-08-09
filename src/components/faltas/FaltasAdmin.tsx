@@ -50,6 +50,28 @@ function corQuantidade(q: number): string {
   return "text-gray-700 dark:text-gray-300";
 }
 
+
+function tituloCorrecaoFalta(falta: Falta): string | undefined {
+  if (!falta.corrigido_em) return undefined;
+  const anterior = falta.valor_anterior ?? "—";
+  const motivo = falta.motivo_correcao ? ` Motivo: ${falta.motivo_correcao}` : "";
+  return `Corrigido em ${falta.corrigido_em}: ${anterior} → ${falta.quantidade}.${motivo}`;
+}
+
+function FaltaCorrigidaBadge({ falta }: { falta: Falta }) {
+  if (!falta.corrigido_em) return null;
+  return <Icon icon="mdi:pencil-circle" width={14} className="ml-1 inline text-brand-500" />;
+}
+
+function ValorFaltaComCorrecao({ falta, mostrarMotivo = false }: { falta: Falta; mostrarMotivo?: boolean }) {
+  return (
+    <span title={tituloCorrecaoFalta(falta)}>
+      {falta.quantidade}<FaltaCorrigidaBadge falta={falta} />
+      {mostrarMotivo && falta.motivo_correcao && <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">Motivo: {falta.motivo_correcao}</span>}
+    </span>
+  );
+}
+
 function formatarData(data: ApiDate): string {
   try {
     return new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
@@ -216,7 +238,7 @@ function TabelaFaltas({
                     {formatarData(f.data)}
                   </td>
                   <td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}>
-                    {f.quantidade}
+                    <ValorFaltaComCorrecao falta={f} />
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                     {f.observacao || "—"}

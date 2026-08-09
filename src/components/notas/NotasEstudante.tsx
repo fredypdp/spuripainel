@@ -51,6 +51,23 @@ function notaText(n?: number | null): string {
   return n == null || n === 0 ? "" : String(n);
 }
 
+function tituloCorrecaoNota(nota: Nota): string | undefined {
+  if (!nota.corrigido_em) return undefined;
+  const anterior = nota.valor_anterior ?? "—";
+  const motivo = nota.motivo_correcao ? ` Motivo: ${nota.motivo_correcao}` : "";
+  return `Corrigido em ${nota.corrigido_em}: ${anterior} → ${nota.nota}.${motivo}`;
+}
+
+function NotaCorrigidaBadge({ nota }: { nota: Nota }) {
+  if (!nota.corrigido_em) return null;
+  return <Icon icon="mdi:pencil-circle" width={14} className="ml-1 inline text-brand-500" />;
+}
+
+function ValorNotaComCorrecao({ nota }: { nota?: Nota }) {
+  if (!nota) return null;
+  return <span title={tituloCorrecaoNota(nota)}>{notaText(nota.nota)}<NotaCorrigidaBadge nota={nota} />{nota.motivo_correcao && <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">Motivo: {nota.motivo_correcao}</span>}</span>;
+}
+
 function corNota(n: number) {
   if (n >= 14) return "text-emerald-600 dark:text-emerald-400";
   if (n >= 10) return "text-amber-600 dark:text-amber-400";
@@ -217,7 +234,7 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [], anoA
                 <tr key={n.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   {i === 0 && <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium" rowSpan={nm.length}>{nome}</td>}
                   <td className="px-4 py-3 text-right text-gray-400 dark:text-gray-600"></td>
-                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}>{notaText(n.nota)}</td>
+                  <td className={`px-4 py-3 text-right font-bold ${corNota(n.nota)}`}><ValorNotaComCorrecao nota={n} /></td>
                 </tr>
               ));
             }
@@ -226,7 +243,7 @@ function TabelaNotasEscolarEstudante({ notas, categoriasMap, materias = [], anoA
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
                 {categoriasOrdem.map((cat) => {
                   const notaCat = nm.find(n => n.categoria === cat);
-                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
+                  return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{<ValorNotaComCorrecao nota={notaCat} />}</td>;
                 })}
               </tr>
             );
@@ -270,7 +287,7 @@ function TabelaNotasSuperiorEstudante({ notas, materias = [], anoAcademico, cate
               <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{nome}</td>
               {categoriasOrdem.map((cat) => {
                 const notaCat = nm.find(n => n.categoria === cat);
-                return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{notaText(notaCat?.nota)}</td>;
+                return <td key={cat} className={`px-4 py-3 text-right font-bold ${notaCat ? corNota(notaCat.nota) : "text-gray-400 dark:text-gray-600"}`}>{<ValorNotaComCorrecao nota={notaCat} />}</td>;
               })}
             </tr>
           ))}
