@@ -76,6 +76,11 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
+    path: '/comunicacao',
+    allowedTypes: ['admin'],
+    redirectIfUnauthorized: '/painel',
+  },
+  {
     path: '/configuracoes/personalizar',
     allowedTypes: 'authenticated',
     redirectIfUnauthorized: '/login',
@@ -208,7 +213,7 @@ export function checkRoutePermission(
     ? pathname.slice(0, -1)
     : pathname;
 
-  if (normalizedPath === '/testes' && !isTestesPageEnabled()) {
+  if ((normalizedPath === '/testes' || normalizedPath === '/comunicacao') && !isTestesPageEnabled()) {
     return { allowed: false, redirectTo: '/painel' };
   }
 

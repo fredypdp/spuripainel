@@ -107,6 +107,11 @@ const navItems: NavItem[] = [
     name: "Testes",
     path: "/testes",
   },
+  {
+    icon: <Icon width="24px" icon="mdi:message-text-outline" />,
+    name: "Comunicação",
+    path: "/comunicacao",
+  },
 ];
 
 export default function AppSidebar() {
@@ -193,7 +198,7 @@ export default function AppSidebar() {
   const filteredNavItems = useMemo(() => {
     const environmentNavItems = isTestesPageEnabled()
       ? navItems
-      : navItems.filter((item) => item.path !== "/testes");
+      : navItems.filter((item) => item.path !== "/testes" && item.path !== "/comunicacao");
 
     if (!mounted) return environmentNavItems;
 
@@ -241,6 +246,10 @@ export default function AppSidebar() {
           // Testes: apenas academia
           if (item.path === "/testes") {
             return user.tipo === "academia";
+          }
+          // Comunicação: apenas admin FPP
+          if (item.path === "/comunicacao") {
+            return user.tipo === "admin" && user?.admin?.role === "fpp";
           }
         }
         return true;
