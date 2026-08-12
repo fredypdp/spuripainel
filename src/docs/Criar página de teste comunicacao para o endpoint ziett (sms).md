@@ -1,10 +1,10 @@
 ---
 criado: 2026-08-10 00:00
 origem: solicitação do usuário
-status: pendente
+status: feito
 ---
 
-# Criar página `/comunicacao` (frontend) para testar o endpoint Ziett (SMS) (pendente)
+# Criar página /comunicacao (frontend) para testar o endpoint Ziett (SMS) (feito)
 
 ## Prompt recomendado para executar a atualização
 
