@@ -45,6 +45,7 @@ Versão atual: 2.3.0
 18. [Batch Assíncrono](#18-batch-assíncrono)
 19. [Financeiro / AppyPay](#19-financeiro--appypay)
 20. [Armazenamento](#20-armazenamento)
+21. [Integrações Externas / Ziett (Teste)](#21-integrações-externas--ziett-teste)
 
 ---
 
@@ -7041,11 +7042,11 @@ O módulo financeiro integra o backend com a AppyPay para gerir credenciais, cri
   "codigo_academia": "LDA20261",
   "client_id": "appy-client-id",
   "client_secret": "appy-client-secret",
-  "resource": "2aed7612-de64-46b5-9e59-1f48f8902d14",
   "gpo_payment_method": "GPO_METHOD_ID",
   "ref_payment_method": "REF_METHOD_ID",
   "webhook_auth_type": "api_key",
-  "webhook_secret": "segredo-do-webhook"
+  "webhook_secret": "segredo-do-webhook",
+  "webhook_header_name": "X-API-Key"
 }
 ```
 
@@ -7058,18 +7059,18 @@ O módulo financeiro integra o backend com a AppyPay para gerir credenciais, cri
   "codigo_academia": "LDA20261",
   "ambiente": "test",
   "client_id_mask": "appy**********id",
-  "resource_mask": "http**********2.0",
   "gpo_payment_method_mask": "GPO_**********_ID",
   "ref_payment_method_mask": "REF_**********_ID",
   "webhook_auth_type": "api_key",
+  "webhook_header_name": "X-API-Key",
   "updated_at": "2026-08-08T12:00:00Z"
 }
 ```
 
 **Regras de negócio:**
 
-- `client_id`, `client_secret`, `resource`, `gpo_payment_method` e `ref_payment_method` são obrigatórios.
-- `webhook_auth_type="basic"` exige `webhook_username` e `webhook_secret`; `webhook_auth_type="api_key"` exige `webhook_secret` e o gateway deve enviar esse segredo em `X-API-Key`.
+- `client_id`, `client_secret`, `gpo_payment_method` e `ref_payment_method` são obrigatórios. `resource` não é enviado neste endpoint: é lido da variável de ambiente `APPYPAY_RESOURCE`, com o mesmo valor para todas as academias e para o Spuri no mesmo ambiente.
+- `webhook_auth_type="basic"` exige `webhook_username` e `webhook_secret`; `webhook_auth_type="api_key"` exige `webhook_secret` e, opcionalmente, `webhook_header_name` (nome do cabeçalho HTTP em que a AppyPay deve enviar o segredo; padrão `X-API-Key` quando omitido). O nome deve corresponder exatamente ao configurado no campo "nome" do painel de webhooks da AppyPay.
 - Uma academia não pode criar credenciais para `spuri` nem para outra academia.
 - O backend cifra segredos em armazenamento próprio e grava no ledger apenas metadados/máscaras.
 
@@ -7086,6 +7087,7 @@ O módulo financeiro integra o backend com a AppyPay para gerir credenciais, cri
 **Regras de negócio:**
 
 - A atualização revalida todas as regras do cadastro de credenciais; envie o conjunto completo de campos obrigatórios.
+- A atualização é sempre uma substituição completa: reenvie `webhook_header_name` para preservar um nome customizado, pois sua omissão restaura o padrão `X-API-Key`. `resource` continua fora do corpo da requisição e vem de `APPYPAY_RESOURCE`.
 - A rota não expõe o valor antigo nem o novo valor dos segredos.
 - Academia só pode manter o escopo no próprio contexto; mudança para `spuri` ou outra academia é bloqueada por autorização.
 
@@ -7112,10 +7114,10 @@ O módulo financeiro integra o backend com a AppyPay para gerir credenciais, cri
     "codigo_academia": "LDA20261",
     "ambiente": "test",
     "client_id_mask": "appy**********id",
-    "resource_mask": "http**********2.0",
     "gpo_payment_method_mask": "GPO_**********_ID",
     "ref_payment_method_mask": "REF_**********_ID",
     "webhook_auth_type": "api_key",
+    "webhook_header_name": "X-API-Key",
     "updated_at": "2026-08-08T12:00:00Z"
   }
 ]
@@ -7368,7 +7370,7 @@ Para `MULTIPLE`, os quatro campos adicionais são obrigatórios. Seus valores e 
 
 **Escopo da rota:** entrada pública para notificações AppyPay do método GPO.
 
-**Proteção:** pública no roteamento HTTP, autenticada por credencial AppyPay cadastrada. Use `Authorization: Basic ...` quando `webhook_auth_type="basic"` ou `X-API-Key` quando `webhook_auth_type="api_key"`.
+**Proteção:** pública no roteamento HTTP, autenticada por credencial AppyPay cadastrada. Use `Authorization: Basic ...` quando `webhook_auth_type="basic"`; para `webhook_auth_type="api_key"`, o nome do cabeçalho é configurável por credencial em `webhook_header_name` (padrão `X-API-Key`). A AppyPay confirmou que a autenticação do webhook sempre viaja por cabeçalho HTTP, nunca por query parameter.
 
 **Request JSON:**
 
@@ -7393,7 +7395,7 @@ Para `MULTIPLE`, os quatro campos adicionais são obrigatórios. Seus valores e 
 
 **Escopo da rota:** entrada pública para notificações AppyPay do método REF.
 
-**Proteção:** igual ao webhook GPO: autenticação por Basic Auth ou `X-API-Key` conforme a credencial dona do webhook.
+**Proteção:** igual ao webhook GPO: autenticação por Basic Auth ou por API Key no cabeçalho configurado pela credencial (`webhook_header_name`, padrão `X-API-Key`). A AppyPay confirmou que essa autenticação sempre viaja por cabeçalho HTTP, nunca por query parameter.
 
 **Request JSON:**
 
@@ -7654,5 +7656,75 @@ Quando a configuração do Mega ou da quota estiver incompleta ou inválida, a r
   "error": "SERVICE_UNAVAILABLE",
   "message": "operação de storage não suportada",
   "request_id": "8c7e6a5d-9b9f-4fd2-a2d0-3a989a8c2d8b"
+}
+```
+
+
+---
+
+## 21. Integrações Externas / Ziett (Teste)
+
+Esta seção documenta a rota isolada para validar conectividade com a API externa da Ziett por envio de SMS. A rota não grava eventos, não alimenta projeções, não usa `spuri_ledger` e não participa de fluxos de matrícula, estudante, academia ou financeiro.
+
+### 21.1 `POST /integracoes/ziett/mensagens/teste`
+
+Envia uma mensagem de teste através do endpoint `POST /messages` da Ziett, com `channel_type` sempre fixo em `SMS` no backend. Dependendo da API Key configurada, o disparo pode ser simulado (`zk_test_`) ou real e com custo (`zk_live_`).
+
+**Proteção**: `Authorization: Bearer <token>` de admin FPP. Requisições sem token retornam `401`; tokens autenticados sem nível FPP retornam `403`.
+
+**Variável obrigatória**: `ZIETT_API_KEY`. Se ausente ou vazia, a API retorna `503 Service Unavailable` sem contactar a Ziett.
+
+**Request JSON:**
+
+```json
+{
+  "remitter_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_e164": "923456789",
+  "content": "Mensagem de teste Spuri via Ziett"
+}
+```
+
+| Campo | Tipo | Obrigatório | Validação |
+| --- | --- | --- | --- |
+| `remitter_id` | string | Sim | UUID válido do Sender ID cadastrado na Ziett. |
+| `target_e164` | string | Sim | Número móvel angolano nacional com 9 dígitos, iniciado por `9`, sem `0` inicial e sem `+244`. O backend aceita defensivamente `0`, `244` ou `+244` recebidos por engano e envia à Ziett no formato `+244XXXXXXXXX`. |
+| `content` | string | Sim | Não vazio; máximo de 1600 caracteres. |
+
+> `channel_type` não é aceito no payload de entrada. O backend sempre envia `SMS` para a Ziett.
+
+**Response 202:**
+
+```json
+{
+  "message": "mensagem de teste enviada à Ziett com sucesso",
+  "message_id": "msg_123",
+  "target_e164": "+244923456789",
+  "channel_type": "SMS"
+}
+```
+
+**Erros:**
+
+| Status | Quando ocorre | Observações |
+| --- | --- | --- |
+| `400` | JSON malformado, `remitter_id` ausente/não UUID, `target_e164` inválido, `content` vazio ou acima de 1600 caracteres. | Usa o envelope global `{error, message, request_id, details?}`. |
+| `401` | Token ausente, inválido ou expirado. | Exige autenticação. |
+| `403` | Usuário autenticado não é admin FPP. | A rota pode disparar SMS real com custo. |
+| `503` | `ZIETT_API_KEY` não configurada. | A Ziett não é contactada. |
+| `401`, `402`, `422`, `429` ou outro status da Ziett | A própria Ziett rejeitou o envio. | O envelope inclui `ziett_code`, `ziett_trace_id`, `ziett_status`, `ziett_message`, `ziett_service` e, quando enviado pela Ziett, `ziett_fields`. |
+| `500` | Falha de rede/timeout ao contactar a Ziett. | Mensagem sanitizada, sem vazar detalhes internos de rede nem API Key. |
+
+**Exemplo de erro repassado da Ziett:**
+
+```json
+{
+  "error": "UNAUTHORIZED",
+  "message": "A Ziett rejeitou o envio da mensagem de teste.",
+  "request_id": "8c7e6a5d-9b9f-4fd2-a2d0-3a989a8c2d8b",
+  "ziett_code": "AUTH_INVALID_API_KEY",
+  "ziett_trace_id": "trace-1",
+  "ziett_status": 401,
+  "ziett_message": "The provided API key is invalid or has been revoked.",
+  "ziett_service": "core"
 }
 ```
