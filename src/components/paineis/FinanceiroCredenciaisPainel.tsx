@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, consultasService, financeiroService, useApi } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
-import type { AcademiaDetalhada, CriarFinanceiroCredencialRequest, FinanceiroContextoTipo, FinanceiroCredencial, FinanceiroWebhookAuthType, ListarFinanceiroCredenciaisParams } from "@/types/api";
+import type { AcademiaDetalhada, CriarFinanceiroCredencialRequest, FinanceiroContextoTipo, FinanceiroCredencial, ListarFinanceiroCredenciaisParams } from "@/types/api";
 import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
@@ -22,23 +22,19 @@ type FormErrors = Partial<Record<keyof CredencialFormData | "contexto", string>>
 type CredencialFormData = {
   client_id: string;
   client_secret: string;
-  resource: string;
   gpo_payment_method: string;
   ref_payment_method: string;
-  webhook_auth_type: FinanceiroWebhookAuthType;
-  webhook_username: string;
   webhook_secret: string;
+  webhook_header_name: string;
 };
 
 const EMPTY_FORM: CredencialFormData = {
   client_id: "",
   client_secret: "",
-  resource: "",
   gpo_payment_method: "",
   ref_payment_method: "",
-  webhook_auth_type: "api_key",
-  webhook_username: "",
   webhook_secret: "",
+  webhook_header_name: "",
 };
 
 function LoadingState() {
@@ -72,6 +68,8 @@ function contextParams(filter: ContextFilter, codigoAcademia: string): ListarFin
   if (filter === "academia" && codigoAcademia) return { contexto_tipo: "academia", codigo_academia: codigoAcademia };
   return undefined;
 }
+
+const HTTP_HEADER_NAME_PATTERN = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/;
 
 export default function FinanceiroCredenciaisPainel() {
   const { user, isAdmin, isAcademia, loading } = useUserType();
@@ -162,12 +160,12 @@ export default function FinanceiroCredenciaisPainel() {
 
   const validate = () => {
     const errors: FormErrors = {};
-    const required: (keyof CredencialFormData)[] = ["client_id", "client_secret", "resource", "gpo_payment_method", "ref_payment_method", "webhook_secret"];
+    const required: (keyof CredencialFormData)[] = ["client_id", "client_secret", "gpo_payment_method", "ref_payment_method", "webhook_secret"];
     required.forEach((field) => {
       if (!formData[field].trim()) errors[field] = "Campo obrigatório.";
     });
-    if (formData.webhook_auth_type === "basic" && !formData.webhook_username.trim()) {
-      errors.webhook_username = "Usuário obrigatório para Basic Auth.";
+    if (formData.webhook_header_name.trim() && !HTTP_HEADER_NAME_PATTERN.test(formData.webhook_header_name.trim())) {
+      errors.webhook_header_name = "Nome de cabeçalho HTTP inválido (sem espaços ou dois-pontos).";
     }
     if (!resolveContext()) errors.contexto = "Selecione um contexto antes de salvar.";
     setFormErrors(errors);
@@ -182,12 +180,10 @@ export default function FinanceiroCredenciaisPainel() {
       ...context,
       client_id: formData.client_id.trim(),
       client_secret: formData.client_secret.trim(),
-      resource: formData.resource.trim(),
       gpo_payment_method: formData.gpo_payment_method.trim(),
       ref_payment_method: formData.ref_payment_method.trim(),
-      webhook_auth_type: formData.webhook_auth_type,
       webhook_secret: formData.webhook_secret.trim(),
-      ...(formData.webhook_auth_type === "basic" ? { webhook_username: formData.webhook_username.trim() } : {}),
+      ...(formData.webhook_header_name.trim() ? { webhook_header_name: formData.webhook_header_name.trim() } : {}),
     };
 
     try {
@@ -241,6 +237,8 @@ export default function FinanceiroCredenciaisPainel() {
         )}
       </div>
 
+      <AdesaoAppyPayInfo />
+
       {!formOpen && <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         {listando ? <LoadingState /> : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
@@ -254,17 +252,16 @@ export default function FinanceiroCredenciaisPainel() {
         ) : (
           <div className="overflow-x-auto">
             <Table className="w-full text-left">
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]"><TableRow>{["Contexto", "Ambiente", "Client ID", "Resource", "Método GPO", "Método REF", "Webhook", "Atualizado em", "Ações"].map((h) => <TableCell key={h} isHeader className="px-4 py-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>)}</TableRow></TableHeader>
+              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]"><TableRow>{["Contexto", "Ambiente", "Client ID", "Método GPO", "Método REF", "Cabeçalho do Webhook", "Atualizado em", "Ações"].map((h) => <TableCell key={h} isHeader className="px-4 py-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>)}</TableRow></TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {rows.map((credencial) => (
                   <TableRow key={credencial.id}>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300"><span className="rounded-full bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 dark:bg-brand-900/20 dark:text-brand-300">{credencial.contexto_tipo === "spuri" ? "Spuri" : `Academia ${credencial.codigo_academia ?? ""}`}</span></TableCell>
                     <TableCell className="px-4 py-3 text-sm"><span className={credencial.ambiente === "production" ? "rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-300" : "rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"}>{credencial.ambiente}</span></TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.client_id_mask}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.resource_mask}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.gpo_payment_method_mask}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.ref_payment_method_mask}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.webhook_auth_type === "basic" ? "Basic Auth" : "API Key"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.webhook_header_name || "X-API-Key"}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{formatDate(credencial.updated_at)}</TableCell>
                     <TableCell className="px-4 py-3"><Button size="sm" variant="outline" onClick={() => openEdit(credencial)}>Editar</Button></TableCell>
                   </TableRow>
@@ -283,16 +280,39 @@ export default function FinanceiroCredenciaisPainel() {
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Client ID *"><Input value={formData.client_id} onChange={(e) => setFormData((p) => ({ ...p, client_id: e.target.value }))} error={!!formErrors.client_id} hint={formErrors.client_id} /></Field>
             <PasswordField label="Client Secret *" value={formData.client_secret} show={showClientSecret} onToggle={() => setShowClientSecret((v) => !v)} onChange={(value) => setFormData((p) => ({ ...p, client_secret: value }))} error={formErrors.client_secret} />
-            <Field label="Resource *"><Input value={formData.resource} onChange={(e) => setFormData((p) => ({ ...p, resource: e.target.value }))} error={!!formErrors.resource} hint={formErrors.resource ?? "ID ou URL do resource/recurso fornecido pela AppyPay."} /></Field>
-            <Field label="Método de pagamento GPO *"><Input value={formData.gpo_payment_method} onChange={(e) => setFormData((p) => ({ ...p, gpo_payment_method: e.target.value }))} error={!!formErrors.gpo_payment_method} hint={formErrors.gpo_payment_method ?? "Identificador do método GPO configurado na AppyPay."} /></Field>
-            <Field label="Método de pagamento REF *"><Input value={formData.ref_payment_method} onChange={(e) => setFormData((p) => ({ ...p, ref_payment_method: e.target.value }))} error={!!formErrors.ref_payment_method} hint={formErrors.ref_payment_method ?? "Identificador do método REF configurado na AppyPay."} /></Field>
-            <Field label="Autenticação do Webhook *"><Select key={formData.webhook_auth_type} defaultValue={formData.webhook_auth_type} options={[{ value: "api_key", label: "API Key" }, { value: "basic", label: "Basic Auth" }]} onChange={(value) => setFormData((p) => ({ ...p, webhook_auth_type: value as FinanceiroWebhookAuthType, webhook_username: value === "api_key" ? "" : p.webhook_username }))} /></Field>
-            {formData.webhook_auth_type === "basic" && <Field label="Usuário do Webhook *"><Input value={formData.webhook_username} onChange={(e) => setFormData((p) => ({ ...p, webhook_username: e.target.value }))} error={!!formErrors.webhook_username} hint={formErrors.webhook_username} /></Field>}
+            <Field label="ID Método de pagamento GPO *"><Input value={formData.gpo_payment_method} onChange={(e) => setFormData((p) => ({ ...p, gpo_payment_method: e.target.value }))} error={!!formErrors.gpo_payment_method} hint={formErrors.gpo_payment_method ?? "Identificador do método GPO configurado na AppyPay."} /></Field>
+            <Field label="ID Método de pagamento REF *"><Input value={formData.ref_payment_method} onChange={(e) => setFormData((p) => ({ ...p, ref_payment_method: e.target.value }))} error={!!formErrors.ref_payment_method} hint={formErrors.ref_payment_method ?? "Identificador do método REF configurado na AppyPay."} /></Field>
+            <Field label="Nome do Cabeçalho do Webhook"><Input value={formData.webhook_header_name} onChange={(e) => setFormData((p) => ({ ...p, webhook_header_name: e.target.value }))} error={!!formErrors.webhook_header_name} hint={formErrors.webhook_header_name ?? "Nome do cabeçalho HTTP configurado no painel de webhooks da AppyPay. Deixe em branco para usar o padrão X-API-Key."} /></Field>
             <PasswordField label="Segredo do Webhook *" value={formData.webhook_secret} show={showWebhookSecret} onToggle={() => setShowWebhookSecret((v) => !v)} onChange={(value) => setFormData((p) => ({ ...p, webhook_secret: value }))} error={formErrors.webhook_secret} />
           </div>
           <div className="flex justify-end gap-3"><Button variant="outline" size="sm" onClick={closeForm} disabled={saving}>Cancelar</Button><Button size="sm" onClick={handleSubmit} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button></div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AdesaoAppyPayInfo() {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div className="flex items-start gap-3">
+        <Icon icon="mdi:bank-outline" width={22} className="mt-0.5 shrink-0 text-brand-500" />
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">Antes de configurar as credenciais</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Para ter acesso ao módulo de finanças e fazer cobranças e receber pagamentos dos estudantes, é necessário aderir aos serviços de Gateway de Pagamento Online junto ao seu banco.
+          </p>
+        </div>
+      </div>
+      <details className="mt-4 rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03]">
+        <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">Nota para Adesão ao Serviço (enviada pela AppyPay)</summary>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-500 dark:text-gray-400">
+          <li>É necessário ter uma conta bancária empresarial em um dos bancos angolanos.</li>
+          <li>O processo de adesão começa no seu banco comercial: dirija-se ao seu banco e solicite os formulários de adesão aos métodos de pagamento que deseja utilizar (Multicaixa Express e/ou Referência).</li>
+          <li>Informe ao banco que vai trabalhar com a AppyPay como seu facilitador tecnológico.</li>
+          <li>A AppyPay tem parceria com o BAI (GPO), BCS e Standard Bank (GPO e REF) — se selecionar um destes bancos, não terá de pagar as comissões da AppyPay (0,4% por cobrança, com comissão mínima de 50 Kz por cobrança), nem assinar o contrato com a AppyPay.</li>
+        </ol>
+      </details>
     </div>
   );
 }
