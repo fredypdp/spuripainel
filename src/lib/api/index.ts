@@ -160,7 +160,6 @@ export type {
   StorageQuotaResponse,
   FinanceiroContextoTipo,
   FinanceiroAmbiente,
-  FinanceiroWebhookAuthType,
   FinanceiroCredencial,
   CriarFinanceiroCredencialRequest,
   AtualizarFinanceiroCredencialRequest,

@@ -1225,7 +1225,6 @@ export interface Turma {
 
 export type FinanceiroContextoTipo = 'spuri' | 'academia';
 export type FinanceiroAmbiente = 'test' | 'production';
-export type FinanceiroWebhookAuthType = 'basic' | 'api_key';
 
 /** Credencial AppyPay mascarada — retornada por criação, atualização e listagem. */
 export interface FinanceiroCredencial {
@@ -1234,10 +1233,9 @@ export interface FinanceiroCredencial {
   codigo_academia?: string;
   ambiente: FinanceiroAmbiente;
   client_id_mask: string;
-  resource_mask: string;
   gpo_payment_method_mask: string;
   ref_payment_method_mask: string;
-  webhook_auth_type: FinanceiroWebhookAuthType;
+  webhook_header_name?: string;
   updated_at: string;
 }
 
@@ -1247,12 +1245,10 @@ export interface CriarFinanceiroCredencialRequest {
   codigo_academia?: string;
   client_id: string;
   client_secret: string;
-  resource: string;
   gpo_payment_method: string;
   ref_payment_method: string;
-  webhook_auth_type: FinanceiroWebhookAuthType;
-  webhook_username?: string;
-  webhook_secret: string;
+  webhook_secret?: string;
+  webhook_header_name?: string;
 }
 
 /** PUT é substituição completa — mesmo formato do POST. */
