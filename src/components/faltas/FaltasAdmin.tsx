@@ -188,6 +188,8 @@ function TabelaFaltas({
   estudantes: EstudanteDetalhado[];
   codigosTurma: string[];
 }) {
+  const [codigoDetalhado, setCodigoDetalhado] = useState<string | null>(null);
+
   if (codigosTurma.length === 0 && faltas.length === 0) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:check-circle-outline" width={40} className="mx-auto mb-2 text-emerald-400 opacity-80" />
@@ -195,74 +197,55 @@ function TabelaFaltas({
     </div>
   );
 
-  const codigosComFalta = new Set(faltas.map(f => normCodigo(f.codigo_estudante)));
-  const codigosSemFalta = codigosTurma.filter(c => !codigosComFalta.has(c));
-
-  const getNome = (codigoNorm: string) => {
-    const est = estudantes.find(e => normCodigo(e.codigo_estudante) === codigoNorm);
-    return est?.nome ?? null;
-  };
+  const getNome = (codigoNorm: string) => estudantes.find(e => normCodigo(e.codigo_estudante) === codigoNorm)?.nome ?? null;
+  const faltasPorCodigo = new Map<string, Falta[]>();
+  faltas.forEach(f => {
+    const codigo = normCodigo(f.codigo_estudante);
+    faltasPorCodigo.set(codigo, [...(faltasPorCodigo.get(codigo) ?? []), f]);
+  });
+  const codigosTabela = Array.from(new Set([...codigosTurma, ...faltasPorCodigo.keys()]));
+  const detalhes = codigoDetalhado ? [...(faltasPorCodigo.get(codigoDetalhado) ?? [])].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()) : [];
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-sm min-w-[700px]">
-        <thead className="bg-gray-50 dark:bg-gray-800/70">
-          <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th>
-            <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Qtd</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {[...faltas]
-            .sort((a, b) => {
-              const nomeA = getNome(normCodigo(a.codigo_estudante)) ?? a.codigo_estudante;
-              const nomeB = getNome(normCodigo(b.codigo_estudante)) ?? b.codigo_estudante;
-              const cmp   = nomeA.localeCompare(nomeB, "pt", { sensitivity: "base" });
-              return cmp !== 0 ? cmp : new Date(b.data).getTime() - new Date(a.data).getTime();
-            })
-            .map(f => {
-              const codigoNorm = normCodigo(f.codigo_estudante);
-              const nome       = getNome(codigoNorm);
-              return (
-                <tr key={f.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                    {nome ?? (f as any).estudante_nome ?? <span className="text-gray-400 italic text-sm">Nome não encontrado</span>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">
-                    {f.codigo_estudante.toUpperCase()}
-                  </td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                    {formatarData(f.data)}
-                  </td>
-                  <td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}>
-                    <ValorFaltaComCorrecao falta={f} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                    {f.observacao || "—"}
-                  </td>
+    <div className="space-y-4">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead className="bg-gray-50 dark:bg-gray-800/70">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Nome do Estudante</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Código do Estudante</th>
+              <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+            {codigosTabela
+              .map(codigo => {
+                const fs = faltasPorCodigo.get(codigo) ?? [];
+                return { codigo, nome: getNome(codigo) ?? (fs[0] as any)?.estudante_nome ?? null, total: fs.reduce((acc, f) => acc + f.quantidade, 0), faltas: fs };
+              })
+              .sort((a, b) => (a.nome ?? a.codigo).localeCompare(b.nome ?? b.codigo, "pt", { sensitivity: "base" }))
+              .map(({ codigo, nome, total, faltas: fs }) => (
+                <tr key={codigo} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{nome ?? <span className="text-gray-400 italic text-sm">Nome não encontrado</span>}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{codigo.toUpperCase()}</td>
+                  <td className={`px-4 py-3 text-center text-base font-bold ${total > 0 ? corQuantidade(total) : "text-gray-300 dark:text-gray-600"}`}>{total || "—"}</td>
+                  <td className="px-4 py-3 text-right">{fs.length > 0 && <button type="button" onClick={() => setCodigoDetalhado(codigoDetalhado === codigo ? null : codigo)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"><Icon icon="mdi:eye-outline" width={14} /> Ver mais</button>}</td>
                 </tr>
-              );
-            })}
+              ))}
+          </tbody>
+        </table>
+      </div>
 
-          {codigosSemFalta
-            .map(codigo => ({ codigo, nome: getNome(codigo) }))
-            .sort((a, b) => (a.nome ?? a.codigo).localeCompare(b.nome ?? b.codigo, "pt", { sensitivity: "base" }))
-            .map(({ codigo, nome }) => (
-              <tr key={`sem-falta-${codigo}`} className="bg-white dark:bg-gray-800/60">
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                  {nome ?? <span className="text-gray-400 italic text-sm">Nome não encontrado</span>}
-                </td>
-                <td className="px-4 py-3 text-gray-400 dark:text-gray-500 font-mono text-xs">{codigo.toUpperCase()}</td>
-                <td className="px-4 py-3 text-gray-300 dark:text-gray-600">—</td>
-                <td className="px-4 py-3 text-center text-gray-300 dark:text-gray-600 font-bold"></td>
-                <td className="px-4 py-3 text-gray-300 dark:text-gray-600">Sem faltas</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
+      {codigoDetalhado && (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700"><h3 className="font-semibold text-gray-900 dark:text-white">Faltas detalhadas de {getNome(codigoDetalhado) ?? codigoDetalhado.toUpperCase()}</h3></div>
+          <table className="w-full text-sm min-w-[620px]">
+            <thead className="bg-gray-50 dark:bg-gray-800/70"><tr><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th><th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Lectivo</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th></tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">{detalhes.map(f => <tr key={f.id} className="bg-white dark:bg-gray-800"><td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">{formatarData(f.data)}</td><td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}><ValorFaltaComCorrecao falta={f} mostrarMotivo /></td><td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{f.ano_lectivo?.replace("_", "/")}</td><td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

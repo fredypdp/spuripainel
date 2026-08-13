@@ -20,6 +20,11 @@ const ordemOptions: Array<SearchableSelectOption<"recentes" | "antigas">> = [
   { value: "antigas", label: "Mais antigas" },
 ];
 const ITEMS_POR_PAGINA = 50;
+const ANOS_FUNDAMENTAL = [
+  "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
+  "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental",
+];
+const ANOS_MEDIO = ["1_ano_medio", "2_ano_medio", "3_ano_medio", "4_ano_medio"];
 
 const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
 
@@ -48,8 +53,9 @@ function anoLabel(value?: string) {
   if (!value || value === "sem_ano") return "Ano não informado";
   const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return value.replace(/_/g, " ");
-  const nivel = match[2] === "medio" ? "Médio" : match[2] === "superior" ? "Superior" : "Fundamental";
-  return `${match[1]}º Ano ${nivel}`;
+  if (match[2] === "fundamental") return `${match[1]}ª Classe`;
+  if (match[2] === "medio") return `${match[1]}º Ano do Ensino Médio`;
+  return `${match[1]}º Ano Superior`;
 }
 
 function anoOrder(value: string) {
@@ -125,9 +131,17 @@ export default function PageContent() {
 
   const anos = useMemo(() => {
     const values = new Set<string>(items.map(anoValue));
-    if (!isAdmin) (user?.academia?.anos_academicos ?? []).forEach((ano) => values.add(ano));
+    if (!isAdmin) {
+      const anosAcademia = user?.academia?.anos_academicos ?? [];
+      anosAcademia.forEach((ano) => values.add(ano));
+
+      if (user?.academia?.nivel === "escola" && user?.academia?.nivel_escolar === "misto") {
+        ANOS_FUNDAMENTAL.forEach((ano) => values.add(ano));
+        ANOS_MEDIO.forEach((ano) => values.add(ano));
+      }
+    }
     return Array.from(values).sort((a, b) => anoOrder(a) - anoOrder(b));
-  }, [items, isAdmin, user?.academia?.anos_academicos]);
+  }, [items, isAdmin, user?.academia?.anos_academicos, user?.academia?.nivel, user?.academia?.nivel_escolar]);
 
   const solicitacoesDoAno = useMemo(() => {
     if (!anoSelecionado) return [];
