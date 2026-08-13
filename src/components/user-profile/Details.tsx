@@ -9,8 +9,8 @@ function formatarAnoAcademico(ano: string): string {
   if (!ano) return '';
   const m = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!m) return ano.replace(/_/g, ' ');
+  if (m[2] === 'fundamental') return `${m[1]}ª Classe`;
   const tipo: Record<string, string> = {
-    fundamental: 'Fundamental',
     medio: 'Médio',
     superior: 'Superior',
   };
@@ -27,10 +27,10 @@ function labelNivelAtivo(user: MeuPerfilResponse): { label: string; cor: string 
   if (!e) return null;
   if (e.status_superior === 'em_andamento')              return { label: 'Ensino Superior',              cor: 'indigo'  };
   if (e.status_escolar_medio === 'em_andamento')         return { label: 'Ensino Médio',                 cor: 'purple'  };
-  if (e.status_escolar_fundamental === 'em_andamento')   return { label: 'Ensino Fundamental',           cor: 'blue'    };
+  if (e.status_escolar_fundamental === 'em_andamento')   return { label: 'Ensino Fundamental (1ª-9ª Classe)',           cor: 'blue'    };
   if (e.status_superior === 'finalizado')                return { label: 'Superior (Finalizado)',        cor: 'green'   };
   if (e.status_escolar_medio === 'finalizado')           return { label: 'Médio (Finalizado)',           cor: 'green'   };
-  if (e.status_escolar_fundamental === 'finalizado')     return { label: 'Fundamental (Finalizado)',     cor: 'green'   };
+  if (e.status_escolar_fundamental === 'finalizado')     return { label: '1ª-9ª Classe (Finalizado)',     cor: 'green'   };
   return null;
 }
 

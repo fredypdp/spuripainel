@@ -22,15 +22,15 @@ interface MateriaFormData {
 }
 
 const ANOS_FUNDAMENTAL = [
-  { value: "1_ano_fundamental", label: "1º Ano" },
-  { value: "2_ano_fundamental", label: "2º Ano" },
-  { value: "3_ano_fundamental", label: "3º Ano" },
-  { value: "4_ano_fundamental", label: "4º Ano" },
-  { value: "5_ano_fundamental", label: "5º Ano" },
-  { value: "6_ano_fundamental", label: "6º Ano" },
-  { value: "7_ano_fundamental", label: "7º Ano" },
-  { value: "8_ano_fundamental", label: "8º Ano" },
-  { value: "9_ano_fundamental", label: "9º Ano" },
+  { value: "1_ano_fundamental", label: "1ª Classe" },
+  { value: "2_ano_fundamental", label: "2ª Classe" },
+  { value: "3_ano_fundamental", label: "3ª Classe" },
+  { value: "4_ano_fundamental", label: "4ª Classe" },
+  { value: "5_ano_fundamental", label: "5ª Classe" },
+  { value: "6_ano_fundamental", label: "6ª Classe" },
+  { value: "7_ano_fundamental", label: "7ª Classe" },
+  { value: "8_ano_fundamental", label: "8ª Classe" },
+  { value: "9_ano_fundamental", label: "9ª Classe" },
 ];
 
 const formatarPeriodoLabel = (p: string): string => {
@@ -711,7 +711,7 @@ export default function MateriaPainel() {
               <div className="flex items-center">
                 <button onClick={() => setViewNivel(v => v === "fundamental" ? "medio" : "fundamental")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
                   <Icon icon={viewNivel === "fundamental" ? "mdi:school" : "mdi:book-education"} width={16} />
-                  {viewNivel === "fundamental" ? "Ver Matérias do Ensino Médio" : "Ver Matérias do Ensino Fundamental"}
+                  {viewNivel === "fundamental" ? "Ver Matérias do Ensino Médio" : "Ver Matérias do Ensino Fundamental (1ª-9ª Classe)"}
                 </button>
               </div>
             )}

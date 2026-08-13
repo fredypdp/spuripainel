@@ -9,9 +9,9 @@ import Icon from "@/components/ui/Icon";
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const NIVEL_LABEL: Record<string, string> = {
-  "1_ano_fundamental": "1º Ano", "2_ano_fundamental": "2º Ano", "3_ano_fundamental": "3º Ano",
-  "4_ano_fundamental": "4º Ano", "5_ano_fundamental": "5º Ano", "6_ano_fundamental": "6º Ano",
-  "7_ano_fundamental": "7º Ano", "8_ano_fundamental": "8º Ano", "9_ano_fundamental": "9º Ano",
+  "1_ano_fundamental": "1ª Classe", "2_ano_fundamental": "2ª Classe", "3_ano_fundamental": "3ª Classe",
+  "4_ano_fundamental": "4ª Classe", "5_ano_fundamental": "5ª Classe", "6_ano_fundamental": "6ª Classe",
+  "7_ano_fundamental": "7ª Classe", "8_ano_fundamental": "8ª Classe", "9_ano_fundamental": "9ª Classe",
   "1_ano_medio": "1º Médio", "2_ano_medio": "2º Médio", "3_ano_medio": "3º Médio", "4_ano_medio": "4º Médio",
   "1_ano_superior": "1º Ano", "2_ano_superior": "2º Ano", "3_ano_superior": "3º Ano",
   "4_ano_superior": "4º Ano", "5_ano_superior": "5º Ano", "6_ano_superior": "6º Ano",
@@ -208,7 +208,7 @@ export default function AvaliacoesFinaisEstudante() {
   };
 
   const cicloInfo: Record<TipoEnsino, { label: string; sub: string; icon: string }> = {
-    fundamental: { label: "Ensino Fundamental", sub: "1º ao 9º Ano", icon: "mdi:school" },
+    fundamental: { label: "Ensino Fundamental (1ª-9ª Classe)", sub: "1ª a 9ª Classe", icon: "mdi:school" },
     medio:       { label: "Ensino Médio",        sub: "1º ao 4º Médio",    icon: "mdi:book-education" },
     superior:    { label: "Ensino Superior",     sub: "Cursos superiores", icon: "mdi:university" },
   };

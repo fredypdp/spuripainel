@@ -31,21 +31,21 @@ const NATUREZA_OPCOES = [
 ];
 
 const NIVEL_ESCOLAR_OPCOES = [
-  { nome: "Ensino Fundamental (1ª–9ª)", value: "fundamental" as NivelEscolar },
+  { nome: "Ensino Fundamental (1ª-9ª Classe)", value: "fundamental" as NivelEscolar },
   { nome: "Ensino Médio",               value: "medio"       as NivelEscolar },
   { nome: "Fundamental e Médio",        value: "misto"       as NivelEscolar },
 ];
 
 const ANOS_FUNDAMENTAL_OPCOES = [
-  { value: "1_ano_fundamental", label: "1º Ano" },
-  { value: "2_ano_fundamental", label: "2º Ano" },
-  { value: "3_ano_fundamental", label: "3º Ano" },
-  { value: "4_ano_fundamental", label: "4º Ano" },
-  { value: "5_ano_fundamental", label: "5º Ano" },
-  { value: "6_ano_fundamental", label: "6º Ano" },
-  { value: "7_ano_fundamental", label: "7º Ano" },
-  { value: "8_ano_fundamental", label: "8º Ano" },
-  { value: "9_ano_fundamental", label: "9º Ano" },
+  { value: "1_ano_fundamental", label: "1ª Classe" },
+  { value: "2_ano_fundamental", label: "2ª Classe" },
+  { value: "3_ano_fundamental", label: "3ª Classe" },
+  { value: "4_ano_fundamental", label: "4ª Classe" },
+  { value: "5_ano_fundamental", label: "5ª Classe" },
+  { value: "6_ano_fundamental", label: "6ª Classe" },
+  { value: "7_ano_fundamental", label: "7ª Classe" },
+  { value: "8_ano_fundamental", label: "8ª Classe" },
+  { value: "9_ano_fundamental", label: "9ª Classe" },
 ];
 
 // ---------------------------------------------------------------------------
