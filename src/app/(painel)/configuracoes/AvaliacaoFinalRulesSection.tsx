@@ -14,7 +14,7 @@ type FormulaItem = { kind: "ref"; categoria: string; periodo: string } | { kind:
 function labelNivel(v: string) {
   if (v.includes("semestre")) return `${v.split("_")[0]}.º Semestre`;
   const [numero, , nivel] = v.split("_");
-  return `${numero}.º ${nivel === "fundamental" ? "Fundamental" : nivel === "medio" ? "Médio" : "Superior"}`;
+  return nivel === "fundamental" ? `${numero}ª Classe` : `${numero}.º ${nivel === "medio" ? "Médio" : "Superior"}`;
 }
 
 function labelPeriodo(v: string) {
@@ -234,7 +234,7 @@ function filtrarPorModelo(section: SchoolRuleSection, modelos?: ModeloMedio[]) {
 
 const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
   {
-    title: "1.º ao 5.º Fundamental",
+    title: "1ª à 5ª Classe",
     scope: "Anos acadêmicos com regra regular",
     formula: "Média anual = média dos 3 trimestres; nota mínima: 5 valores",
     description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria.",
@@ -245,7 +245,7 @@ const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
     ],
   },
   {
-    title: "6.º Fundamental",
+    title: "6ª Classe",
     scope: "Ano acadêmico com exame final e recurso",
     formula: "Exame final = média dos 1.º e 2.º trimestres + 3.º trimestre com exame final; recurso = nota do exame de recurso; nota mínima: 5 valores",
     description: "Neste ano, o sistema calcula a avaliação com exame final usando as médias do 1.º e 2.º trimestres e, no 3.º trimestre, combina a nota do professor com a nota do exame final. Se ainda for necessário, o exame de recurso vale apenas para as matérias que ficaram abaixo da nota mínima.",
@@ -258,7 +258,7 @@ const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
     ],
   },
   {
-    title: "7.º e 8.º Fundamental",
+    title: "7ª e 8ª Classe",
     scope: "Anos acadêmicos com regra regular",
     formula: "Média anual = média dos 3 trimestres; nota mínima: 10 valores",
     description: "O sistema calcula a média de cada trimestre combinando a nota do professor com a prova trimestral e depois tira a média anual da matéria.",
@@ -269,7 +269,7 @@ const SCHOOL_RULE_SECTIONS: SchoolRuleSection[] = [
     ],
   },
   {
-    title: "9.º Fundamental",
+    title: "9ª Classe",
     scope: "Ano acadêmico com exame final e recurso",
     formula: "Exame final = média dos 1.º e 2.º trimestres + 3.º trimestre com exame final; recurso = nota do exame de recurso; nota mínima: 10 valores",
     description: "Neste ano, o sistema calcula a avaliação com exame final usando as médias do 1.º e 2.º trimestres e, no 3.º trimestre, combina a nota do professor com a nota do exame final. Se ainda for necessário, o exame de recurso vale apenas para as matérias que ficaram abaixo da nota mínima.",

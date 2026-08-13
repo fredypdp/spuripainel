@@ -320,7 +320,7 @@ export default function Details({ user }: DetailsProps) {
                 <div className="flex flex-wrap gap-2">
                   {(
                     [
-                      { label: 'Fundamental', status: e.status_escolar_fundamental },
+                      { label: 'Fundamental (1ª-9ª Classe)', status: e.status_escolar_fundamental },
                       { label: 'Médio',        status: e.status_escolar_medio       },
                       { label: 'Superior',     status: e.status_superior            },
                     ] as const
@@ -384,10 +384,10 @@ export default function Details({ user }: DetailsProps) {
                 <InfoItem label="Nível Escolar">
                   <span className="capitalize">
                     {ac.nivel_escolar === 'fundamental'
-                      ? 'Fundamental'
+                      ? 'Fundamental (1ª-9ª Classe)'
                       : ac.nivel_escolar === 'medio'
                       ? 'Médio'
-                      : 'Fundamental e Médio'}
+                      : 'Fundamental (1ª-9ª Classe) e Médio'}
                   </span>
                 </InfoItem>
               )}

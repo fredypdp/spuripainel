@@ -15,15 +15,15 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components
 const ITEMS_POR_PAGINA = 50;
 
 const ANOS_FUNDAMENTAL_LIST = [
-  { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
-  { label: '2º Ano Fundamental', value: '2_ano_fundamental' },
-  { label: '3º Ano Fundamental', value: '3_ano_fundamental' },
-  { label: '4º Ano Fundamental', value: '4_ano_fundamental' },
-  { label: '5º Ano Fundamental', value: '5_ano_fundamental' },
-  { label: '6º Ano Fundamental', value: '6_ano_fundamental' },
-  { label: '7º Ano Fundamental', value: '7_ano_fundamental' },
-  { label: '8º Ano Fundamental', value: '8_ano_fundamental' },
-  { label: '9º Ano Fundamental', value: '9_ano_fundamental' },
+  { label: '1ª Classe', value: '1_ano_fundamental' },
+  { label: '2ª Classe', value: '2_ano_fundamental' },
+  { label: '3ª Classe', value: '3_ano_fundamental' },
+  { label: '4ª Classe', value: '4_ano_fundamental' },
+  { label: '5ª Classe', value: '5_ano_fundamental' },
+  { label: '6ª Classe', value: '6_ano_fundamental' },
+  { label: '7ª Classe', value: '7_ano_fundamental' },
+  { label: '8ª Classe', value: '8_ano_fundamental' },
+  { label: '9ª Classe', value: '9_ano_fundamental' },
 ];
 
 const ANOS_MEDIO_LIST = [
@@ -162,7 +162,7 @@ function formatarStatusEstudante(status: string): string {
 
 function labelNivel(v: string): string {
   const fixo = ANOS_FUNDAMENTAL_LIST.find(a => a.value === v);
-  if (fixo) return fixo.label.replace(' Fundamental', '');
+  if (fixo) return fixo.label;
   const m = v.match(/^(\d+)_ano_(medio|superior)$/);
   if (m) return `${m[1]}º ${m[2] === 'medio' ? 'Médio' : 'Superior'}`;
   return v.replace(/_/g, ' ');
@@ -707,7 +707,7 @@ function SecaoFundamental({ turmas, estudantesMapa, filtros, ordem, onVerDetalhe
         <AnoColapsavel
           key={ano.value}
           ano={ano.value}
-          label={ano.label.replace(' Fundamental', '')}
+          label={ano.label}
           turmas={turmas}
           estudantesMapa={estudantesMapa}
           filtros={filtros}
@@ -1274,7 +1274,7 @@ export default function Estudantes() {
 
   const [carregado,            setCarregado]            = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<EstudanteDetalhado | null>(null);
-  const [vistaEscala,          setVistaEscala]          = useState(false);
+  const [vistaEscala,          setVistaEscala]          = useState(true);
   const [paginaAtual,          setPaginaAtual]          = useState(1);
   const [ordem,                setOrdem]                = useState<OrdemEstudantes>(ORDEM_PADRAO);
   const [filtros,              setFiltros]              = useState<FiltrosState>({ ...FILTROS_INICIAIS });

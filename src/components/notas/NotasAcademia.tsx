@@ -749,6 +749,8 @@ export default function NotasAcademia() {
   const [alert, setAlert]             = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [notasPorEstudante, setNotasPorEstudante] = useState<Record<string, Nota[]>>({});
   const [carregandoNotas, setCarregandoNotas]     = useState(false);
+  const [estudantesPorTurma, setEstudantesPorTurma] = useState<Record<string, EstudanteDetalhado[]>>({});
+  const [carregandoEstudantesTurma, setCarregandoEstudantesTurma] = useState(false);
 
   // Matéria selecionada na camada notas
   const [materiaSelecionada, setMateriaSelecionada]     = useState<string | null>(null);
@@ -758,7 +760,7 @@ export default function NotasAcademia() {
 
   const { data: dataTurmas,         loading: loadingTurmas, execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes,                              execute: carregarEstudantes } = useApi(listarTodosEstudantes);
+  const { data: dataEstudantes, loading: loadingEstud,  execute: carregarEstudantes } = useApi(listarTodosEstudantes);
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataCategorias,                              execute: carregarCategorias } = useApi(academiaService.listarCategoriasNota);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
@@ -785,7 +787,12 @@ export default function NotasAcademia() {
 
   const turmas: Turma[]                  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => (dataCursos as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
-  const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantesBase: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantes: EstudanteDetalhado[] = useMemo(() => {
+    const mapa = new Map(estudantesBase.map(e => [normCodigoEstudante(e.codigo_estudante), e]));
+    Object.values(estudantesPorTurma).flat().forEach(e => mapa.set(normCodigoEstudante(e.codigo_estudante), e));
+    return Array.from(mapa.values());
+  }, [estudantesBase, estudantesPorTurma]);
   const materias                         = useMemo(() => (dataMaterias as any)?.materias?.filter((m: any) => m.status === "ativo") ?? [], [dataMaterias]);
   const categorias: CategoriaNotaItem[]    = useMemo(() => (dataCategorias as any)?.categorias ?? [], [dataCategorias]);
   const anosAcademicosDisponiveis         = useMemo(() => {
@@ -817,6 +824,21 @@ export default function NotasAcademia() {
     const base         = comTurmas.length > 0 ? comTurmas : anosAcademia.filter(a => a.includes("fundamental"));
     return sortAnos(base);
   }, [turmasAtivas, user]);
+
+
+  useEffect(() => {
+    if (layer.type !== "notas") return;
+    const turma = (layer as any).turma as Turma | undefined;
+    if (!turma?.codigo_turma || estudantesPorTurma[turma.codigo_turma]) return;
+    let cancelado = false;
+    setCarregandoEstudantesTurma(true);
+    consultasService.listarEstudantes({ token, codigo_turma: turma.codigo_turma } as any)
+      .then((res: any) => {
+        if (!cancelado) setEstudantesPorTurma(prev => ({ ...prev, [turma.codigo_turma]: res?.estudantes ?? [] }));
+      })
+      .finally(() => { if (!cancelado) setCarregandoEstudantesTurma(false); });
+    return () => { cancelado = true; };
+  }, [layer, estudantesPorTurma, token]);
 
   // ─── reset seleção ao mudar de camada ───────────────────────────────────────
 
@@ -1218,12 +1240,12 @@ export default function NotasAcademia() {
       </button>
     ) : null;
 
-    if (loadingTurmas || carregandoNotas) return (
+    if (loadingTurmas || loadingEstud || carregandoNotas || carregandoEstudantesTurma) return (
       <div className="flex items-center justify-center py-16">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {carregandoNotas ? "Carregando notas..." : "Carregando turmas..."}
+            {carregandoNotas ? "Carregando notas..." : loadingEstud || carregandoEstudantesTurma ? "Carregando estudantes..." : "Carregando turmas..."}
           </p>
         </div>
       </div>

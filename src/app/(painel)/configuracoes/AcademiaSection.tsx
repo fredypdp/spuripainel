@@ -12,7 +12,7 @@ import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
 import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
 
 const ANOS_FUNDAMENTAL = Array.from({ length: 9 }, (_, index) => `${index + 1}_ano_fundamental`);
-const labelAnoFundamental = (ano: string) => ano.replace("_ano_fundamental", "º ano fundamental");
+const labelAnoFundamental = (ano: string) => ano.replace(/^(\d+)_ano_fundamental$/, "$1ª Classe");
 const sortAnosFundamental = (anos: string[]) =>
   [...new Set(anos)].sort((a, b) => ANOS_FUNDAMENTAL.indexOf(a) - ANOS_FUNDAMENTAL.indexOf(b));
 const getApiErrorMessage = (error: any, fallback: string) => {

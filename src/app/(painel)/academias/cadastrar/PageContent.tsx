@@ -21,7 +21,7 @@ import { Provincias } from '@/types/api';
 // ---------------------------------------------------------------------------
 
 const NIVEL_ACADEMIA_OPCOES = [
-  { nome: "Escola (Fundamental / Médio)", value: "escola"    },
+  { nome: "Escola (Fundamental (1ª-9ª Classe) / Médio)", value: "escola"    },
   { nome: "Ensino Superior",              value: "superior"  },
 ];
 
@@ -33,7 +33,7 @@ const NATUREZA_OPCOES = [
 const NIVEL_ESCOLAR_OPCOES = [
   { nome: "Ensino Fundamental (1ª-9ª Classe)", value: "fundamental" as NivelEscolar },
   { nome: "Ensino Médio",               value: "medio"       as NivelEscolar },
-  { nome: "Fundamental e Médio",        value: "misto"       as NivelEscolar },
+  { nome: "Fundamental (1ª-9ª Classe) e Médio",        value: "misto"       as NivelEscolar },
 ];
 
 const ANOS_FUNDAMENTAL_OPCOES = [
@@ -450,7 +450,7 @@ export default function CadastrarAcademiaPageContent() {
                       setAnosAcademicosSelecionados([]);
                     }}
                     options={NIVEL_ESCOLAR_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))}
-                    placeholder="Fundamental, Médio ou Misto"
+                    placeholder="Fundamental (1ª-9ª Classe), Médio ou Misto"
                     searchable
                     disabled={carregandoCadastro}
                   />
@@ -529,7 +529,7 @@ export default function CadastrarAcademiaPageContent() {
                   <div className="col-span-2">
                     <Label>Anos Académicos * (obrigatório para fundamental/misto)</Label>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      Selecione os anos do ensino fundamental que esta escola oferece
+                      Selecione as classes do ensino fundamental que esta escola oferece
                     </p>
                     <div className="grid grid-cols-3 gap-2">
                       {ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (

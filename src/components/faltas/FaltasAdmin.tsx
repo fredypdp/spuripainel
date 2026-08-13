@@ -281,6 +281,8 @@ export default function FaltasAdmin() {
   const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
   const [faltasPorEstudante, setFaltasPorEstudante]     = useState<Record<string, Falta[]>>({});
   const [carregandoFaltas, setCarregandoFaltas]         = useState(false);
+  const [estudantesPorTurma, setEstudantesPorTurma]     = useState<Record<string, EstudanteDetalhado[]>>({});
+  const [carregandoEstudantesTurma, setCarregandoEstudantesTurma] = useState(false);
 
   // Matéria selecionada inline — auto-selecionada ao entrar na camada faltas
   const [materiaSelecionada, setMateriaSelecionada]     = useState<{ id: string; nome: string } | null>(null);
@@ -346,7 +348,12 @@ export default function FaltasAdmin() {
 
   const turmas: Turma[]                  = useMemo(() => (dataTurmas    as any)?.turmas   ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => (dataCursos    as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
-  const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantesBase: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantes: EstudanteDetalhado[] = useMemo(() => {
+    const mapa = new Map(estudantesBase.map(e => [normCodigo(e.codigo_estudante), e]));
+    Object.values(estudantesPorTurma).flat().forEach(e => mapa.set(normCodigo(e.codigo_estudante), e));
+    return Array.from(mapa.values());
+  }, [estudantesBase, estudantesPorTurma]);
   const materias                         = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
   const todasFaltas                      = useMemo(() => Object.values(faltasPorEstudante).flat(), [faltasPorEstudante]);
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
@@ -371,6 +378,22 @@ export default function FaltasAdmin() {
     if (niveisComTurmas.length > 0) return sortAnos(niveisComTurmas);
     return sortAnos((academiaAtual.anos_academicos ?? []).filter(a => a.includes("fundamental")));
   }, [turmasAtivas, academiaAtual]);
+
+
+  useEffect(() => {
+    if (acadLayer.type !== "faltas") return;
+    const turma = (acadLayer as any).turma as Turma | undefined;
+    const codAcad = navLayer.type === "academia" ? navLayer.academia.codigo_academia : undefined;
+    if (!turma?.codigo_turma || estudantesPorTurma[turma.codigo_turma]) return;
+    let cancelado = false;
+    setCarregandoEstudantesTurma(true);
+    consultasService.listarEstudantes({ token, codigo_turma: turma.codigo_turma, codigo_academia: codAcad } as any)
+      .then((res: any) => {
+        if (!cancelado) setEstudantesPorTurma(prev => ({ ...prev, [turma.codigo_turma]: res?.estudantes ?? [] }));
+      })
+      .finally(() => { if (!cancelado) setCarregandoEstudantesTurma(false); });
+    return () => { cancelado = true; };
+  }, [acadLayer, estudantesPorTurma, navLayer, token]);
 
   // ─── helpers internos ───────────────────────────────────────────────────────
 
@@ -684,11 +707,11 @@ export default function FaltasAdmin() {
       </button>
     ) : null;
 
-    if (carregandoFaltas) return (
+    if (loadingEstud || carregandoFaltas || carregandoEstudantesTurma) return (
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <LoadingSpinner message="Carregando faltas..." />
+        <LoadingSpinner message={carregandoFaltas ? "Carregando faltas..." : "Carregando estudantes..."} />
       </div>
     );
 
