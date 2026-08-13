@@ -812,7 +812,7 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
           >
             <div className="flex items-center gap-3">
               <Icon icon="mdi:school" width={20} className="text-blue-600 dark:text-blue-400" />
-              <span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental</span>
+              <span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental (1ª-9ª Classe)</span>
             </div>
             <Icon icon={secaoAberta === 'fundamental' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
           </button>
@@ -962,7 +962,7 @@ function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[stri
 
 
 function labelContextoEstudante(contexto: string): string {
-  if (contexto === 'fundamental') return 'Ensino Fundamental';
+  if (contexto === 'fundamental') return 'Ensino Fundamental (1ª-9ª Classe)';
   if (contexto === 'medio') return 'Ensino Médio';
   return 'Ensino Superior';
 }

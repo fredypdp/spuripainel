@@ -31,7 +31,7 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "fundamental") return `${n}ª Classe`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
   return `${n}º Ano`;
 }

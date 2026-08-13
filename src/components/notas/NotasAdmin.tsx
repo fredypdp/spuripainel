@@ -51,7 +51,7 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "fundamental") return `${n}ª Classe`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
   return `${n}º Ano Superior`;
 }
@@ -596,7 +596,7 @@ export default function NotasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, limit: 50, offset: 0 });
+    fetchEstudantes({ token, codigo_academia: cod });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
     if (isSup) {
@@ -824,7 +824,7 @@ export default function NotasAdmin() {
           <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setAcadLayer({ mode: "sup",  type: "cursos" })} />
         </div>
       </div>
@@ -1030,7 +1030,7 @@ export default function NotasAdmin() {
       const { curso, nivel, turma } = al;
       const periodos = curso.periodos?.length
         ? curso.periodos.map(v => ({ label: PERIODOS_LABEL[v] ?? v, value: v }))
-        : PERIODOS_SUPERIOR;
+        : (curso.type === "superior" ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA);
       return (
         <div className="space-y-4">
           {BotaoVoltar}
@@ -1053,7 +1053,7 @@ export default function NotasAdmin() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        {renderNotasLayer(al.nivel, al.turma, al.periodo, true)}
+        {renderNotasLayer(al.nivel, al.turma, al.periodo, al.curso.type === "superior")}
       </div>
     );
 

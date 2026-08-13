@@ -108,7 +108,7 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "fundamental") return `${n}ª Classe`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
   return `${n}º Ano Superior`;
 }
@@ -773,7 +773,7 @@ export default function NotasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 50, offset: 0 });
+    carregarEstudantes({ token });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);
@@ -1251,7 +1251,7 @@ export default function NotasAcademia() {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+            <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
             <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
           </div>
         )}
@@ -1508,7 +1508,7 @@ export default function NotasAcademia() {
       const { curso, nivel, turma } = layer as { mode: "sup"; type: "periodos"; curso: Curso; nivel: string; turma: Turma };
       const periodosDisponiveis     = curso.periodos?.length
         ? curso.periodos.map(v => ({ label: PERIODOS_LABEL[v] ?? v, value: v }))
-        : PERIODOS_SUPERIOR;
+        : (curso.type === "superior" ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA);
       return (
         <div className="space-y-4">
           {BotaoVoltar}
@@ -1540,7 +1540,7 @@ export default function NotasAcademia() {
         <div className="space-y-4">
           {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
-          {renderNotasLayer(nivel, turma, periodo, true, curso.nome)}
+          {renderNotasLayer(nivel, turma, periodo, curso.type === "superior", curso.nome)}
         </div>
       );
     }

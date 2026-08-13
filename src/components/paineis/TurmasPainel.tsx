@@ -13,15 +13,15 @@ import { getCookie } from "@/lib/utils/cookies";
 // ── Constantes ─────────────────────────────────────────────────────────────
 
 const ANOS_FUNDAMENTAL = [
-  { value: "1_ano_fundamental", label: "1º Ano" },
-  { value: "2_ano_fundamental", label: "2º Ano" },
-  { value: "3_ano_fundamental", label: "3º Ano" },
-  { value: "4_ano_fundamental", label: "4º Ano" },
-  { value: "5_ano_fundamental", label: "5º Ano" },
-  { value: "6_ano_fundamental", label: "6º Ano" },
-  { value: "7_ano_fundamental", label: "7º Ano" },
-  { value: "8_ano_fundamental", label: "8º Ano" },
-  { value: "9_ano_fundamental", label: "9º Ano" },
+  { value: "1_ano_fundamental", label: "1ª Classe" },
+  { value: "2_ano_fundamental", label: "2ª Classe" },
+  { value: "3_ano_fundamental", label: "3ª Classe" },
+  { value: "4_ano_fundamental", label: "4ª Classe" },
+  { value: "5_ano_fundamental", label: "5ª Classe" },
+  { value: "6_ano_fundamental", label: "6ª Classe" },
+  { value: "7_ano_fundamental", label: "7ª Classe" },
+  { value: "8_ano_fundamental", label: "8ª Classe" },
+  { value: "9_ano_fundamental", label: "9ª Classe" },
 ];
 
 const TURNOS = [
@@ -567,7 +567,7 @@ export default function TurmasPainel() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível de ensino *</label>
             <select value={formTipo} onChange={e => { const tipo = e.target.value as "fundamental" | "curso"; setFormTipo(tipo); setFormData({ ...formData, curso_id: undefined, nivel: "" }); }} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-              <option value="fundamental">Ensino Fundamental</option>
+              <option value="fundamental">Ensino Fundamental (1ª-9ª Classe)</option>
               <option value="curso">Ensino Médio</option>
             </select>
           </div>
@@ -865,7 +865,7 @@ export default function TurmasPainel() {
             <div className="flex items-center">
               <button onClick={() => setViewNivelTurmas(v => v === "fundamental" ? "cursos" : "fundamental")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
                 <Icon icon={viewNivelTurmas === "fundamental" ? "mdi:book-education" : "mdi:school"} width={16} />
-                {viewNivelTurmas === "fundamental" ? "Ver Turmas do Ensino Médio" : "Ver Turmas do Ensino Fundamental"}
+                {viewNivelTurmas === "fundamental" ? "Ver Turmas do Ensino Médio" : "Ver Turmas do Ensino Fundamental (1ª-9ª Classe)"}
               </button>
             </div>
           )}

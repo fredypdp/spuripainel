@@ -35,7 +35,7 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "fundamental") return `${n}ª Classe`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
   return `${n}º Ano Superior`;
 }
@@ -477,7 +477,7 @@ export default function FaltasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, limit: 50, offset: 0 });
+    fetchEstudantes({ token, codigo_academia: cod });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
   }
@@ -704,7 +704,7 @@ export default function FaltasAdmin() {
           <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio"  onClick={() => setAcadLayer({ mode: "sup",  type: "cursos" })} />
         </div>
       </div>
