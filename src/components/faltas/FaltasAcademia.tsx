@@ -30,7 +30,7 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "fundamental") return `${n}ª Classe`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
   return `${n}º Ano Superior`;
 }
@@ -215,7 +215,9 @@ function TabelaFaltas({
             })
             .map(f => {
               const codigoNorm = normCodigoEstudante(f.codigo_estudante);
-              const nome       = estudantesMap.get(codigoNorm) ?? estudantesMap.get(f.codigo_estudante);
+              const nome       = estudantesMap.get(codigoNorm)
+                ?? estudantesMap.get(f.codigo_estudante)
+                ?? f.estudante_nome;
               return (
                 <tr key={f.id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
@@ -461,6 +463,8 @@ export default function FaltasAcademia() {
   const [alert, setAlert]                           = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [faltasPorEstudante, setFaltasPorEstudante] = useState<Record<string, Falta[]>>({});
   const [carregandoFaltas, setCarregandoFaltas]     = useState(false);
+  const [estudantesPorTurma, setEstudantesPorTurma] = useState<Record<string, EstudanteDetalhado[]>>({});
+  const [carregandoEstudantesTurma, setCarregandoEstudantesTurma] = useState(false);
   const [anoLetivoSelecionado, setAnoLetivoSelecionado] = useState("");
 
   // Matéria selecionada nos botões inline — análogo ao materiaSelecionada do NotasAcademia
@@ -468,7 +472,7 @@ export default function FaltasAcademia() {
 
   const { data: dataTurmas,         loading: loadingTurmas, execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes,                              execute: carregarEstudantes } = useApi(listarTodosEstudantes);
+  const { data: dataEstudantes, loading: loadingEstud,  execute: carregarEstudantes } = useApi(listarTodosEstudantes);
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
   const { data: dataAnosLetivosLista,                        execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);
@@ -487,7 +491,7 @@ export default function FaltasAcademia() {
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token, limit: 50, offset: 0 });
+    carregarEstudantes({ token });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);
@@ -533,7 +537,12 @@ export default function FaltasAcademia() {
 
   const turmas: Turma[]                  = useMemo(() => (dataTurmas as any)?.turmas ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => ((dataCursos as any)?.cursos ?? []).filter((c: any) => c.status === "ativo"), [dataCursos]);
-  const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantesBase: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantes: EstudanteDetalhado[] = useMemo(() => {
+    const mapa = new Map(estudantesBase.map(e => [normCodigoEstudante(e.codigo_estudante), e]));
+    Object.values(estudantesPorTurma).flat().forEach(e => mapa.set(normCodigoEstudante(e.codigo_estudante), e));
+    return Array.from(mapa.values());
+  }, [estudantesBase, estudantesPorTurma]);
   const anoLectivo                       = (dataAnoLetivo as any)?.ano_letivo ?? "";
   const anosLetivosDisponiveis           = useMemo(() => (
     ((dataAnosLetivosLista as any)?.anos_letivos_lista ?? [])
@@ -566,6 +575,21 @@ export default function FaltasAcademia() {
     );
     return sortAnos(comTurmas.length > 0 ? comTurmas : anosAcademia.filter(a => a.includes("fundamental")));
   }, [turmasAtivas, user]);
+
+
+  useEffect(() => {
+    if (layer.type !== "faltas") return;
+    const turma = (layer as any).turma as Turma | undefined;
+    if (!turma?.codigo_turma || estudantesPorTurma[turma.codigo_turma]) return;
+    let cancelado = false;
+    setCarregandoEstudantesTurma(true);
+    consultasService.listarEstudantes({ token, codigo_turma: turma.codigo_turma } as any)
+      .then((res: any) => {
+        if (!cancelado) setEstudantesPorTurma(prev => ({ ...prev, [turma.codigo_turma]: res?.estudantes ?? [] }));
+      })
+      .finally(() => { if (!cancelado) setCarregandoEstudantesTurma(false); });
+    return () => { cancelado = true; };
+  }, [layer, estudantesPorTurma, token]);
 
   // ─── helpers internos ───────────────────────────────────────────────────────
 
@@ -695,7 +719,7 @@ export default function FaltasAcademia() {
 
     if (layer.mode === "sup") {
       const goCursos    = () => setLayer({ mode: "sup", type: "cursos" });
-      const cursosCrumb = { label: isMisto ? "Médio/Superior" : "Cursos", onClick: goCursos };
+      const cursosCrumb = { label: isMisto ? "Ensino Médio" : "Cursos", onClick: goCursos };
       const base        = isMisto ? [{ label: "Início", onClick: goInicio }, cursosCrumb] : [cursosCrumb];
       const l = layer as any;
       if (layer.type === "cursos") return base;
@@ -882,12 +906,12 @@ export default function FaltasAcademia() {
       </button>
     ) : null;
 
-    if (loadingTurmas || carregandoFaltas) return (
+    if (loadingTurmas || loadingEstud || carregandoFaltas || carregandoEstudantesTurma) return (
       <div className="flex items-center justify-center py-16">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {carregandoFaltas ? "Carregando faltas..." : "Carregando turmas..."}
+            {carregandoFaltas ? "Carregando faltas..." : loadingEstud || carregandoEstudantesTurma ? "Carregando estudantes..." : "Carregando turmas..."}
           </p>
         </div>
       </div>
@@ -915,8 +939,8 @@ export default function FaltasAcademia() {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
-            <CardBtn icon="mdi:book-education" title="Médio / Superior"   subtitle="Cursos"         onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
+            <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+            <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="Cursos Médios"         onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
           </div>
         )}
       </div>

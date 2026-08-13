@@ -51,7 +51,7 @@ function labelNivel(v: string): string {
   const match = v.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return v.replace(/_/g, " ");
   const [, n, tipo] = match;
-  if (tipo === "fundamental") return `${n}º Ano do Ensino Fundamental`;
+  if (tipo === "fundamental") return `${n}ª Classe`;
   if (tipo === "medio")       return `${n}º Ano do Ensino Médio`;
   return `${n}º Ano Superior`;
 }
@@ -376,6 +376,8 @@ export default function NotasAdmin() {
   const [anoLetivoSelecionado, setAnoLetivoSelecionado]         = useState("");
   const [notasPorEstudante, setNotasPorEstudante]               = useState<Record<string, Nota[]>>({});
   const [carregandoNotas, setCarregandoNotas]                   = useState(false);
+  const [estudantesPorTurma, setEstudantesPorTurma]             = useState<Record<string, EstudanteDetalhado[]>>({});
+  const [carregandoEstudantesTurma, setCarregandoEstudantesTurma] = useState(false);
   const [materiaSelecionada, setMateriaSelecionada]             = useState<string | null>(null);
   const [materiasCache, setMateriasCache]                       = useState<Record<string, { id: string; nome: string }>>({});
   const [carregandoMaterias, setCarregandoMaterias]             = useState(false);
@@ -421,7 +423,12 @@ export default function NotasAdmin() {
 
   const turmas: Turma[]                  = useMemo(() => (dataTurmas    as any)?.turmas   ?? [], [dataTurmas]);
   const cursos: Curso[]                  = useMemo(() => (dataCursos    as any)?.cursos?.filter((c: any) => c.status === "ativo") ?? [], [dataCursos]);
-  const estudantes: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantesBase: EstudanteDetalhado[] = useMemo(() => (dataEstudantes as any)?.estudantes ?? [], [dataEstudantes]);
+  const estudantes: EstudanteDetalhado[] = useMemo(() => {
+    const mapa = new Map(estudantesBase.map(e => [normCodigo(e.codigo_estudante), e]));
+    Object.values(estudantesPorTurma).flat().forEach(e => mapa.set(normCodigo(e.codigo_estudante), e));
+    return Array.from(mapa.values());
+  }, [estudantesBase, estudantesPorTurma]);
   const materias                         = useMemo(() => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"), [dataMaterias]);
   const todasNotas                       = useMemo(() => Object.values(notasPorEstudante).flat(), [notasPorEstudante]);
   const turmasAtivas: Turma[]            = useMemo(() => turmas.filter(turmaAtiva), [turmas]);
@@ -451,6 +458,22 @@ export default function NotasAdmin() {
     const base = anosAcademia.filter(a => a.includes("fundamental"));
     return sortAnos(base);
   }, [turmasAtivas, academiaAtual]);
+
+
+  useEffect(() => {
+    if (acadLayer.type !== "notas") return;
+    const turma = (acadLayer as any).turma as Turma | undefined;
+    const codAcad = navLayer.type === "academia" ? navLayer.academia.codigo_academia : undefined;
+    if (!turma?.codigo_turma || estudantesPorTurma[turma.codigo_turma]) return;
+    let cancelado = false;
+    setCarregandoEstudantesTurma(true);
+    consultasService.listarEstudantes({ token, codigo_turma: turma.codigo_turma, codigo_academia: codAcad } as any)
+      .then((res: any) => {
+        if (!cancelado) setEstudantesPorTurma(prev => ({ ...prev, [turma.codigo_turma]: res?.estudantes ?? [] }));
+      })
+      .finally(() => { if (!cancelado) setCarregandoEstudantesTurma(false); });
+    return () => { cancelado = true; };
+  }, [acadLayer, estudantesPorTurma, navLayer, token]);
 
   // pré-selecionar a primeira matéria disponível no contexto
   useEffect(() => {
@@ -596,7 +619,7 @@ export default function NotasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, limit: 50, offset: 0 });
+    fetchEstudantes({ token, codigo_academia: cod });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
     if (isSup) {
@@ -804,11 +827,11 @@ export default function NotasAdmin() {
       </button>
     ) : null;
 
-    if (carregandoNotas) return (
+    if (loadingEstud || carregandoNotas || carregandoEstudantesTurma) return (
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        <LoadingSpinner message="Carregando notas..." />
+        <LoadingSpinner message={carregandoNotas ? "Carregando notas..." : "Carregando estudantes..."} />
       </div>
     );
 
@@ -824,7 +847,7 @@ export default function NotasAdmin() {
           <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school"         title="Ensino Fundamental" subtitle="1º ao 9º Ano"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setAcadLayer({ mode: "sup",  type: "cursos" })} />
         </div>
       </div>
@@ -1030,7 +1053,7 @@ export default function NotasAdmin() {
       const { curso, nivel, turma } = al;
       const periodos = curso.periodos?.length
         ? curso.periodos.map(v => ({ label: PERIODOS_LABEL[v] ?? v, value: v }))
-        : PERIODOS_SUPERIOR;
+        : (curso.type === "superior" ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA);
       return (
         <div className="space-y-4">
           {BotaoVoltar}
@@ -1053,7 +1076,7 @@ export default function NotasAdmin() {
       <div className="space-y-4">
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
-        {renderNotasLayer(al.nivel, al.turma, al.periodo, true)}
+        {renderNotasLayer(al.nivel, al.turma, al.periodo, al.curso.type === "superior")}
       </div>
     );
 

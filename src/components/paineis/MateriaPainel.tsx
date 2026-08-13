@@ -22,15 +22,15 @@ interface MateriaFormData {
 }
 
 const ANOS_FUNDAMENTAL = [
-  { value: "1_ano_fundamental", label: "1º Ano" },
-  { value: "2_ano_fundamental", label: "2º Ano" },
-  { value: "3_ano_fundamental", label: "3º Ano" },
-  { value: "4_ano_fundamental", label: "4º Ano" },
-  { value: "5_ano_fundamental", label: "5º Ano" },
-  { value: "6_ano_fundamental", label: "6º Ano" },
-  { value: "7_ano_fundamental", label: "7º Ano" },
-  { value: "8_ano_fundamental", label: "8º Ano" },
-  { value: "9_ano_fundamental", label: "9º Ano" },
+  { value: "1_ano_fundamental", label: "1ª Classe" },
+  { value: "2_ano_fundamental", label: "2ª Classe" },
+  { value: "3_ano_fundamental", label: "3ª Classe" },
+  { value: "4_ano_fundamental", label: "4ª Classe" },
+  { value: "5_ano_fundamental", label: "5ª Classe" },
+  { value: "6_ano_fundamental", label: "6ª Classe" },
+  { value: "7_ano_fundamental", label: "7ª Classe" },
+  { value: "8_ano_fundamental", label: "8ª Classe" },
+  { value: "9_ano_fundamental", label: "9ª Classe" },
 ];
 
 const formatarPeriodoLabel = (p: string): string => {
@@ -152,7 +152,8 @@ function AnosChips({ anos }: { anos: string[] }) {
       {visible.map(a => (
         <span key={a} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
           {a.replace(/^(\d+)_ano_(fundamental|medio|superior)$/, (_, n, tipo) => {
-            const abrev: Record<string, string> = { fundamental: "Fund.", medio: "Méd.", superior: "Sup." };
+            if (tipo === "fundamental") return `${n}ª Classe`;
+            const abrev: Record<string, string> = { medio: "Méd.", superior: "Sup." };
             return `${n}º ${abrev[tipo] ?? tipo}`;
           })}
         </span>
@@ -190,7 +191,7 @@ function MateriaCard({ materia, getCursoNome, onEdit, onToggleStatus, onDelete, 
             <h4 className="font-semibold text-gray-900 dark:text-white truncate">{materia.nome}</h4>
             <div className="flex flex-wrap gap-1 mt-1">
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${materia.type === "fundamental" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : materia.type === "medio" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"}`}>
-                {materia.type === "fundamental" ? "Fundamental" : materia.type === "medio" ? "Médio" : "Superior"}
+                {materia.type === "fundamental" ? "Fundamental (1ª-9ª Classe)" : materia.type === "medio" ? "Médio" : "Superior"}
               </span>
               {materia.type === "superior" && (materia.periodo ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">{formatarPeriodoLabel(materia.periodo)}</span>
@@ -227,7 +228,8 @@ function MateriaCard({ materia, getCursoNome, onEdit, onToggleStatus, onDelete, 
 function formatarSecaoLabel(ano: string): string {
   const m = ano.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!m) return ano.replace(/_/g, " ");
-  const tipo: Record<string, string> = { fundamental: "Fundamental", medio: "Médio", superior: "Superior" };
+  if (m[2] === "fundamental") return `${m[1]}ª Classe`;
+  const tipo: Record<string, string> = { medio: "Médio", superior: "Superior" };
   return `${m[1]}º Ano — ${tipo[m[2]] ?? m[2]}`;
 }
 
@@ -566,7 +568,7 @@ export default function MateriaPainel() {
       : curso.anos_academicos;
     return anosAcademicos.map(v => ({
       value: v,
-      label: v.replace(/^(\d+)_ano_(.+)$/, (_, n, tipo) => `${n}º Ano ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`),
+      label: v.replace(/^(\d+)_ano_(.+)$/, (_, n, tipo) => tipo === "fundamental" ? `${n}ª Classe` : `${n}º Ano ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`),
     }));
   };
 
@@ -575,9 +577,9 @@ export default function MateriaPainel() {
     const nivel = user?.academia?.nivel;
     const nivelEscolar = user?.academia?.nivel_escolar;
     if (nivel === "escola") {
-      if (nivelEscolar === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental" });
+      if (nivelEscolar === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental (1ª-9ª Classe)" });
       if (nivelEscolar === "medio") tipos.push({ value: "medio", label: "Médio" });
-      if (nivelEscolar === "misto") { tipos.push({ value: "fundamental", label: "Fundamental" }); tipos.push({ value: "medio", label: "Médio" }); }
+      if (nivelEscolar === "misto") { tipos.push({ value: "fundamental", label: "Fundamental (1ª-9ª Classe)" }); tipos.push({ value: "medio", label: "Médio" }); }
     } else if (nivel === "superior") { tipos.push({ value: "superior", label: "Superior" }); }
     return tipos;
   })();
@@ -616,7 +618,7 @@ export default function MateriaPainel() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
                     <select value={formData.type} onChange={e => handleTypeChange(e.target.value as MateriaType)} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-                      <option value="fundamental">Fundamental</option><option value="medio">Médio</option>
+                      <option value="fundamental">Fundamental (1ª-9ª Classe)</option><option value="medio">Médio</option>
                     </select>
                   </div>
                 )}
@@ -711,7 +713,7 @@ export default function MateriaPainel() {
               <div className="flex items-center">
                 <button onClick={() => setViewNivel(v => v === "fundamental" ? "medio" : "fundamental")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
                   <Icon icon={viewNivel === "fundamental" ? "mdi:school" : "mdi:book-education"} width={16} />
-                  {viewNivel === "fundamental" ? "Ver Matérias do Ensino Médio" : "Ver Matérias do Ensino Fundamental"}
+                  {viewNivel === "fundamental" ? "Ver Matérias do Ensino Médio" : "Ver Matérias do Ensino Fundamental (1ª-9ª Classe)"}
                 </button>
               </div>
             )}

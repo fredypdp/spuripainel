@@ -22,15 +22,15 @@ export const LIMITE_ESTUDANTES_POR_LOTE = 100;
 export const LINHAS_MODELO_EXCEL = 1000;
 
 export const ANOS_FUNDAMENTAL_LIST = [
-  { label: '1º Ano Fundamental', value: '1_ano_fundamental' },
-  { label: '2º Ano Fundamental', value: '2_ano_fundamental' },
-  { label: '3º Ano Fundamental', value: '3_ano_fundamental' },
-  { label: '4º Ano Fundamental', value: '4_ano_fundamental' },
-  { label: '5º Ano Fundamental', value: '5_ano_fundamental' },
-  { label: '6º Ano Fundamental', value: '6_ano_fundamental' },
-  { label: '7º Ano Fundamental', value: '7_ano_fundamental' },
-  { label: '8º Ano Fundamental', value: '8_ano_fundamental' },
-  { label: '9º Ano Fundamental', value: '9_ano_fundamental' },
+  { label: '1ª Classe', value: '1_ano_fundamental' },
+  { label: '2ª Classe', value: '2_ano_fundamental' },
+  { label: '3ª Classe', value: '3_ano_fundamental' },
+  { label: '4ª Classe', value: '4_ano_fundamental' },
+  { label: '5ª Classe', value: '5_ano_fundamental' },
+  { label: '6ª Classe', value: '6_ano_fundamental' },
+  { label: '7ª Classe', value: '7_ano_fundamental' },
+  { label: '8ª Classe', value: '8_ano_fundamental' },
+  { label: '9ª Classe', value: '9_ano_fundamental' },
 ];
 
 export function isAnoFundamental(v?: string | null): boolean {
@@ -55,14 +55,15 @@ export function getAnoLabel(value?: string | null): string {
   if (!value) return '-';
   const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return value.replace(/_/g, ' ');
-  const nivel = match[2] === 'medio' ? 'Médio' : match[2] === 'superior' ? 'Superior' : 'Fundamental';
+  if (match[2] === 'fundamental') return `${match[1]}ª Classe`;
+  const nivel = match[2] === 'medio' ? 'Médio' : 'Superior';
   return `${match[1]}º Ano ${nivel}`;
 }
 
 export function labelNivel(nivel: NivelBulk): string {
   if (nivel === 'medio') return 'Ensino Médio';
   if (nivel === 'superior') return 'Ensino Superior';
-  return 'Ensino Fundamental';
+  return 'Ensino Fundamental (1ª-9ª Classe)';
 }
 
 /**

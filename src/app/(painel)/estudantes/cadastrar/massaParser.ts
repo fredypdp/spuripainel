@@ -210,7 +210,7 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
       'D',
       'BI do Estudante',
       linha.bilheteIdentidade,
-      'Para o 1º Ano Fundamental, deixe este campo em branco. Este ano usa Cédula, anexada depois na ficha do estudante.'
+      'Para o 1ª Classe, deixe este campo em branco. Este ano usa Cédula, anexada depois na ficha do estudante.'
     );
   } else if (isSuperior && !linha.bilheteIdentidade) {
     add(

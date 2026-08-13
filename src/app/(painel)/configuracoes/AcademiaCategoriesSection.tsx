@@ -15,7 +15,7 @@ const ORDEM_ANOS = [
 function labelAno(ano: string) {
   const [numero, , nivel] = ano.split("_");
   if (ano.includes("semestre")) return `${numero}.º Semestre`;
-  return `${numero}.º ${nivel === "fundamental" ? "Fundamental" : nivel === "medio" ? "Médio" : "Superior"}`;
+  return nivel === "fundamental" ? `${numero}ª Classe` : `${numero}.º ${nivel === "medio" ? "Médio" : "Superior"}`;
 }
 
 function sortAnos(anos: string[]) {

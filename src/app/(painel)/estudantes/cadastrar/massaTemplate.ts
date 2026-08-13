@@ -74,7 +74,7 @@ function montarLinhasInstrucoes(contexto: ContextoModelo): (string | undefined)[
 
   if (contexto.anoAcademico === '1_ano_fundamental') {
     linhas.push([
-      '10. Para o 1º Ano Fundamental, deixe o Bilhete de Identidade do Estudante em branco — este ano usa Cédula, anexada depois.',
+      '10. Para o 1ª Classe, deixe o Bilhete de Identidade do Estudante em branco — este ano usa Cédula, anexada depois.',
     ]);
   }
 
