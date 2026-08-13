@@ -1189,6 +1189,61 @@ Registra uma nova academia via `multipart/form-data`. Criada com status `inativo
 
 ---
 
+### POST /academia/registo-publico
+
+Permite que uma academia se autocadastre na plataforma **sem autenticação prévia**, via `multipart/form-data`. Usa exatamente as mesmas regras de validação de `POST /dominis/academia/register` (`nif` obrigatório, único, 10 dígitos; `alvara` obrigatório, PDF válido até 10MB, armazenado em `{codigo_academia}/Documentação formal/`). A academia é sempre criada com status `inativo` — apenas um admin com role `adm` ou `fpp` pode ativá-la, via `PUT /dominis/academia/:codigo/ativar`. Login antes da ativação retorna erro de "academia inativa".
+
+**Proteção**: nenhuma (rota pública)
+
+**Diferença em relação ao cadastro por admin**: aceita um campo opcional `senha` (string, 6–128 caracteres). Se enviado, essa senha é definida como a senha de acesso da academia. Se omitido, a senha inicial é o próprio `codigo_academia`, como no fluxo administrativo.
+
+**Request:**
+
+```json
+{
+  "nivel": "escola",
+  "type": "public",
+  "nome": "Escola Primária Ngola Kiluanje",
+  "nif": "0012345678",
+  "alvara": "@./alvara.pdf;type=application/pdf",
+  "provincia": "luanda",
+  "endereco": "Rua Direita, 123",
+  "telefone": "+244923000000",
+  "email": "escola@exemplo.ao",
+  "website": "https://escola.ao",
+  "nivel_escolar": "fundamental",
+  "anos_academicos": ["1_ano_fundamental", "2_ano_fundamental", "9_ano_fundamental"],
+  "cursos": [],
+  "senha": "minhaSenhaSegura123"
+}
+```
+
+**Response 201:**
+
+```json
+{
+  "message": "cadastro recebido com sucesso. a conta fica inativa até que um administrador (role adm ou fpp) a ative.",
+  "codigo_academia": "LDA20261",
+  "data": {
+    "id": "uuid",
+    "nome": "string",
+    "nif": "0012345678",
+    "type": "public",
+    "provincia": "LDA",
+    "codigo_academia": "LDA20261",
+    "status": "inativo"
+  },
+  "aviso": "guarde o código da academia: ele é o seu identificador de login. você definiu sua própria senha no cadastro."
+}
+```
+
+**Erros:**
+
+- `400` — `nivel` inválido, `type` inválido, `nif` ausente/inválido, `alvara` ausente/não PDF/acima de 10MB, campos obrigatórios ausentes, `anos_academicos` inválidos, ou `senha` fora do intervalo de 6–128 caracteres
+- `409` — `nif` já cadastrado em outra academia
+
+---
+
 ### PUT /dominis/academia/:codigo/ativar
 
 Ativa uma academia inativa.
@@ -7002,18 +7057,20 @@ A documentação cobre todas as rotas registradas em `cmd/server/main.go`: públ
 
 ## 19. Financeiro / AppyPay
 
-### Processos e Regras de Negócio — Financeiro / AppyPay
+### Processos e Regras de Negócio — Financeiro / AppyPay e mensalidades
 
 O módulo financeiro integra o backend com a AppyPay para gerir credenciais, criar cobranças GPO/REF, gerar QR Codes GPO, consultar cobranças e receber webhooks do gateway. As operações financeiras são auditadas no ledger com aggregate `Financeiro`; as tabelas `financeiro_*` funcionam como projeções/read models e índices operacionais de consulta e idempotência.
 
 **Regras gerais do escopo financeiro:**
 
-- Todas as rotas `/financeiro/*` exigem autenticação e aceitam somente usuários do tipo `academia` ou `admin` FPP.
+- Todas as rotas `/financeiro/*` exigem autenticação. As rotas de administração aceitam somente `academia` ou admin FPP; a consulta de mensalidades de um estudante também pode ser feita pelo próprio estudante autenticado.
 - Academia autenticada opera apenas no próprio contexto: o backend força `contexto_tipo="academia"` e `codigo_academia` igual ao código do token, mesmo que esses campos venham vazios no request.
 - Admin FPP pode operar o contexto global `spuri` e contextos de academias específicas; admins `adm` e `gerente`, estudantes e usuários anônimos não administram o módulo financeiro.
 - Segredos AppyPay (`client_secret`, credenciais de webhook, métodos de pagamento sensíveis) nunca são devolvidos em resposta; a API retorna apenas máscaras e metadados.
 - `ENV=development` ou `ENV=test` usa o gateway TEST; `ENV=production` usa o gateway PROD. O ambiente persistido em credenciais e cobranças segue essa resolução do backend.
 - Cada cobrança ou QR Code exige credenciais ativas para o contexto resolvido antes de chamar a AppyPay.
+- Todo valor monetário do módulo usa `float64`, em conformidade com o `number<double>` da AppyPay. Valores de entrada devem ter no máximo duas casas decimais; antes de chamar o gateway o backend aplica arredondamento *half away from zero* a duas casas, e comparações monetárias usam tolerância de meio cêntimo. Os futuros campos `ValorMensalidade`, `ValorMatricula` e equivalentes devem reutilizar esse mesmo contrato.
+- O cancelamento de uma cobrança REF, GPO ou QR Code é exclusivamente interno ao Spuri: a AppyPay não documenta endpoint de cancelamento para esses métodos. Por isso, o cancelamento deixa de exibir/cobrar pela plataforma, mas não invalida tecnicamente uma referência ou QR já emitido no banco/gateway até a expiração; qualquer sucesso detectado depois dele é registrado como conflito para reconciliação manual FPP.
 - Os webhooks são públicos por necessidade do gateway, mas autenticados pelo segredo de webhook cadastrado na credencial do contexto, enviado pela AppyPay num cabeçalho HTTP configurável (`webhook_header_name`, padrão `X-API-Key`). Eventos aceitos ou duplicados respondem `200` e são tratados de forma idempotente pelo identificador do evento.
 - Erros das rotas autenticadas seguem o envelope global `{error, message, request_id, details?}`. Webhooks públicos retornam apenas status HTTP para reduzir acoplamento com o gateway.
 
@@ -7025,6 +7082,13 @@ O módulo financeiro integra o backend com a AppyPay para gerir credenciais, cri
 | `POST` | `/financeiro/appypay/cobrancas` | Cria cobrança AppyPay GPO ou REF genérica. |
 | `POST` | `/financeiro/appypay/qr-codes` | Gera QR Code GPO e devolve `qrCodeArr` em base64 quando enviado pela AppyPay. |
 | `GET` | `/financeiro/appypay/cobrancas/:id` | Consulta cobrança por id AppyPay ou `merchantTransactionId`. |
+| `POST` | `/financeiro/appypay/cobrancas/:id/cancelar` | Cancela localmente uma cobrança pendente do próprio contexto. |
+| `POST` | `/financeiro/mensalidades/configuracoes` | Versiona o valor e mês final de cobrança por ano/curso de academia privada. |
+| `GET` | `/financeiro/mensalidades/configuracoes` | Lista a configuração vigente de mensalidade de uma academia. |
+| `POST` | `/financeiro/mensalidades/inicio-cobranca` | Define o mês inicial excepcional para uma academia que entrou no ano letivo em curso. |
+| `GET` | `/financeiro/mensalidades/estudante/:codigo` | Calcula sob consulta os meses devidos, pagos ou anulados, inclusive históricos. |
+| `POST` | `/financeiro/mensalidades/obrigacoes/anular` | Anula, com evento por mês, obrigações de estudante da própria academia. |
+| `POST` | `/financeiro/mensalidades/obrigacoes/reativar` | Reativa obrigações antes anuladas da própria academia. |
 | `POST` | `/webhooks/appypay/gpo` | Recebe webhook público AppyPay para eventos GPO. |
 | `POST` | `/webhooks/appypay/ref` | Recebe webhook público AppyPay para eventos REF. |
 
@@ -7138,7 +7202,7 @@ O módulo financeiro integra o backend com a AppyPay para gerir credenciais, cri
 |---|---|---|---|
 | `contexto_tipo` | string | Sim para admin FPP; não efetivo para academia | Contexto financeiro: `spuri` ou `academia`. Para um usuário de academia, omita o campo ou envie `academia`; qualquer outro valor é recusado e o backend fixa o contexto como `academia`. |
 | `codigo_academia` | string | Sim quando o contexto final for `academia` e o chamador for admin FPP | Código da academia dona da cobrança. Para usuário de academia, omita o campo ou envie o código presente no token; outro código é recusado e o backend usa o valor do token. Não se aplica ao contexto `spuri`. |
-| `amount` | número | Sim | Valor da cobrança, estritamente maior que zero. |
+| `amount` | número (`float64`) | Sim | Valor da cobrança, estritamente maior que zero, com no máximo duas casas decimais. O contrato segue `number<double>` da AppyPay. |
 | `currency` | string | Não | Moeda da cobrança. Aceita somente `AOA`; se omitida, o backend usa `AOA`. |
 | `description` | string | Sim | Descrição não vazia da cobrança, por exemplo a mensalidade ou o serviço cobrado. |
 | `merchantTransactionId` | string | Não | Identificador externo da transação. Deve ser alfanumérico, sem espaços ou símbolos, com no máximo 15 caracteres. Se omitido, é gerado pelo backend. Reutilize o mesmo valor ao repetir uma tentativa: ele é a chave de idempotência global e também pode ser usado no `GET /financeiro/appypay/cobrancas/:id`. |
@@ -7233,7 +7297,7 @@ Neste caso, `currency` assume `AOA` e a AppyPay gera os dados de referência seg
 **Regras de negócio:**
 
 - Exige credenciais AppyPay configuradas para o contexto resolvido.
-- `amount` deve ser positivo; `currency`, `description` e `paymentMethod` devem ser coerentes com o método configurado na credencial.
+- `amount` deve ser positivo e ter no máximo duas casas decimais; `currency`, `description` e `paymentMethod` devem ser coerentes com o método configurado na credencial.
 - `merchantTransactionId` é a referência externa recomendada para idempotência e posterior consulta.
 - O mesmo `merchantTransactionId` devolve o resultado já persistido e não cria uma nova cobrança. Enquanto a primeira requisição ainda estiver sendo processada, a repetição recebe `409` e pode ser tentada novamente.
 - A cobrança é registrada no ledger como solicitação e, conforme resposta da AppyPay, como criada ou falhada.
@@ -7250,12 +7314,12 @@ Neste caso, `currency` assume `AOA` e a AppyPay gera os dados de referência seg
 |---|---|---|---|
 | `contexto_tipo` | string | Sim para admin FPP; não efetivo para academia | Contexto financeiro: `spuri` ou `academia`. Para uma academia autenticada, omita o campo ou envie `academia`; outro valor é recusado e o backend fixa o contexto como `academia`. |
 | `codigo_academia` | string | Sim quando o contexto final for `academia` e o chamador for admin FPP | Academia dona do QR Code. Para uma academia autenticada, omita o campo ou envie o código do token; outro código é recusado e o backend usa o valor do token. Não se aplica a `spuri`. |
-| `amount` | número | Sim | Valor do QR Code, estritamente maior que zero. |
+| `amount` | número (`float64`) | Sim | Valor do QR Code, estritamente maior que zero e com no máximo duas casas decimais. |
 | `currency` | string | Não | Moeda do QR Code. Se omitida, o backend usa `AOA`. |
 | `description` | string | Sim | Descrição não vazia do pagamento. |
 | `merchantTransactionId` | string | Não | Referência externa e chave de idempotência. Deve ser alfanumérica e ter no máximo 15 caracteres. Se omitida, é gerada pelo backend. |
 | `qrCodeType` | string | Não | Tipo do QR Code: `SINGLE` (padrão) para uma utilização ou `MULTIPLE` para múltiplas utilizações dentro dos limites informados. O valor é normalizado para maiúsculas. |
-| `minAmount` | número | Sim para `MULTIPLE` | Valor mínimo aceito em cada pagamento do QR Code múltiplo. Não é usado no tipo `SINGLE`. |
+| `minAmount` | número (`float64`) | Sim para `MULTIPLE` | Valor mínimo positivo, com no máximo duas casas decimais, aceito em cada pagamento do QR Code múltiplo. Não é usado no tipo `SINGLE`. |
 | `maxTransactions` | inteiro | Sim para `MULTIPLE` | Quantidade máxima de pagamentos permitidos pelo QR Code múltiplo. Não é usado no tipo `SINGLE`. |
 | `startDate` | string | Sim para `MULTIPLE` | Início da validade do QR Code múltiplo, no formato esperado pela AppyPay. Não é usado no tipo `SINGLE`. |
 | `endDate` | string | Sim para `MULTIPLE` | Fim da validade do QR Code múltiplo, no formato esperado pela AppyPay. Não é usado no tipo `SINGLE`. |
@@ -7351,7 +7415,7 @@ Para `MULTIPLE`, os quatro campos adicionais são obrigatórios. Seus valores e 
   "merchant_transaction_id": "P2608LDA000001",
   "status": "paga",
   "response": {
-    "status": "Paid",
+    "status": "Success",
     "paidAt": "2026-08-08T12:30:00Z"
   }
 }
@@ -7362,8 +7426,103 @@ Para `MULTIPLE`, os quatro campos adicionais são obrigatórios. Seus valores e 
 - A consulta respeita isolamento por contexto: academia não consulta cobrança de outra academia nem do `spuri`.
 - O `:id` pode ser o identificador retornado pelo provider ou o `merchantTransactionId` informado na criação.
 - A consulta grava evento financeiro apenas quando o estado, identificador do provider ou resposta relevante mudar; consultas sem mudança não poluem o ledger.
+- Se a consulta detectar `Success` da AppyPay depois de a cobrança ter sido cancelada localmente, grava `CobrancaAppyPayConflitoPosCancelamento` e preserva o status local `cancelada`, para reconciliação manual por admin FPP.
 
-#### 19.7 POST /webhooks/appypay/gpo
+#### 19.7 Mensalidades/propinas e pagamento pelo estudante
+
+A projeção de obrigações mensais usa a chave estável `(codigo_estudante, codigo_academia, ano_letivo, mes)`. Academias `public` não podem configurar nem geram mensalidades. O estudante pode selecionar meses pendentes de uma única academia e o Spuri cria automaticamente, no contexto financeiro dessa academia, uma única cobrança AppyPay: o estudante nunca chama a rota genérica de criação de cobrança.
+
+O valor é sempre `float64`, maior que zero e com até duas casas decimais. A configuração é versionada pelo evento `MensalidadeConfigurada`: fundamental usa `nivel=fundamental` + `ano_academico`; médio e superior também exigem `curso_id`. A resolução de cada mês consulta o preço que estava vigente no primeiro dia daquele mês e a turma histórica do estudante naquele ano letivo, portanto não usa curso, ano ou academia atuais para pendências antigas.
+
+`mes_fim_cobranca` aceita somente `6` ou `7`; não altera os períodos letivos imutáveis. A exceção de entrada no meio do ano é o evento `MesInicioCobrancaDefinido`, estritamente por `(academia, ano_letivo)`, e só limita o ano especificado.
+
+**POST `/financeiro/mensalidades/configuracoes`**
+
+Academia dona ou admin FPP. Para academia autenticada, `codigo_academia` é imposto pelo token.
+
+```json
+{
+  "codigo_academia": "ACA001",
+  "nivel": "medio",
+  "ano_academico": "1_ano_medio",
+  "curso_id": "550e8400-e29b-41d4-a716-446655440000",
+  "valor": 25000.00,
+  "mes_fim_cobranca": 7,
+  "metodos_pagamento": ["REF", "GPO_QR"]
+}
+```
+
+**POST `/financeiro/mensalidades/inicio-cobranca`**
+
+Academia dona ou admin FPP. `mes_inicio` não pode anteceder setembro (escolar) ou outubro (superior), nem ultrapassar o mês final configurado.
+
+```json
+{"codigo_academia":"ACA001","ano_letivo":"2026_2027","mes_inicio":1}
+```
+
+**GET `/financeiro/mensalidades/estudante/:codigo`**
+
+Academia recebe apenas obrigações da sua própria chave de academia; estudante só consulta o seu código; admin FPP pode consultar qualquer estudante e recebe os grupos de todas as academias históricas. Cada item inclui `estado` (`pendente`, `pago` ou `anulado`), `valor`, vínculo histórico e IDs dos eventos de auditoria relacionados. A resposta também traz `metodos_pagamento_por_academia`; uma lista vazia significa que o pagamento de propina está desativado.
+
+`metodos_pagamento` é um subconjunto de `GPO`, `REF` e `GPO_QR`. Só pode ser habilitado quando a academia possui credencial AppyPay; a ausência explícita de métodos não permite iniciar pagamento.
+
+**POST `/financeiro/mensalidades/pagamento`**
+
+Exclusivo do próprio estudante (inclusive sessão financeira restrita). O pedido informa a academia histórica ou atual, os meses e o método:
+
+```json
+{
+  "codigo_academia":"ACA001",
+  "meses":[{"ano_letivo":"2025_2026","mes":10},{"ano_letivo":"2025_2026","mes":1}],
+  "metodo_pagamento":"REF"
+}
+```
+
+A seleção deve conter o mês pendente mais antigo daquela academia; meses adicionais podem ser quaisquer outros pendentes da mesma academia. Pagos, anulados, duplicados ou meses já cobertos por cobrança aberta são recusados antes da chamada AppyPay. O valor é a soma dos preços históricos, arredondada pela regra financeira única, e a resposta traz uma única `cobranca` e os meses associados. Ao receber `Success` por consulta ou webhook, `MensalidadesCobrancaConfirmada` grava os pagamentos de todos os meses da cobrança numa única transação projetada; repetições são idempotentes.
+
+Um estudante sem vínculo ativo recebe, no login, uma claim `acesso_restrito_financeiro`; ela só permite esta rota e a sua consulta de mensalidades. Não libera perfil, notas, faltas ou qualquer outra rota protegida e não reintegra o estudante em academia alguma.
+
+**POST `/financeiro/mensalidades/obrigacoes/anular`** e **POST `/financeiro/mensalidades/obrigacoes/reativar`**
+
+Exclusivos da academia dona; admin FPP recebe `403` mesmo tendo acesso de leitura. Cada mês gera, respectivamente, `ObrigacaoMensalidadeAnulada` ou `ObrigacaoMensalidadeReativada`; eventos anteriores nunca são apagados. Uma reativação só é aceita para mês atualmente anulado e não pago.
+
+Ao anular mês coberto por cobrança ainda aberta, a plataforma tenta cancelar a cobrança inteira; os demais meses cobertos voltam a pendente. AppyPay não oferece cancelamento real de REF/GPO/QR emitidos: referência ou QR pode continuar pagável até expirar. Um `Success` tardio é registrado como `CobrancaAppyPayConflitoPosCancelamento` para reconciliação manual FPP, nunca aceito silenciosamente como pagamento.
+
+```json
+{
+  "codigo_estudante": "EST0001",
+  "codigo_academia": "ACA001",
+  "ano_letivo": "2026_2027",
+  "meses": [1, 2],
+  "motivo": "bolsa social"
+}
+```
+
+#### 19.8 POST /financeiro/appypay/cobrancas/:id/cancelar
+
+**Escopo da rota:** cancela localmente uma cobrança REF, GPO ou QR Code ainda não paga. Não chama endpoint de cancelamento da AppyPay, pois esse endpoint não é documentado para esses métodos.
+
+**Proteção:** autenticado + academia dona da própria cobrança, ou admin FPP somente quando a cobrança pertence ao contexto `spuri`. Ao contrário das demais operações financeiras, admin FPP nunca pode cancelar cobrança de academia.
+
+**Request JSON:**
+
+```json
+{
+  "motivo": "cobrança emitida em duplicado"
+}
+```
+
+`motivo` é opcional. O corpo não aceita contexto nem código de academia: eles são fixados pelo ator autenticado.
+
+**Response 200:** a mesma estrutura da consulta, com `status: "cancelada"`.
+
+**Regras de negócio:**
+
+- Antes de registrar `CobrancaAppyPayCancelada`, o backend reconsulta a AppyPay. Se o estado mais recente já for `Success`, não cancela nem grava evento de cancelamento.
+- Cobranças `cancelada`, `falhada` ou `Success` não podem ser canceladas novamente ou reabertas. Para cobrar de novo, crie uma nova cobrança com outro `merchantTransactionId`.
+- O evento `CobrancaAppyPayCancelada` é interno ao ledger Spuri. Uma referência/QR já emitido pode continuar tecnicamente pagável fora da plataforma até expirar; sucesso tardio gera `CobrancaAppyPayConflitoPosCancelamento`, sem alterar o status local cancelado.
+
+#### 19.8 POST /webhooks/appypay/gpo
 
 **Escopo da rota:** entrada pública para notificações AppyPay do método GPO.
 
@@ -7388,7 +7547,7 @@ Para `MULTIPLE`, os quatro campos adicionais são obrigatórios. Seus valores e 
 - Webhook sem autenticação válida retorna `401`; JSON inválido ou sem identificador retorna `400`.
 - Evento já recebido responde `200` novamente e não duplica o processamento.
 
-#### 19.8 POST /webhooks/appypay/ref
+#### 19.9 POST /webhooks/appypay/ref
 
 **Escopo da rota:** entrada pública para notificações AppyPay do método REF.
 
@@ -7725,3 +7884,13 @@ Envia uma mensagem de teste através do endpoint `POST /messages` da Ziett, com 
   "ziett_service": "core"
 }
 ```
+
+## Cobrança de matrícula por solicitação
+
+`POST` ou `PUT /financeiro/matriculas/configuracoes` configura a taxa por `nivel`, `ano_academico` e, para médio/superior, `curso_id`, com `valor` monetário positivo (máximo duas casas) e `metodos_pagamento` (`REF`, `GPO`, `GPO_QR`). É permitido para academias públicas e privadas, exige credencial AppyPay e oferta válida do ano/curso. `GET /financeiro/matriculas/configuracoes` lista as configurações vigentes.
+
+Sem configuração, a aprovação mantém o vínculo imediato. Com taxa configurada, a solicitação recebe `aprovada_pendente_pagamento_matricula`: o valor e os métodos são congelados, o código do estudante é reservado, mas ainda não existe estudante, vínculo nem cobrança. Os eventos são `SolicitacaoMatriculaAprovada`, `SolicitacaoMatriculaAprovadaPendentePagamento` e `SolicitacaoMatriculaVinculada`.
+
+As rotas públicas, limitadas por IP, são `GET /solicitacao-matricula/busca` (exige ao menos dois campos exatos entre telefone, telefone do encarregado, e-mail e BIs e só devolve dados de reconhecimento), `GET /solicitacao-matricula/:codigo/status` (estado e, se pendente, valor/métodos) e `POST /solicitacao-matricula/:codigo/pagamento-matricula` (método e telefone opcional GPO). O valor cobrado é sempre o congelado na aprovação e só há uma cobrança aberta por solicitação.
+
+`PUT /academia/solicitacao-matricula/:codigo/cancelar` cancela uma solicitação pendente e sua cobrança local aberta. Se a cobrança já foi paga, o cancelamento é rejeitado. Uma confirmação `Success` por webhook efetiva o vínculo de forma idempotente. REF/GPO/QR não têm cancelamento real no provider: pagamento posterior ao cancelamento local é um conflito financeiro para reconciliação manual.
