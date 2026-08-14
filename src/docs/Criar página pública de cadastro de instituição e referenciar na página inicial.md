@@ -1,10 +1,10 @@
 ---
 criado: 2026-08-14 00:00
 origem: solicitação do usuário
-status: pendente
+status: feito
 ---
 
-# Criar página pública de cadastro de instituição (reaproveitando o formulário de /academias/cadastrar) e referenciá-la na página inicial (pendente)
+# Criar página pública de cadastro de instituição (reaproveitando o formulário de /academias/cadastrar) e referenciá-la na página inicial (feito)
 
 ## Prompt recomendado para executar a atualização
 

@@ -370,6 +370,18 @@ export default function LandingContent({
 
             <div className="mt-8">
               <CtaButton profile={profile} />
+              {profile !== "estudante" && (
+                <p className="mt-4 text-sm lg:text-base text-gray-500 dark:text-gray-400">
+                  Prefere começar já?{" "}
+                  <Link
+                    href="/instituicoes/cadastrar"
+                    className="font-medium text-brand-500 hover:text-brand-600"
+                  >
+                    Cadastre a sua instituição diretamente
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
           </motion.div>
         </section>
