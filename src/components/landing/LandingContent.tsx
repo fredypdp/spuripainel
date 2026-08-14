@@ -239,6 +239,14 @@ export default function LandingContent({
             >
               A ver como: {content.label} · Trocar
             </button>
+            {profile !== "estudante" && (
+              <Link
+                href="/instituicoes/cadastrar"
+                className="hidden rounded-xl border border-brand-500 px-4 py-2 text-sm lg:text-base font-semibold text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 sm:inline-flex"
+              >
+                Cadastrar instituição
+              </Link>
+            )}
             <Link
               href="/login"
               className="rounded-xl bg-brand-500 px-4 py-2 text-sm lg:text-base font-semibold text-white hover:bg-brand-600"
@@ -266,6 +274,11 @@ export default function LandingContent({
             <button type="button" onClick={onChangeProfile} className="text-left text-brand-500">
               A ver como: {content.label} · Trocar perfil
             </button>
+            {profile !== "estudante" && (
+              <Link href="/instituicoes/cadastrar" onClick={() => setMenuOpen(false)} className="text-brand-500">
+                Cadastrar instituição
+              </Link>
+            )}
           </nav>
         )}
       </header>
@@ -370,18 +383,6 @@ export default function LandingContent({
 
             <div className="mt-8">
               <CtaButton profile={profile} />
-              {profile !== "estudante" && (
-                <p className="mt-4 text-sm lg:text-base text-gray-500 dark:text-gray-400">
-                  Prefere começar já?{" "}
-                  <Link
-                    href="/instituicoes/cadastrar"
-                    className="font-medium text-brand-500 hover:text-brand-600"
-                  >
-                    Cadastre a sua instituição diretamente
-                  </Link>
-                  .
-                </p>
-              )}
             </div>
           </motion.div>
         </section>
