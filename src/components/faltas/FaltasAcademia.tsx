@@ -174,14 +174,13 @@ function TabelaFaltas({
   faltas,
   estudantesMap,
   codigosTurma,
-  onCorrigir,
+  onVerDetalhes,
 }: {
   faltas: Falta[];
   estudantesMap: Map<string, string>;
   codigosTurma: string[];
-  onCorrigir: (falta: Falta) => void;
+  onVerDetalhes: (detalhe: { codigo: string; nome: string | null; faltas: Falta[]; total: number }) => void;
 }) {
-  const [codigoDetalhado, setCodigoDetalhado] = useState<string | null>(null);
 
   if (codigosTurma.length === 0 && faltas.length === 0) return (
     <div className="text-center py-10 text-gray-400">
@@ -196,8 +195,6 @@ function TabelaFaltas({
     faltasPorCodigo.set(codigo, [...(faltasPorCodigo.get(codigo) ?? []), f]);
   });
   const codigosTabela = Array.from(new Set([...codigosTurma, ...faltasPorCodigo.keys()]));
-  const detalhes = codigoDetalhado ? [...(faltasPorCodigo.get(codigoDetalhado) ?? [])].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()) : [];
-
   const nomeDoEstudante = (codigo: string, fallback?: string) =>
     estudantesMap.get(codigo) ?? estudantesMap.get(codigo.toUpperCase()) ?? fallback ?? null;
 
@@ -234,8 +231,8 @@ function TabelaFaltas({
                   <td className={`px-4 py-3 text-center text-base font-bold ${total > 0 ? corQuantidade(total) : "text-gray-300 dark:text-gray-600"}`}>{total || "—"}</td>
                   <td className="px-4 py-3 text-right">
                     {fs.length > 0 && (
-                      <button type="button" onClick={() => setCodigoDetalhado(codigoDetalhado === codigo ? null : codigo)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300">
-                        <Icon icon="mdi:eye-outline" width={14} /> Ver mais
+                      <button type="button" onClick={() => onVerDetalhes({ codigo, nome, faltas: [...fs].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()), total })} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300">
+                        <Icon icon="mdi:open-in-new" width={14} /> Ver mais
                       </button>
                     )}
                   </td>
@@ -244,18 +241,6 @@ function TabelaFaltas({
           </tbody>
         </table>
       </div>
-
-      {codigoDetalhado && (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Faltas detalhadas de {nomeDoEstudante(codigoDetalhado) ?? codigoDetalhado.toUpperCase()}</h3>
-          </div>
-          <table className="w-full text-sm min-w-[700px]">
-            <thead className="bg-gray-50 dark:bg-gray-800/70"><tr><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th><th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Lectivo</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th><th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Ações</th></tr></thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">{detalhes.map(f => <tr key={f.id} className="bg-white dark:bg-gray-800"><td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatarData(f.data)}</td><td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}><span title={tituloCorrecaoFalta(f)}>{f.quantidade}<FaltaCorrigidaBadge falta={f} /></span></td><td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{f.ano_lectivo?.replace("_", "/")}</td><td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => onCorrigir(f)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"><Icon icon="mdi:pencil" width={14} /> Corrigir</button></td></tr>)}</tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
@@ -454,6 +439,7 @@ export default function FaltasAcademia() {
 
   // Matéria selecionada nos botões inline — análogo ao materiaSelecionada do NotasAcademia
   const [materiaSelecionada, setMateriaSelecionada] = useState<{ id: string; nome: string } | null>(null);
+  const [detalheFaltas, setDetalheFaltas] = useState<{ codigo: string; nome: string | null; faltas: Falta[]; total: number } | null>(null);
 
   const { data: dataTurmas,         loading: loadingTurmas, execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
@@ -491,6 +477,7 @@ export default function FaltasAcademia() {
   useEffect(() => {
     if (layer.type !== "faltas") {
       setMateriaSelecionada(null);
+      setDetalheFaltas(null);
       return;
     }
 
@@ -787,6 +774,25 @@ export default function FaltasAcademia() {
     const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
     const comFalta    = new Set(faltas.map(f => normCodigoEstudante(f.codigo_estudante))).size;
 
+    if (detalheFaltas) return (
+      <div className="space-y-5">
+        <button type="button" onClick={() => setDetalheFaltas(null)} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+          <Icon icon="mdi:arrow-left" width={18} /> Voltar para a turma
+        </button>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">{subtitulo}</p>
+          <h2 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Faltas de {detalheFaltas.nome ?? detalheFaltas.codigo.toUpperCase()}</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{materiaSelecionada?.nome} · {detalheFaltas.codigo.toUpperCase()} · Total: {detalheFaltas.total} falta(s)</p>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <table className="w-full text-sm min-w-[700px]">
+            <thead className="bg-gray-50 dark:bg-gray-800/70"><tr><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th><th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Lectivo</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th><th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Ações</th></tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">{detalheFaltas.faltas.map(f => <tr key={f.id} className="bg-white dark:bg-gray-800"><td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatarData(f.data)}</td><td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}><span title={tituloCorrecaoFalta(f)}>{f.quantidade}<FaltaCorrigidaBadge falta={f} /></span></td><td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{f.ano_lectivo?.replace("_", "/")}</td><td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => { setFaltaSelecionada(f); openCorrigirModal(); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"><Icon icon="mdi:pencil" width={14} /> Corrigir</button></td></tr>)}</tbody>
+          </table>
+        </div>
+      </div>
+    );
+
     return (
       <div className="space-y-5">
         {/* Cabeçalho */}
@@ -815,7 +821,7 @@ export default function FaltasAcademia() {
               {materiasDisponiveis.map(m => (
                 <button
                   key={m.id}
-                  onClick={() => setMateriaSelecionada(prev => prev?.id === m.id ? null : { id: m.id, nome: m.nome })}
+                  onClick={() => { setDetalheFaltas(null); setMateriaSelecionada(prev => prev?.id === m.id ? null : { id: m.id, nome: m.nome }); }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
                     materiaSelecionada?.id === m.id
                       ? "bg-brand-500 text-white border-brand-500 shadow-sm"
@@ -868,7 +874,7 @@ export default function FaltasAcademia() {
             faltas={faltas}
             estudantesMap={estudantesMap}
             codigosTurma={codigosTurma}
-            onCorrigir={(falta) => { setFaltaSelecionada(falta); openCorrigirModal(); }}
+            onVerDetalhes={setDetalheFaltas}
           />
         ) : null}
       </div>
