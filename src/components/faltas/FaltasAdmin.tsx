@@ -190,6 +190,8 @@ function TabelaFaltas({
   codigosTurma: string[];
   onVerDetalhes: (detalhe: { codigo: string; nome: string | null; faltas: Falta[]; total: number }) => void;
 }) {
+  const [codigoDetalhado, setCodigoDetalhado] = useState<string | null>(null);
+
   if (codigosTurma.length === 0 && faltas.length === 0) return (
     <div className="text-center py-10 text-gray-400">
       <Icon icon="mdi:check-circle-outline" width={40} className="mx-auto mb-2 text-emerald-400 opacity-80" />
