@@ -420,6 +420,7 @@ interface FaltaDTO {
   codigo_academia: string
   ano_lectivo: string
   ano_academico: string
+  periodo: string              // 1_trimestre, 2_trimestre, 3_trimestre, 1_semestre ou 2_semestre
   data: date                  // date-only (ISO: YYYY-MM-DD)
   materia_disciplinar_id: string
   materia_nome?: string
@@ -472,6 +473,7 @@ interface FaltaRegistroDTO {
   academia_nome: string
   ano_lectivo: string
   ano_academico: string
+  periodo: string              // 1_trimestre, 2_trimestre, 3_trimestre, 1_semestre ou 2_semestre
   data: date
   materia_disciplinar_id: string
   materia_nome: string
@@ -2101,7 +2103,7 @@ Adiciona/habilita novos escopos acadêmicos sem remover os escopos existentes. N
 
 | `type` | Onde altera | Campos aceitos | Campos obrigatórios | Resultado |
 | --- | --- | --- | --- | --- |
-| `fundamental` | Academia autenticada (`projection_academias.anos_academicos`) | `type`, `anos_academicos` | `type`, `anos_academicos` | Une os anos enviados com os anos fundamentais já ativos. |
+| `fundamental` | Academia autenticada (`projection_academias.anos_academicos`) | `type`, `anos_academicos` | `type`, `anos_academicos` | Une os anos enviados com os anos do Ensino Primário e Iº Ciclo já ativos. |
 | `medio` | Não altera por esta rota | nenhum fluxo de escrita permitido | n/a | Retorna erro estruturado. Cursos médios têm anos fixos derivados de `modelo`. |
 | `superior` | Não altera por esta rota | nenhum fluxo de escrita permitido | n/a | Retorna erro estruturado. Cursos superiores não aceitam adição direta de anos/períodos por `/academia/anos-academicos`. |
 
@@ -2236,13 +2238,13 @@ item apontando o campo exato que deve ser corrigido.
 ```json
 {
   "error": "VALIDATION_ERROR",
-  "message": "O campo 'type' recebeu '', mas só aceita: 'fundamental', 'medio' ou 'superior'. Use 'fundamental' para anos do ensino fundamental, 'medio' para cursos médios e 'superior' para cursos superiores.",
+  "message": "O campo 'type' recebeu '', mas só aceita: 'fundamental', 'medio' ou 'superior'. Use 'fundamental' para anos do Ensino Primário e Iº Ciclo, 'medio' para cursos médios e 'superior' para cursos superiores.",
   "request_id": "uuid-da-requisicao",
   "details": [
     {
       "field": "type",
       "code": "valor_invalido",
-      "message": "O campo 'type' recebeu '', mas só aceita: 'fundamental', 'medio' ou 'superior'. Use 'fundamental' para anos do ensino fundamental, 'medio' para cursos médios e 'superior' para cursos superiores."
+      "message": "O campo 'type' recebeu '', mas só aceita: 'fundamental', 'medio' ou 'superior'. Use 'fundamental' para anos do Ensino Primário e Iº Ciclo, 'medio' para cursos médios e 'superior' para cursos superiores."
     }
   ]
 }
@@ -2767,7 +2769,8 @@ Para implementar o cliente de forma segura:
 5. Quando enviados, os documentos são enviados ao storage definitivo em `{codigo_academia}/estudantes/{codigo_estudante}/documentos/`.
 6. Senha padrão = código do estudante (ex: `ABC1234`).
 7. Estudante é criado com **status `ativo`**, vinculado à academia e com o mapa `documentos` gravado no evento `EstudanteCriadoComVinculo` e na projeção.
-8. Se qualquer validação ou persistência falhar após upload parcial, o diretório de documentos do estudante é removido para evitar ficheiros órfãos.
+8. Opcionalmente, se `codigo_turma` for informado, a turma é pré-validada antes de uploads/gravações e o vínculo é tentado após a persistência do estudante.
+9. Se qualquer validação ou persistência falhar após upload parcial, o diretório de documentos do estudante é removido para evitar ficheiros órfãos.
 
 **Regras de validação:**
 
@@ -2823,6 +2826,7 @@ Cadastra um novo estudante vinculado à academia autenticada. O cadastro direto 
 | `curso_medio_id` | condicional | UUID de curso médio ativo da academia, quando o ano médio for informado. |
 | `ano_superior` | condicional | Ano superior canônico, quando aplicável. |
 | `curso_superior_id` | condicional | UUID de curso superior ativo da academia, quando o ano superior for informado. |
+| `codigo_turma` | não | Código da turma ativa da mesma academia para vincular o estudante imediatamente após o cadastro. A existência, status e compatibilidade com ano/curso são validadas antes de qualquer upload ou gravação. |
 
 **Ficheiros PDF aceitos:**
 
@@ -2850,6 +2854,7 @@ telefone_encarregado=924000000
 bilhete_identidade=001234567LA089
 bilhete_identidade_encarregado=009876543LA089
 ano_escolar_fundamental=7_ano_fundamental
+codigo_turma=TURMA-A
 ```
 
 **Request — multipart/form-data com documentos obrigatórios:**
@@ -2913,6 +2918,9 @@ curl -X POST https://api.exemplo.ao/academia/estudante/register \
     "id": "uuid",
     "codigo_estudante": "ABC1234",
     "codigo_academia": "LDA20261",
+    "status": "ativo",
+    "codigo_turma": "TURMA-A",
+    "turma_vinculada": true,
     "documentos": {
       "bi_encarregado": {
         "path": "LDA20261/estudantes/ABC1234/documentos/bi_encarregado_ABC1234.pdf",
@@ -2924,6 +2932,8 @@ curl -X POST https://api.exemplo.ao/academia/estudante/register \
 }
 ```
 
+Quando `codigo_turma` é informado e a vinculação pós-criação falha por uma condição concorrente rara, a resposta continua `201` porque o estudante já foi persistido, mas `data.turma_vinculada` vem `false` e `data.turma_aviso` orienta tentar novamente via `POST /academia/turma/:codigo/estudante`. Se `codigo_turma` não for informado, os campos `codigo_turma`, `turma_vinculada` e `turma_aviso` não aparecem na resposta.
+
 **Erros:**
 
 - `400` — `Content-Type` diferente de `multipart/form-data`
@@ -2931,6 +2941,8 @@ curl -X POST https://api.exemplo.ao/academia/estudante/register \
 - `400` — ano académico em formato incorreto ou incompatível com a academia/curso
 - `400` — ficheiro não PDF, sem assinatura `%PDF`, com extensão diferente de `.pdf` ou acima de 10MB
 - `400` — BI do estudante igual ao BI do encarregado, ou BI do estudante já cadastrado
+- `400` — turma informada está inativa/deletada ou é incompatível com ano/curso do estudante
+- `404` — `codigo_turma` informado não existe ou não pertence à academia autenticada
 
 ---
 
@@ -2951,20 +2963,21 @@ Cadastra estudantes em lote. O campo `com_arquivo` é obrigatório e define o co
       "data_nascimento": "2010-05-20",
       "telefone_encarregado": "924000000",
       "bilhete_identidade_encarregado": "009876543LA089",
-      "ano_escolar_fundamental": "1_ano_fundamental"
+      "ano_escolar_fundamental": "1_ano_fundamental",
+      "codigo_turma": "TURMA-A"
     }
   ]
 }
 ```
 
-Neste modo a requisição retorna imediatamente `202 Accepted` e cria um job de background, igual aos demais endpoints `/async` em lote. Use `poll_url` (`GET /jobs/:id`) ou `sse_url` (`GET /jobs/stream`) para acompanhar progresso, desempenho e resultados item a item. Durante o processamento são validados somente os campos textuais pelas mesmas regras de `POST /academia/estudante/register`, sem cobrança de PDFs. Cada estudante criado fica com `status = "pendente_documentos"` e não deve ser tratado como ativo até concluir a documentação pela rota posterior. Envio de arquivos com `com_arquivo: false` ou `com_arquivo` ausente/inválido é rejeitado.
+Neste modo a requisição retorna imediatamente `202 Accepted` e cria um job de background, igual aos demais endpoints `/async` em lote. Use `poll_url` (`GET /jobs/:id`) ou `sse_url` (`GET /jobs/stream`) para acompanhar progresso, desempenho e resultados item a item. Durante o processamento são validados somente os campos textuais pelas mesmas regras de `POST /academia/estudante/register`, sem cobrança de PDFs. Cada estudante criado fica com `status = "pendente_documentos"` e não deve ser tratado como ativo até concluir a documentação pela rota posterior. Quando um item inclui `codigo_turma`, a validação e a vinculação acontecem independentemente para aquele item, sem depender da ordem de processamento dos demais estudantes do lote, e o resultado individual pode trazer `codigo_turma`, `turma_vinculada` e `turma_aviso`. Envio de arquivos com `com_arquivo: false` ou `com_arquivo` ausente/inválido é rejeitado.
 
 **Modo com arquivos (`multipart/form-data`)**
 
 Campos:
 
 - `com_arquivo=true`;
-- `estudantes`: JSON array com os mesmos campos textuais e um `codigo_temporario` único por estudante;
+- `estudantes`: JSON array com os mesmos campos textuais, `codigo_turma` opcional por item e um `codigo_temporario` único por estudante;
 - arquivos nomeados como `<codigo_temporario>.<campo_documental>`, por exemplo `tmp-1.bi_estudante` e `tmp-1.bi_encarregado`.
 
 ```bash
@@ -3640,7 +3653,7 @@ Aprova uma solicitação pendente de revinculação do estudante indicado em `:c
 - Apenas estudante `inativo` por desvinculação pode ser revinculado.
 - A aprovação grava `EstudanteReintegrado`, define `status = "ativo"` e reativa a etapa indicada/derivada.
 - A retomada deve usar a última posição acadêmica do estudante naquela mesma academia: nível, ano fundamental, ano médio, curso médio, ano superior, semestre atual e curso superior conforme aplicável.
-- No fundamental, a aprovação é bloqueada quando houver progressão posterior em outra academia; o retorno só é permitido no mesmo ano fundamental da desvinculação.
+- No fundamental, a aprovação é bloqueada quando houver progressão posterior em outra academia; o retorno só é permitido no mesmo ano do Ensino Primário e Iº Ciclo da desvinculação.
 - No médio e no superior, cursos informados precisam existir, estar ativos, pertencer à academia e ter tipo compatível; se omitidos, a aprovação reutiliza o curso anterior válido daquela academia.
 - O evento final inclui referência da solicitação aprovada e snapshot da posição acadêmica retomada.
 
@@ -3711,7 +3724,7 @@ Cria uma solicitação pública de matrícula para a academia informada.
 | `telefone_encarregado` | texto | não | Telefone do encarregado; normalizado/validado quando enviado. |
 | `bilhete_identidade` | texto | não | BI do candidato; normalizado/validado quando enviado. |
 | `bilhete_identidade_encarregado` | texto | não | BI do encarregado; normalizado/validado quando enviado. |
-| `ano_escolar_fundamental` | texto | condicional | Use quando a solicitação for para ensino fundamental. |
+| `ano_escolar_fundamental` | texto | condicional | Use quando a solicitação for para o Ensino Primário e Iº Ciclo. |
 | `ano_escolar_medio` | texto | condicional | Use quando a solicitação for para ensino médio. |
 | `ano_superior` | texto | condicional | Use quando a solicitação for para ensino superior. |
 | `curso_medio_id` | UUID | condicional | Curso `medio`, `ativo` e da mesma academia; usado com `ano_escolar_medio`. |
@@ -4618,6 +4631,8 @@ Ativa matérias em lote.
 ]
 ```
 
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
+
 **Response 202:** job assíncrono com acompanhamento por polling ou SSE.
 
 ### `PUT /academia/materia/desativar/async`
@@ -4633,6 +4648,8 @@ Desativa matérias em lote.
   { "id": "uuid-da-materia" }
 ]
 ```
+
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
 
 **Response 202:** job assíncrono com resultados por item.
 
@@ -4654,6 +4671,8 @@ Atualiza dados de matérias em lote.
 ]
 ```
 
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
+
 **Response 202:** job assíncrono com resultados por item.
 
 ### `DELETE /academia/materia/async`
@@ -4669,6 +4688,8 @@ Remove logicamente matérias em lote.
   { "id": "uuid-da-materia" }
 ]
 ```
+
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
 
 **Response 202:** job assíncrono com preservação histórica igual à rota síncrona.
 
@@ -4882,7 +4903,7 @@ Histórico por ano letivo e eventos permanecem disponíveis para auditoria.
 
 ### `POST /academia/turma/:codigo/estudante`
 
-Adiciona estudante à turma.
+Adiciona estudante à turma. Esta rota continua existindo para vincular ou corrigir vínculos de estudantes já cadastrados; o cadastro de estudante também aceita vinculação direta quando recebe `codigo_turma`.
 
 **Proteção:** academia ativa.
 
@@ -4954,6 +4975,8 @@ Cria turmas em lote por job assíncrono.
 ]
 ```
 
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
+
 **Response 202:** job assíncrono com `job_id`, `status`, `total_items`, `poll_url` e `sse_url`.
 
 ### `POST /academia/turma/estudante/async`
@@ -4973,6 +4996,8 @@ Adiciona estudantes a turmas em lote.
 ]
 ```
 
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
+
 **Response 202:** job assíncrono; cada item aplica as mesmas validações da rota síncrona.
 
 ### `PUT /academia/turma/ativar/async`
@@ -4989,6 +5014,8 @@ Ativa turmas em lote.
 ]
 ```
 
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
+
 **Response 202:** job assíncrono.
 
 ### `PUT /academia/turma/desativar/async`
@@ -5004,6 +5031,8 @@ Desativa turmas em lote.
   { "codigo_turma": "10A" }
 ]
 ```
+
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
 
 **Response 202:** job assíncrono.
 
@@ -5024,6 +5053,8 @@ Atualiza dados de turmas em lote.
 ]
 ```
 
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
+
 **Response 202:** job assíncrono com resultados por item.
 
 ### `DELETE /academia/turma/async`
@@ -5039,6 +5070,8 @@ Remove logicamente turmas em lote.
   { "codigo_turma": "10A" }
 ]
 ```
+
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
 
 **Response 202:** job assíncrono.
 
@@ -5058,6 +5091,8 @@ Remove estudantes de turmas em lote.
   }
 ]
 ```
+
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
 
 **Response 202:** job assíncrono; histórico por ano letivo é preservado.
 
@@ -5323,17 +5358,20 @@ Registra faltas individuais.
 {
   "codigo_estudante": "EST-2026-0001",
   "data": "2026-03-15",
+  "periodo": "1_trimestre",
   "materia_disciplinar_id": "uuid-da-materia",
   "quantidade": 2,
   "observacao": "Ausência justificada posteriormente"
 }
 ```
 
-**Campos obrigatórios:** `codigo_estudante`, `data`, `materia_disciplinar_id` e `quantidade`.
+**Campos obrigatórios:** `codigo_estudante`, `data`, `periodo`, `materia_disciplinar_id` e `quantidade`.
 
 **Regras de validação:**
 
 - `quantidade` deve ser maior que zero.
+- `periodo` é obrigatório e deve ser um dos períodos válidos: para tipo escolar, `1_trimestre`, `2_trimestre` ou `3_trimestre`; para tipo superior, um período configurado no curso.
+- Para matérias do tipo superior com período fixo, `periodo` deve ser exatamente igual ao período definido na matéria.
 - A academia precisa ter ano letivo ativo.
 - O estudante precisa pertencer à academia autenticada.
 - A matéria precisa pertencer à academia e ser compatível com o estudante.
@@ -5347,6 +5385,8 @@ Registra faltas individuais.
   "estudante": "EST-2026-0001",
   "materia": "Matemática",
   "quantidade": 2,
+  "periodo": "1_trimestre",
+  "periodos_validos": ["1_trimestre", "2_trimestre", "3_trimestre"],
   "ano_academico": "10_ano_medio"
 }
 ```
@@ -5369,7 +5409,7 @@ Corrige uma falta por evento compensatório; o lançamento original permanece in
 }
 ```
 
-**Regras:** `motivo` é obrigatório; `quantidade` deve estar entre 1 e 100; `observacao` aceita no máximo 2000 caracteres. A data e a matéria são derivadas do registro existente.
+**Regras:** `motivo` é obrigatório; `quantidade` deve estar entre 1 e 100; `observacao` aceita no máximo 2000 caracteres. A data, a matéria e o período são derivados do registro existente; `periodo` é imutável e não é aceito no corpo desta rota.
 
 **Response 200:**
 
@@ -5389,7 +5429,7 @@ Lista faltas a partir da projeção global.
 
 - `limit`, `offset` — paginação.
 - `ano_letivo`, `ano_academico`, `curso_id`, `codigo_turma`, `periodo`, `materia_disciplinar_id`, `codigo_academia` — filtros; aceitam repetição ou valores separados por vírgula.
-- Em faltas, `periodo` filtra o período da matéria disciplinar.
+- Em faltas, `periodo` filtra o período do próprio registro de falta, no mesmo formato usado por notas.
 - Para admin, `codigo_turma` exige `codigo_academia`.
 - `corrigido=true|false` filtra registros que já receberam (ou não receberam) evento compensatório de correção.
 - Para academia, `codigo_academia` é sempre forçado para a própria instituição.
@@ -5407,6 +5447,7 @@ Lista faltas a partir da projeção global.
       "academia_nome": "Academia Exemplo",
       "ano_lectivo": "2025_2026",
       "ano_academico": "10_ano_medio",
+      "periodo": "1_trimestre",
       "data": "2026-03-15",
       "materia_disciplinar_id": "uuid-da-materia",
       "materia_nome": "Matemática",
@@ -5439,7 +5480,7 @@ Retorna as faltas de um estudante específico.
 
 **Autorização:** estudante só consulta o próprio código; academia só consulta estudante da própria instituição; admin pode consultar qualquer estudante.
 
-**Query params:** `ano_letivo`, `ano_academico`, `curso_id`, `periodo`, `materia_disciplinar_id` e `codigo_academia`.
+**Query params:** `ano_letivo`, `ano_academico`, `curso_id`, `periodo`, `materia_disciplinar_id` e `codigo_academia`. O filtro `periodo` usa o período do próprio registro de falta, não o período da matéria.
 
 **Response 200:**
 
@@ -5450,6 +5491,7 @@ Retorna as faltas de um estudante específico.
   "faltas": [
     {
       "id": "uuid",
+      "periodo": "1_trimestre",
       "quantidade": 2,
       "registrado_por": "uuid-da-academia",
       "valor_anterior": 1,
@@ -5475,11 +5517,14 @@ Registra faltas em lote por job assíncrono.
   {
     "codigo_estudante": "EST-2026-0001",
     "data": "2026-03-15",
+    "periodo": "1_trimestre",
     "materia_disciplinar_id": "uuid-da-materia",
     "quantidade": 2
   }
 ]
 ```
+
+**Nota de contrato:** esta é uma mudança breaking; `POST /academia/faltas-aluno` e `POST /academia/faltas-aluno/async` rejeitam itens sem `periodo`.
 
 **Response 202:** job assíncrono com acompanhamento em `GET /jobs/:id` e `GET /jobs/stream`.
 
@@ -5525,7 +5570,7 @@ A academia monta uma cadeia declarando uma regra raiz e, opcionalmente, regras d
 | Campo | Fundamental | Médio | Superior |
 |---|---:|---:|---:|
 | `nivel` | `fundamental` | `medio` | `superior` |
-| `anos_academicos` | Obrigatório e não vazio; array simples de anos fundamentais | Obrigatório; lista de objetos `{curso_id, anos_academicos}` por curso médio | Rejeitado |
+| `anos_academicos` | Obrigatório e não vazio; array simples de anos do Ensino Primário e Iº Ciclo | Obrigatório; lista de objetos `{curso_id, anos_academicos}` por curso médio | Rejeitado |
 | `materias_aplicaveis` | Opcional; lista de itens `{ano_academico, materias}` | Opcional; lista de itens `{curso_id, ano_academico, materias}` | Opcional; lista de itens `{curso_id, ano_academico, materias}` com ano derivado dos semestres |
 | `limite_materias_pendentes` | Regras fixas do sistema | Regras fixas do sistema; sem pendências escolares | Obrigatório, `>= 0` |
 | `aplica_se_reprovado_em_type` | Ausente na raiz; presente em descendente | Ausente na raiz; presente em descendente | Ausente na raiz; presente em descendente |
@@ -5653,9 +5698,9 @@ Observações importantes que vêm diretamente do comportamento fixo do backend:
 - O backend avalia cada matéria fundamental ativa aplicável ao ano do estudante, respeitando `materias_aplicaveis` se configurado.
 - Cada matéria recebe `nota_final` própria; aprovação direta exige que todas as matérias avaliadas atinjam a mínima.
 - Uma ou mais matérias abaixo da mínima reprovam a etapa e podem acionar regra descendente por matéria reprovada.
-- Fundamental não permite aprovação com pendência: regra fundamental não tem `limite_materias_pendentes` e matérias fundamentais não aceitam `pendencia_permitida`/`pendencia_nivel_conclusao`.
-- Aprovado em ano intermediário progride para o próximo ano fundamental. Se a academia não oferta o próximo ano, o evento registra o motivo `academia_sem_oferta_do_proximo_ano_academico_fundamental`, mantém o ciclo em andamento e não adiciona turma automaticamente.
-- Aprovado no `9_ano_fundamental` finaliza o ciclo fundamental. Reprovado permanece no mesmo ano.
+- Fundamental não permite aprovação com pendência: regra do Ensino Primário e Iº Ciclo não tem `limite_materias_pendentes` e matérias do Ensino Primário e Iº Ciclo não aceitam `pendencia_permitida`/`pendencia_nivel_conclusao`.
+- Aprovado em ano intermediário progride para o próximo ano do Ensino Primário e Iº Ciclo. Se a academia não oferta o próximo ano, o evento registra o motivo `academia_sem_oferta_do_proximo_ano_academico_fundamental`, mantém o ciclo em andamento e não adiciona turma automaticamente.
+- Aprovado no `9_ano_fundamental` finaliza o ciclo do Ensino Primário e Iº Ciclo. Reprovado permanece no mesmo ano.
 
 #### 15.1.7 Médio
 
@@ -5728,10 +5773,10 @@ Devem falhar com erro de validação ou bloqueio funcional:
 - Payload de regra com `tipo_ensino`; use `nivel`.
 - Academia mista criando regra sem `nivel` ou tentando criar regra `superior`.
 - Academia não mista criando regra de nível incompatível com sua configuração.
-- `anos_academicos` ausente em regra fundamental ou presente em Médio/Superior.
+- `anos_academicos` ausente em regra do Ensino Primário e Iº Ciclo ou presente em Médio/Superior.
 - `limite_materias_pendentes` enviado em regra escolar, ausente em regra superior ou negativo.
 - `materias_aplicaveis` fora do escopo do curso/ano/período aplicável deve ser tratada como configuração inválida ou ineficaz operacionalmente; QA deve validar esse cenário contra a base de matérias da academia.
-- Descendente órfã, descendente que aponta para si mesma, ciclo de dependências ou escopo fundamental diferente da raiz.
+- Descendente órfã, descendente que aponta para si mesma, ciclo de dependências ou escopo do Ensino Primário e Iº Ciclo diferente da raiz.
 - Fórmula Fundamental/Médio sem período explícito (`[categoria]`).
 - Fórmula Superior com período explícito (`[categoria,periodo]`).
 - Fórmula com categoria inexistente, período inválido, divisão por zero, caracteres fora da gramática ou categorias enviadas que não batem com a fórmula.
