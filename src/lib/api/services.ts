@@ -428,9 +428,12 @@ export const solicitacaoMatriculaService = {
 
 export const academiaPublicaService = {
   cadastrar: (data: CadastroAcademiaPublicaRequest) => {
+    const senha = data.senha.trim();
+    if (!senha) throw new Error('A senha é obrigatória para o cadastro público de academia.');
+
     const formData = new FormData();
 
-    Object.entries(data).forEach(([key, value]) => {
+    Object.entries({ ...data, senha }).forEach(([key, value]) => {
       if (value === undefined || value === null) return;
 
       if (typeof File !== 'undefined' && value instanceof File) {

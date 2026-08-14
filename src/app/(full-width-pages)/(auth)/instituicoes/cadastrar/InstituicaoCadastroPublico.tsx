@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useApi } from "@/lib/api";
 import { academiaPublicaService } from "@/lib/api/services";
 import AcademiaCadastroForm from "@/components/academia/AcademiaCadastroForm";
+import type { AcademiaCadastroFormPayload } from "@/components/academia/AcademiaCadastroForm";
 import type { CadastroAcademiaPublicaRequest } from "@/types/api";
 
 interface ResultadoCadastroPublico { codigo_academia: string; nome: string; aviso: string; }
@@ -31,15 +32,18 @@ export default function InstituicaoCadastroPublico() {
   const [resultado, setResultado] = useState<ResultadoCadastroPublico | null>(null);
   const [formKey, setFormKey] = useState(0);
   const limparFormulario = () => { setResultado(null); setFormKey((k) => k + 1); };
-  const handleFormSubmit = async (payload: CadastroAcademiaPublicaRequest) => {
-    const result = await executarCadastro(payload);
+  const handleFormSubmit = async (payload: AcademiaCadastroFormPayload) => {
+    const senha = payload.senha?.trim();
+    if (!senha) throw new Error("A senha é obrigatória para o cadastro público de academia.");
+
+    const result = await executarCadastro({ ...payload, senha } as CadastroAcademiaPublicaRequest);
     if (result) setResultado({ codigo_academia: result.codigo_academia, nome: payload.nome, aviso: result.aviso });
   };
   return (
     <div className="flex min-h-screen w-full flex-1 justify-center overflow-y-auto bg-gray-50 px-4 py-6 dark:bg-gray-950 lg:w-1/2 lg:px-8">
       <div className="w-full max-w-4xl rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4"><div><h1 className="text-xl font-semibold text-gray-900 dark:text-white">Cadastrar instituição</h1><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Registe a sua instituição de ensino no Spuri. Um administrador ativa a conta após revisão.</p></div><Link href="/login" className="text-sm font-medium text-brand-500 hover:text-brand-600">Voltar</Link></div>
-        {resultado ? <SuccessState resultado={resultado} onCadastrarOutra={limparFormulario} /> : <AcademiaCadastroForm key={formKey} onSubmit={handleFormSubmit} submitting={submitting} apiError={apiError} showSenhaField submitLabel="Cadastrar instituição" submittingLabel="Enviando cadastro..." infoNote={<div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"><p className="text-xs text-blue-700 dark:text-blue-300"><strong>Informação:</strong> depois do cadastro, a instituição fica aguardando a ativação por um administrador do Spuri. Se não definir uma senha, a senha inicial será o código gerado automaticamente.</p></div>} />}
+        {resultado ? <SuccessState resultado={resultado} onCadastrarOutra={limparFormulario} /> : <AcademiaCadastroForm key={formKey} onSubmit={handleFormSubmit} submitting={submitting} apiError={apiError} showSenhaField submitLabel="Cadastrar instituição" submittingLabel="Enviando cadastro..." infoNote={<div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"><p className="text-xs text-blue-700 dark:text-blue-300"><strong>Informação:</strong> depois do cadastro, a instituição fica aguardando a ativação por um administrador do Spuri. Defina uma senha para acessar a conta após a ativação.</p></div>} />}
       </div>
     </div>
   );
