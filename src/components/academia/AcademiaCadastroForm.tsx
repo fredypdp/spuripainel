@@ -21,7 +21,7 @@ import Input from "@/components/form/input/InputField";
 import DocumentUpload from "@/components/form/DocumentUpload";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import Button from "@/components/ui/button/Button";
-import type { AcademiaType, NivelEscolar, CadastroAcademiaPublicaRequest } from "@/types/api";
+import type { AcademiaType, NivelEscolar, CriarEscolaRequest, CriarUniversidadeRequest } from "@/types/api";
 import { Provincias } from "@/types/api";
 
 const NIVEL_ACADEMIA_OPCOES = [
@@ -57,8 +57,10 @@ export function maskTelefoneAngola(value: string) {
   return digits.replace(/(\d{3})(?=\d)/g, "$1 ").trim();
 }
 
+export type AcademiaCadastroFormPayload = (CriarEscolaRequest | CriarUniversidadeRequest) & { senha?: string };
+
 export interface AcademiaCadastroFormProps {
-  onSubmit: (payload: CadastroAcademiaPublicaRequest) => Promise<unknown>;
+  onSubmit: (payload: AcademiaCadastroFormPayload) => Promise<unknown>;
   submitting: boolean;
   apiError?: string | null;
   showSenhaField?: boolean;
@@ -102,8 +104,9 @@ export default function AcademiaCadastroForm({ onSubmit, submitting, apiError, s
     if (!email.trim()) erros.push('E-mail é obrigatório');
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) erros.push('Informe um e-mail válido');
     if (website.trim()) { try { new URL(website.trim()); } catch { erros.push('Informe o site completo, começando com http:// ou https://'); } }
-    if (showSenhaField && senha.trim()) {
-      if (senha.trim().length < 6) erros.push('A senha deve ter no mínimo 6 caracteres');
+    if (showSenhaField) {
+      if (!senha.trim()) erros.push('Informe a senha');
+      else if (senha.trim().length < 6) erros.push('A senha deve ter no mínimo 6 caracteres');
       else if (senha.trim().length > 128) erros.push('A senha deve ter no máximo 128 caracteres');
     }
     if (nivelAcademia === 'escola') {
@@ -121,10 +124,10 @@ export default function AcademiaCadastroForm({ onSubmit, submitting, apiError, s
     const type = academiaType as AcademiaType;
     const nivel = nivelAcademia as 'escola' | 'superior';
     const senhaTrim = senha.trim();
-    const base = { type, nome: nomeAcademia.trim(), nif: nif.replace(/\D/g, ''), alvara: alvara as File, provincia: provinciaCodigo, endereco: endereco.trim(), telefone: onlyDigits(numeroTelefone), email: email.trim(), website: website.trim() || undefined, cursos: [] as string[], ...(showSenhaField && senhaTrim ? { senha: senhaTrim } : {}) };
-    const payload: CadastroAcademiaPublicaRequest = nivel === 'escola'
-      ? { ...base, nivel: 'escola', nivel_escolar: nivelEscolar as NivelEscolar, anos_academicos: (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') ? anosAcademicosSelecionados : undefined }
-      : { ...base, nivel: 'superior' };
+    const base = { type, nome: nomeAcademia.trim(), nif: nif.replace(/\D/g, ''), alvara: alvara as File, provincia: provinciaCodigo, endereco: endereco.trim(), telefone: onlyDigits(numeroTelefone), email: email.trim(), website: website.trim() || undefined, cursos: [] as string[], ...(showSenhaField ? { senha: senhaTrim } : {}) };
+    const payload: AcademiaCadastroFormPayload = nivel === 'escola'
+      ? { ...base, nivel: 'escola' as const, nivel_escolar: nivelEscolar as NivelEscolar, anos_academicos: (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') ? anosAcademicosSelecionados : undefined }
+      : { ...base, nivel: 'superior' as const };
     try { await onSubmit(payload); } catch {}
   };
 
@@ -142,7 +145,7 @@ export default function AcademiaCadastroForm({ onSubmit, submitting, apiError, s
         <div className="col-span-2 sm:col-span-1"><Label>E-mail *</Label><Input type="email" placeholder="email@academia.ao" value={email} onChange={(e) => setEmail(e.target.value)} disabled={submitting} /></div>
         <div className="col-span-2 sm:col-span-1"><Label>Endereço *</Label><Input type="text" placeholder="Rua, Bairro, Município" value={endereco} onChange={(e) => setEndereco(e.target.value)} disabled={submitting} /></div>
         <div className="col-span-2 sm:col-span-1"><Label>Website (opcional)</Label><Input type="text" placeholder="https://academia.ao" value={website} onChange={(e) => setWebsite(e.target.value)} disabled={submitting} /></div>
-        {showSenhaField && <div className="col-span-2 sm:col-span-1"><Label>Senha (opcional)</Label><Input type="password" placeholder="Mínimo 6 caracteres" value={senha} onChange={(e) => setSenha(e.target.value)} disabled={submitting} /><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Se não definir, a senha inicial será o código da academia (gerado após o cadastro).</p></div>}
+        {showSenhaField && <div className="col-span-2 sm:col-span-1"><Label>Senha *</Label><Input type="password" placeholder="Mínimo 6 caracteres" value={senha} onChange={(e) => setSenha(e.target.value)} disabled={submitting} /><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Esta senha será usada para acessar a conta após a ativação.</p></div>}
         {nivelAcademia === 'escola' && (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') && <div className="col-span-2"><Label>Selecione as classes do ensino  Primário e 1º Ciclo que esta escola oferece *</Label><div className="grid grid-cols-3 gap-2">{ANOS_FUNDAMENTAL_OPCOES.map(({ value, label }) => (<label key={value} className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"><input type="checkbox" checked={anosAcademicosSelecionados.includes(value)} onChange={() => setAnosAcademicosSelecionados((prev) => prev.includes(value) ? prev.filter((a) => a !== value) : [...prev, value])} disabled={submitting} className="w-4 h-4 text-brand-500 focus:ring-brand-500" /><span className="text-sm text-gray-700 dark:text-gray-300">{label}</span></label>))}</div></div>}
       </div>
       {validationErrors.length > 0 && <div className="mt-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"><h4 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">Antes de continuar, corrija estes pontos:</h4><ul className="list-disc list-inside space-y-1">{validationErrors.map((erro, i) => <li key={i} className="text-sm text-red-700 dark:text-red-400">{erro}</li>)}</ul></div>}

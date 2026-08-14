@@ -8,7 +8,7 @@ import { useUserCookie } from "@/hooks/useUserCookie";
 import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Icon from "@/components/ui/Icon";
 import AcademiaCadastroForm from "@/components/academia/AcademiaCadastroForm";
-import type { CadastroAcademiaPublicaRequest } from '@/types/api';
+import type { AcademiaCadastroFormPayload } from '@/components/academia/AcademiaCadastroForm';
 
 interface ResultadoCadastro {
   codigo_academia: string;
@@ -45,7 +45,7 @@ export default function CadastrarAcademiaPageContent() {
   if (!user || user.tipo !== 'admin') return <UnauthorizedAccess requiredTypes={['admin']} message="Esta página é restrita a administradores." />;
 
   const limparFormulario = () => { setResultado(null); setFormKey((k) => k + 1); };
-  const handleFormSubmit = async (payload: CadastroAcademiaPublicaRequest) => {
+  const handleFormSubmit = async (payload: AcademiaCadastroFormPayload) => {
     const result = await executarCadastro(payload);
     if (result?.data) setResultado({ codigo_academia: result.data.codigo_academia, nome: payload.nome });
   };
