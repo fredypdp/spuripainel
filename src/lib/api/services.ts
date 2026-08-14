@@ -7,6 +7,8 @@ import type {
   AuthResponse,
   CriarEscolaRequest,
   CriarUniversidadeRequest,
+  CadastroAcademiaPublicaRequest,
+  CadastroAcademiaPublicaResponse,
   LoginRequest,
   CriarEstudanteRequest,
   RegistrarNotasRequest,
@@ -418,6 +420,35 @@ export const solicitacaoMatriculaService = {
       '/solicitacao-matricula',
       prepareSolicitacaoMatriculaForm(data)
     ),
+};
+
+// =====================
+// CADASTRO PÚBLICO DE ACADEMIA (rota pública, sem token)
+// =====================
+
+export const academiaPublicaService = {
+  cadastrar: (data: CadastroAcademiaPublicaRequest) => {
+    const formData = new FormData();
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+
+      if (typeof File !== 'undefined' && value instanceof File) {
+        formData.append(key, value);
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => formData.append(key, String(item)));
+        return;
+      }
+
+      formData.append(key, String(value));
+    });
+
+    // Rota pública — nenhum token é enviado, igual a solicitacaoMatriculaService.criar.
+    return api.postForm<CadastroAcademiaPublicaResponse>('/academia/registo-publico', formData);
+  },
 };
 
 // =====================

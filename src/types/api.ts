@@ -120,6 +120,34 @@ export interface CriarUniversidadeRequest {
 }
 
 
+/**
+ * Cadastro público de academia (sem autenticação) — POST /academia/registo-publico.
+ * Mesmos campos de CriarEscolaRequest/CriarUniversidadeRequest, mais um campo
+ * `senha` opcional exclusivo deste fluxo: quem se autocadastra pode definir a
+ * própria senha; se omitido, a API usa o mesmo padrão do fluxo admin (o
+ * próprio código da academia). Não usar este tipo no fluxo administrativo
+ * (CriarEscolaRequest/CriarUniversidadeRequest continuam como estavam).
+ */
+export type CadastroAcademiaPublicaRequest = (CriarEscolaRequest | CriarUniversidadeRequest) & {
+  senha?: string;
+};
+
+export interface CadastroAcademiaPublicaResponse {
+  message: string;
+  codigo_academia: string;
+  data: {
+    id: string;
+    nome: string;
+    nif: string;
+    type: AcademiaType;
+    provincia: string;
+    codigo_academia: string;
+    status: string;
+  };
+  aviso: string;
+}
+
+
 export interface AnoLetivoItem {
   ano_letivo: string;
   tipo: 'escolar' | 'superior';
