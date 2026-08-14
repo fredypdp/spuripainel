@@ -11,7 +11,6 @@ export type Profile =
 
 export type PrimaryProfile = "estudante" | "colegio" | "ensino-superior";
 
-export const CONTACT_EMAIL = "spuriartipan@gmail.com";
 
 export interface ProfileContent {
   label: string;
@@ -25,9 +24,6 @@ export interface ProfileContent {
   steps: string[];
 }
 
-function mailtoFor(subject: string): string {
-  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
-}
 
 export const profileContent: Record<Profile, ProfileContent> = {
   estudante: {
@@ -84,8 +80,8 @@ export const profileContent: Record<Profile, ProfileContent> = {
     ],
     highlights:
       "pagamentos e matrículas digitais · registo de notas e faltas · gestão financeira digital · notificações automáticas · avaliação final automática · Inteligência Artificial personalizada (em desenvolvimento).",
-    cta: "Fale Connosco",
-    href: mailtoFor("Spuri — Colégio – Pequeno/Médio Porte"),
+    cta: "Cadastrar instituição",
+    href: "/instituicoes/cadastrar",
     steps: [
       "Mapeamos os processos essenciais do colégio.",
       "A equipa passa a operar matrículas, notas, faltas e finanças no Spuri.",
@@ -117,8 +113,8 @@ export const profileContent: Record<Profile, ProfileContent> = {
     ],
     highlights:
       "operações em massa · gestão financeira centralizada · dashboards institucionais · relatórios estatísticos avançados · gestão de cursos e disciplinas · Inteligência Artificial institucional personalizada (em desenvolvimento).",
-    cta: "Fale Connosco",
-    href: mailtoFor("Spuri — Colégio – Grande Porte"),
+    cta: "Cadastrar instituição",
+    href: "/instituicoes/cadastrar",
     steps: [
       "Centralize dados de cursos, turmas e estudantes.",
       "Execute operações em massa com acompanhamento em tempo real.",
@@ -149,8 +145,8 @@ export const profileContent: Record<Profile, ProfileContent> = {
     ],
     highlights:
       "gestão de cursos e cadeiras · avaliação configurável · gestão financeira digital · operações em massa · auditoria académica · Inteligência Artificial institucional personalizada (em desenvolvimento).",
-    cta: "Fale Connosco",
-    href: mailtoFor("Spuri — Instituição de Ensino Superior"),
+    cta: "Cadastrar instituição",
+    href: "/instituicoes/cadastrar",
     steps: [
       "Configure cursos, cadeiras e regras académicas.",
       "Digitalize matrículas, propinas, avaliações e pendências.",
