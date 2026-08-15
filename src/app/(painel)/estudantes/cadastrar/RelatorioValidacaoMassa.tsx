@@ -82,6 +82,7 @@ export default function RelatorioValidacaoMassa({
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {labelNivel(contexto.nivel)}
             {contexto.cursoNome ? ` — ${contexto.cursoNome}` : ''} — {contexto.anoAcademicoLabel}
+            {contexto.modoCadastro === 'turma' ? ` — Turma ${contexto.turmaLabel ?? contexto.codigoTurma}` : ''}
           </p>
         </div>
       </div>

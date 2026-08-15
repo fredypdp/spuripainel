@@ -7,7 +7,7 @@ import SearchableSelect from '@/components/form/SearchableSelect';
 import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import Icon from '@/components/ui/Icon';
-import type { Curso } from '@/types/api';
+import type { Curso, Turma } from '@/types/api';
 import type { ContextoModelo } from './massaTypes';
 import {
   ANOS_FUNDAMENTAL_LIST,
@@ -28,6 +28,7 @@ interface SelecaoContextoMassaProps {
 export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContextoMassaProps) {
   const { user } = useUserCookie();
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
+  const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
   const academiaNivel = user?.academia?.nivel ?? 'escola';
   const nivelEscolar = user?.academia?.nivel_escolar ?? 'fundamental';
@@ -40,9 +41,16 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
     return ['fundamental'];
   }, [isSuperior, nivelEscolar]);
 
+  const [modoCadastro, setModoCadastro] = useState<'turma' | 'geral'>('turma');
   const [nivel, setNivel] = useState<NivelBulk | ''>('');
   const [cursoId, setCursoId] = useState('');
   const [anoAcademico, setAnoAcademico] = useState('');
+  const [codigoTurma, setCodigoTurma] = useState('');
+
+  useEffect(() => {
+    carregarTurmas(tokenStorage.get() || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (niveisDisponiveis.length === 1 && nivel !== niveisDisponiveis[0]) {
@@ -61,14 +69,21 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
   useEffect(() => {
     setCursoId('');
     setAnoAcademico('');
+    setCodigoTurma('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivel]);
 
   useEffect(() => {
     setAnoAcademico('');
+    setCodigoTurma('');
   }, [cursoId]);
 
+  useEffect(() => {
+    setCodigoTurma('');
+  }, [anoAcademico]);
+
   const cursosAtivos: Curso[] = (dataCursos?.cursos ?? []).filter((c) => c.status === 'ativo');
+  const turmasAtivas: Turma[] = ((dataTurmas as any)?.turmas ?? []).filter((t: Turma) => t.status === 'ativo');
   const cursosDoNivel = cursosAtivos.filter((c) => c.type === nivel);
   const cursoSelecionado = cursosDoNivel.find((c) => c.id === cursoId) ?? null;
 
@@ -94,7 +109,12 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
   }, [nivel, cursoSelecionado, user?.academia?.anos_academicos]);
 
   const precisaCurso = nivel === 'medio' || nivel === 'superior';
-  const podeBaixar = !!nivel && (!precisaCurso || !!cursoId) && !!anoAcademico;
+  const turmasCompativeis = turmasAtivas.filter((t) =>
+    t.nivel === anoAcademico && (precisaCurso ? t.curso_id === cursoId : true)
+  );
+  const turmaSelecionada = turmasCompativeis.find((t) => t.codigo_turma === codigoTurma);
+  const exigeTurma = modoCadastro === 'turma';
+  const podeBaixar = !!nivel && (!precisaCurso || !!cursoId) && !!anoAcademico && (!exigeTurma || !!codigoTurma);
 
   const handleBaixar = () => {
     if (!podeBaixar || !nivel || !user?.academia) return;
@@ -108,6 +128,9 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
       anoAcademico,
       anoAcademicoLabel: anosDisponiveis.find((a) => a.value === anoAcademico)?.label || getAnoLabel(anoAcademico),
       versaoModelo: '1',
+      modoCadastro,
+      codigoTurma: modoCadastro === 'turma' ? codigoTurma : undefined,
+      turmaLabel: modoCadastro === 'turma' && turmaSelecionada ? `${turmaSelecionada.codigo_turma} · ${turmaSelecionada.turno}` : undefined,
     };
 
     gerarModeloExcel(contexto);
@@ -124,12 +147,27 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
           <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">1. Descarregar o modelo</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Escolha o nível, curso e ano acadêmico. O modelo já vem preparado para esse contexto — não é preciso preencher
-            curso ou ano na planilha. A turma é atribuída depois, individualmente, na ficha de cada estudante.
+            curso ou ano na planilha. Escolha se o modelo será geral ou vinculado a uma turma já existente.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+        <div className="sm:col-span-2">
+          <Label>Modo de cadastro</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { value: 'turma', title: 'Cadastrar por turma', desc: 'Vai cadastrar os estudantes turma por turma. É necessário que a turma já exista na plataforma.' },
+              { value: 'geral', title: 'Cadastrar de forma geral', desc: 'Os estudantes serão cadastrados sem vínculo a nenhuma turma. Pode vincular cada um depois.' },
+            ].map((op) => (
+              <button key={op.value} type="button" onClick={() => { setModoCadastro(op.value as 'turma' | 'geral'); setCodigoTurma(''); }} className={`rounded-xl border p-4 text-left transition ${modoCadastro === op.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300' : 'border-gray-200 text-gray-700 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300'}`}>
+                <span className="block font-semibold">{op.title}</span>
+                <span className="mt-1 block text-xs opacity-80">{op.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         {niveisDisponiveis.length > 1 && (
           <div>
             <Label>Nível de ensino</Label>
@@ -168,6 +206,23 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
               isClearable={false}
               isDisabled={anosDisponiveis.length === 0}
             />
+          </div>
+        )}
+
+        {modoCadastro === 'turma' && anoAcademico && (
+          <div>
+            <Label>Turma *</Label>
+            <SearchableSelect
+              value={codigoTurma}
+              options={turmasCompativeis.map((t) => ({ value: t.codigo_turma, label: `Turma ${t.codigo_turma} · ${t.turno}` }))}
+              onChange={(v) => setCodigoTurma(v || '')}
+              placeholder={turmasCompativeis.length ? 'Selecione a turma' : 'Nenhuma turma ativa compatível'}
+              isClearable={false}
+              isDisabled={turmasCompativeis.length === 0}
+            />
+            {turmasCompativeis.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Crie uma turma ativa para este ano/curso antes de baixar o modelo por turma.</p>
+            )}
           </div>
         )}
       </div>

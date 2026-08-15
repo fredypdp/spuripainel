@@ -177,6 +177,8 @@ export interface CriarEstudanteRequest {
   curso_medio_id?: string | null;
   ano_superior?: string | null;
   curso_superior_id?: string | null;
+  /** Código de uma turma ativa à qual o estudante será vinculado no cadastro. */
+  codigo_turma?: string;
   /** Obrigatório quando `declaracao` for enviada; deve ser o ano acadêmico imediatamente anterior. */
   declaracao_ano_academico?: string;
   bi_estudante?: File;
@@ -437,6 +439,8 @@ export interface RegistrarFaltasRequest {
   codigo_estudante: string;
   data: ApiDate;
   materia_disciplinar_id: string;
+  /** Obrigatório — trimestre (escola) ou semestre (superior). */
+  periodo: Periodo;
   quantidade: number;
   observacao?: string;
 }
@@ -1106,6 +1110,8 @@ export interface Falta {
   data: ApiDate;
   materia_disciplinar_id: string;
   materia_nome?: string;
+  /** Período em que a falta foi registada; string vazia indica legado sem período. */
+  periodo: Periodo | '';
   quantidade: number;
   observacao?: string;
   registrado_por?: string;
