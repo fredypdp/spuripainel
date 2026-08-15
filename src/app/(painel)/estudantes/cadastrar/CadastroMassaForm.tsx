@@ -157,6 +157,7 @@ export default function CadastroMassaForm() {
           <strong>
             {labelNivel(contextoBaixado.nivel)}
             {contextoBaixado.cursoNome ? ` — ${contextoBaixado.cursoNome}` : ''} — {contextoBaixado.anoAcademicoLabel}
+            {contextoBaixado.modoCadastro === 'turma' ? ` — Turma ${contextoBaixado.turmaLabel ?? contextoBaixado.codigoTurma}` : ''}
           </strong>
           . Preencha e envie o ficheiro logo abaixo.
         </div>

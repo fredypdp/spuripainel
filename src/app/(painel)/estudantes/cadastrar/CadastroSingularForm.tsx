@@ -10,7 +10,7 @@ import Input from "@/components/form/input/InputField";
 import BirthDatePicker from "@/components/form/BirthDatePicker";
 import DocumentUpload from "@/components/form/DocumentUpload";
 import SearchableSelect from "@/components/form/SearchableSelect";
-import type { Genero, Curso } from '@/types/api';
+import type { Genero, Curso, Turma } from '@/types/api';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +22,8 @@ interface AnoEscolar {
 interface ResultadoCadastro {
   codigo_estudante: string;
   nome: string;
+  codigo_turma?: string;
+  turma_aviso?: string;
 }
 
 type FileKey = "bi_estudante" | "bi_encarregado" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
@@ -128,6 +130,12 @@ function SuccessState({
               {resultado.codigo_estudante}
             </span>
           </div>
+          {resultado.codigo_turma && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Turma vinculada</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-white font-mono">{resultado.codigo_turma}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Senha padrão</span>
             <span className="text-sm font-bold text-gray-900 dark:text-white font-mono">
@@ -135,6 +143,10 @@ function SuccessState({
             </span>
           </div>
         </div>
+
+        {resultado.turma_aviso && (
+          <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">{resultado.turma_aviso}</p>
+        )}
 
         <p className="text-xs text-green-700 dark:text-green-400">
           A senha padrão é o próprio código do estudante. O estudante deverá alterá-la no primeiro acesso.
@@ -172,6 +184,7 @@ export default function CadastroSingularForm() {
 
   const { loading: carregandoCadastro, error: erroCadastro, execute: executarCadastro } = useApi(academiaService.cadastrarEstudante);
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
+  const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
 
   // Form state
   const [nome, setNome] = useState('');
@@ -184,6 +197,7 @@ export default function CadastroSingularForm() {
   const [anoEscolarSelecionado, setAnoEscolarSelecionado] = useState<string | null>(null);
   const [genero, setGenero] = useState<Genero>('masculino');
   const [cursoSelecionado, setCursoSelecionado] = useState<Curso | null>(null);
+  const [turmaSelecionada, setTurmaSelecionada] = useState('');
   const [biEstudanteFile, setBiEstudanteFile] = useState<File | undefined>();
   const [biEncarregadoFile, setBiEncarregadoFile] = useState<File | undefined>();
   const [cedulaEstudanteFile, setCedulaEstudanteFile] = useState<File | undefined>();
@@ -203,6 +217,11 @@ export default function CadastroSingularForm() {
   const isAnoMedio = isAnoMedioValue;
   const isAnoSuperior = isAnoSuperiorValue;
   const isEstudanteSuperior = (ano?: string | null) => isSuperior || isAnoSuperior(ano);
+
+  useEffect(() => {
+    carregarTurmas(tokenStorage.get() || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Carrega cursos quando necessário
   useEffect(() => {
@@ -270,6 +289,10 @@ export default function CadastroSingularForm() {
   };
 
   const cursosAtivos: Curso[] = dataCursos?.cursos?.filter((c: Curso) => c.status === 'ativo') ?? [];
+  const turmasAtivas: Turma[] = ((dataTurmas as any)?.turmas ?? []).filter((t: Turma) => t.status === 'ativo');
+  const turmasCompativeis = turmasAtivas.filter((t) =>
+    t.nivel === anoEscolarSelecionado && (cursoSelecionado?.id ? t.curso_id === cursoSelecionado.id : true)
+  );
   const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoEscolarSelecionado);
   const documentos: DocumentoOpcao[] = (() => {
     const anoAtual = anoEscolarSelecionado ?? undefined;
@@ -457,6 +480,7 @@ export default function CadastroSingularForm() {
     setBiEstudanteFile(undefined); setBiEncarregadoFile(undefined); setCedulaEstudanteFile(undefined);
     setDeclaracaoFile(undefined); setCertificado6File(undefined); setCertificado9File(undefined); setCertificadoMedioFile(undefined);
     setValidationErrors([]);
+    setTurmaSelecionada('');
     setResultado(null);
   };
 
@@ -492,6 +516,7 @@ export default function CadastroSingularForm() {
       curso_superior_id:
         isAnoSuperior(anoEscolarSelecionado) && cursoSelecionado ? cursoSelecionado.id : undefined,
       declaracao_ano_academico: declaracaoFile ? declaracaoAnoAcademico : undefined,
+      codigo_turma: turmaSelecionada || undefined,
       bi_estudante: biEstudanteFile,
       bi_encarregado: biEncarregadoFile,
       cedula_estudante: cedulaEstudanteFile,
@@ -507,6 +532,8 @@ export default function CadastroSingularForm() {
         setResultado({
           codigo_estudante: res.data.codigo_estudante,
           nome: nome.trim(),
+          codigo_turma: res.data.codigo_turma,
+          turma_aviso: res.data.turma_aviso,
         });
       }
     } catch (err) {
@@ -586,6 +613,7 @@ export default function CadastroSingularForm() {
                 options={cursosAtivos.filter((curso) => isSuperior ? curso.type === 'superior' : curso.type === 'medio').map((curso) => ({ value: curso.id, label: `${curso.nome} (${curso.type})` }))}
                 onChange={(value) => {
                   setCursoSelecionado(cursosAtivos.find((curso) => curso.id === value) ?? null);
+                  setTurmaSelecionada('');
                   if (isAnoMedio(anoEscolarSelecionado) || isAnoSuperior(anoEscolarSelecionado)) {
                     setAnoEscolarSelecionado(null);
                     limparDocumentos();
@@ -606,6 +634,7 @@ export default function CadastroSingularForm() {
               options={getAnosDisponiveis()}
               onChange={(value) => {
                 setAnoEscolarSelecionado(value || null);
+                setTurmaSelecionada('');
                 if (value === '1_ano_fundamental') setBilheteIdentidade('');
                 limparDocumentos();
               }}
@@ -618,6 +647,23 @@ export default function CadastroSingularForm() {
               disabled={carregandoCadastro || (deveMostrarCurso() && !cursoSelecionado)}
             />
           </div>
+
+          {anoEscolarSelecionado && (
+            <div className="col-span-2 sm:col-span-1">
+              <Label>Turma (opcional)</Label>
+              <SearchableSelect
+                value={turmaSelecionada}
+                options={turmasCompativeis.map((t) => ({ value: t.codigo_turma, label: `Turma ${t.codigo_turma} · ${t.turno}` }))}
+                onChange={(value) => setTurmaSelecionada(value || '')}
+                searchable
+                placeholder={turmasCompativeis.length ? 'Selecione a turma' : 'Nenhuma turma ativa compatível'}
+                disabled={carregandoCadastro || turmasCompativeis.length === 0}
+              />
+              {turmasCompativeis.length === 0 && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Nenhuma turma ativa para este ano/curso ainda — o estudante pode ser cadastrado sem turma e vinculado depois.</p>
+              )}
+            </div>
+          )}
 
           {/* Email */}
           <div className="col-span-2 sm:col-span-1">

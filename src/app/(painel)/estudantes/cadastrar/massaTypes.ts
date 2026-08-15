@@ -4,9 +4,8 @@ import type { NivelBulk } from './massaHelpers';
 /**
  * Contexto de um modelo de Excel de cadastro em massa: identifica de forma
  * inequívoca a academia, o nível, o curso (quando aplicável) e o ano
- * acadêmico para os quais o modelo foi gerado. A turma NÃO faz parte deste
- * contexto — estudantes só são vinculados a uma turma depois de cadastrados,
- * individualmente, na ficha de cada um. Este contexto é embutido numa folha
+ * acadêmico para os quais o modelo foi gerado. O contexto também pode identificar uma turma fixa
+ * quando o modelo for gerado no modo de cadastro por turma. Este contexto é embutido numa folha
  * oculta (`_meta`) do próprio ficheiro Excel, para que o utilizador não
  * precise de preencher curso/ano na planilha.
  */
@@ -19,6 +18,9 @@ export interface ContextoModelo {
   anoAcademico: string;
   anoAcademicoLabel: string;
   versaoModelo: string;
+  modoCadastro: 'turma' | 'geral';
+  codigoTurma?: string;
+  turmaLabel?: string;
 }
 
 /**

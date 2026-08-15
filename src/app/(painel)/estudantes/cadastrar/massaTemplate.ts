@@ -134,6 +134,8 @@ export function gerarModeloExcel(contexto: ContextoModelo): void {
     ['curso_id', contexto.cursoId || ''],
     ['curso_nome', contexto.cursoNome || ''],
     ['ano_academico', contexto.anoAcademico],
+    ['codigo_turma', contexto.codigoTurma || ''],
+    ['modo_cadastro', contexto.modoCadastro || 'geral'],
     ['gerado_em', new Date().toISOString()],
   ];
   const wsMeta = XLSX.utils.aoa_to_sheet(linhasMeta);

@@ -98,6 +98,8 @@ function lerContexto(wb: any): ContextoModelo | null {
     anoAcademico: mapa.ano_academico,
     anoAcademicoLabel: mapa.ano_academico,
     versaoModelo: mapa.versao_modelo || '1',
+    modoCadastro: mapa.modo_cadastro === 'turma' ? 'turma' : 'geral',
+    codigoTurma: mapa.codigo_turma || undefined,
   };
 }
 

@@ -77,6 +77,18 @@ function normCodigoEstudante(codigo: string): string {
   return (codigo ?? "").trim().toLowerCase();
 }
 
+const PERIODOS_LABEL: Record<string, string> = {
+  "1_trimestre": "1º Trimestre",
+  "2_trimestre": "2º Trimestre",
+  "3_trimestre": "3º Trimestre",
+  "1_semestre": "1º Semestre",
+  "2_semestre": "2º Semestre",
+  "3_semestre": "3º Semestre",
+  "4_semestre": "4º Semestre",
+};
+const PERIODOS_ESCOLA = ["1_trimestre", "2_trimestre", "3_trimestre"].map(value => ({ value, label: PERIODOS_LABEL[value] }));
+const PERIODOS_SUPERIOR = ["1_semestre", "2_semestre", "3_semestre", "4_semestre"].map(value => ({ value, label: PERIODOS_LABEL[value] }));
+
 const ANOS_FUNDAMENTAL = [
   "1_ano_fundamental", "2_ano_fundamental", "3_ano_fundamental", "4_ano_fundamental",
   "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental",
@@ -103,13 +115,15 @@ function sortAnos(anos: string[]): string[] {
 type LayerFund =
   | { mode: "fund"; type: "anos" }
   | { mode: "fund"; type: "turmas"; nivel: string }
-  | { mode: "fund"; type: "faltas"; nivel: string; turma: Turma };
+  | { mode: "fund"; type: "periodos"; nivel: string; turma: Turma }
+  | { mode: "fund"; type: "faltas"; nivel: string; turma: Turma; periodo: string };
 
 type LayerSup =
   | { mode: "sup"; type: "cursos" }
   | { mode: "sup"; type: "anos"; curso: Curso }
   | { mode: "sup"; type: "turmas"; curso: Curso; nivel: string }
-  | { mode: "sup"; type: "faltas"; curso: Curso; nivel: string; turma: Turma };
+  | { mode: "sup"; type: "periodos"; curso: Curso; nivel: string; turma: Turma }
+  | { mode: "sup"; type: "faltas"; curso: Curso; nivel: string; turma: Turma; periodo: string };
 
 type LayerMisto =
   | { mode: "misto"; type: "choose" }
@@ -251,18 +265,21 @@ function ModalRegistrarFalta({
   isOpen,
   estudantes,
   materias,
+  periodos,
   onConfirm,
   onClose,
 }: {
   isOpen: boolean;
   estudantes: EstudanteDetalhado[];
-  materias: { id: string; nome: string }[];
+  materias: { id: string; nome: string; periodo?: string }[];
+  periodos: { value: string; label: string }[];
   onConfirm: (data: RegistrarFaltasRequest) => Promise<void>;
   onClose: () => void;
 }) {
   const [codigoEstudante, setCodigoEstudante] = useState("");
   const [dataFalta, setDataFalta]             = useState<ApiDate>(toApiDateFromLocalDate(new Date()));
   const [materiaId, setMateriaId]             = useState("");
+  const [periodo, setPeriodo]                 = useState("");
   const [quantidade, setQuantidade]           = useState("");
   const [observacao, setObservacao]           = useState("");
   const [loading, setLoading]                 = useState(false);
@@ -271,7 +288,7 @@ function ModalRegistrarFalta({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!codigoEstudante || !dataFalta || !materiaId || !quantidade) {
+    if (!codigoEstudante || !dataFalta || !materiaId || !periodo || !quantidade) {
       setError("Preencha todos os campos obrigatórios"); return;
     }
     const qtd = parseInt(quantidade);
@@ -282,10 +299,11 @@ function ModalRegistrarFalta({
         codigo_estudante: codigoEstudante,
         data: dataFalta,
         materia_disciplinar_id: materiaId,
+        periodo: periodo as RegistrarFaltasRequest["periodo"],
         quantidade: qtd,
         observacao: observacao || undefined,
       });
-      setCodigoEstudante(""); setMateriaId(""); setQuantidade(""); setObservacao("");
+      setCodigoEstudante(""); setMateriaId(""); setPeriodo(""); setQuantidade(""); setObservacao("");
       setDataFalta(toApiDateFromLocalDate(new Date()));
       onClose();
     } catch (err: any) {
@@ -346,11 +364,15 @@ function ModalRegistrarFalta({
           <Dropdown
             value={materiaId}
             options={materias.map(m => ({ label: m.nome, value: m.id }))}
-            onChange={e => setMateriaId(e.value)}
+            onChange={e => { const id = e.value; setMateriaId(id); const mat = materias.find(m => m.id === id); if (mat?.periodo) setPeriodo(mat.periodo); }}
             filter
             placeholder="Selecione a matéria"
             className="w-full"
           />
+        </div>
+        <div>
+          <Label>Período *</Label>
+          <Dropdown value={periodo} options={periodos} onChange={e => setPeriodo(e.value)} placeholder="Selecione o período" className="w-full" />
         </div>
         <div>
           <Label>Observação</Label>
@@ -582,7 +604,7 @@ export default function FaltasAcademia() {
     return codigosOrigem.find(c => normCodigoEstudante(c) === codigoNorm) ?? codigoNorm;
   }
 
-  async function carregarFaltasDosEstudantesDaTurma(turma: Turma, force = false) {
+  async function carregarFaltasDosEstudantesDaTurma(turma: Turma, force = false, filtros?: { periodo?: string }) {
     const anoFiltro         = anoLetivoSelecionado || anoLectivo || undefined;
     const codigosNorm       = codigosTurmaDoAnoLetivo(turma, anoFiltro);
     const codigosParaBuscar = force
@@ -595,7 +617,7 @@ export default function FaltasAcademia() {
       const resultados = await Promise.all(
         codigosParaBuscar.map(async codigoNorm => {
           const codigoOriginal = codigoOriginalDaTurma(turma, codigoNorm, anoFiltro);
-          const resposta = await consultasService.faltasEstudante(codigoOriginal, { token });
+          const resposta = await consultasService.faltasEstudante(codigoOriginal, { token, periodo: filtros?.periodo });
           return { codigoNorm, faltas: resposta?.faltas ?? [] };
         })
       );
@@ -612,18 +634,19 @@ export default function FaltasAcademia() {
   }
 
   /** Faltas da turma filtradas por matéria e ano letivo */
-  function faltasDaTurmaEMateria(turma: Turma, materiaId: string): Falta[] {
+  function faltasDaTurmaEMateria(turma: Turma, materiaId: string, periodo: string): Falta[] {
     const codigosTurma  = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo);
     const faltasDaTurma = codigosTurma.flatMap(c => faltasPorEstudante[c] ?? []);
     const anoFiltro     = anoLetivoSelecionado || anoLectivo;
     return faltasDaTurma.filter(f =>
       f.materia_disciplinar_id === materiaId &&
+      f.periodo === periodo &&
       (anoFiltro ? f.ano_lectivo === anoFiltro : true)
     );
   }
 
   /** Matérias disponíveis para a turma/nível, com contagem de faltas para o badge nos botões */
-  function getMateriasDaTurma(turma: Turma, nivel: string, curso?: Curso) {
+  function getMateriasDaTurma(turma: Turma, nivel: string, periodo: string, curso?: Curso) {
     const tipo = nivel.includes("fundamental") ? "fundamental"
                : nivel.includes("medio")       ? "medio"
                : "superior";
@@ -639,7 +662,7 @@ export default function FaltasAcademia() {
     const anoFiltro     = anoLetivoSelecionado || anoLectivo;
     const faltasDaTurma = codigosTurma
       .flatMap(c => faltasPorEstudante[c] ?? [])
-      .filter(f => (anoFiltro ? f.ano_lectivo === anoFiltro : true));
+      .filter(f => f.periodo === periodo && (anoFiltro ? f.ano_lectivo === anoFiltro : true));
 
     return materiasConfig.map((m: any) => {
       const fs    = faltasDaTurma.filter(f => f.materia_disciplinar_id === m.id);
@@ -654,14 +677,14 @@ export default function FaltasAcademia() {
     await executarRegistrar(data, token);
     showAlert("success", "Falta registrada com sucesso.");
     const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
-    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true, { periodo: (layer as any).periodo });
   }
 
   async function handleCorrigirFalta(id: string, data: { quantidade: number; observacao?: string; motivo: string }) {
     await academiaService.corrigirFalta(id, data, token);
     showAlert("success", "Falta corrigida com sucesso.");
     const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
-    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true);
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true, { periodo: (layer as any).periodo });
   }
 
   // ─── helpers de listagem ────────────────────────────────────────────────────
@@ -682,10 +705,12 @@ export default function FaltasAcademia() {
       const base      = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
       if (layer.type === "anos")   return base;
       if (layer.type === "turmas") return [...base, { label: labelNivel(layer.nivel) }];
+      if (layer.type === "periodos") return [...base, { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) }, { label: `Turma ${layer.turma.codigo_turma}` }];
       if (layer.type === "faltas") return [
         ...base,
         { label: labelNivel(layer.nivel), onClick: () => setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel }) },
-        { label: `Turma ${layer.turma.codigo_turma}` },
+        { label: `Turma ${layer.turma.codigo_turma}`, onClick: () => setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma }) },
+        { label: PERIODOS_LABEL[layer.periodo] ?? layer.periodo },
       ];
     }
 
@@ -701,11 +726,13 @@ export default function FaltasAcademia() {
         { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) },
         { label: labelNivel(l.nivel) },
       ];
+      if (layer.type === "periodos") return [...base, { label: l.curso.nome, onClick: () => setLayer({ mode: "sup", type: "anos", curso: l.curso }) }, { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) }, { label: `Turma ${l.turma.codigo_turma}` }];
       if (layer.type === "faltas") return [
         ...base,
         { label: l.curso.nome,        onClick: () => setLayer({ mode: "sup", type: "anos",   curso: l.curso }) },
         { label: labelNivel(l.nivel), onClick: () => setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel }) },
-        { label: `Turma ${l.turma.codigo_turma}` },
+        { label: `Turma ${l.turma.codigo_turma}`, onClick: () => setLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma }) },
+        { label: PERIODOS_LABEL[l.periodo] ?? l.periodo },
       ];
     }
 
@@ -740,8 +767,10 @@ export default function FaltasAcademia() {
         if (isMisto) setLayer({ mode: "misto", type: "choose" });
       } else if (layer.type === "turmas") {
         setLayer({ mode: "fund", type: "anos" });
-      } else if (layer.type === "faltas") {
+      } else if (layer.type === "periodos") {
         setLayer({ mode: "fund", type: "turmas", nivel: layer.nivel });
+      } else if (layer.type === "faltas") {
+        setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: layer.turma });
       }
       return;
     }
@@ -754,8 +783,10 @@ export default function FaltasAcademia() {
         setLayer({ mode: "sup", type: "cursos" });
       } else if (layer.type === "turmas") {
         setLayer({ mode: "sup", type: "anos", curso: l.curso });
-      } else if (layer.type === "faltas") {
+      } else if (layer.type === "periodos") {
         setLayer({ mode: "sup", type: "turmas", curso: l.curso, nivel: l.nivel });
+      } else if (layer.type === "faltas") {
+        setLayer({ mode: "sup", type: "periodos", curso: l.curso, nivel: l.nivel, turma: l.turma });
       }
       return;
     }
@@ -763,12 +794,12 @@ export default function FaltasAcademia() {
 
   // ─── camada folha: seletor inline de matéria + tabela ────────────────────────
 
-  function renderFaltasLayer(nivel: string, turma: Turma, subtitulo?: string, curso?: Curso) {
-    const materiasDisponiveis = getMateriasDaTurma(turma, nivel, curso);
+  function renderFaltasLayer(nivel: string, turma: Turma, periodo: string, subtitulo?: string, curso?: Curso) {
+    const materiasDisponiveis = getMateriasDaTurma(turma, nivel, periodo, curso);
     const codigosTurma        = codigosTurmaDoAnoLetivo(turma, anoLetivoSelecionado || anoLectivo).filter(Boolean);
 
     const faltas = materiaSelecionada
-      ? faltasDaTurmaEMateria(turma, materiaSelecionada.id)
+      ? faltasDaTurmaEMateria(turma, materiaSelecionada.id, periodo)
       : [];
 
     const totalFaltas = faltas.reduce((acc, f) => acc + f.quantidade, 0);
@@ -798,7 +829,7 @@ export default function FaltasAcademia() {
         {/* Cabeçalho */}
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            Turma {turma.codigo_turma} · {labelNivel(nivel)}
+            Turma {turma.codigo_turma} · {labelNivel(nivel)} · {PERIODOS_LABEL[periodo] ?? periodo}
             {(anoLetivoSelecionado || anoLectivo) ? ` · ${(anoLetivoSelecionado || anoLectivo).replace("_", "/")}` : ""}
           </h2>
           {subtitulo && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{subtitulo}</p>}
@@ -1010,8 +1041,7 @@ export default function FaltasAcademia() {
                     title={`Turma ${t.codigo_turma}`}
                     subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s) · ${t.turno}${totalFaltas > 0 ? ` · ${totalFaltas} falta(s)` : ""}`}
                     onClick={async () => {
-                      await carregarFaltasDosEstudantesDaTurma(t);
-                      setLayer({ mode: "fund", type: "faltas", nivel: layer.nivel, turma: t });
+                      setLayer({ mode: "fund", type: "periodos", nivel: layer.nivel, turma: t });
                     }}
                   />
                 );
@@ -1022,14 +1052,32 @@ export default function FaltasAcademia() {
       );
     }
 
-    // ── fundamental: faltas ──────────────────────────────────────────────────
-    if (layer.mode === "fund" && layer.type === "faltas") {
+    // ── fundamental: períodos ────────────────────────────────────────────────
+    if (layer.mode === "fund" && layer.type === "periodos") {
       const { nivel, turma } = layer;
       return (
         <div className="space-y-4">
           {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
-          {renderFaltasLayer(nivel, turma)}
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{labelNivel(nivel)}</p>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {PERIODOS_ESCOLA.map(p => (
+              <CardBtn key={p.value} icon="mdi:calendar-range" title={p.label} subtitle="Ver faltas" onClick={async () => { await carregarFaltasDosEstudantesDaTurma(turma, true, { periodo: p.value }); setLayer({ mode: "fund", type: "faltas", nivel, turma, periodo: p.value }); }} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ── fundamental: faltas ──────────────────────────────────────────────────
+    if (layer.mode === "fund" && layer.type === "faltas") {
+      const { nivel, turma, periodo } = layer;
+      return (
+        <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
+          {renderFaltasLayer(nivel, turma, periodo)}
         </div>
       );
     }
@@ -1146,8 +1194,7 @@ export default function FaltasAcademia() {
                     title={`Turma ${t.codigo_turma}`}
                     subtitle={`${codigosTurmaDoAnoLetivo(t, anoLetivoSelecionado || anoLectivo).length} estudante(s) · ${t.turno}${totalFaltas > 0 ? ` · ${totalFaltas} falta(s)` : ""}`}
                     onClick={async () => {
-                      await carregarFaltasDosEstudantesDaTurma(t);
-                      setLayer({ mode: "sup", type: "faltas", curso, nivel, turma: t });
+                      setLayer({ mode: "sup", type: "periodos", curso, nivel, turma: t });
                     }}
                   />
                 );
@@ -1158,14 +1205,33 @@ export default function FaltasAcademia() {
       );
     }
 
-    // ── superior: faltas ──────────────────────────────────────────────────────
-    if (layer.mode === "sup" && layer.type === "faltas") {
-      const { curso, nivel, turma } = layer as any;
+    // ── superior: períodos ───────────────────────────────────────────────────
+    if (layer.mode === "sup" && layer.type === "periodos") {
+      const { curso, nivel, turma, periodo } = layer as any;
+      const periodos = curso.periodos?.length ? curso.periodos.map((v: string) => ({ value: v, label: PERIODOS_LABEL[v] ?? v })) : (curso.type === "superior" ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA);
       return (
         <div className="space-y-4">
           {BotaoVoltar}
           <Breadcrumb crumbs={crumbs} />
-          {renderFaltasLayer(nivel, turma, curso.nome, curso)}
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Turma {turma.codigo_turma}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{labelNivel(nivel)} · {curso.nome}</p>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {periodos.map((p: any) => (
+              <CardBtn key={p.value} icon="mdi:calendar-range" title={p.label} subtitle="Ver faltas" onClick={async () => { await carregarFaltasDosEstudantesDaTurma(turma, true, { periodo: p.value }); setLayer({ mode: "sup", type: "faltas", curso, nivel, turma, periodo: p.value }); }} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ── superior: faltas ──────────────────────────────────────────────────────
+    if (layer.mode === "sup" && layer.type === "faltas") {
+      const { curso, nivel, turma, periodo } = layer as any;
+      return (
+        <div className="space-y-4">
+          {BotaoVoltar}
+          <Breadcrumb crumbs={crumbs} />
+          {renderFaltasLayer(nivel, turma, periodo, curso.nome, curso)}
         </div>
       );
     }
@@ -1213,7 +1279,8 @@ export default function FaltasAcademia() {
       <ModalRegistrarFalta
         isOpen={isOpen}
         estudantes={estudantes}
-        materias={materiasAtivas}
+        materias={materiasAtivas.map((m: any) => ({ id: m.id, nome: m.nome, periodo: m.periodo }))}
+        periodos={isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA}
         onConfirm={handleRegistrar}
         onClose={closeModal}
       />

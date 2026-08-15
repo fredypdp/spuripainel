@@ -294,6 +294,7 @@ function prepareCriarEstudante(data: CriarEstudanteRequest): CriarEstudanteReque
     curso_medio_id: data.curso_medio_id ?? null,
     ano_superior: data.ano_superior ?? null,
     curso_superior_id: data.curso_superior_id ?? null,
+    codigo_turma: data.codigo_turma?.trim() || undefined,
     declaracao_ano_academico: data.declaracao_ano_academico?.trim() || undefined,
   };
 
@@ -1029,7 +1030,7 @@ export const academiaService = {
     ),
 
   cadastrarEstudante: (data: CriarEstudanteRequest, token?: string) =>
-    api.postForm<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string } }>(
+    api.postForm<{ message: string; data: { id: string; codigo_estudante: string; codigo_academia: string; codigo_turma?: string; turma_vinculada?: boolean; turma_aviso?: string } }>(
       '/academia/estudante/register',
       prepareCriarEstudanteForm(data),
       { token: token || tokenStorage.get() || undefined }

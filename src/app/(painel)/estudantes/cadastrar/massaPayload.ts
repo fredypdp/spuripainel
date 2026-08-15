@@ -28,5 +28,6 @@ export function construirPayloadEstudante(linha: EstudanteBulkRow, contexto: Con
     curso_medio_id: isMedio ? contexto.cursoId : undefined,
     ano_superior: isSuperior ? contexto.anoAcademico : undefined,
     curso_superior_id: isSuperior ? contexto.cursoId : undefined,
+    codigo_turma: contexto.modoCadastro === 'turma' ? contexto.codigoTurma : undefined,
   };
 }
