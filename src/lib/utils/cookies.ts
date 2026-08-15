@@ -1,14 +1,21 @@
 // src/lib/utils/cookies.ts
 
 /**
- * Define um cookie
+ * Define um cookie com expiração em dias.
  */
 export function setCookie(name: string, value: string, days: number = 1): void {
+  setCookieHours(name, value, days * 24);
+}
+
+/**
+ * Define um cookie com expiração em horas.
+ */
+export function setCookieHours(name: string, value: string, hours: number): void {
   if (typeof window === 'undefined') return;
 
   const date = new Date();
-  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
-  
+  date.setTime(date.getTime() + hours * 60 * 60 * 1000);
+
   document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${date.toUTCString()}; path=/; SameSite=Lax`;
 }
 

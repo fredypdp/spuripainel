@@ -1,9 +1,21 @@
 // src/lib/api/client.ts
 
-import { getCookie, setCookie, removeCookie } from '@/lib/utils/cookies';
+import { getCookie, setCookieHours, removeCookie } from '@/lib/utils/cookies';
 
 // ✅ URL base com protocolo garantido
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL;
+
+const DEFAULT_LOGIN_TOKEN_COOKIE_EXPIRATION_HOURS = 24;
+
+export function getLoginTokenCookieExpirationHours(): number {
+  const configuredHours = Number(process.env.NEXT_PUBLIC_LOGIN_TOKEN_COOKIE_EXPIRATION_HOURS);
+
+  if (Number.isFinite(configuredHours) && configuredHours > 0) {
+    return configuredHours;
+  }
+
+  return DEFAULT_LOGIN_TOKEN_COOKIE_EXPIRATION_HOURS;
+}
 
 export const getApiBaseUrl = () => {
   const url = API_BASE_URL;
@@ -276,7 +288,7 @@ export const tokenStorage = {
 
   set: (token: string) => {
     if (typeof window === 'undefined') return;
-    setCookie('auth_token', token, 1); // Expira em 1 dia (24h)
+    setCookieHours('auth_token', token, getLoginTokenCookieExpirationHours());
   },
 
   remove: () => {
@@ -295,7 +307,8 @@ export const tokenStorage = {
 
   setWithType: (token: string, type: string) => {
     if (typeof window === 'undefined') return;
-    setCookie('auth_token', token, 1);
-    setCookie('user_type', type, 1);
+    const expirationHours = getLoginTokenCookieExpirationHours();
+    setCookieHours('auth_token', token, expirationHours);
+    setCookieHours('user_type', type, expirationHours);
   },
 };
