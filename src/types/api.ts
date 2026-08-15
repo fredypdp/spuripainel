@@ -1830,7 +1830,7 @@ export interface Provincia {
 }
 
 export type ProvinciaNome =
-  | 'BENGO' | 'BENGUELA' | 'BIE' | 'CABINDA' | 'CUANDO CUBANGO'
+  | 'BENGO' | 'BENGUELA' | 'BIE' | 'CABINDA' | 'CUANDO'
   | 'CUANZA NORTE' | 'CUANZA SUL' | 'CUBANGO' | 'CUNENE' | 'HUAMBO'
   | 'HUILA' | 'ICOLO E BENGO' | 'LUANDA' | 'LUNDA NORTE' | 'LUNDA SUL'
   | 'MALANJE' | 'MOXICO' | 'MOXICO LESTE' | 'NAMIBE' | 'UIGE' | 'ZAIRE';
@@ -1846,7 +1846,7 @@ export const Provincias: Provincia[] = [
   { nome: 'BENGUELA',       codigo: 'BGU' },
   { nome: 'BIE',            codigo: 'BIE' },
   { nome: 'CABINDA',        codigo: 'CAB' },
-  { nome: 'CUANDO CUBANGO', codigo: 'CND' },
+  { nome: 'CUANDO',         codigo: 'CND' },
   { nome: 'CUANZA NORTE',   codigo: 'CNO' },
   { nome: 'CUANZA SUL',     codigo: 'CUS' },
   { nome: 'CUBANGO',        codigo: 'CBG' },
