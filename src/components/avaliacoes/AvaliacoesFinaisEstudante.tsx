@@ -208,7 +208,7 @@ export default function AvaliacoesFinaisEstudante() {
   };
 
   const cicloInfo: Record<TipoEnsino, { label: string; sub: string; icon: string }> = {
-    fundamental: { label: "Ensino Fundamental (1ª-9ª Classe)", sub: "1ª a 9ª Classe", icon: "mdi:school" },
+    fundamental: { label: "Ensino Primário e Iº Ciclo", sub: "1ª a 9ª Classe", icon: "mdi:school" },
     medio:       { label: "Ensino Médio",        sub: "1º ao 4º Médio",    icon: "mdi:book-education" },
     superior:    { label: "Ensino Superior",     sub: "Cursos superiores", icon: "mdi:university" },
   };

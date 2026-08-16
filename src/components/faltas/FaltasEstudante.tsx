@@ -421,7 +421,7 @@ export default function FaltasEstudante() {
           <p className="text-sm text-gray-500 mt-1">Selecione o tipo de ensino</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school" title="Ensino Fundamental (1ª-9ª Classe)" subtitle="Turmas da 1ª à 9ª Classe" onClick={() => navegar({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "fundamental" })} />
+          <CardBtn icon="mdi:school" title="Ensino Primário e Iº Ciclo" subtitle="Turmas da 1ª à 9ª Classe" onClick={() => navegar({ type: "turmas", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "fundamental" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Selecione um curso" onClick={() => navegar({ type: "cursos", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "medio" })} />
         </div>
       </div>

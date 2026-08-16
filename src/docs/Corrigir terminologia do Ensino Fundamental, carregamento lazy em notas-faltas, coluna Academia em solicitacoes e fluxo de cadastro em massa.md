@@ -1,10 +1,10 @@
 ---
 criado: 2026-08-16 00:00
 origem: solicitação do usuário
-status: pendente
+status: feito
 ---
 
-# Corrigir terminologia do Ensino Fundamental, carregamento lazy em `/notas`/`/faltas`, coluna "Academia" em `/solicitacoes` e fluxo de cadastro em massa de estudantes
+# Corrigir terminologia do Ensino Fundamental, carregamento lazy em `/notas`/`/faltas`, coluna "Academia" em `/solicitacoes` e fluxo de cadastro em massa de estudantes (feito)
 
 > Documento preparado pelo Claude (orquestrador) após investigação completa e **já validada** do
 > repositório `spuripainel` (frontend Next.js). Todas as mudanças abaixo já foram aplicadas,

@@ -63,7 +63,7 @@ export function getAnoLabel(value?: string | null): string {
 export function labelNivel(nivel: NivelBulk): string {
   if (nivel === 'medio') return 'Ensino Médio';
   if (nivel === 'superior') return 'Ensino Superior';
-  return 'Ensino Fundamental (1ª-9ª Classe)';
+  return 'Ensino Primário e Iº Ciclo';
 }
 
 /**

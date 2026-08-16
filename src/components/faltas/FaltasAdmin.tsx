@@ -475,7 +475,6 @@ export default function FaltasAdmin() {
     fetchTurmas({ codigo_academia: cod, token });
     fetchCursos({ codigo_academia: cod, token });
     fetchMaterias({ codigo_academia: cod, token });
-    fetchEstudantes({ token, codigo_academia: cod });
     fetchAnosLetivos({ codigo_academia: cod, token });
     fetchAnoLetivo({ codigo_academia: cod, token });
   }
@@ -510,7 +509,7 @@ export default function FaltasAdmin() {
 
     if (al.mode === "fund") {
       const goAnos    = () => setAcadLayer({ mode: "fund", type: "anos" });
-      const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
+      const anosCrumb = { label: isMisto ? "Ensino Primário e Iº Ciclo" : "Anos", onClick: goAnos };
       const base      = isMisto ? [...navBase, { label: "Início", onClick: goInicio }, anosCrumb] : [...navBase, anosCrumb];
       if (al.type === "anos")   return base;
       if (al.type === "turmas") return [...base, { label: labelNivel(al.nivel) }];
@@ -721,7 +720,7 @@ export default function FaltasAdmin() {
           <p className="text-sm text-gray-500 mt-1">Selecione o nível de ensino</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
+          <CardBtn icon="mdi:school"         title="Ensino Primário e Iº Ciclo" subtitle="1ª a 9ª Classe"   onClick={() => setAcadLayer({ mode: "fund", type: "anos" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio"  onClick={() => setAcadLayer({ mode: "sup",  type: "cursos" })} />
         </div>
       </div>
@@ -733,7 +732,7 @@ export default function FaltasAdmin() {
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {anoLetivoSelecionado ? "Anos Académicos — Ensino Fundamental" : "Anos Letivos — Ensino Fundamental"}
+          {anoLetivoSelecionado ? "Anos Académicos — Ensino Primário e Iº Ciclo" : "Anos Letivos — Ensino Primário e Iº Ciclo"}
         </h2>
         {!anoLetivoSelecionado ? (
           loadingAnos ? <LoadingSpinner message="Carregando anos letivos..." /> : (
@@ -755,7 +754,7 @@ export default function FaltasAdmin() {
               niveisFundamentais.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />
-                  <p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p>
+                  <p className="text-sm">Nenhum nível do Ensino Primário e Iº Ciclo configurado nesta academia.</p>
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
