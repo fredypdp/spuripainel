@@ -33,7 +33,7 @@ const NATUREZA_OPCOES = [
   { nome: "Privada", value: "private" as AcademiaType },
 ];
 const NIVEL_ESCOLAR_OPCOES = [
-  { nome: "Ensino Primário, secundário (1º Ciclo)", value: "fundamental" as NivelEscolar },
+  { nome: "Ensino Fundamental (1ª-9ª Classe)", value: "fundamental" as NivelEscolar },
   { nome: "Ensino Médio", value: "medio" as NivelEscolar },
   { nome: "Primário, 1º Ciclo, Médio", value: "misto" as NivelEscolar },
 ];

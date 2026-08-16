@@ -30,7 +30,8 @@ function getAnoLabel(value?: string) {
   if (!value) return "-";
   const match = value.match(/^(\d+)_ano_(fundamental|medio|superior)$/);
   if (!match) return value.replace(/_/g, " ");
-  const nivel = match[2] === "medio" ? "Médio" : match[2] === "superior" ? "Superior" : "Fundamental";
+  if (match[2] === "fundamental") return `${match[1]}ª Classe`;
+  const nivel = match[2] === "medio" ? "Médio" : "Superior";
   return `${match[1]}º Ano ${nivel}`;
 }
 
