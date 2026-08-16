@@ -567,7 +567,7 @@ export default function TurmasPainel() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível de ensino *</label>
             <select value={formTipo} onChange={e => { const tipo = e.target.value as "fundamental" | "curso"; setFormTipo(tipo); setFormData({ ...formData, curso_id: undefined, nivel: "" }); }} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-              <option value="fundamental">Ensino Fundamental (1ª-9ª Classe)</option>
+              <option value="fundamental">Ensino Primário e Iº Ciclo</option>
               <option value="curso">Ensino Médio</option>
             </select>
           </div>
@@ -865,7 +865,7 @@ export default function TurmasPainel() {
             <div className="flex items-center">
               <button onClick={() => setViewNivelTurmas(v => v === "fundamental" ? "cursos" : "fundamental")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
                 <Icon icon={viewNivelTurmas === "fundamental" ? "mdi:book-education" : "mdi:school"} width={16} />
-                {viewNivelTurmas === "fundamental" ? "Ver Turmas do Ensino Médio" : "Ver Turmas do Ensino Fundamental (1ª-9ª Classe)"}
+                {viewNivelTurmas === "fundamental" ? "Ver Turmas do Ensino Médio" : "Ver Turmas do Ensino Primário e Iº Ciclo"}
               </button>
             </div>
           )}
