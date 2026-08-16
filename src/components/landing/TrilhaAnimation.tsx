@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "framer-motion";
  * TrilhaAnimation
  * ----------------
  * Elemento-assinatura visual da landing page: um estudante percorre uma trilha
- * tracejada por 5 etapas (Matrícula → Ensino Fundamental → Ensino Médio →
+ * tracejada por 5 etapas (Matrícula → Ensino Primário e Iº Ciclo → Ensino Médio →
  * Universidade → Licenciatura). Liga-se diretamente à marca: "Spuri" é
  * "rastreio" em esperanto, e a logo já usa uma linha sinuosa terminada num
  * ponto — esta animação é literalmente essa linha, em movimento.
@@ -27,7 +27,7 @@ type Point = { x: number; y: number; label: string };
 
 const HORIZONTAL_WAYPOINTS: Point[] = [
   { x: 60, y: 140, label: "Matrícula" },
-  { x: 230, y: 60, label: "Ensino Fundamental" },
+  { x: 230, y: 60, label: "Ensino Primário e Iº Ciclo" },
   { x: 400, y: 140, label: "Ensino Médio" },
   { x: 570, y: 60, label: "Universidade" },
   { x: 740, y: 140, label: "Licenciatura" },
@@ -35,7 +35,7 @@ const HORIZONTAL_WAYPOINTS: Point[] = [
 
 const VERTICAL_WAYPOINTS: Point[] = [
   { x: 70, y: 70, label: "Matrícula" },
-  { x: 250, y: 190, label: "Ensino Fundamental" },
+  { x: 250, y: 190, label: "Ensino Primário e Iº Ciclo" },
   { x: 70, y: 310, label: "Ensino Médio" },
   { x: 250, y: 430, label: "Universidade" },
   { x: 70, y: 550, label: "Licenciatura" },
@@ -153,7 +153,7 @@ function Trilha({
       viewBox={viewBox}
       className="w-full h-auto overflow-visible"
       role="img"
-      aria-label="Trilha do estudante: Matrícula, Ensino Fundamental, Ensino Médio, Universidade e Licenciatura, todos acompanhados na mesma plataforma"
+      aria-label="Trilha do estudante: Matrícula, Ensino Primário e Iº Ciclo, Ensino Médio, Universidade e Licenciatura, todos acompanhados na mesma plataforma"
     >
       <path
         d={pathD}
@@ -257,7 +257,7 @@ export default function TrilhaAnimation({ className = "" }: { className?: string
       {/* Garante que a mensagem "acompanhamos todo o percurso" não depende só
           do SVG — importante para leitores de ecrã. */}
       <p className="sr-only">
-        Percurso acompanhado pelo Spuri: Matrícula, Ensino Fundamental, Ensino Médio,
+        Percurso acompanhado pelo Spuri: Matrícula, Ensino Primário e Iº Ciclo, Ensino Médio,
         Universidade e Licenciatura.
       </p>
     </div>

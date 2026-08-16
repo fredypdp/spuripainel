@@ -22,12 +22,12 @@ const getApiErrorMessage = (error: any, fallback: string) => {
   if (detail?.field === "anos_academicos") {
     if (detail.code === "estudantes_ativos_vinculados") return "Não foi possível remover este ano porque existem estudantes ativos nele.";
     if (detail.code === "remocao_invalida") return "A academia precisa manter pelo menos um ano ativo.";
-    if (detail.code === "formato_invalido") return "Escolha apenas anos do 1º ao 9º ano fundamental.";
+    if (detail.code === "formato_invalido") return "Escolha apenas anos do Ensino Primário e Iº Ciclo (1ª a 9ª Classe).";
     if (detail.code === "campo_obrigatorio") return "Selecione pelo menos um ano antes de continuar.";
   }
 
   if (detail?.field === "type" && detail.code === "nivel_incompativel") {
-    return "Esta opção está disponível apenas para escolas com ensino fundamental.";
+    return "Esta opção está disponível apenas para escolas com o Ensino Primário e Iº Ciclo.";
   }
 
   return detail?.message || data?.message || error?.message || fallback;
@@ -590,7 +590,7 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
                   Anos acadêmicos
                 </h3>
                 <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-                  Escolha quais anos do ensino fundamental a escola oferece para novas turmas e matrículas. Ao adicionar, os anos escolhidos entram na lista. Ao remover, os registros antigos continuam guardados, mas o ano deixa de aparecer para novas atividades.
+                  Escolha quais anos do Ensino Primário e Iº Ciclo a escola oferece para novas turmas e matrículas. Ao adicionar, os anos escolhidos entram na lista. Ao remover, os registros antigos continuam guardados, mas o ano deixa de aparecer para novas atividades.
                 </p>
               </div>
               <button type="button" onClick={carregarAnosFundamentais} disabled={loadingAnosFund} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">

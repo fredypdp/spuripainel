@@ -33,7 +33,7 @@ const camposEdicaoLabel: Record<string, string> = {
 
 const tiposEnsino: { value: TipoEnsino | ""; label: string }[] = [
   { value: "", label: "Usar histórico" },
-  { value: "fundamental", label: "Fundamental" },
+  { value: "fundamental", label: "Ensino Primário e Iº Ciclo" },
   { value: "medio", label: "Médio" },
   { value: "superior", label: "Superior" },
 ];
@@ -338,19 +338,19 @@ export default function SolicitacoesPageContent() {
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-                <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Campo", "Status", "Estudante", "Academia", "Valor solicitado", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
+                <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Campo", "Status", "Estudante", ...(isAcademia ? [] : ["Academia"]), "Valor solicitado", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {editItems.map((item) => <tr key={item.codigo_solicitacao}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{item.codigo_solicitacao}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{camposEdicaoLabel[item.campo] ?? item.campo}</td>
                     <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass[item.status] ?? statusClass.cancelada}`}>{item.status}</span></td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.codigo_estudante}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.codigo_academia}</td>
+                    {!isAcademia && <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.codigo_academia}</td>}
                     <td className="max-w-xs px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.valor_solicitado}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(item.created_at)}</td>
                     <td className="px-4 py-3 text-sm">{isAcademia ? <button type="button" onClick={() => setEditSelecionadaCodigo(item.codigo_solicitacao)} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white">Abrir</button> : "—"}</td>
                   </tr>)}
-                  {editItems.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação de edição encontrada.</td></tr>}
+                  {editItems.length === 0 && <tr><td colSpan={isAcademia ? 7 : 8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação de edição encontrada.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -373,19 +373,19 @@ export default function SolicitacoesPageContent() {
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-              <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Tipo", "Status", "Estudante", "Academia", "Motivo", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
+              <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{["Código", "Tipo", "Status", "Estudante", ...(isAcademia ? [] : ["Academia"]), "Motivo", "Criada em", "Ações"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {itemsDaAba.map((item) => <tr key={item.codigo_solicitacao}>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{item.codigo_solicitacao}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{tipoLabel(item.tipo)}</td>
                   <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass[item.status] ?? statusClass.cancelada}`}>{item.status}</span></td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.estudante_nome ?? item.codigo_estudante}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.academia_nome ?? item.codigo_academia}</td>
+                  {!isAcademia && <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.academia_nome ?? item.codigo_academia}</td>}
                   <td className="max-w-xs px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.motivo}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(item.created_at)}</td>
                   <td className="px-4 py-3 text-sm">{canDecide && item.status === "pendente" ? <div className="flex gap-2"><button onClick={() => decidir(item, "aprovar")} disabled={saving} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white">Aprovar</button><button onClick={() => decidir(item, "reprovar")} disabled={saving} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white">Reprovar</button></div> : "—"}</td>
                 </tr>)}
-                {itemsDaAba.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação encontrada.</td></tr>}
+                {itemsDaAba.length === 0 && <tr><td colSpan={isAcademia ? 7 : 8} className="px-4 py-10 text-center text-sm text-gray-500">Nenhuma solicitação encontrada.</td></tr>}
               </tbody>
             </table>
           </div>

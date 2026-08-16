@@ -479,12 +479,20 @@ export default function FaltasAcademia() {
     [dataMaterias]
   );
 
+  // A lista completa de estudantes da academia só é necessária dentro do
+  // modal "Nova Falta" (dropdown de estudante pesquisável). Por turma, os
+  // estudantes já são carregados sob demanda via estudantesPorTurma. Por
+  // isso este fetch é disparado apenas ao abrir o modal, não na montagem.
+  function abrirModalNovaFalta() {
+    if (!dataEstudantes) carregarEstudantes({ token });
+    openModal();
+  }
+
   // ─── carga inicial ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);
@@ -701,7 +709,7 @@ export default function FaltasAcademia() {
 
     if (layer.mode === "fund") {
       const goAnos    = () => setLayer({ mode: "fund", type: "anos" });
-      const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
+      const anosCrumb = { label: isMisto ? "Ensino Primário e Iº Ciclo" : "Anos", onClick: goAnos };
       const base      = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
       if (layer.type === "anos")   return base;
       if (layer.type === "turmas") return [...base, { label: labelNivel(layer.nivel) }];
@@ -961,7 +969,7 @@ export default function FaltasAcademia() {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+            <CardBtn icon="mdi:school"         title="Ensino Primário e Iº Ciclo" subtitle="1ª a 9ª Classe"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
             <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="Cursos Médios"         onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
           </div>
         )}
@@ -974,7 +982,7 @@ export default function FaltasAcademia() {
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {anoLetivoSelecionado ? "Anos Académicos — Ensino Fundamental" : "Anos Letivos — Ensino Fundamental"}
+          {anoLetivoSelecionado ? "Anos Académicos — Ensino Primário e Iº Ciclo" : "Anos Letivos — Ensino Primário e Iº Ciclo"}
         </h2>
         {!anoLetivoSelecionado ? (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -996,7 +1004,7 @@ export default function FaltasAcademia() {
             {niveisFundamentais.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />
-                <p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p>
+                <p className="text-sm">Nenhum nível do Ensino Primário e Iº Ciclo configurado nesta academia.</p>
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -1257,11 +1265,11 @@ export default function FaltasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Faltas</h2>
           {turmas.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {turmasAtivas.length} turma(s) ativa(s) · {estudantes.length} estudante(s) · {todasFaltas.length} registro(s)
+              {turmasAtivas.length} turma(s) ativa(s){!loadingEstud && estudantes.length > 0 ? ` · ${estudantes.length} estudante(s)` : ""} · {todasFaltas.length} registro(s)
             </p>
           )}
         </div>
-        <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={openModal}>
+        <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={abrirModalNovaFalta}>
           Nova Falta
         </Button>
       </div>

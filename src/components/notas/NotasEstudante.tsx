@@ -550,7 +550,7 @@ export default function NotasEstudante() {
         <Breadcrumb crumbs={crumbs} />
         <div><h2 className="text-2xl font-bold text-gray-900 dark:text-white">{layer.a.nome}</h2><p className="text-sm text-gray-500 mt-1">Selecione o tipo de ensino</p></div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CardBtn icon="mdi:school" title="Ensino Fundamental (1ª-9ª Classe)" subtitle="Selecione a classe" onClick={() => navegar({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "fundamental" })} />
+          <CardBtn icon="mdi:school" title="Ensino Primário e Iº Ciclo" subtitle="Selecione a classe" onClick={() => navegar({ type: "ano_academico", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "fundamental" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Selecione o curso" onClick={() => navegar({ type: "cursos", a: layer.a, anoLetivo: layer.anoLetivo, tipoEnsino: "medio" })} />
         </div>
       </div>

@@ -394,7 +394,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             )}
             {visibilidade.anoFundamental && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano fundamental</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano do Ensino Primário e Iº Ciclo</label>
                 <select value={filtros.anoFundamental} onChange={e => setFiltros({ ...filtros, anoFundamental: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
                   <option value="">Todos</option>
@@ -477,7 +477,7 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             )}
             {visibilidade.statusFundamental && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no fundamental</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no Ensino Primário e Iº Ciclo</label>
                 <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
                   <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
@@ -812,7 +812,7 @@ function VistaEscala({ estudantes, turmas, cursos, nivelAcademia, filtros, ordem
           >
             <div className="flex items-center gap-3">
               <Icon icon="mdi:school" width={20} className="text-blue-600 dark:text-blue-400" />
-              <span className="font-bold text-gray-800 dark:text-white">Ensino Fundamental (1ª-9ª Classe)</span>
+              <span className="font-bold text-gray-800 dark:text-white">Ensino Primário e Iº Ciclo</span>
             </div>
             <Icon icon={secaoAberta === 'fundamental' ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={20} className="text-gray-400" />
           </button>
@@ -962,7 +962,7 @@ function listarDocumentosDisponiveis(estudante: EstudanteDetalhado): Array<[stri
 
 
 function labelContextoEstudante(contexto: string): string {
-  if (contexto === 'fundamental') return 'Ensino Fundamental (1ª-9ª Classe)';
+  if (contexto === 'fundamental') return 'Ensino Primário e Iº Ciclo';
   if (contexto === 'medio') return 'Ensino Médio';
   return 'Ensino Superior';
 }

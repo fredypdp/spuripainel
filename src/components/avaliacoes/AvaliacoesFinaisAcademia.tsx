@@ -41,7 +41,7 @@ const NIVEL_ORDER = [
 function labelNivel(v: string, withSuffix = false): string {
   const base = NIVEL_LABEL[v] ?? v.replace(/_/g, " ");
   if (!withSuffix) return base;
-  if (v.includes("fundamental")) return `${base} (Fund.)`;
+  if (v.includes("fundamental")) return `${base} (Primário)`;
   if (v.includes("medio")) return `${base} (Médio)`;
   if (v.includes("superior")) return `${base} (Sup.)`;
   return base;
@@ -374,7 +374,7 @@ export default function AvaliacoesFinaisAcademia() {
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <CardBtn icon="mdi:school" title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"
+          <CardBtn icon="mdi:school" title="Ensino Primário e Iº Ciclo" subtitle="1ª a 9ª Classe"
             stats={{ approved: fundAvs.filter(a => a.aprovado).length, reprovated: fundAvs.filter(a => !a.aprovado).length, pending: 0 }}
             onClick={() => setLayer({ type: "anos_letivos", destino: "fund" })} />
           <CardBtn icon="mdi:book-education" title="Ensino Médio" subtitle="Cursos Médios"
@@ -387,10 +387,10 @@ export default function AvaliacoesFinaisAcademia() {
 
   // ── Ano letivo: primeira escala após o tipo de ensino ──
   if (layer.type === "anos_letivos") {
-    const titulo = layer.destino === "fund" ? "Avaliações Finais — Fundamental" : (isSuperior ? "Avaliações Finais — Superior" : "Avaliações Finais — Médio");
+    const titulo = layer.destino === "fund" ? "Avaliações Finais — Ensino Primário e Iº Ciclo" : (isSuperior ? "Avaliações Finais — Superior" : "Avaliações Finais — Médio");
     return (
       <div className="space-y-6">
-        {isMisto && <Breadcrumb crumbs={[{ label: "Início", onClick: () => setLayer({ type: "choose" }) }, { label: layer.destino === "fund" ? "Ensino Fundamental" : "Ensino Médio" }]} />}
+        {isMisto && <Breadcrumb crumbs={[{ label: "Início", onClick: () => setLayer({ type: "choose" }) }, { label: layer.destino === "fund" ? "Ensino Primário e Iº Ciclo" : "Ensino Médio" }]} />}
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{titulo}</h2>
@@ -431,10 +431,10 @@ export default function AvaliacoesFinaisAcademia() {
     const fundAvs = todasAvaliacoes.filter(a => a.tipo_ensino === "fundamental");
     return (
       <div className="space-y-6">
-        <Breadcrumb crumbs={[...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []), { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) }, { label: "Ensino Fundamental" }]} />
+        <Breadcrumb crumbs={[...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []), { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) }, { label: "Ensino Primário e Iº Ciclo" }]} />
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais — Fundamental</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Avaliações Finais — Ensino Primário e Iº Ciclo</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o ano acadêmico</p>
           </div>
         </div>
@@ -442,7 +442,7 @@ export default function AvaliacoesFinaisAcademia() {
         {fundAnos.length === 0 ? (
           <div className="text-center py-14">
             <Icon icon="mdi:numeric" width={44} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
-            <p className="text-sm text-gray-400">Nenhum ano acadêmico do ensino fundamental.</p>
+            <p className="text-sm text-gray-400">Nenhum ano acadêmico do Ensino Primário e Iº Ciclo.</p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -470,7 +470,7 @@ export default function AvaliacoesFinaisAcademia() {
         <Breadcrumb crumbs={[
           ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
           { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) },
-          { label: "Ensino Fundamental", onClick: () => setLayer({ type: "fund_overview" }) },
+          { label: "Ensino Primário e Iº Ciclo", onClick: () => setLayer({ type: "fund_overview" }) },
           { label: labelNivel(layer.nivel) },
         ]} />
         <div>
@@ -499,7 +499,7 @@ export default function AvaliacoesFinaisAcademia() {
         <Breadcrumb crumbs={[
           ...(isMisto ? [{ label: "Início", onClick: () => setLayer({ type: "choose" }) }] : []),
           { label: "Ano letivo", onClick: () => setLayer({ type: "anos_letivos", destino: "fund" }) },
-          { label: "Fundamental", onClick: () => setLayer({ type: "fund_overview" }) },
+          { label: "Ensino Primário e Iº Ciclo", onClick: () => setLayer({ type: "fund_overview" }) },
           { label: labelNivel(layer.nivel), onClick: () => setLayer({ type: "fund_turmas", nivel: layer.nivel }) },
           { label: turma.codigo_turma },
         ]} />
