@@ -39,10 +39,10 @@ function slugify(value: string): string {
 }
 
 export function gerarNomeArquivoModelo(contexto: ContextoModelo): string {
-  const partes = ['modelo-cadastro-estudantes', contexto.nivel];
-  if (contexto.cursoNome) partes.push(slugify(contexto.cursoNome));
-  partes.push(contexto.anoAcademico);
-  return `${partes.join('-')}.xlsx`;
+  if (contexto.modoCadastro === 'turma' && contexto.codigoTurma) {
+    return `modelo-cadastro-estudantes-${slugify(contexto.codigoTurma)}.xlsx`;
+  }
+  return 'modelo-cadastro-estudantes.xlsx';
 }
 
 function montarLinhasInstrucoes(contexto: ContextoModelo): (string | undefined)[][] {
@@ -50,8 +50,13 @@ function montarLinhasInstrucoes(contexto: ContextoModelo): (string | undefined)[
     ['Modelo de Cadastro em Massa de Estudantes — Spuri'],
     [],
     ['Academia', contexto.nomeAcademia],
-    ['Nível', labelNivel(contexto.nivel)],
   ];
+
+  if (contexto.modoCadastro === 'turma' && contexto.codigoTurma) {
+    linhas.push(['Turma', contexto.turmaLabel || contexto.codigoTurma]);
+  } else {
+    linhas.push(['Nível', labelNivel(contexto.nivel)]);
+  }
 
   if (contexto.cursoNome) linhas.push(['Curso', contexto.cursoNome]);
   linhas.push(['Ano Acadêmico', contexto.anoAcademicoLabel]);
@@ -130,11 +135,14 @@ export function gerarModeloExcel(contexto: ContextoModelo): void {
     ['chave', 'valor'],
     ['versao_modelo', contexto.versaoModelo],
     ['codigo_academia', contexto.codigoAcademia],
+    ['nome_academia', contexto.nomeAcademia || ''],
     ['nivel', contexto.nivel],
     ['curso_id', contexto.cursoId || ''],
     ['curso_nome', contexto.cursoNome || ''],
     ['ano_academico', contexto.anoAcademico],
+    ['ano_academico_label', contexto.anoAcademicoLabel || ''],
     ['codigo_turma', contexto.codigoTurma || ''],
+    ['turma_label', contexto.turmaLabel || ''],
     ['modo_cadastro', contexto.modoCadastro || 'geral'],
     ['gerado_em', new Date().toISOString()],
   ];

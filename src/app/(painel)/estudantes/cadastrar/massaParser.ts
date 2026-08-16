@@ -11,9 +11,15 @@
 import * as XLSX from 'xlsx';
 import type { ContextoModelo, EstudanteBulkRow, ErroValidacao, ResultadoAnalise } from './massaTypes';
 import type { NivelBulk } from './massaHelpers';
+import { getAnoLabel } from './massaHelpers';
 
 const REGEX_BI = /^\d{9}[A-Za-z]{2}\d{3}$/;
-const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Mesmo formato aceite pelo backend (internal/utils/validation.go: emailRegexV).
+const REGEX_EMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// O backend rejeita e-mails com apóstrofo, ponto e vírgula ou hífen, mesmo
+// quando o formato é válido (internal/utils/validation.go: sqlCharsRegex).
+// Replicado aqui para não deixar passar na revisão algo que falharia depois.
+const REGEX_EMAIL_CARACTERES_BLOQUEADOS = /['\-;]|--/;
 const REGEX_NOME = /^[\p{L}\p{M} '’ʻ]+$/u;
 const REGEX_CARACTERES_BLOQUEADOS = /[;\"`]|--|\/\*|\*\//;
 const TOTAL_COLUNAS = 8;
@@ -91,15 +97,21 @@ function lerContexto(wb: any): ContextoModelo | null {
 
   return {
     codigoAcademia: mapa.codigo_academia,
-    nomeAcademia: '',
+    // Ficheiros gerados antes desta correção não têm "nome_academia" nem
+    // "turma_label" na folha _meta — por isso o formulário reconsulta a
+    // academia/turma atuais quando precisa exibir esses nomes (ver
+    // CadastroMassaForm.tsx). "ano_academico_label" sempre tem um valor
+    // correto aqui, calculado a partir do código, mesmo em ficheiros antigos.
+    nomeAcademia: mapa.nome_academia || '',
     nivel: mapa.nivel as NivelBulk,
     cursoId: mapa.curso_id || undefined,
     cursoNome: mapa.curso_nome || undefined,
     anoAcademico: mapa.ano_academico,
-    anoAcademicoLabel: mapa.ano_academico,
+    anoAcademicoLabel: mapa.ano_academico_label || getAnoLabel(mapa.ano_academico),
     versaoModelo: mapa.versao_modelo || '1',
     modoCadastro: mapa.modo_cadastro === 'turma' ? 'turma' : 'geral',
     codigoTurma: mapa.codigo_turma || undefined,
+    turmaLabel: mapa.turma_label || undefined,
   };
 }
 
@@ -161,6 +173,8 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
     add('H', 'Email', linha.email, 'O email contém caracteres não permitidos.');
   } else if (linha.email && !REGEX_EMAIL.test(linha.email)) {
     add('H', 'Email', linha.email, `O email "${linha.email}" não é válido. Exemplo: nome@exemplo.com`);
+  } else if (linha.email && REGEX_EMAIL_CARACTERES_BLOQUEADOS.test(linha.email)) {
+    add('H', 'Email', linha.email, 'O email não pode conter apóstrofo (\'), ponto e vírgula (;) ou hífen (-).');
   }
 
   const isSuperior = contexto.nivel === 'superior';

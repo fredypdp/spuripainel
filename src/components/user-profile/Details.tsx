@@ -27,10 +27,10 @@ function labelNivelAtivo(user: MeuPerfilResponse): { label: string; cor: string 
   if (!e) return null;
   if (e.status_superior === 'em_andamento')              return { label: 'Ensino Superior',              cor: 'indigo'  };
   if (e.status_escolar_medio === 'em_andamento')         return { label: 'Ensino Médio',                 cor: 'purple'  };
-  if (e.status_escolar_fundamental === 'em_andamento')   return { label: 'Ensino Fundamental (1ª-9ª Classe)',           cor: 'blue'    };
+  if (e.status_escolar_fundamental === 'em_andamento')   return { label: 'Ensino Primário e Iº Ciclo',           cor: 'blue'    };
   if (e.status_superior === 'finalizado')                return { label: 'Superior (Finalizado)',        cor: 'green'   };
   if (e.status_escolar_medio === 'finalizado')           return { label: 'Médio (Finalizado)',           cor: 'green'   };
-  if (e.status_escolar_fundamental === 'finalizado')     return { label: '1ª-9ª Classe (Finalizado)',     cor: 'green'   };
+  if (e.status_escolar_fundamental === 'finalizado')     return { label: 'Ensino Primário e Iº Ciclo (Finalizado)',     cor: 'green'   };
   return null;
 }
 
@@ -320,7 +320,7 @@ export default function Details({ user }: DetailsProps) {
                 <div className="flex flex-wrap gap-2">
                   {(
                     [
-                      { label: 'Fundamental (1ª-9ª Classe)', status: e.status_escolar_fundamental },
+                      { label: 'Ensino Primário e Iº Ciclo', status: e.status_escolar_fundamental },
                       { label: 'Médio',        status: e.status_escolar_medio       },
                       { label: 'Superior',     status: e.status_superior            },
                     ] as const
@@ -384,10 +384,10 @@ export default function Details({ user }: DetailsProps) {
                 <InfoItem label="Nível Escolar">
                   <span className="capitalize">
                     {ac.nivel_escolar === 'fundamental'
-                      ? 'Fundamental (1ª-9ª Classe)'
+                      ? 'Ensino Primário e Iº Ciclo'
                       : ac.nivel_escolar === 'medio'
                       ? 'Médio'
-                      : 'Fundamental (1ª-9ª Classe) e Médio'}
+                      : 'Ensino Primário ao Médio'}
                   </span>
                 </InfoItem>
               )}

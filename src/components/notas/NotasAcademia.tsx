@@ -34,7 +34,8 @@ const ORDEM_ANOS_ACADEMICOS = [
 
 function labelAnoAcademico(ano: string) {
   const [numero, , nivel] = ano.split("_");
-  return `${numero}.º ${nivel === "fundamental" ? "Fundamental" : nivel === "medio" ? "Médio" : "Superior"}`;
+  if (nivel === "fundamental") return `${numero}ª Classe`;
+  return `${numero}.º ${nivel === "medio" ? "Médio" : "Superior"}`;
 }
 
 function sortAnosAcademicos(anos: string[]) {
@@ -770,12 +771,21 @@ export default function NotasAcademia() {
   const { isOpen: isCorrigirOpen, openModal: openCorrigirModal, closeModal: closeCorrigirModal } = useModal();
   const [notaSelecionada, setNotaSelecionada] = useState<Nota | null>(null);
 
+  // A lista completa de estudantes da academia só é necessária dentro do
+  // modal "Nova Nota"/"Categoria" (dropdown de estudante pesquisável). Por
+  // turma, os estudantes já são carregados sob demanda via
+  // estudantesPorTurma (ver useEffect mais abaixo). Por isso este fetch é
+  // disparado apenas ao abrir o modal, não na montagem da página.
+  function abrirModalNovaNota() {
+    if (!dataEstudantes) carregarEstudantes({ token });
+    openModal();
+  }
+
   // ─── carga inicial ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     carregarTurmas(token);
     carregarCursos(token);
-    carregarEstudantes({ token });
     carregarMaterias(token);
     buscarAnoLetivo(token);
     buscarAnosLetivos(token);
@@ -1041,7 +1051,7 @@ export default function NotasAcademia() {
 
     if (layer.mode === "fund") {
       const goAnos    = () => setLayer({ mode: "fund", type: "anos" });
-      const anosCrumb = { label: isMisto ? "Fundamental" : "Anos", onClick: goAnos };
+      const anosCrumb = { label: isMisto ? "Ensino Primário e Iº Ciclo" : "Anos", onClick: goAnos };
       const base      = isMisto ? [{ label: "Início", onClick: goInicio }, anosCrumb] : [anosCrumb];
       if (layer.type === "anos")     return base;
       if (layer.type === "turmas")   return [...base, { label: labelNivel(layer.nivel) }];
@@ -1273,7 +1283,7 @@ export default function NotasAcademia() {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <CardBtn icon="mdi:school"         title="Ensino Fundamental (1ª-9ª Classe)" subtitle="1ª a 9ª Classe"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
+            <CardBtn icon="mdi:school"         title="Ensino Primário e Iº Ciclo" subtitle="1ª a 9ª Classe"  onClick={() => setLayer({ mode: "fund", type: "anos" })} />
             <CardBtn icon="mdi:book-education" title="Ensino Médio"       subtitle="1º ao 4º Médio" onClick={() => setLayer({ mode: "sup", type: "cursos" })} />
           </div>
         )}
@@ -1286,7 +1296,7 @@ export default function NotasAcademia() {
         {BotaoVoltar}
         <Breadcrumb crumbs={crumbs} />
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {anoLetivoSelecionado ? "Anos Académicos — Ensino Fundamental" : "Anos Letivos — Ensino Fundamental"}
+          {anoLetivoSelecionado ? "Anos Académicos — Ensino Primário e Iº Ciclo" : "Anos Letivos — Ensino Primário e Iº Ciclo"}
         </h2>
         {!anoLetivoSelecionado ? (
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -1310,7 +1320,7 @@ export default function NotasAcademia() {
             {niveisFundamentais.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <Icon icon="mdi:school-outline" width={48} className="mx-auto mb-3 opacity-40" />
-                <p className="text-sm">Nenhum nível fundamental configurado nesta academia.</p>
+                <p className="text-sm">Nenhum nível do Ensino Primário e Iº Ciclo configurado nesta academia.</p>
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -1587,17 +1597,17 @@ export default function NotasAcademia() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Notas</h2>
           {turmas.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {turmasAtivas.length} turma(s) ativa(s) · {estudantes.length} estudante(s) · {todasNotas.length} nota(s)
+              {turmasAtivas.length} turma(s) ativa(s){!loadingEstud && estudantes.length > 0 ? ` · ${estudantes.length} estudante(s)` : ""} · {todasNotas.length} nota(s)
             </p>
           )}
         </div>
         <div className="flex gap-2">
           {isSuperior && (
-            <Button size="sm" variant="outline" startIcon={<Icon icon="mdi:tag-plus-outline" />} onClick={openModal}>
+            <Button size="sm" variant="outline" startIcon={<Icon icon="mdi:tag-plus-outline" />} onClick={abrirModalNovaNota}>
               Categoria
             </Button>
           )}
-          <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={openModal}>
+          <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={abrirModalNovaNota}>
             Nova Nota
           </Button>
         </div>

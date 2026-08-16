@@ -730,7 +730,7 @@ export default function CadastroSingularForm() {
               </div>
               {anoEscolarSelecionado === '1_ano_fundamental' && (
                 <div className="col-span-1 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300 sm:col-span-2">
-                  O 1.º Ano Fundamental exige apenas a cédula do estudante como documento do estudante.
+                  A 1ª Classe exige apenas a cédula do estudante como documento do estudante.
                 </div>
               )}
               {documentosSemAlternativas.map((doc) => (

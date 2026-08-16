@@ -114,8 +114,8 @@ export default function BatchProgressScreen({ jobIds, contexto, avisoSubmissao, 
           {concluido
             ? 'Veja abaixo o resultado do cadastro.'
             : multiploLotes
-            ? `Os estudantes serão cadastrados em ${jobIds.length} grupos, automaticamente, para que tudo seja enviado com segurança. Isto pode demorar alguns instantes. `
-            : 'Isto pode demorar alguns instantes. '}
+            ? `Os estudantes serão cadastrados em ${jobIds.length} grupos, automaticamente, para que tudo seja enviado com segurança. A integração de cada estudante na base de dados pode demorar alguns minutos. `
+            : 'A integração dos estudantes na base de dados pode demorar alguns minutos. '}
           {!concluido && 'Pode navegar para outra página — ao voltar aqui, o progresso continua a ser mostrado.'}
         </p>
 

@@ -191,7 +191,7 @@ function MateriaCard({ materia, getCursoNome, onEdit, onToggleStatus, onDelete, 
             <h4 className="font-semibold text-gray-900 dark:text-white truncate">{materia.nome}</h4>
             <div className="flex flex-wrap gap-1 mt-1">
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${materia.type === "fundamental" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : materia.type === "medio" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"}`}>
-                {materia.type === "fundamental" ? "Fundamental (1ª-9ª Classe)" : materia.type === "medio" ? "Médio" : "Superior"}
+                {materia.type === "fundamental" ? "Ensino Primário e Iº Ciclo" : materia.type === "medio" ? "Médio" : "Superior"}
               </span>
               {materia.type === "superior" && (materia.periodo ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">{formatarPeriodoLabel(materia.periodo)}</span>
@@ -577,9 +577,9 @@ export default function MateriaPainel() {
     const nivel = user?.academia?.nivel;
     const nivelEscolar = user?.academia?.nivel_escolar;
     if (nivel === "escola") {
-      if (nivelEscolar === "fundamental") tipos.push({ value: "fundamental", label: "Fundamental (1ª-9ª Classe)" });
+      if (nivelEscolar === "fundamental") tipos.push({ value: "fundamental", label: "Ensino Primário e Iº Ciclo" });
       if (nivelEscolar === "medio") tipos.push({ value: "medio", label: "Médio" });
-      if (nivelEscolar === "misto") { tipos.push({ value: "fundamental", label: "Fundamental (1ª-9ª Classe)" }); tipos.push({ value: "medio", label: "Médio" }); }
+      if (nivelEscolar === "misto") { tipos.push({ value: "fundamental", label: "Ensino Primário e Iº Ciclo" }); tipos.push({ value: "medio", label: "Médio" }); }
     } else if (nivel === "superior") { tipos.push({ value: "superior", label: "Superior" }); }
     return tipos;
   })();
@@ -618,7 +618,7 @@ export default function MateriaPainel() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
                     <select value={formData.type} onChange={e => handleTypeChange(e.target.value as MateriaType)} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-                      <option value="fundamental">Fundamental (1ª-9ª Classe)</option><option value="medio">Médio</option>
+                      <option value="fundamental">Ensino Primário e Iº Ciclo</option><option value="medio">Médio</option>
                     </select>
                   </div>
                 )}
@@ -713,7 +713,7 @@ export default function MateriaPainel() {
               <div className="flex items-center">
                 <button onClick={() => setViewNivel(v => v === "fundamental" ? "medio" : "fundamental")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-brand-500 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
                   <Icon icon={viewNivel === "fundamental" ? "mdi:school" : "mdi:book-education"} width={16} />
-                  {viewNivel === "fundamental" ? "Ver Matérias do Ensino Médio" : "Ver Matérias do Ensino Fundamental (1ª-9ª Classe)"}
+                  {viewNivel === "fundamental" ? "Ver Matérias do Ensino Médio" : "Ver Matérias do Ensino Primário e Iº Ciclo"}
                 </button>
               </div>
             )}

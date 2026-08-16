@@ -36,7 +36,7 @@ const NIVEL_ORDER = [
 
 function labelNivel(v: string): string {
   const base = NIVEL_LABEL[v] ?? v.replace(/_/g, " ");
-  if (v.includes("fundamental")) return `${base} (Fund.)`;
+  if (v.includes("fundamental")) return `${base} (Primário)`;
   if (v.includes("medio"))       return `${base} (Médio)`;
   if (v.includes("superior"))    return `${base} (Sup.)`;
   return base;
@@ -269,7 +269,7 @@ function AcademiaDetalhe({
   const avsAcad = todasAvaliacoes; // já filtrados pela academia + ano letivo na API
 
   const tipoLabel: Record<TipoEnsino, string> = {
-    fundamental: "Ensino Fundamental (1ª-9ª Classe)", medio: "Ensino Médio", superior: "Ensino Superior",
+    fundamental: "Ensino Primário e Iº Ciclo", medio: "Ensino Médio", superior: "Ensino Superior",
   };
   const tipoIcon: Record<TipoEnsino, string> = {
     fundamental: "mdi:school", medio: "mdi:book-education", superior: "mdi:university",

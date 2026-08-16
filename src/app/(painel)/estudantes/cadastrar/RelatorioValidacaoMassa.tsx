@@ -138,7 +138,7 @@ export default function RelatorioValidacaoMassa({
               variant="outline"
               onClick={() => baixarLinhasComErro(contexto, linhas, errosPorLinhaLista, nomeArquivo)}
             >
-              Baixar apenas as linhas com erro
+              Baixar planilha apenas com os estudantes com erros
             </Button>
             <Button size="sm" variant="outline" onClick={onNovoUpload}>
               Enviar outro ficheiro
@@ -152,7 +152,8 @@ export default function RelatorioValidacaoMassa({
           Todos os dados foram validados com sucesso.{' '}
           {totalLotes > 1
             ? `Como são ${totalLinhas} estudantes, o sistema vai enviar automaticamente em ${totalLotes} grupos de até ${LIMITE_ESTUDANTES_POR_LOTE} estudantes cada.`
-            : 'Confirme abaixo para iniciar o cadastro em massa.'}
+            : 'Confirme abaixo para iniciar o cadastro em massa.'}{' '}
+          A integração destes estudantes na base de dados pode demorar alguns minutos — não é preciso permanecer nesta tela à espera.
         </div>
       )}
 
