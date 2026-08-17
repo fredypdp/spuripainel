@@ -1,6 +1,6 @@
 ---
 criado: 2026-08-16
-atualizado: 2026-08-17 — backend corrigiu os dois gaps registrados em "Problemas de Backend - Modulo de Pagamentos.md" (endpoint de listagem de cobranças e QR Code nos fluxos de pagamento); seções 2.1, 2.3, 4, Partes A/B/F/H/I e checklist revisadas para refletir a API atual
+atualizado: 2026-08-17 — backend corrigiu os dois gaps registrados em "Problemas de Backend - Modulo de Pagamentos.md" (endpoint de listagem de cobranças e QR Code nos fluxos de pagamento); seções 2.1, 2.3, 4, Partes A/B/F/H/I e checklist revisadas para refletir a API atual; 2026-08-17 (2) — backend adicionou o endpoint `GET /financeiro/cobrancas/estudante/:codigo` (histórico completo de cobranças — mensalidade, matrícula e avulsa, em qualquer estado — de um estudante específico, acessível ao próprio estudante); seções 0, 1, 2 (novo aviso 2.1-B), 4 (novo 4.1-B), Partes A, B, H (nova H.5) e I (I.1/I.2-A/I.5) e checklist revisadas para incorporar o endpoint novo
 origem: Orquestração Claude (leitura direta de spuri-backend e spuripainel em main)
 repositório alvo desta tarefa: spuripainel (frontend)
 repositório de referência (somente leitura): spuri-backend
@@ -11,7 +11,7 @@ status: pendente
 
 ## 0. Prompt recomendado para executar esta tarefa
 
-Implemente no repositório **spuripainel** todo o suporte de frontend ao módulo de pagamentos já existente no backend **spuri-backend** (contexto `financeiro`: credenciais AppyPay, listagem/consulta de cobranças, configuração e cobrança de mensalidade/propina, configuração e cobrança de taxa de matrícula, sessão financeira restrita de estudante inativo). Este documento já contém o levantamento completo do backend e do frontend atuais — **não é necessário planejar nada, apenas seguir as partes A a I na ordem**, criando/editando exatamente os arquivos indicados, com os tipos, contratos de API, regras de permissão e comportamento de UI descritos. Onde este documento mostra um exemplo de código, ele é ilustrativo do contrato (nomes de campos, formato) — a implementação final deve seguir os padrões de UI, componentes e organização de arquivos já usados no restante do projeto (referenciados na seção 3), especialmente o painel `src/components/paineis/FinanceiroCredenciaisPainel.tsx`, que é o único pedaço do módulo de pagamentos já implementado no frontend hoje e deve servir de modelo de estilo, tratamento de erro e permissão. Preste atenção especial à seção 2 (avisos críticos): **duas** limitações que existiam numa versão anterior deste documento (falta de endpoint de listagem geral de cobranças, e QR Code não retornado nos fluxos de pagamento de propina/matrícula) **já foram corrigidas no backend** e a seção 2 e as partes afetadas foram reescritas para usar a API corrigida — não implemente mais nenhum dos contornos que uma versão anterior deste documento pudesse sugerir para esses dois pontos. Continua valendo, sem alteração, a restrição de leitura financeira exclusiva a admins com papel `fpp` (aviso 2.2) — essa não foi alterada no backend. Ao final, atualize `AppSidebar.tsx`, `route-guards.ts` e qualquer outro ponto de navegação afetado, e garanta que build e lint do projeto passam. Não crie mocks, dados falsos, endpoints inexistentes ou funcionalidades "fallback" que simulem dados que a API não retorna.
+Implemente no repositório **spuripainel** todo o suporte de frontend ao módulo de pagamentos já existente no backend **spuri-backend** (contexto `financeiro`: credenciais AppyPay, listagem/consulta de cobranças, configuração e cobrança de mensalidade/propina, configuração e cobrança de taxa de matrícula, sessão financeira restrita de estudante inativo). Este documento já contém o levantamento completo do backend e do frontend atuais — **não é necessário planejar nada, apenas seguir as partes A a I na ordem**, criando/editando exatamente os arquivos indicados, com os tipos, contratos de API, regras de permissão e comportamento de UI descritos. Onde este documento mostra um exemplo de código, ele é ilustrativo do contrato (nomes de campos, formato) — a implementação final deve seguir os padrões de UI, componentes e organização de arquivos já usados no restante do projeto (referenciados na seção 3), especialmente o painel `src/components/paineis/FinanceiroCredenciaisPainel.tsx`, que é o único pedaço do módulo de pagamentos já implementado no frontend hoje e deve servir de modelo de estilo, tratamento de erro e permissão. Preste atenção especial à seção 2 (avisos críticos): **duas** limitações que existiam numa versão anterior deste documento (falta de endpoint de listagem geral de cobranças, e QR Code não retornado nos fluxos de pagamento de propina/matrícula) **já foram corrigidas no backend** e a seção 2 e as partes afetadas foram reescritas para usar a API corrigida — não implemente mais nenhum dos contornos que uma versão anterior deste documento pudesse sugerir para esses dois pontos. Continua valendo, sem alteração, a restrição de leitura financeira exclusiva a admins com papel `fpp` (aviso 2.2) — essa não foi alterada no backend. Além dessas duas correções, o backend também **adicionou um endpoint novo**, sem relação com nenhuma limitação anterior: `GET /financeiro/cobrancas/estudante/:codigo`, que devolve o histórico completo de cobranças (mensalidade, matrícula e avulsa, em qualquer estado) de um estudante específico, acessível ao próprio estudante, à academia com vínculo (restrito ao que foi pago a ela) ou a admin FPP — contrato completo na seção 4.1-B, aviso em 2.1-B, uso obrigatório nas Partes H.5 (nova) e I.1/I.2-A/I.5 (revisadas). Ao final, atualize `AppSidebar.tsx`, `route-guards.ts` e qualquer outro ponto de navegação afetado, e garanta que build e lint do projeto passam. Não crie mocks, dados falsos, endpoints inexistentes ou funcionalidades "fallback" que simulem dados que a API não retorna.
 
 ---
 
@@ -19,13 +19,13 @@ Implemente no repositório **spuripainel** todo o suporte de frontend ao módulo
 
 ### Backend (`spuri-backend`, branch `main`) — apenas para entender o contrato, não editar
 
-- `internal/handlers/financeiro_handlers.go` — credenciais AppyPay, cobrança genérica, QR Code.
+- `internal/handlers/financeiro_handlers.go` — credenciais AppyPay, cobrança genérica, QR Code, listagem de cobranças (`ListarCobrancasAppyPay`) e, novo, o histórico completo de cobranças por estudante (`ConsultarCobrancasEstudante`, função `ListCobrancasEstudante` em `internal/finance/appypay.go` — ver 4.1-B).
 - `internal/handlers/mensalidade_handlers.go` — configuração de mensalidade, início de cobrança excecional, anular/reativar obrigações, consulta de mensalidades do estudante, pagamento de mensalidades.
 - `internal/handlers/solicitacao_matricula_handlers.go` — busca pública de solicitações, status público, pagamento público da matrícula, cancelamento pela academia, configuração de matrícula.
 - `internal/finance/appypay.go`, `internal/finance/mensalidade.go`, `internal/finance/matricula.go` — regras de negócio e formatos de retorno exatos.
 - `internal/middleware/auth.go` — mecanismo de **sessão financeira restrita** (`acesso_restrito_financeiro`), essencial para a Parte C/I.
 - `internal/domain/aggregates/solicitacao_matricula.go` — status possíveis da solicitação de matrícula, incluindo os relacionados a pagamento.
-- `Documentação da API.md`, seção **"Financeiro / AppyPay"** (perto do fim do arquivo) — cobre a maior parte dos endpoints. **Atenção:** a seção "9. Solicitação de Matrícula" e o DTO de `SolicitacaoMatricula` (seção 2.5) desse mesmo documento **estão desatualizados** e não refletem os campos/rotas de pagamento de matrícula — use os campos e rotas descritos na seção 4 deste documento (extraídos diretamente do código-fonte) como fonte de verdade nesses pontos específicos.
+- `Documentação da API.md`, seção **"Financeiro / AppyPay"** (perto do fim do arquivo) — cobre a maior parte dos endpoints, incluindo a subseção **19.8 `GET /financeiro/cobrancas/estudante/:codigo`**, que documenta o endpoint novo desta atualização. **Atenção:** a seção "9. Solicitação de Matrícula" e o DTO de `SolicitacaoMatricula` (seção 2.5) desse mesmo documento **estão desatualizados** e não refletem os campos/rotas de pagamento de matrícula — use os campos e rotas descritos na seção 4 deste documento (extraídos diretamente do código-fonte) como fonte de verdade nesses pontos específicos.
 
 ### Frontend (`spuripainel`, branch `main`) — padrões a seguir, arquivos a editar
 
@@ -57,6 +57,17 @@ Continuam existindo, e continuam úteis como complemento (não como substituto) 
 
 - `GET /financeiro/appypay/cobrancas/:id` — consulta o **detalhe completo** de uma cobrança (a listagem de `GET /financeiro/cobrancas` traz só um resumo por linha, de propósito — ver nota no código-fonte, seção 4.1-A).
 - `GET /financeiro/mensalidades/estudante/:codigo` — consulta as mensalidades de um estudante específico (continua sendo a única fonte "mês a mês" com `estado` por mensalidade, útil como uma das seções da Parte H).
+
+### 2.1-B [NOVO] Endpoint de histórico completo de cobranças de um estudante já existe — use-o em `/pagamentos` (estudante) e como complemento em `/financas/pagamentos`
+
+Existe agora `GET /financeiro/cobrancas/estudante/:codigo`, que devolve, numa única chamada, **todas** as cobranças já associadas a um estudante — mensalidade, matrícula e avulsa — em **qualquer estado** (pendente, paga, falhada, cancelada), cruzando todas as academias em que ele já teve vínculo. Contrato completo na seção 4.1-B.
+
+Isso é diferente e complementar a `GET /financeiro/mensalidades/estudante/:codigo` (2.1, item acima): aquela rota só cobre obrigações de **mensalidade/propina** mês a mês (necessária para montar o formulário de pagamento da Parte I — não deixa de ser usada); esta rota nova é a única fonte que também traz a cobrança da **matrícula** e qualquer cobrança **avulsa** do estudante, com o mesmo resumo por cobrança (`origem`, `status`, `valor`, `metodo_pagamento`, etc.) já usado em `GET /financeiro/cobrancas` (4.1-A). Por causa disso:
+
+- Na Parte I (`/pagamentos`, estudante), além da listagem de mensalidades (I.2), passa a existir uma seção de histórico completo de cobranças (I.2-A, nova) alimentada por este endpoint.
+- Na Parte H (`/financas/pagamentos`, academia/admin), a seção complementar por estudante ganha uma segunda sub-seção (H.5, nova) que usa este endpoint para trazer também a matrícula do estudante, o que a seção de mensalidades (H.4) nunca cobre.
+
+**Atenção — esta rota NÃO está liberada em sessão financeira restrita** (ver 2.4): a lista de rotas permitidas para um estudante com `acesso_restrito_financeiro = true` continua sendo exatamente as mesmas duas de sempre (`GET /financeiro/mensalidades/estudante/:codigo` e `POST /financeiro/mensalidades/pagamento` — confirmado em `internal/middleware/auth.go`, função `rotaFinanceiraRestrita`). Chamar `GET /financeiro/cobrancas/estudante/:codigo` nesse modo resulta em `403` ("sessão restrita exclusivamente ao pagamento de mensalidades"). A Parte I precisa detectar o modo restrito (Parte C) e **pular** essa chamada nesse caso — ver I.1 e I.5 revisadas.
 
 ### 2.2 Administrador que não é `fpp` recebe 403 em TODA rota `/financeiro/*`, inclusive leitura (GET)
 
@@ -169,6 +180,24 @@ Notas importantes sobre este contrato, direto do código-fonte (não deduza nada
 - `metodo_pagamento` já vem como `"GPO_QR"` distinto de `"GPO"` quando aplicável — não precisa de lógica adicional no frontend para diferenciar.
 - **Este endpoint devolve só um resumo por cobrança** — não inclui `response` (payload bruto do provedor) nem `qrCodeArr`. Para o detalhe completo de uma cobrança específica, a subtela de detalhe (Parte H) deve chamar `GET /financeiro/appypay/cobrancas/:id` com o `id` retornado nesta listagem — os dois endpoints são complementares por design, não uma falha do primeiro. **Atenção:** confirmado no código-fonte (`Service.ConsultCharge`/`consultCharge`, em `internal/finance/appypay.go`) que esta consulta de detalhe devolve o tipo `ChargeResult` (reconsultando a AppyPay ao vivo), **não** `QRCodeResult` — ou seja, **não há garantia de que `qrCodeArr` volte aqui** para uma cobrança originalmente criada como `GPO_QR`; o campo só é gerado e devolvido no momento da criação (`POST /financeiro/appypay/qr-codes` ou dentro dos fluxos de pagamento corrigidos no aviso 2.3). Ao implementar a subtela de detalhe (Parte H), não assuma que o QR Code sempre estará disponível para recuperação posterior — trate a ausência de `qrCodeArr` como caso normal, mostrando os demais campos normalmente.
 - `total` no corpo da resposta é a quantidade de itens **nesta página** (equivalente a `cobrancas.length`); `total_geral` é a quantidade total que casa com o filtro, use este último para calcular paginação (número de páginas, "mostrando X de Y", etc.).
+
+### 4.1-B Histórico completo de cobranças por estudante (`GET /financeiro/cobrancas/estudante/:codigo`) — novo endpoint
+
+| Método | Rota | Quem chama | Query |
+| --- | --- | --- | --- |
+| GET | `/financeiro/cobrancas/estudante/:codigo` | o próprio estudante (`:codigo` precisa bater com o código do token; histórico de todas as academias) / academia (só com vínculo atual ou histórico com o estudante — mesmo critério de `academiaPossuiVinculoMensalidade` usado em 4.5; resultado restrito às cobranças feitas àquela academia) / admin FPP (qualquer estudante, todas as academias) | `estado?` (repetível, mesmo filtro de 4.1-A), `limit?` (padrão 50, máx. 1000), `offset?` (padrão 0) |
+
+Esta rota está registrada fora do grupo `/financeiro` que exige `RequireAcademiaOuAdmin()` — é acessível a qualquer usuário autenticado, com a autorização de três vias resolvida dentro do próprio handler (`ConsultarCobrancasEstudante`), exatamente como `GET /financeiro/mensalidades/estudante/:codigo` (4.5). Para o caso `admin`, continua exigindo permissão `fpp` (`financeAdminAllowed` — aviso 2.2 vale igual).
+
+**Resposta `200`: exatamente o mesmo formato de 4.1-A** (`{ cobrancas: CobrancaResumo[], total, total_geral, limit, offset }`, mesmos campos por item — inclusive `origem` derivada e `metodo_pagamento` já normalizado para `"GPO_QR"` quando aplicável). Qualquer código que já sabe interpretar a resposta de `GET /financeiro/cobrancas` sabe interpretar esta sem adaptação — reaproveite o mesmo tipo TypeScript (`ListarCobrancasResponse`, Parte A), não crie um tipo novo.
+
+Diferenças em relação a 4.1-A (não deduza nada além do que está confirmado no código-fonte, `internal/finance/appypay.go`, função `ListCobrancasEstudante`):
+
+- **Não** aceita `contexto_tipo` nem `codigo_academia` como filtro — o próprio `:codigo` já delimita a consulta a um estudante; o resultado cruza automaticamente todas as academias em que ele já teve vínculo, exceto quando quem chama é uma academia, caso em que o backend já restringe sozinho ao que aquele estudante pagou àquela academia especificamente (não implemente esse filtro de novo no frontend, nem exiba um seletor de academia nesta consulta).
+- Sem filtro de `estado`, devolve **todos** os estados por padrão (pendente, falhada, cancelada e paga) — comportamento intencional: o objetivo é o estudante (ou quem consulta por ele) ver tudo o que ele já teve, não só pagamentos concluídos.
+- Inclui a cobrança da **matrícula original** do estudante mesmo que o payload dela não tenha `codigo_estudante` — o backend resolve esse vínculo via `codigo_estudante_gerado`, gravado em `projection_solicitacoes_matricula` quando a solicitação é aprovada. Isso é algo que `GET /financeiro/mensalidades/estudante/:codigo` (4.5) nunca cobre, porque aquela rota só lista obrigações de mensalidade/propina, nunca matrícula nem cobranças avulsas — use esta rota nova (4.1-B) quando precisar mostrar a cobrança de matrícula de um estudante já matriculado (Partes H.5 e I.2-A).
+
+**Atenção — não liberada em sessão financeira restrita:** confirmado em `internal/middleware/auth.go` (`rotaFinanceiraRestrita`), esta rota **não** está na lista de rotas permitidas para um estudante com `acesso_restrito_financeiro = true`; só `GET /financeiro/mensalidades/estudante/:codigo` e `POST /financeiro/mensalidades/pagamento` continuam liberadas nesse modo. Ver aviso 2.1-B e Parte I (I.1/I.2-A/I.5).
 
 ### 4.2 Configuração de mensalidade (propina)
 
@@ -438,6 +467,16 @@ export interface ListarCobrancasResponse {
   offset: number;
 }
 
+// ---- Histórico completo de cobranças por estudante (GET /financeiro/cobrancas/estudante/:codigo) — novo endpoint ----
+// Resposta idêntica à de GET /financeiro/cobrancas — reaproveite ListarCobrancasResponse acima,
+// não crie um tipo de resposta novo (ver contrato 4.1-B).
+
+export interface ListarCobrancasEstudanteParams {
+  estado?: string[];
+  limit?: number;
+  offset?: number;
+}
+
 // ---- Matrícula (taxa de matrícula) ----
 
 export interface MatriculaConfiguracaoInput {
@@ -597,6 +636,21 @@ export const financeiroService = {
     api.get<ChargeResult>(`/financeiro/appypay/cobrancas/${encodeURIComponent(id)}${/* montar querystring com params, se houver */ ''}`, {
       token: token || tokenStorage.get() || undefined,
     }),
+
+  // Novo (ver 4.1-B): histórico completo de cobranças de um estudante (mensalidade,
+  // matrícula e avulsa, em qualquer estado). NÃO chame em sessão financeira restrita
+  // (ver 2.1-B/2.4/I.5) — a rota responde 403 nesse modo.
+  consultarCobrancasEstudante: (codigoEstudante: string, params?: ListarCobrancasEstudanteParams, token?: string) => {
+    const qs = new URLSearchParams();
+    (params?.estado || []).forEach((e) => qs.append('estado', e));
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.offset != null) qs.set('offset', String(params.offset));
+    const query = qs.toString();
+    return api.get<ListarCobrancasResponse>(
+      `/financeiro/cobrancas/estudante/${encodeURIComponent(codigoEstudante)}${query ? `?${query}` : ''}`,
+      { token: token || tokenStorage.get() || undefined }
+    );
+  },
 
   cancelarCobranca: (id: string, motivo: string | undefined, token?: string) =>
     api.post<ChargeResult>(`/financeiro/appypay/cobrancas/${encodeURIComponent(id)}/cancelar`, { motivo }, {
@@ -916,6 +970,14 @@ Ao clicar numa linha, abra um modal (`useModal`/`Modal`) que chama `financeiroSe
 
 Mantenha, abaixo da listagem principal, uma seção separada "Consultar mensalidades de um estudante": `SearchableSelect` de estudante (via `consultasService.listarEstudantes`, escopado à própria academia quando o ator é academia; livre, com aviso claro de que o resultado cobre todas as academias do estudante, quando o ator é admin FPP). Ao selecionar um estudante, chama `financeiroService.consultarMensalidadesEstudante(codigo)` e mostra uma tabela com `ano_letivo`, `mes`, `academia` (relevante principalmente para o admin FPP, que vê todas), `valor`, `estado` (mesmo esquema de badge da seção H.2). Esta seção continua necessária porque `GET /financeiro/cobrancas` lista **cobranças que já foram iniciadas** — um mês de propina ainda pendente, sem nenhuma cobrança criada para ele, não aparece na listagem principal, só nesta consulta por estudante. Acima da tabela, para academia/admin FPP, dois botões de ação em massa sobre os meses selecionados (checkbox por linha): "Anular selecionados" / "Reativar selecionados", reaproveitando o mesmo fluxo/serviço da Parte E.2.4 (extraia esse mini-formulário para um componente compartilhado, evitando duplicar entre `/financas/configuracoes` e `/financas/pagamentos`).
 
+### H.5 Seção complementar (novo) — histórico completo de cobranças de um estudante
+
+Abaixo (ou como aba adicional, ao lado de H.4) e usando o **mesmo** `SearchableSelect` de estudante já descrito em H.4 (não duplique o seletor — se o componente permitir, reaproveite o estudante já selecionado em H.4 para as duas seções), chame `financeiroService.consultarCobrancasEstudante(codigo)` (`GET /financeiro/cobrancas/estudante/:codigo`, contrato 4.1-B) e mostre o resultado com o **mesmo** esquema de colunas/badge de estado já usado na listagem principal (H.2): `origem` (matrícula/mensalidade/avulsa), `status`, `valor`, `metodo_pagamento`, `codigo_academia`, `atualizado_em`. Reaproveite também o clique-para-detalhe (H.3, `GET /financeiro/appypay/cobrancas/:id`) nas linhas desta tabela.
+
+Diferença desta seção para H.2: aqui o filtro é sempre por **um único estudante** (nunca por academia/contexto/tipo) e, quando quem está logado é uma academia, o backend já restringe sozinho o resultado ao que aquele estudante pagou àquela academia especificamente — não filtre de novo no client, e não ofereça seletor de academia nesta seção.
+
+Esta seção é o único lugar em `/financas/pagamentos` onde a academia/admin consegue localizar a cobrança de **matrícula** de um estudante específico junto com o restante do histórico dele — a seção H.4 (mensalidades) nunca mostra matrícula, porque mensalidade e matrícula são conceitos distintos no backend (ver 4.1-B).
+
 ---
 
 ## PARTE I — Página `/pagamentos` (estudante)
@@ -926,9 +988,17 @@ Arquivos: `src/app/(painel)/pagamentos/page.tsx` (ou fora de `(painel)` se, na p
 
 Ao montar, obtenha o `codigo_estudante` do estudante logado (do cookie `user`/`MeuPerfilResponse`, ou do cookie mínimo gravado em sessão restrita — Parte C.6) e chame `financeiroService.consultarMensalidadesEstudante(codigo)`. **Nunca** peça esse código como input manual — o estudante só vê os próprios dados.
 
+Fora do modo de sessão restrita (`acesso_restrito_financeiro !== true` — ver C.1/I.5), chame **também** `financeiroService.consultarCobrancasEstudante(codigo)` (`GET /financeiro/cobrancas/estudante/:codigo`, novo — contrato 4.1-B) para alimentar a seção de histórico completo de cobranças (I.2-A). **Pule** essa segunda chamada quando a sessão for restrita: a rota não está na lista de rotas liberadas nesse modo (ver 2.1-B/2.4) e responderia `403`.
+
 ### I.2 Listagem — "todos os pagamentos, todos os status, de todas as academias"
 
 Isto **é totalmente suportado** pela API (diferente das telas de admin/academia — ver 4.5), já que `mensalidades` retorna todo o histórico do estudante em todas as academias por onde já passou. Agrupe visualmente por academia (uma seção/acordeão por `codigo_academia`), e dentro de cada uma, uma tabela por `ano_letivo` com `mes`, `valor`, `estado` (badges: pendente/pago/anulado, mesmas cores da Parte H). Adicione filtro por estado no topo (todos/pendentes/pagos/anulados).
+
+### I.2-A Histórico completo de cobranças (novo — mensalidade, matrícula e avulsa)
+
+Complementarmente à listagem de mensalidades (I.2, que mostra o estado mês a mês de cada obrigação de propina), mostre, numa seção ou aba separada "Histórico de cobranças", o resultado de `consultarCobrancasEstudante` (I.1) com o mesmo esquema de tabela/badge de estado já usado na Parte H.2: `origem` (matrícula/mensalidade/avulsa), `status`, `valor`, `metodo_pagamento`, `codigo_academia`, `atualizado_em`. Esta é a **única** fonte, nesta página, que inclui a cobrança da **matrícula** do estudante — a listagem de mensalidades (I.2) nunca cobre matrícula nem cobranças avulsas (ver 4.1-B). Não é necessário agrupar por academia aqui (embora possa, se fizer sentido visualmente) — é uma listagem de cobranças, não de obrigações mês a mês.
+
+Esta seção **não aparece** (ou aparece com um aviso simples, sem tentar chamar a API) quando a sessão é financeira restrita — ver I.5.
 
 ### I.3 Iniciar pagamento
 
@@ -945,7 +1015,7 @@ Mesmo tratamento de exibição por método descrito em F.2 item 4 (dados de refe
 
 ### I.5 Sessão financeira restrita
 
-Ver Parte C por completo — esta página precisa funcionar integralmente (leitura e pagamento) para um estudante com `acesso_restrito_financeiro = true`, incluindo o aviso explicativo mencionado em C.6, e sem chamar nenhuma rota fora das duas permitidas nesse modo (4.5 e 4.6).
+Ver Parte C por completo — esta página precisa funcionar integralmente (leitura e pagamento) para um estudante com `acesso_restrito_financeiro = true`, incluindo o aviso explicativo mencionado em C.6, e sem chamar nenhuma rota fora das duas permitidas nesse modo (4.5 e 4.6). **A seção I.2-A (histórico completo de cobranças) fica de fora desse modo**: `GET /financeiro/cobrancas/estudante/:codigo` (4.1-B) não está na lista de rotas liberadas para sessão restrita (ver 2.1-B) — não chame `consultarCobrancasEstudante` quando `acesso_restrito_financeiro` for verdadeiro (I.1); oculte a seção I.2-A ou mostre um aviso simples do tipo "histórico completo indisponível nesta sessão" nesse caso, sem tentar a chamada.
 
 ---
 
@@ -959,8 +1029,9 @@ Ver Parte C por completo — esta página precisa funcionar integralmente (leitu
 - [ ] `GPO_QR` aparece normalmente como opção selecionável nas telas de pagamento de propina (estudante) e matrícula (público), sempre que a academia o tiver habilitado — e, quando escolhido, a tela renderiza `cobranca.qrCodeArr` como imagem.
 - [ ] Detalhe de `/solicitacoes-matricula` mostra valor/métodos/situação de pagamento quando existentes, e permite à academia cancelar por falta de pagamento no status correto.
 - [ ] Página pública de matrícula permite acompanhar uma solicitação existente e pagar a taxa quando aplicável, sem prometer valor antes da aprovação.
-- [ ] `/financas/pagamentos` mostra a listagem real de cobranças (`GET /financeiro/cobrancas`), com filtros por origem e estado, paginação, e subtela de detalhe por linha (Parte H.2/H.3), além da seção complementar de mensalidades por estudante (Parte H.4).
-- [ ] `/pagamentos` (estudante) mostra o histórico completo de todas as academias e todos os status, e permite pagar mensalidades pendentes por qualquer método habilitado, incluindo `GPO_QR`.
+- [ ] `/financas/pagamentos` mostra a listagem real de cobranças (`GET /financeiro/cobrancas`), com filtros por origem e estado, paginação, e subtela de detalhe por linha (Parte H.2/H.3), além da seção complementar de mensalidades por estudante (Parte H.4) **e** da seção complementar de histórico completo de cobranças por estudante, incluindo matrícula (Parte H.5, novo endpoint).
+- [ ] `/pagamentos` (estudante) mostra o histórico completo de todas as academias e todos os status, e permite pagar mensalidades pendentes por qualquer método habilitado, incluindo `GPO_QR`; mostra também, fora de sessão restrita, o histórico completo de cobranças — incluindo matrícula — via `GET /financeiro/cobrancas/estudante/:codigo` (Parte I.2-A).
+- [ ] Em sessão financeira restrita, `/pagamentos` **não** chama `GET /financeiro/cobrancas/estudante/:codigo` (não está na lista de rotas liberadas — 2.1-B/2.4) e trata a ausência da seção I.2-A sem erro visível.
 - [ ] Nenhum endpoint inexistente foi inventado; nenhuma listagem foi simulada com dados parciais.
 - [ ] Nenhum campo inexistente foi inventado em `ChargeResult` (sem `valor`/`moeda`/`referencia`/`entidade` no nível superior — esses dados, quando existirem, vêm dentro de `response`).
 
