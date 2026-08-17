@@ -8,6 +8,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useApi, authService, tokenStorage } from "@/lib/api";
+import { setCookieHours } from "@/lib/utils/cookies";
+import { getLoginTokenCookieExpirationHours } from "@/lib/api/client";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -40,6 +42,19 @@ export default function LoginForm() {
 
       if (result) {
         tokenStorage.setWithType(result.token, result.type);
+        if (tokenStorage.isRestrictedFinance()) {
+          const userMinimo = {
+            tipo: "estudante",
+            estudante: {
+              codigo_estudante: result.codigo,
+              nome: result.nome,
+              status: "inativo",
+            },
+          };
+          setCookieHours("user", JSON.stringify(userMinimo), getLoginTokenCookieExpirationHours());
+          router.push("/pagamentos");
+          return;
+        }
         router.push("/painel");
       }
     } catch {

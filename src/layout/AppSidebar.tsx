@@ -12,6 +12,7 @@ import {
 import Icon from "@/components/ui/Icon";
 import SidebarWidget from "./SidebarWidget";
 import { getCookie } from '@/lib/utils/cookies';
+import { tokenStorage } from '@/lib/api/client';
 import type { MeuPerfilResponse } from '@/types/api';
 import { isTestesPageEnabled } from '@/lib/app-env';
 
@@ -38,6 +39,8 @@ const navItems: NavItem[] = [
     name: "Finanças",
     subItems: [
       { name: "Credenciais", path: "/financas/credenciais" },
+      { name: "Configurações", path: "/financas/configuracoes" },
+      { name: "Pagamentos", path: "/financas/pagamentos" },
     ],
   },
   {
@@ -70,6 +73,11 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="mdi:file-document-edit-outline" />,
     name: "Solicitações",
     path: "/solicitacoes",
+  },
+  {
+    icon: <Icon width="24px" icon="mdi:cash-clock" />,
+    name: "Pagamentos",
+    path: "/pagamentos",
   },
   {
     name: "Notas & Faltas",
@@ -201,6 +209,9 @@ export default function AppSidebar() {
       : navItems.filter((item) => item.path !== "/testes" && item.path !== "/comunicacao");
 
     if (!mounted) return environmentNavItems;
+    if (tokenStorage.isRestrictedFinance()) {
+      return environmentNavItems.filter((item) => item.path === "/pagamentos");
+    }
 
     /*
      * user?.academia?.nivel distingue o tipo de instituição: 'escola' | 'superior'
@@ -239,9 +250,12 @@ export default function AppSidebar() {
           if (item.path === "/armazenamento") {
             return user.tipo === "admin";
           }
-          // Finanças: apenas admin FPP ou academia
+          // Finanças: qualquer admin ou academia; páginas internas bloqueiam admin não-FPP.
           if (item.name === "Finanças") {
-            return (user.tipo === "admin" && isFpp) || user.tipo === "academia";
+            return user.tipo === "admin" || user.tipo === "academia";
+          }
+          if (item.path === "/pagamentos") {
+            return user.tipo === "estudante";
           }
           // Testes: apenas academia
           if (item.path === "/testes") {

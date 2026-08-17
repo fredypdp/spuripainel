@@ -1,8 +1,8 @@
 // src/lib/api/index.ts
 
 // Client
-export { api, tokenStorage, ApiError, SpuriApiError } from './client';
-export type { ApiErrorCode, ApiErrorDetail, ApiErrorEnvelope, FetchOptions } from './client';
+export { api, tokenStorage, ApiError, SpuriApiError, decodeTokenPayload } from './client';
+export type { ApiErrorCode, ApiErrorDetail, ApiErrorEnvelope, FetchOptions, DecodedTokenClaims } from './client';
 
 // Serviços
 export {

@@ -125,6 +125,28 @@ import type {
   AtualizarFinanceiroCredencialRequest,
   ListarFinanceiroCredenciaisParams,
   ListarFinanceiroCredenciaisResponse,
+  MensalidadeConfiguracaoInput,
+  MensalidadeConfiguracaoView,
+  ListarConfiguracoesMensalidadeResponse,
+  MesInicioCobrancaInput,
+  ObrigacaoMensalidadeInput,
+  ConsultarMensalidadesEstudanteResponse,
+  MensalidadePagamentoInput,
+  MensalidadePagamentoResponse,
+  MatriculaConfiguracaoInput,
+  MatriculaConfiguracaoView,
+  ListarConfiguracoesMatriculaResponse,
+  ListarCobrancasParams,
+  ListarCobrancasResponse,
+  ListarCobrancasEstudanteParams,
+  ChargeResult,
+  FinanceiroContextoTipo,
+  BuscarSolicitacoesMatriculaParams,
+  BuscarSolicitacoesMatriculaResponse,
+  SolicitacaoMatriculaStatusResponse,
+  PagamentoMatriculaInput,
+  PagamentoMatriculaResponse,
+  CancelarSolicitacaoMatriculaInput,
 } from '@/types/api';
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -420,6 +442,23 @@ export const solicitacaoMatriculaService = {
     api.postForm<CriarSolicitacaoMatriculaResponse>(
       '/solicitacao-matricula',
       prepareSolicitacaoMatriculaForm(data)
+    ),
+
+  buscar: (params: BuscarSolicitacoesMatriculaParams) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) qs.set(key, value);
+    });
+    return api.get<BuscarSolicitacoesMatriculaResponse>(`/solicitacao-matricula/busca?${qs.toString()}`);
+  },
+
+  consultarStatus: (codigo: string) =>
+    api.get<SolicitacaoMatriculaStatusResponse>(`/solicitacao-matricula/${encodeURIComponent(codigo)}/status`),
+
+  iniciarPagamento: (codigo: string, data: PagamentoMatriculaInput) =>
+    api.post<PagamentoMatriculaResponse, PagamentoMatriculaInput>(
+      `/solicitacao-matricula/${encodeURIComponent(codigo)}/pagamento-matricula`,
+      data
     ),
 };
 
@@ -820,6 +859,43 @@ export const financeiroService = {
       data,
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  listarConfiguracoesMensalidade: (params: { codigo_academia?: string } = {}, token?: string) =>
+    api.get<ListarConfiguracoesMensalidadeResponse>(`/financeiro/mensalidades/configuracoes${params.codigo_academia ? `?codigo_academia=${encodeURIComponent(params.codigo_academia)}` : ''}`, { token: token || tokenStorage.get() || undefined }),
+  configurarMensalidade: (data: MensalidadeConfiguracaoInput, token?: string) => api.post<MensalidadeConfiguracaoView, MensalidadeConfiguracaoInput>('/financeiro/mensalidades/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
+  atualizarConfiguracaoMensalidade: (data: MensalidadeConfiguracaoInput, token?: string) => api.put<MensalidadeConfiguracaoView, MensalidadeConfiguracaoInput>('/financeiro/mensalidades/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
+  definirInicioCobranca: (data: MesInicioCobrancaInput, token?: string) => api.post<void, MesInicioCobrancaInput>('/financeiro/mensalidades/inicio-cobranca', data, { token: token || tokenStorage.get() || undefined }),
+  anularObrigacoes: (data: ObrigacaoMensalidadeInput, token?: string) => api.post<void, ObrigacaoMensalidadeInput>('/financeiro/mensalidades/anular', data, { token: token || tokenStorage.get() || undefined }),
+  reativarObrigacoes: (data: ObrigacaoMensalidadeInput, token?: string) => api.post<void, ObrigacaoMensalidadeInput>('/financeiro/mensalidades/reativar', data, { token: token || tokenStorage.get() || undefined }),
+  consultarMensalidadesEstudante: (codigoEstudante: string, token?: string) => api.get<ConsultarMensalidadesEstudanteResponse>(`/financeiro/mensalidades/estudante/${encodeURIComponent(codigoEstudante)}`, { token: token || tokenStorage.get() || undefined }),
+  iniciarPagamentoMensalidades: (data: MensalidadePagamentoInput, token?: string) => api.post<MensalidadePagamentoResponse, MensalidadePagamentoInput>('/financeiro/mensalidades/pagamento', data, { token: token || tokenStorage.get() || undefined }),
+  listarConfiguracoesMatricula: (params: { codigo_academia?: string } = {}, token?: string) => api.get<ListarConfiguracoesMatriculaResponse>(`/financeiro/matriculas/configuracoes${params.codigo_academia ? `?codigo_academia=${encodeURIComponent(params.codigo_academia)}` : ''}`, { token: token || tokenStorage.get() || undefined }),
+  configurarMatricula: (data: MatriculaConfiguracaoInput, token?: string) => api.post<MatriculaConfiguracaoView, MatriculaConfiguracaoInput>('/financeiro/matriculas/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
+  atualizarConfiguracaoMatricula: (data: MatriculaConfiguracaoInput, token?: string) => api.put<MatriculaConfiguracaoView, MatriculaConfiguracaoInput>('/financeiro/matriculas/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
+  listarCobrancas: (params: ListarCobrancasParams, token?: string) => {
+    const qs = new URLSearchParams();
+    if (params.contexto_tipo) qs.set('contexto_tipo', params.contexto_tipo);
+    if (params.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
+    params.estado?.forEach((e) => qs.append('estado', e));
+    params.tipo?.forEach((t) => qs.append('tipo', t));
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    if (params.offset != null) qs.set('offset', String(params.offset));
+    return api.get<ListarCobrancasResponse>(`/financeiro/cobrancas${qs.toString() ? `?${qs.toString()}` : ''}`, { token: token || tokenStorage.get() || undefined });
+  },
+  consultarCobranca: (id: string, params?: { contexto_tipo?: FinanceiroContextoTipo; codigo_academia?: string }, token?: string) => {
+    const qs = new URLSearchParams();
+    if (params?.contexto_tipo) qs.set('contexto_tipo', params.contexto_tipo);
+    if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
+    return api.get<ChargeResult>(`/financeiro/appypay/cobrancas/${encodeURIComponent(id)}${qs.toString() ? `?${qs.toString()}` : ''}`, { token: token || tokenStorage.get() || undefined });
+  },
+  consultarCobrancasEstudante: (codigoEstudante: string, params?: ListarCobrancasEstudanteParams, token?: string) => {
+    const qs = new URLSearchParams();
+    params?.estado?.forEach((e) => qs.append('estado', e));
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.offset != null) qs.set('offset', String(params.offset));
+    return api.get<ListarCobrancasResponse>(`/financeiro/cobrancas/estudante/${encodeURIComponent(codigoEstudante)}${qs.toString() ? `?${qs.toString()}` : ''}`, { token: token || tokenStorage.get() || undefined });
+  },
+  cancelarCobranca: (id: string, motivo?: string, token?: string) => api.post<ChargeResult, { motivo?: string }>(`/financeiro/appypay/cobrancas/${encodeURIComponent(id)}/cancelar`, { motivo }, { token: token || tokenStorage.get() || undefined }),
 };
 
 // =====================
@@ -1087,6 +1163,13 @@ export const academiaService = {
 
   baixarDocumentoSolicitacaoMatricula: (codigo: string, campo: string, token?: string) =>
     documentosService.baixarDocumentoSolicitacaoMatricula(codigo, campo, token),
+
+  cancelarSolicitacaoMatricula: (codigo: string, data: CancelarSolicitacaoMatriculaInput, token?: string) =>
+    api.put<{ message: string }, CancelarSolicitacaoMatriculaInput>(
+      `/academia/solicitacao-matricula/${encodeURIComponent(codigo)}/cancelar`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
 
   // ── Notas ──────────────────────────────────────────────────────────
 

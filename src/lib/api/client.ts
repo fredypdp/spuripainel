@@ -17,6 +17,27 @@ export function getLoginTokenCookieExpirationHours(): number {
   return DEFAULT_LOGIN_TOKEN_COOKIE_EXPIRATION_HOURS;
 }
 
+
+export interface DecodedTokenClaims {
+  user_id?: string;
+  user_type?: string;
+  acesso_restrito_financeiro?: boolean;
+  exp?: number;
+}
+
+export function decodeTokenPayload(token: string): DecodedTokenClaims | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const json = JSON.parse(atob(padded));
+    return json as DecodedTokenClaims;
+  } catch {
+    return null;
+  }
+}
+
 export const getApiBaseUrl = () => {
   const url = API_BASE_URL;
   
@@ -310,5 +331,11 @@ export const tokenStorage = {
     const expirationHours = getLoginTokenCookieExpirationHours();
     setCookieHours('auth_token', token, expirationHours);
     setCookieHours('user_type', type, expirationHours);
+  },
+
+  isRestrictedFinance: () => {
+    const token = tokenStorage.get();
+    if (!token) return false;
+    return decodeTokenPayload(token)?.acesso_restrito_financeiro === true;
   },
 };
