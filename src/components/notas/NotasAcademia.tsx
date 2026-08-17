@@ -6,7 +6,7 @@ import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/a
 import { listarTodosEstudantes } from "@/lib/api/pagination";
 import type {
   MeuPerfilResponse, Nota, Turma, EstudanteDetalhado, Curso,
-  TipoNota, RegistrarNotasRequest, CriarCategoriaNotaRequest, CategoriaNotaItem,
+  TipoNota, CriarCategoriaNotaRequest, CategoriaNotaItem,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import Alert from "@/components/ui/alert/Alert";
@@ -76,7 +76,10 @@ const ANOS_COM_NOTAS_REGULARES = [
   "9_ano_fundamental", "1_ano_medio", "2_ano_medio", "3_ano_medio",
 ];
 const ANOS_COM_EXAME = ["6_ano_fundamental", "9_ano_fundamental", "3_ano_medio"];
-const CATEGORIAS_ESCOLAR = [
+// Exportado para ser reaproveitado como fonte única de verdade pela tela de
+// lançamento de notas em massa (src/app/(painel)/notas/lancar), evitando que
+// as duas listas de categorias fixas fiquem dessincronizadas com o tempo.
+export const CATEGORIAS_ESCOLAR = [
   { label: "Nota do professor", value: "nota_professor", anos_academicos: ANOS_COM_NOTAS_REGULARES },
   { label: "Prova do trimestre", value: "prova_trimestral", anos_academicos: ANOS_COM_NOTAS_REGULARES },
   { label: "Exame final", value: "exame_final", anos_academicos: ANOS_COM_EXAME },
@@ -841,16 +844,6 @@ export default function NotasAcademia() {
   }
 
   // ─── handlers de escrita ────────────────────────────────────────────────────
-
-  async function handleRegistrar(d: RegistrarNotasRequest) {
-    await academiaService.registrarNota(d, token);
-    showAlert("success", "Nota registada com sucesso.");
-    const turmaAtual = (layer.type === "periodos" || layer.type === "notas") ? (layer as any).turma : null;
-    if (turmaAtual) {
-      const l = layer as any;
-      await carregarNotasDosEstudantesDaTurma(turmaAtual, true, l.type === "notas" ? { nivel: l.nivel, periodo: l.periodo, superior: l.mode === "sup" } : undefined);
-    }
-  }
 
   async function handleCorrigirNota(id: string, data: { nota: number; observacao?: string; motivo: string }) {
     await academiaService.corrigirNota(id, data, token);
