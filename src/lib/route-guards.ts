@@ -162,6 +162,16 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   // NOTAS / FALTAS
   // ==========================================
   {
+    path: '/notas/lancar',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/notas',
+  },
+  {
+    path: '/faltas/lancar',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/faltas',
+  },
+  {
     path: '/notas',
     allowedTypes: 'authenticated',
     redirectIfUnauthorized: '/login',

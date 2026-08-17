@@ -1,0 +1,1 @@
+"use client";import BatchProgressScreen from '../../estudantes/cadastrar/BatchProgressScreen';import type{ContextoModeloNotas}from'./notasTypes';export default function BatchProgressScreenNotas(p:{jobIds:string[];contexto?:ContextoModeloNotas|null;avisoSubmissao?:string|null;onConcluido:()=>void}){return <BatchProgressScreen {...p as any}/>}

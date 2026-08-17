@@ -1,10 +1,11 @@
 // src/components/faltas/FaltasAcademia.tsx
 "use client"
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import { listarTodosEstudantes } from "@/lib/api/pagination";
 import type {
-  ApiDate, MeuPerfilResponse, Falta, RegistrarFaltasRequest,
+  ApiDate, MeuPerfilResponse, Falta,
   Turma, Curso, EstudanteDetalhado,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -15,7 +16,6 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { Dropdown } from "primereact/dropdown";
-import DatePicker from "@/components/form/date-picker";
 import { getCookie } from "@/lib/utils/cookies";
 
 
@@ -259,135 +259,6 @@ function TabelaFaltas({
   );
 }
 
-// ─── Modal Registrar Falta ────────────────────────────────────────────────────
-
-function ModalRegistrarFalta({
-  isOpen,
-  estudantes,
-  materias,
-  periodos,
-  onConfirm,
-  onClose,
-}: {
-  isOpen: boolean;
-  estudantes: EstudanteDetalhado[];
-  materias: { id: string; nome: string; periodo?: string }[];
-  periodos: { value: string; label: string }[];
-  onConfirm: (data: RegistrarFaltasRequest) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [codigoEstudante, setCodigoEstudante] = useState("");
-  const [dataFalta, setDataFalta]             = useState<ApiDate>(toApiDateFromLocalDate(new Date()));
-  const [materiaId, setMateriaId]             = useState("");
-  const [periodo, setPeriodo]                 = useState("");
-  const [quantidade, setQuantidade]           = useState("");
-  const [observacao, setObservacao]           = useState("");
-  const [loading, setLoading]                 = useState(false);
-  const [error, setError]                     = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!codigoEstudante || !dataFalta || !materiaId || !periodo || !quantidade) {
-      setError("Preencha todos os campos obrigatórios"); return;
-    }
-    const qtd = parseInt(quantidade);
-    if (isNaN(qtd) || qtd < 1) { setError("Quantidade deve ser no mínimo 1"); return; }
-    setLoading(true);
-    try {
-      await onConfirm({
-        codigo_estudante: codigoEstudante,
-        data: dataFalta,
-        materia_disciplinar_id: materiaId,
-        periodo: periodo as RegistrarFaltasRequest["periodo"],
-        quantidade: qtd,
-        observacao: observacao || undefined,
-      });
-      setCodigoEstudante(""); setMateriaId(""); setPeriodo(""); setQuantidade(""); setObservacao("");
-      setDataFalta(toApiDateFromLocalDate(new Date()));
-      onClose();
-    } catch (err: any) {
-      setError(err?.message ?? "Erro ao registrar falta");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-[560px] p-5 lg:p-8">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <h4 className="text-lg font-medium text-gray-800 dark:text-white/90 mb-2">
-          Registrar Nova Falta
-        </h4>
-        {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-            {error}
-          </div>
-        )}
-        <div>
-          <Label>Estudante *</Label>
-          <Dropdown
-            value={codigoEstudante}
-            options={estudantes.map(e => ({
-              label: `${e.nome} (${e.codigo_estudante})`,
-              value: e.codigo_estudante,
-            }))}
-            onChange={e => setCodigoEstudante(e.value)}
-            filter
-            placeholder="Selecione o estudante"
-            className="w-full"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Quantidade *</Label>
-            <Input
-              type="number"
-              min="1"
-              placeholder="Ex: 2"
-              value={quantidade}
-              onChange={e => setQuantidade(e.target.value)}
-            />
-          </div>
-          <DatePicker
-            id="registrar-falta-data"
-            label="Data *"
-            placeholder="Selecione"
-            defaultDate={dataFalta}
-            onChange={dates => {
-              if (dates?.length) setDataFalta(toApiDateFromLocalDate(dates[0]));
-            }}
-          />
-        </div>
-        <div>
-          <Label>Matéria *</Label>
-          <Dropdown
-            value={materiaId}
-            options={materias.map(m => ({ label: m.nome, value: m.id }))}
-            onChange={e => { const id = e.value; setMateriaId(id); const mat = materias.find(m => m.id === id); if (mat?.periodo) setPeriodo(mat.periodo); }}
-            filter
-            placeholder="Selecione a matéria"
-            className="w-full"
-          />
-        </div>
-        <div>
-          <Label>Período *</Label>
-          <Dropdown value={periodo} options={periodos} onChange={e => setPeriodo(e.value)} placeholder="Selecione o período" className="w-full" />
-        </div>
-        <div>
-          <Label>Observação</Label>
-          <Input type="text" placeholder="Opcional" onChange={e => setObservacao(e.target.value)} />
-        </div>
-        <div className="flex gap-3 justify-end mt-4">
-          <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-          <Button disabled={loading}>{loading ? "Registrando..." : "Registrar Falta"}</Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-
 function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm }: { falta: Falta | null; isOpen: boolean; onClose: () => void; onConfirm: (id: string, data: { quantidade: number; observacao?: string; motivo: string }) => Promise<void>; }) {
   const [quantidade, setQuantidade] = useState("");
   const [observacao, setObservacao] = useState("");
@@ -465,28 +336,16 @@ export default function FaltasAcademia() {
 
   const { data: dataTurmas,         loading: loadingTurmas, execute: carregarTurmas     } = useApi(academiaService.listarTurmas);
   const { data: dataCursos,                                  execute: carregarCursos     } = useApi(academiaService.listarCursos);
-  const { data: dataEstudantes, loading: loadingEstud,  execute: carregarEstudantes } = useApi(listarTodosEstudantes);
+  const { data: dataEstudantes, loading: loadingEstud } = useApi(listarTodosEstudantes);
   const { data: dataMaterias,                                execute: carregarMaterias   } = useApi(academiaService.listarMaterias);
   const { data: dataAnoLetivo,                               execute: buscarAnoLetivo    } = useApi(academiaService.getAnoLetivo);
   const { data: dataAnosLetivosLista,                        execute: buscarAnosLetivos  } = useApi(academiaService.listarAnosLetivosLista);
-  const { execute: executarRegistrar }                                                      = useApi(academiaService.registrarFaltas);
-
-  const { isOpen, openModal, closeModal } = useModal();
   const { isOpen: isCorrigirOpen, openModal: openCorrigirModal, closeModal: closeCorrigirModal } = useModal();
   const [faltaSelecionada, setFaltaSelecionada] = useState<Falta | null>(null);
   const materias = useMemo(
     () => ((dataMaterias as any)?.materias ?? []).filter((m: any) => m.status === "ativo"),
     [dataMaterias]
   );
-
-  // A lista completa de estudantes da academia só é necessária dentro do
-  // modal "Nova Falta" (dropdown de estudante pesquisável). Por turma, os
-  // estudantes já são carregados sob demanda via estudantesPorTurma. Por
-  // isso este fetch é disparado apenas ao abrir o modal, não na montagem.
-  function abrirModalNovaFalta() {
-    if (!dataEstudantes) carregarEstudantes({ token });
-    openModal();
-  }
 
   // ─── carga inicial ──────────────────────────────────────────────────────────
 
@@ -680,13 +539,6 @@ export default function FaltasAcademia() {
   }
 
   // ─── handlers de escrita ────────────────────────────────────────────────────
-
-  async function handleRegistrar(data: RegistrarFaltasRequest) {
-    await executarRegistrar(data, token);
-    showAlert("success", "Falta registrada com sucesso.");
-    const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
-    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true, { periodo: (layer as any).periodo });
-  }
 
   async function handleCorrigirFalta(id: string, data: { quantidade: number; observacao?: string; motivo: string }) {
     await academiaService.corrigirFalta(id, data, token);
@@ -1260,18 +1112,18 @@ export default function FaltasAcademia() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div>
+        <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Faltas</h2>
-          {turmas.length > 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {turmasAtivas.length} turma(s) ativa(s){!loadingEstud && estudantes.length > 0 ? ` · ${estudantes.length} estudante(s)` : ""} · {todasFaltas.length} registro(s)
-            </p>
-          )}
+          <Link href="/faltas/lancar" className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">
+            <Icon icon="mdi:upload" width={16} /> Lançar Faltas
+          </Link>
         </div>
-        <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={abrirModalNovaFalta}>
-          Nova Falta
-        </Button>
+        {turmas.length > 0 && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            {turmasAtivas.length} turma(s) ativa(s){!loadingEstud && estudantes.length > 0 ? ` · ${estudantes.length} estudante(s)` : ""} · {todasFaltas.length} registro(s)
+          </p>
+        )}
       </div>
 
       {renderLayer()}
@@ -1282,15 +1134,6 @@ export default function FaltasAcademia() {
         isOpen={isCorrigirOpen}
         onClose={closeCorrigirModal}
         onConfirm={handleCorrigirFalta}
-      />
-
-      <ModalRegistrarFalta
-        isOpen={isOpen}
-        estudantes={estudantes}
-        materias={materiasAtivas.map((m: any) => ({ id: m.id, nome: m.nome, periodo: m.periodo }))}
-        periodos={isSuperior ? PERIODOS_SUPERIOR : PERIODOS_ESCOLA}
-        onConfirm={handleRegistrar}
-        onClose={closeModal}
       />
     </div>
   );

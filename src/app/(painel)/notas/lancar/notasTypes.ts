@@ -1,0 +1,4 @@
+export interface ContextoModeloNotas { codigoAcademia:string; nomeAcademia:string; nivel:'fundamental'|'medio'|'superior'; cursoId?:string; cursoNome?:string; anoAcademico:string; anoAcademicoLabel:string; codigoTurma:string; turmaLabel?:string; periodo:string; periodoLabel:string; materiaId:string; materiaNome:string; categoria:string; categoriaNome:string; tipoNota:'escolar'|'superior'; versaoModelo:string; }
+export interface NotaBulkRow { linha:number; nome:string; codigoEstudante:string; valorNotaTexto:string; valorNota?:number; }
+export interface ErroValidacao { linha:number; coluna:string; campo:string; valor:string; mensagem:string; }
+export interface ResultadoAnaliseNotas { contexto: ContextoModeloNotas | null; linhas: NotaBulkRow[]; totalLinhasIgnoradas:number; erros:ErroValidacao[]; totalLinhas:number; }

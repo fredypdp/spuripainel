@@ -1,0 +1,4 @@
+export interface ContextoModeloFaltas { codigoAcademia:string; nomeAcademia:string; nivel:'fundamental'|'medio'|'superior'; cursoId?:string; cursoNome?:string; anoAcademico:string; anoAcademicoLabel:string; codigoTurma:string; turmaLabel?:string; periodo:string; periodoLabel:string; materiaId:string; materiaNome:string; versaoModelo:string; }
+export interface FaltaBulkRow { linha:number; nome:string; codigoEstudante:string; dataTexto:string; dataIso?:string; dataErro?:string; quantidadeTexto:string; quantidade?:number; }
+export interface ErroValidacao { linha:number; coluna:string; campo:string; valor:string; mensagem:string; }
+export interface ResultadoAnaliseFaltas { contexto: ContextoModeloFaltas | null; linhas: FaltaBulkRow[]; totalLinhasIgnoradas:number; erros:ErroValidacao[]; totalLinhas:number; }

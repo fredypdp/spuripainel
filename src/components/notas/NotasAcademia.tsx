@@ -1,6 +1,7 @@
 // src/components/notas/NotasAcademia.tsx
 "use client"
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import { listarTodosEstudantes } from "@/lib/api/pagination";
 import type {
@@ -429,77 +430,20 @@ function TabelaNotasSuperior({
 
 // ─── Modal de gestão de notas ─────────────────────────────────────────────────
 
-type ModalMode = "registrar" | "categoria";
-
 function ModalGestao({
-  isOpen, onClose, isSuperior, tipoNota, PERIODOS, anoLectivo,
-  estudantes, materias, categorias, anosAcademicosDisponiveis, onRegistrar, onCriarCategoria,
+  isOpen, onClose, categorias, anosAcademicosDisponiveis, onCriarCategoria,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  isSuperior: boolean;
-  tipoNota: TipoNota;
-  PERIODOS: { label: string; value: string }[];
-  anoLectivo: string;
-  estudantes: EstudanteDetalhado[];
-  materias: any[];
   categorias: CategoriaNotaItem[];
   anosAcademicosDisponiveis: string[];
-  onRegistrar: (d: RegistrarNotasRequest) => Promise<void>;
   onCriarCategoria: (d: CriarCategoriaNotaRequest) => Promise<void>;
 }) {
-  const [mode, setMode]     = useState<ModalMode>("registrar");
-  const [error, setError]   = useState<string | null>(null);
-
-  const [codigoEst, setCodigoEst]   = useState("");
-  const [periodo, setPeriodo]       = useState("");
-  const [materiaId, setMateriaId]   = useState("");
-  const [categoria, setCategoria]   = useState("");
-  const [nota, setNota]             = useState<number | "">("");
-  const [obs, setObs]               = useState("");
-
+  const [error, setError] = useState<string | null>(null);
   const [nomeCateg, setNomeCateg] = useState("");
   const [descCateg, setDescCateg] = useState("");
   const [anosCateg, setAnosCateg] = useState<Set<string>>(new Set());
 
-  const CATS_FIXAS = isSuperior ? [] : CATEGORIAS_ESCOLAR;
-  const anoSelecionado = anoAcademicoDoEstudante(estudantes.find((estudante) => normCodigoEstudante(estudante.codigo_estudante) === normCodigoEstudante(codigoEst)));
-  const todasCatsBase  = [
-    ...CATS_FIXAS,
-    ...categorias
-      .filter((c: any) => c.status !== "inativo")
-      .map((c: any) => ({ label: c.nome, value: c.codigo, anos_academicos: c.anos_academicos ?? [] })),
-  ];
-  const todasCats = todasCatsBase.filter((cat: any) => !cat.anos_academicos?.length || !anoSelecionado || cat.anos_academicos.includes(anoSelecionado));
-
-
-  async function handleRegistrar(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!codigoEst || !periodo || !materiaId || !categoria || nota === "") {
-      setError("Preencha os campos obrigatórios.");
-      return;
-    }
-    const n = Number(nota);
-    if (Number.isNaN(n) || n < 0 || n > 20) {
-      setError("A nota deve estar entre 0 e 20.");
-      return;
-    }
-    try {
-      await onRegistrar({
-        codigo_estudante: codigoEst,
-        periodo: periodo as any,
-        materia_disciplinar_id: materiaId,
-        tipo: tipoNota,
-        categoria,
-        nota: n,
-        observacao: obs || undefined,
-      });
-      onClose();
-    } catch (err: any) {
-      setError(err?.message ?? "Não foi possível registar a nota.");
-    }
-  }
   async function handleCriarCategoria(e: React.FormEvent) {
     e.preventDefault(); setError(null);
     if (!nomeCateg) { setError("Nome é obrigatório."); return; }
@@ -526,154 +470,41 @@ function ModalGestao({
 
   if (!isOpen) return null;
 
-  const TABS: { key: ModalMode; label: string }[] = [
-    { key: "registrar", label: "Registar" },
-    ...(isSuperior ? [{ key: "categoria" as ModalMode, label: "Categorias" }] : []),
-  ];
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[560px] p-5 lg:p-8">
-      <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4 flex-wrap">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => { setMode(key); setError(null); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-              mode === key
-                ? "bg-brand-500 text-white"
-                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
           {error}
         </div>
       )}
 
-      {mode === "registrar" && (
-        <form onSubmit={handleRegistrar} className="space-y-4">
-          <h4 className="font-semibold text-gray-900 dark:text-white">Registar Nota</h4>
-          <div>
-            <Label>Estudante *</Label>
-            <Dropdown
-              value={codigoEst}
-              options={estudantes.map(e => ({ label: `${e.nome} (${e.codigo_estudante})`, value: e.codigo_estudante }))}
-              onChange={e => setCodigoEst(e.value)}
-              placeholder="Selecione"
-              className="w-full"
-              filter
-            />
+      <form onSubmit={handleCriarCategoria} className="space-y-4">
+        <h4 className="font-semibold text-gray-900 dark:text-white">Nova Categoria de Nota</h4>
+        <div>
+          <Label>Nome *</Label>
+          <Input onChange={e => setNomeCateg(e.target.value)} placeholder="Ex: nota_trabalho" />
+          <p className="text-xs text-gray-500 mt-1">Será prefixado com nota_ se necessário.</p>
+        </div>
+        <div>
+          <Label>Descrição</Label>
+          <Input onChange={e => setDescCateg(e.target.value)} placeholder="Opcional" />
+        </div>
+        <div>
+          <Label>Anos acadêmicos *</Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {anosAcademicosDisponiveis.map((ano) => (
+              <button key={ano} type="button" onClick={() => toggleAnoCategoria(ano)} className={`rounded-full border px-3 py-1.5 text-xs transition ${anosCateg.has(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"}`}>
+                {labelAnoAcademico(ano)}
+              </button>
+            ))}
+            {anosAcademicosDisponiveis.length === 0 && <p className="text-xs text-gray-500">Nenhum ano acadêmico ativo encontrado.</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Período *</Label>
-              <Dropdown
-                value={periodo}
-                options={PERIODOS}
-                onChange={e => setPeriodo(e.value)}
-                placeholder="Selecione"
-                className="w-full"
-              />
-            </div>
-            <div>
-              <Label>Matéria *</Label>
-              <Dropdown
-                value={materiaId}
-                options={materias.map((m: any) => ({ label: m.nome, value: m.id }))}
-                onChange={e => {
-                  const id = e.value;
-                  setMateriaId(id);
-                  if (isSuperior) {
-                    const mat = (materias as any[]).find((m: any) => m.id === id);
-                    setPeriodo(mat?.periodo ?? "");
-                  }
-                }}
-                placeholder="Selecione"
-                className="w-full"
-                filter
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Categoria *</Label>
-              {anoSelecionado && <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Categorias filtradas para {labelAnoAcademico(anoSelecionado)}.</p>}
-              <Dropdown
-                value={categoria}
-                options={todasCats}
-                onChange={e => setCategoria(e.value)}
-                placeholder="Selecione"
-                className="w-full"
-              />
-            </div>
-            <div>
-              <Label>Nota (0–20) *</Label>
-              <Input
-                type="number"
-                min="0"
-                max="20"
-                step={0.01}
-                onChange={e => setNota(e.target.value === "" ? "" : Number(e.target.value))}
-                placeholder="Ex: 14"
-              />
-            </div>
-          </div>
-          <div>
-            <Label>Observação</Label>
-            <Input onChange={e => setObs(e.target.value)} placeholder="Opcional" />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-            >
-              Registar
-            </button>
-          </div>
-        </form>
-      )}
-
-
-      {mode === "categoria" && (
-        <form onSubmit={handleCriarCategoria} className="space-y-4">
-          <h4 className="font-semibold text-gray-900 dark:text-white">Nova Categoria</h4>
-          <div>
-            <Label>Nome *</Label>
-            <Input onChange={e => setNomeCateg(e.target.value)} placeholder="Ex: nota_trabalho" />
-            <p className="text-xs text-gray-500 mt-1">Será prefixado com nota_ se necessário.</p>
-          </div>
-          <div>
-            <Label>Descrição</Label>
-            <Input onChange={e => setDescCateg(e.target.value)} placeholder="Opcional" />
-          </div>
-          <div>
-            <Label>Anos acadêmicos *</Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {anosAcademicosDisponiveis.map((ano) => (
-                <button key={ano} type="button" onClick={() => toggleAnoCategoria(ano)} className={`rounded-full border px-3 py-1.5 text-xs transition ${anosCateg.has(ano) ? "border-brand-500 bg-brand-500 text-white" : "border-gray-200 text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"}`}>
-                  {labelAnoAcademico(ano)}
-                </button>
-              ))}
-              {anosAcademicosDisponiveis.length === 0 && <p className="text-xs text-gray-500">Nenhum ano acadêmico ativo encontrado.</p>}
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-            >
-              Criar
-            </button>
-          </div>
-        </form>
-      )}
+        </div>
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <button type="submit" className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Criar</button>
+        </div>
+      </form>
     </Modal>
   );
 }
@@ -776,8 +607,7 @@ export default function NotasAcademia() {
   // turma, os estudantes já são carregados sob demanda via
   // estudantesPorTurma (ver useEffect mais abaixo). Por isso este fetch é
   // disparado apenas ao abrir o modal, não na montagem da página.
-  function abrirModalNovaNota() {
-    if (!dataEstudantes) carregarEstudantes({ token });
+  function abrirModalNovaCategoria() {
     openModal();
   }
 
@@ -1592,25 +1422,25 @@ export default function NotasAcademia() {
         />
       )}
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Notas</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestão de Notas</h2>
+            <Link href="/notas/lancar" className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">
+              <Icon icon="mdi:upload" width={16} /> Lançar Notas
+            </Link>
+          </div>
           {turmas.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {turmasAtivas.length} turma(s) ativa(s){!loadingEstud && estudantes.length > 0 ? ` · ${estudantes.length} estudante(s)` : ""} · {todasNotas.length} nota(s)
             </p>
           )}
         </div>
-        <div className="flex gap-2">
-          {isSuperior && (
-            <Button size="sm" variant="outline" startIcon={<Icon icon="mdi:tag-plus-outline" />} onClick={abrirModalNovaNota}>
-              Categoria
-            </Button>
-          )}
-          <Button size="sm" startIcon={<Icon icon="mdi:plus" />} onClick={abrirModalNovaNota}>
-            Nova Nota
+        {isSuperior && (
+          <Button size="sm" variant="outline" startIcon={<Icon icon="mdi:tag-plus-outline" />} onClick={abrirModalNovaCategoria}>
+            Categoria
           </Button>
-        </div>
+        )}
       </div>
 
       {renderLayer()}
@@ -1625,15 +1455,8 @@ export default function NotasAcademia() {
       <ModalGestao
         isOpen={isOpen}
         onClose={closeModal}
-        isSuperior={isSuperior}
-        tipoNota={tipoNota}
-        PERIODOS={PERIODOS}
-        anoLectivo={anoLectivo}
-        estudantes={estudantes}
-        materias={materias}
         categorias={categorias}
         anosAcademicosDisponiveis={anosAcademicosDisponiveis}
-        onRegistrar={handleRegistrar}
         onCriarCategoria={handleCriarCategoria}
       />
     </div>
