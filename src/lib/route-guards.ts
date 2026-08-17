@@ -119,6 +119,21 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     allowedTypes: ['admin', 'academia'],
     redirectIfUnauthorized: '/',
   },
+  {
+    path: '/financas/configuracoes',
+    allowedTypes: ['admin', 'academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/financas/pagamentos',
+    allowedTypes: ['admin', 'academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/pagamentos',
+    allowedTypes: ['estudante'],
+    redirectIfUnauthorized: '/login',
+  },
 
   // ==========================================
   // ROTAS PARA ACADEMIA — Gerenciamento (sub-páginas)
@@ -219,7 +234,8 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
 export function checkRoutePermission(
   pathname: string,
   userType: UserType | null,
-  isAuthenticated: boolean
+  isAuthenticated: boolean,
+  isRestrictedFinance = false
 ): {
   allowed: boolean;
   redirectTo?: string;
@@ -227,6 +243,10 @@ export function checkRoutePermission(
   const normalizedPath = pathname.endsWith('/') && pathname !== '/'
     ? pathname.slice(0, -1)
     : pathname;
+
+  if (isRestrictedFinance && normalizedPath !== '/pagamentos') {
+    return { allowed: false, redirectTo: '/pagamentos' };
+  }
 
   if ((normalizedPath === '/testes' || normalizedPath === '/comunicacao') && !isTestesPageEnabled()) {
     return { allowed: false, redirectTo: '/painel' };

@@ -69,7 +69,7 @@ export type Turno = 'manha' | 'tarde' | 'noite';
 export type Genero      = 'masculino' | 'feminino';
 
 export type TipoEnsino = 'fundamental' | 'medio' | 'superior';
-export type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'reprovada' | 'cancelada';
+export type SolicitacaoMatriculaStatus = 'pendente' | 'aprovada' | 'aprovada_pendente_pagamento_matricula' | 'reprovada' | 'cancelada';
 export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
 export type JobEventType = 'job_enqueued' | 'job_progress' | 'job_done' | 'job_failed';
 /** Date-only ISO string (YYYY-MM-DD), correspondente ao tipo `date` na documentação da API. */
@@ -365,6 +365,8 @@ export interface SolicitacaoMatricula {
   curso_superior_nome?: string;
   documentos?: Record<string, SolicitacaoMatriculaDocumento>;
   status: SolicitacaoMatriculaStatus;
+  valor_matricula?: number;
+  metodos_pagamento_matricula?: FinanceiroMetodoPagamento[];
   /** Códigos de outras solicitações mapeadas pelo backend como semelhantes a esta. */
   solicitacoes_semelhantes: string[];
   codigo_estudante_gerado?: string;
@@ -1293,6 +1295,192 @@ export interface ListarFinanceiroCredenciaisParams {
 }
 
 export type ListarFinanceiroCredenciaisResponse = FinanceiroCredencial[];
+
+// ---- Mensalidade (propina) ----
+
+export type FinanceiroNivel = 'fundamental' | 'medio' | 'superior';
+export type FinanceiroMetodoPagamento = 'GPO' | 'REF' | 'GPO_QR';
+export type FinanceiroEstadoMensalidade = 'pendente' | 'pago' | 'anulado';
+
+export interface MensalidadeConfiguracaoInput {
+  codigo_academia: string;
+  nivel: FinanceiroNivel;
+  ano_academico?: number;
+  curso_id?: string;
+  valor: number;
+  mes_fim_cobranca: 6 | 7;
+  metodos_pagamento: FinanceiroMetodoPagamento[];
+}
+
+export interface MensalidadeConfiguracaoView extends MensalidadeConfiguracaoInput {
+  vigente_em: string;
+}
+
+export interface ListarConfiguracoesMensalidadeResponse {
+  codigo_academia: string;
+  configuracoes: MensalidadeConfiguracaoView[];
+}
+
+export interface MesInicioCobrancaInput {
+  codigo_academia: string;
+  ano_letivo: string;
+  mes_inicio: number;
+}
+
+export interface ObrigacaoMensalidadeInput {
+  codigo_estudante: string;
+  codigo_academia: string;
+  ano_letivo: string;
+  meses: number[];
+  motivo?: string;
+}
+
+export interface MensalidadeMesView {
+  codigo_estudante: string;
+  codigo_academia: string;
+  ano_letivo: string;
+  mes: number;
+  data_referencia: string;
+  nivel: FinanceiroNivel;
+  ano_academico?: number;
+  curso_id?: string;
+  valor: number;
+  mes_fim_cobranca: number;
+  estado: FinanceiroEstadoMensalidade;
+  eventos_auditoria?: unknown[];
+}
+
+export interface ConsultarMensalidadesEstudanteResponse {
+  codigo_estudante: string;
+  mensalidades: MensalidadeMesView[];
+  metodos_pagamento_por_academia: Record<string, FinanceiroMetodoPagamento[]>;
+}
+
+export interface MensalidadePagamentoInput {
+  codigo_academia: string;
+  meses: { ano_letivo: string; mes: number }[];
+  metodo_pagamento: FinanceiroMetodoPagamento;
+  telefone?: string;
+}
+
+export interface ChargeResult {
+  id: string;
+  provider_charge_id?: string;
+  merchant_transaction_id: string;
+  status: string;
+  response?: Record<string, unknown>;
+}
+
+export interface QRCodeChargeResult extends ChargeResult {
+  qrCodeArr?: string;
+}
+
+export interface MensalidadePagamentoResponse {
+  cobranca: QRCodeChargeResult;
+  meses: { ano_letivo: string; mes: number }[];
+}
+
+export type FinanceiroOrigemCobranca = 'matricula' | 'mensalidade' | 'avulsa';
+
+export interface CobrancaResumo {
+  id: string;
+  provider_charge_id?: string;
+  merchant_transaction_id: string;
+  contexto_tipo: FinanceiroContextoTipo;
+  codigo_academia?: string;
+  origem: FinanceiroOrigemCobranca;
+  status: string;
+  valor: number;
+  moeda?: string;
+  descricao?: string;
+  metodo_pagamento?: FinanceiroMetodoPagamento;
+  codigo_estudante?: string;
+  codigo_solicitacao?: string;
+  mensalidades?: { ano_letivo: string; mes: number }[];
+  atualizado_em: string;
+}
+
+export interface ListarCobrancasParams {
+  contexto_tipo?: FinanceiroContextoTipo;
+  codigo_academia?: string;
+  estado?: string[];
+  tipo?: FinanceiroOrigemCobranca[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListarCobrancasResponse {
+  cobrancas: CobrancaResumo[];
+  total: number;
+  total_geral: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ListarCobrancasEstudanteParams {
+  estado?: string[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface MatriculaConfiguracaoInput {
+  codigo_academia: string;
+  nivel: FinanceiroNivel;
+  ano_academico?: number;
+  curso_id?: string;
+  valor: number;
+  metodos_pagamento: FinanceiroMetodoPagamento[];
+}
+
+export interface MatriculaConfiguracaoView extends MatriculaConfiguracaoInput {
+  vigente_em: string;
+}
+
+export interface ListarConfiguracoesMatriculaResponse {
+  codigo_academia: string;
+  configuracoes: MatriculaConfiguracaoView[];
+}
+
+export interface BuscarSolicitacoesMatriculaParams {
+  telefone?: string;
+  telefone_encarregado?: string;
+  email?: string;
+  bilhete_identidade?: string;
+  bilhete_identidade_encarregado?: string;
+}
+
+export interface SolicitacaoMatriculaResumo {
+  codigo_solicitacao: string;
+  nome_estudante: string;
+  academia: string;
+  data_submissao: string;
+  status: string;
+}
+
+export interface BuscarSolicitacoesMatriculaResponse {
+  solicitacoes: SolicitacaoMatriculaResumo[];
+}
+
+export interface SolicitacaoMatriculaStatusResponse {
+  status: string;
+  codigo_academia: string;
+  valor_matricula?: number;
+  metodos_pagamento?: FinanceiroMetodoPagamento[];
+}
+
+export interface PagamentoMatriculaInput {
+  metodo_pagamento: FinanceiroMetodoPagamento;
+  telefone?: string;
+}
+
+export interface PagamentoMatriculaResponse {
+  cobranca: QRCodeChargeResult;
+}
+
+export interface CancelarSolicitacaoMatriculaInput {
+  motivo: string;
+}
+
 
 export interface CategoriaNotaItem {
   id?: string;

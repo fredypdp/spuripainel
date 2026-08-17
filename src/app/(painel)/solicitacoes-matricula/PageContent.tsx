@@ -12,6 +12,7 @@ const statusOptions: Array<SearchableSelectOption<SolicitacaoMatriculaStatus | "
   { value: "", label: "todas" },
   { value: "pendente", label: "pendente" },
   { value: "aprovada", label: "aprovada" },
+  { value: "aprovada_pendente_pagamento_matricula", label: "aguardando pagamento da matrícula" },
   { value: "reprovada", label: "reprovada" },
   { value: "cancelada", label: "cancelada" },
 ];
@@ -25,6 +26,8 @@ const ANOS_FUNDAMENTAL = [
   "5_ano_fundamental", "6_ano_fundamental", "7_ano_fundamental", "8_ano_fundamental", "9_ano_fundamental",
 ];
 const ANOS_MEDIO = ["1_ano_medio", "2_ano_medio", "3_ano_medio", "4_ano_medio"];
+
+const statusLabel: Record<string, string> = { pendente: "Pendente", aprovada: "Aprovada", aprovada_pendente_pagamento_matricula: "Aguardando pagamento da matrícula", reprovada: "Reprovada", cancelada: "Cancelada" };
 
 const botaoVoltarClassName = "inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-700 dark:hover:bg-brand-900/20 dark:hover:text-brand-300";
 
@@ -300,7 +303,7 @@ export default function PageContent() {
             <div className="grid gap-3">
               {solicitacoesDoAno.map((s) => (
                 <button key={s.codigo_solicitacao} type="button" onClick={() => setSolicitacaoSelecionada(s.codigo_solicitacao)} className="rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-brand-300 dark:border-gray-800 dark:bg-gray-900">
-                  <div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{s.nome}</h3><p className="text-sm text-gray-500">{s.codigo_solicitacao} · {s.codigo_academia}{s.academia_nome ? ` · ${s.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{s.status}</span></div>
+                  <div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{s.nome}</h3><p className="text-sm text-gray-500">{s.codigo_solicitacao} · {s.codigo_academia}{s.academia_nome ? ` · ${s.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{statusLabel[s.status] ?? s.status}</span></div>
                   <p className="mt-3 text-sm text-gray-500">Criada em {formatDateTime(s.created_at)} · {s.curso_medio_nome || s.curso_superior_nome || anoLabel(anoValue(s))}</p>
                 </button>
               ))}
@@ -334,7 +337,7 @@ export default function PageContent() {
       {solicitacao && (
         <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <button type="button" onClick={() => setSolicitacaoSelecionada(null)} className={botaoVoltarClassName}><Icon icon="mdi:arrow-left" width={18} /> Voltar para solicitações de {anoLabel(anoSelecionado ?? undefined)}</button>
-          <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{solicitacao.nome}</h2><p className="text-sm text-gray-500">{solicitacao.codigo_solicitacao} · {solicitacao.codigo_academia}{solicitacao.academia_nome ? ` · ${solicitacao.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{solicitacao.status}</span></div>
+          <div className="flex flex-wrap justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800"><div><h2 className="text-xl font-semibold text-gray-900 dark:text-white">{solicitacao.nome}</h2><p className="text-sm text-gray-500">{solicitacao.codigo_solicitacao} · {solicitacao.codigo_academia}{solicitacao.academia_nome ? ` · ${solicitacao.academia_nome}` : ""}</p></div><span className="h-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize dark:bg-gray-800">{statusLabel[solicitacao.status] ?? solicitacao.status}</span></div>
           <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
             <Info label="Ano acadêmico" value={anoLabel(anoValue(solicitacao))} />
             <Info label="Curso" value={solicitacao.curso_medio_nome || solicitacao.curso_superior_nome || "Não se aplica"} />
@@ -368,6 +371,31 @@ export default function PageContent() {
             </div>
           )}
           {!!solicitacao.documentos && <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-950"><h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Documentos</h4><p className="mb-2 text-xs text-gray-500">Leitura e download são feitos pelas rotas autenticadas do backend, sem abrir links privados do storage.</p><div className="flex flex-wrap gap-2">{Object.entries(solicitacao.documentos).map(([key, value]) => { const loadingKey = `${solicitacao.codigo_solicitacao}:${key}`; const disabled = (!value?.path && !value?.download_url); return <div key={key} className="inline-flex overflow-hidden rounded-full border border-gray-200 text-xs dark:border-gray-700"><button type="button" disabled={disabled || documentoAbrindo === loadingKey} onClick={() => abrirDocumento(solicitacao.codigo_solicitacao, key, value?.download_url)} title={value?.path || undefined} className="px-3 py-1 text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-brand-300">{documentoAbrindo === loadingKey ? "Abrindo..." : docLabels[key] || key}</button><button type="button" disabled={disabled || documentoBaixando === loadingKey} onClick={() => baixarDocumento(solicitacao.codigo_solicitacao, key, value?.file_url, value?.download_url)} title={`Baixar ${documentoNome(key, value?.file_url)}`} className="border-l border-gray-200 px-2 py-1 text-gray-500 hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-gray-300"><Icon icon={documentoBaixando === loadingKey ? "mdi:loading" : "mdi:download"} className={documentoBaixando === loadingKey ? "animate-spin" : undefined} /></button></div>; })}</div>{documentoAberto && <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"><div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700"><span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90"><Icon icon="mdi:file-eye-outline" />{documentoAberto.titulo}</span><button type="button" onClick={() => setDocumentoAberto((atual) => { if (atual?.url) URL.revokeObjectURL(atual.url); return null; })} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Fechar</button></div><iframe title={`Pré-visualização de ${documentoAberto.titulo}`} src={documentoAberto.url} className="h-[70vh] w-full bg-white" /></div>}</div>}
+
+          {solicitacao.valor_matricula !== undefined && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              <h3 className="font-semibold">Pagamento da matrícula</h3>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <p><span className="font-medium">Valor:</span> {new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA" }).format(solicitacao.valor_matricula)}</p>
+                <p><span className="font-medium">Métodos:</span> {(solicitacao.metodos_pagamento_matricula ?? []).join(", ") || "—"}</p>
+                <p><span className="font-medium">Situação:</span> {statusLabel[solicitacao.status] ?? solicitacao.status}</p>
+              </div>
+              {!isAdmin && solicitacao.status === "aprovada_pendente_pagamento_matricula" && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const motivoCancelamento = window.prompt("Motivo do cancelamento por falta de pagamento");
+                    if (!motivoCancelamento?.trim()) return;
+                    await academiaService.cancelarSolicitacaoMatricula(solicitacao.codigo_solicitacao, { motivo: motivoCancelamento.trim() });
+                    await carregar();
+                  }}
+                  className="mt-3 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Cancelar por falta de pagamento
+                </button>
+              )}
+            </div>
+          )}
           {!isAdmin && solicitacao.status === "pendente" && <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row"><button onClick={() => aprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white">Aprovar e criar estudante</button><input placeholder="Motivo da reprovação" className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onChange={(e) => setMotivo((p) => ({ ...p, [solicitacao.codigo_solicitacao]: e.target.value }))} /><button onClick={() => reprovar(solicitacao.codigo_solicitacao)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white">Reprovar</button></div>}
         </section>
       )}
