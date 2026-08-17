@@ -1,0 +1,1 @@
+"use client";import BatchProgressScreen from '../../estudantes/cadastrar/BatchProgressScreen';import type{ContextoModeloFaltas}from'./faltasTypes';export default function BatchProgressScreenFaltas(p:{jobIds:string[];contexto?:ContextoModeloFaltas|null;avisoSubmissao?:string|null;onConcluido:()=>void}){return <BatchProgressScreen {...p as any}/>}
