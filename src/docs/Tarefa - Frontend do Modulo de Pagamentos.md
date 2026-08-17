@@ -1,5 +1,6 @@
 ---
 criado: 2026-08-16
+atualizado: 2026-08-17 — backend corrigiu os dois gaps registrados em "Problemas de Backend - Modulo de Pagamentos.md" (endpoint de listagem de cobranças e QR Code nos fluxos de pagamento); seções 2.1, 2.3, 4, Partes A/B/F/H/I e checklist revisadas para refletir a API atual
 origem: Orquestração Claude (leitura direta de spuri-backend e spuripainel em main)
 repositório alvo desta tarefa: spuripainel (frontend)
 repositório de referência (somente leitura): spuri-backend
@@ -10,7 +11,7 @@ status: pendente
 
 ## 0. Prompt recomendado para executar esta tarefa
 
-Implemente no repositório **spuripainel** todo o suporte de frontend ao módulo de pagamentos já existente no backend **spuri-backend** (contexto `financeiro`: credenciais AppyPay, configuração e cobrança de mensalidade/propina, configuração e cobrança de taxa de matrícula, sessão financeira restrita de estudante inativo). Este documento já contém o levantamento completo do backend e do frontend atuais — **não é necessário planejar nada, apenas seguir as partes A a I na ordem**, criando/editando exatamente os arquivos indicados, com os tipos, contratos de API, regras de permissão e comportamento de UI descritos. Onde este documento mostra um exemplo de código, ele é ilustrativo do contrato (nomes de campos, formato) — a implementação final deve seguir os padrões de UI, componentes e organização de arquivos já usados no restante do projeto (referenciados na seção 3), especialmente o painel `src/components/paineis/FinanceiroCredenciaisPainel.tsx`, que é o único pedaço do módulo de pagamentos já implementado no frontend hoje e deve servir de modelo de estilo, tratamento de erro e permissão. Preste atenção especial à seção 2 (avisos críticos): há limitações reais da API atual (sem endpoint de listagem geral de cobranças, leitura financeira bloqueada para admins não-FPP, e o payload de QR Code não é retornado nos fluxos de pagamento de propina/matrícula) que mudam o escopo real de algumas telas pedidas — o documento já ajusta o escopo para o que é de fato possível hoje e sinaliza claramente o que fica pendente de um ajuste futuro no backend (fora do escopo desta tarefa). Ao final, atualize `AppSidebar.tsx`, `route-guards.ts` e qualquer outro ponto de navegação afetado, e garanta que build e lint do projeto passam. Não crie mocks, dados falsos, endpoints inexistentes ou funcionalidades "fallback" que simulem dados que a API não retorna.
+Implemente no repositório **spuripainel** todo o suporte de frontend ao módulo de pagamentos já existente no backend **spuri-backend** (contexto `financeiro`: credenciais AppyPay, listagem/consulta de cobranças, configuração e cobrança de mensalidade/propina, configuração e cobrança de taxa de matrícula, sessão financeira restrita de estudante inativo). Este documento já contém o levantamento completo do backend e do frontend atuais — **não é necessário planejar nada, apenas seguir as partes A a I na ordem**, criando/editando exatamente os arquivos indicados, com os tipos, contratos de API, regras de permissão e comportamento de UI descritos. Onde este documento mostra um exemplo de código, ele é ilustrativo do contrato (nomes de campos, formato) — a implementação final deve seguir os padrões de UI, componentes e organização de arquivos já usados no restante do projeto (referenciados na seção 3), especialmente o painel `src/components/paineis/FinanceiroCredenciaisPainel.tsx`, que é o único pedaço do módulo de pagamentos já implementado no frontend hoje e deve servir de modelo de estilo, tratamento de erro e permissão. Preste atenção especial à seção 2 (avisos críticos): **duas** limitações que existiam numa versão anterior deste documento (falta de endpoint de listagem geral de cobranças, e QR Code não retornado nos fluxos de pagamento de propina/matrícula) **já foram corrigidas no backend** e a seção 2 e as partes afetadas foram reescritas para usar a API corrigida — não implemente mais nenhum dos contornos que uma versão anterior deste documento pudesse sugerir para esses dois pontos. Continua valendo, sem alteração, a restrição de leitura financeira exclusiva a admins com papel `fpp` (aviso 2.2) — essa não foi alterada no backend. Ao final, atualize `AppSidebar.tsx`, `route-guards.ts` e qualquer outro ponto de navegação afetado, e garanta que build e lint do projeto passam. Não crie mocks, dados falsos, endpoints inexistentes ou funcionalidades "fallback" que simulem dados que a API não retorna.
 
 ---
 
@@ -48,17 +49,14 @@ Implemente no repositório **spuripainel** todo o suporte de frontend ao módulo
 
 Estas são limitações **reais do backend atual**, confirmadas lendo o código-fonte. Elas mudam o escopo do que é literalmente possível construir hoje. Não tente contornar nenhuma delas inventando endpoints ou dados no frontend.
 
-### 2.1 Não existe endpoint de listagem geral de cobranças
+### 2.1 [RESOLVIDO] Endpoint de listagem geral de cobranças já existe — use-o em `/financas/pagamentos`
 
-O backend **não tem** nenhuma rota do tipo "listar todas as cobranças da minha academia" ou "listar todos os pagamentos". Os únicos pontos de consulta financeira são:
+Uma versão anterior deste documento registrava que não havia endpoint de listagem de cobranças. **Isso foi corrigido no backend**: agora existe `GET /financeiro/cobrancas`, com filtro por academia/contexto, por estado e por origem (mensalidade/matrícula/avulsa), e paginação. O contrato completo está na seção 4.1-A. Por causa disso, a página `/financas/pagamentos` (Parte H) **deixa de ser** um conjunto de ferramentas de busca pontual e passa a ser, como pedido originalmente, uma listagem real de "todos os pagamentos, em todos os estados", com abertura de subtela de detalhe por linha — ver Parte H reescrita.
 
-- `GET /financeiro/appypay/cobrancas/:id` — consulta **uma** cobrança específica, por id interno ou `merchantTransactionId`.
-- `GET /financeiro/mensalidades/estudante/:codigo` — consulta **as mensalidades de um estudante específico** (exige saber o código do estudante).
-- A listagem de solicitações de matrícula (`GET /solicitacoes-matricula` / `GET /academia/solicitacoes-matricula`, já existente) agora também expõe `valor_matricula` e `metodos_pagamento_matricula` quando aplicável — é a única fonte "em lista" com informação de pagamento.
+Continuam existindo, e continuam úteis como complemento (não como substituto) desta listagem:
 
-Por isso, a página `/financas/pagamentos` (Parte H) **não pode ser** uma tabela única "todos os pagamentos, todos os estados". Ela será composta de três ferramentas de consulta (busca por estudante, busca por cobrança, lista de solicitações de matrícula com pagamento). Isso é intencional e está detalhado na Parte H — não tente compensar isso criando um endpoint novo (está fora do escopo desta tarefa, que é só frontend) nem simulando uma listagem com dados parciais.
-
-**Recomendação separada (fora de escopo, não implementar agora):** o backend precisaria de um endpoint tipo `GET /financeiro/cobrancas?codigo_academia=&estado=&...` para permitir uma listagem real. Informe isso ao usuário como uma possível tarefa futura de backend.
+- `GET /financeiro/appypay/cobrancas/:id` — consulta o **detalhe completo** de uma cobrança (a listagem de `GET /financeiro/cobrancas` traz só um resumo por linha, de propósito — ver nota no código-fonte, seção 4.1-A).
+- `GET /financeiro/mensalidades/estudante/:codigo` — consulta as mensalidades de um estudante específico (continua sendo a única fonte "mês a mês" com `estado` por mensalidade, útil como uma das seções da Parte H).
 
 ### 2.2 Administrador que não é `fpp` recebe 403 em TODA rota `/financeiro/*`, inclusive leitura (GET)
 
@@ -71,18 +69,11 @@ Isso significa que **não é possível hoje** implementar um modo "visualizar ma
 
 **Recomendação separada (fora de escopo, não implementar agora):** se o dono do produto realmente quiser "visualizar mas não executar" para `adm`/`gerente`, o backend precisaria permitir leitura (GET) para qualquer papel de admin e manter só escrita (POST/PUT) restrita a `fpp`. Informe isso ao usuário como possível ajuste futuro de backend; **implemente o item acima (tela de acesso restrito) como comportamento desta tarefa**, já que é o que a API permite hoje.
 
-### 2.3 Pagamento por QR Code (`GPO_QR`) não retorna a imagem do QR Code nos fluxos de propina e de matrícula
+### 2.3 [RESOLVIDO] Pagamento por QR Code (`GPO_QR`) já retorna a imagem do QR Code nos fluxos de propina e de matrícula
 
-No método de pagamento `GPO_QR`, o backend gera um `qrCodeArr` (o conteúdo do QR Code) apenas na struct interna `QRCodeResult`. Porém:
+Uma versão anterior deste documento registrava que o campo `qrCodeArr` (o conteúdo do QR Code) era descartado nas respostas de `IniciarPagamentoMensalidades` (propina do estudante) e `IniciarPagamentoMatricula` (matrícula, rota pública), porque essas respostas usavam o tipo `ChargeResult` (sem esse campo) em vez de `QRCodeResult` (com esse campo). **Isso foi corrigido no backend**: `MensalidadePagamentoView.Charge` e `MatriculaPagamentoView.Charge` agora são do tipo `QRCodeResult`, e o campo chega normalmente no JSON como `cobranca.qrCodeArr` (**atenção**: o nome do campo no JSON é `qrCodeArr`, em camelCase — é uma exceção ao padrão `snake_case` do resto da API; confirme isso no código antes de tipar, não assuma) quando `metodo_pagamento = "GPO_QR"`; para os demais métodos, o campo simplesmente não aparece na resposta (`omitempty`).
 
-- `IniciarPagamentoMensalidades` (propina do estudante) e `IniciarPagamentoMatricula` (matrícula, rota pública) retornam apenas o campo `Charge` (do tipo `ChargeResult`, que **não tem** `qrCodeArr`) — ou seja, o `qrCodeArr` é descartado nesses dois fluxos antes de chegar à resposta HTTP.
-- A única rota que devolve o `qrCodeArr` de fato é a interna de cobrança genérica (`POST /financeiro/appypay/cobrancas` com `payment_method: "GPO_QR"`, usada por academia/admin), e a consulta `GET /financeiro/appypay/cobrancas/:id` é restrita a academia/admin — o estudante (mensalidade) e o candidato anônimo (matrícula) não têm permissão para chamá-la.
-
-Na prática: se um estudante ou candidato escolher `GPO_QR` para pagar propina/matrícula, a cobrança é criada normalmente no AppyPay, mas o frontend não tem como exibir o QR Code para ele pagar — um beco sem saída de UX.
-
-**Decisão obrigatória para esta tarefa:** nas telas de pagamento **do estudante** (`/pagamentos`, Parte I) e **do candidato público** (matrícula, Parte F), **não ofereça `GPO_QR` como opção selecionável de método de pagamento**, mesmo que a academia o tenha habilitado na configuração — ofereça apenas os métodos que a configuração habilitar dentre `GPO` (Multicaixa Express/telefone) e `REF` (referência Multicaixa). Isso não se aplica à tela de configuração (`/financas/configuracoes`), onde a academia/admin continua podendo marcar `GPO_QR` como método aceito (é um campo de configuração, não de execução de pagamento) nem à tela `/financas/pagamentos`, onde a consulta de cobrança (feita por academia/admin via `GET /financeiro/appypay/cobrancas/:id`) recebe o `qrCodeArr` normalmente quando aplicável.
-
-**Recomendação separada (fora de escopo, não implementar agora):** o backend precisaria devolver `qrCodeArr` também em `MensalidadePagamentoView`/`MatriculaPagamentoView`, ou expor uma consulta seguramente escopada para o próprio pagador. Informe isso ao usuário como possível ajuste futuro de backend.
+Por causa disso, **`GPO_QR` deve ser oferecido normalmente** como opção de pagamento em todas as telas — configuração (`/financas/configuracoes`), pagamento do estudante (`/pagamentos`, Parte I) e pagamento público de matrícula (Parte F) — sempre que a academia o tiver habilitado na configuração. Quando o método escolhido for `GPO_QR`, a tela de pagamento deve renderizar `cobranca.qrCodeArr` como uma imagem para o pagador escanear (o conteúdo é a string do QR Code/EMV; se ao inspecionar uma resposta real ele já vier como data URI `data:image/...;base64,...`, use direto num `<img src>`; se vier só a string EMV crua, será necessário gerar a imagem do QR Code no próprio frontend a partir dela — confirme o formato exato inspecionando uma resposta real em ambiente de teste antes de decidir qual dos dois casos implementar, e não presuma um deles).
 
 ### 2.4 Sessão financeira restrita de estudante inativo (mecanismo já existe no backend, frontend ainda não trata)
 
@@ -133,6 +124,51 @@ Todas as rotas abaixo já existem e funcionam no backend (`spuri-backend`, branc
 | PUT | `/financeiro/appypay/credenciais` | idem |
 
 Tipos já existem em `types/api.ts`: `FinanceiroContextoTipo`, `FinanceiroCredencial`, `CriarFinanceiroCredencialRequest`, `AtualizarFinanceiroCredencialRequest`, `ListarFinanceiroCredenciaisParams`, `ListarFinanceiroCredenciaisResponse`. Serviço já existe em `financeiroService.listarCredenciais/criarCredencial/atualizarCredencial`.
+
+### 4.1-A Listagem de cobranças (`GET /financeiro/cobrancas`) — novo endpoint
+
+| Método | Rota | Quem chama | Query |
+| --- | --- | --- | --- |
+| GET | `/financeiro/cobrancas` | academia (escopo automático da própria) / admin FPP (`contexto_tipo` + `codigo_academia` conforme o que quiser consultar) | `contexto_tipo?`, `codigo_academia?`, `estado?` (repetível, ex.: `estado=pendente&estado=pago`), `tipo?` (repetível; valores aceitos: `matricula`, `mensalidade`, `avulsa`), `limit?` (padrão 50, máx. 1000), `offset?` (padrão 0) |
+
+Mesma autorização de `authorizeFinanceScope` usada nas demais rotas de `/financeiro` — vale o aviso 2.2 (bloqueado para admin não-FPP).
+
+Resposta `200`:
+
+```json
+{
+  "cobrancas": [
+    {
+      "id": "uuid",
+      "provider_charge_id": "...",
+      "merchant_transaction_id": "...",
+      "contexto_tipo": "academia",
+      "codigo_academia": "ACD-...",
+      "origem": "mensalidade",
+      "status": "pendente",
+      "valor": 25000,
+      "moeda": "AOA",
+      "descricao": "Propinas ACD-...: 1 mensalidade(s)",
+      "metodo_pagamento": "GPO",
+      "codigo_estudante": "EST-...",
+      "codigo_solicitacao": "",
+      "mensalidades": [{ "ano_letivo": "2026", "mes": 3 }],
+      "atualizado_em": "2026-08-10T12:00:00Z"
+    }
+  ],
+  "total": 1,
+  "total_geral": 37,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+Notas importantes sobre este contrato, direto do código-fonte (não deduza nada diferente disso):
+
+- `origem` é derivado automaticamente pelo backend a partir do payload da cobrança: `"matricula"` quando há `codigo_solicitacao`, `"mensalidade"` quando há `codigo_estudante` (e não há `codigo_solicitacao`), `"avulsa"` nos demais casos (cobrança criada diretamente por academia/admin, sem vínculo a propina nem matrícula). Use isso para os filtros/abas da Parte H, não tente inferir a origem de outra forma no frontend.
+- `metodo_pagamento` já vem como `"GPO_QR"` distinto de `"GPO"` quando aplicável — não precisa de lógica adicional no frontend para diferenciar.
+- **Este endpoint devolve só um resumo por cobrança** — não inclui `response` (payload bruto do provedor) nem `qrCodeArr`. Para o detalhe completo de uma cobrança específica, a subtela de detalhe (Parte H) deve chamar `GET /financeiro/appypay/cobrancas/:id` com o `id` retornado nesta listagem — os dois endpoints são complementares por design, não uma falha do primeiro. **Atenção:** confirmado no código-fonte (`Service.ConsultCharge`/`consultCharge`, em `internal/finance/appypay.go`) que esta consulta de detalhe devolve o tipo `ChargeResult` (reconsultando a AppyPay ao vivo), **não** `QRCodeResult` — ou seja, **não há garantia de que `qrCodeArr` volte aqui** para uma cobrança originalmente criada como `GPO_QR`; o campo só é gerado e devolvido no momento da criação (`POST /financeiro/appypay/qr-codes` ou dentro dos fluxos de pagamento corrigidos no aviso 2.3). Ao implementar a subtela de detalhe (Parte H), não assuma que o QR Code sempre estará disponível para recuperação posterior — trate a ausência de `qrCodeArr` como caso normal, mostrando os demais campos normalmente.
+- `total` no corpo da resposta é a quantidade de itens **nesta página** (equivalente a `cobrancas.length`); `total_geral` é a quantidade total que casa com o filtro, use este último para calcular paginação (número de páginas, "mostrando X de Y", etc.).
 
 ### 4.2 Configuração de mensalidade (propina)
 
@@ -202,7 +238,7 @@ Resposta: `{ codigo_estudante, mensalidades: MensalidadeMesView[], metodos_pagam
 
 - `telefone` só é usado (e relevante) quando `metodo_pagamento = "GPO"`.
 - Regras: todos os meses devem ser da mesma academia, devem estar `pendente`, nenhum pode ter cobrança em aberto, e a seleção precisa incluir o mês pendente mais antigo daquela academia (ver 2.5).
-- Resposta `201`: `{ cobranca: ChargeResult, meses: [{ ano_letivo, mes }] }` — **sem `qrCodeArr`, ver aviso 2.3**. `ChargeResult` inclui pelo menos `{ id, status, valor, moeda, metodo_pagamento, merchant_transaction_id, criado_em, ... }` (campos exatos: inspecionar `finance/appypay.go`/resposta real em ambiente de teste antes de finalizar a tipagem, mas a estrutura mínima acima é garantida).
+- Resposta `201`: `{ cobranca: ChargeResult, meses: [{ ano_letivo, mes }] }`, onde `ChargeResult` aqui é, de fato, o tipo mais completo (com `qrCodeArr` quando `metodo_pagamento = "GPO_QR"` — ver aviso 2.3, resolvido). Campos confirmados no código-fonte (`internal/finance/appypay.go`): `{ id, provider_charge_id?, merchant_transaction_id, status, response? }`, mais `qrCodeArr?` quando aplicável. **Não há campos `valor`/`moeda`/`metodo_pagamento`/`criado_em` no nível da cobrança em si** neste tipo — se precisar exibir valor/método pagos, use os dados que a própria tela já tem (do formulário de pagamento) em vez de esperar que voltem na resposta da cobrança.
 
 ### 4.7 Configuração de matrícula (taxa de matrícula)
 
@@ -222,7 +258,7 @@ Se **não** houver nenhuma configuração de matrícula vigente para o nível/an
 | --- | --- | --- | --- |
 | GET | `/solicitacao-matricula/busca?telefone=&telefone_encarregado=&email=&bilhete_identidade=&bilhete_identidade_encarregado=` | pelo menos **2** desses parâmetros preenchidos | `{ solicitacoes: [{ codigo_solicitacao, nome_estudante, academia, data_submissao, status }] }` |
 | GET | `/solicitacao-matricula/:codigo/status` | — | `{ status, codigo_academia, valor_matricula?, metodos_pagamento? }` (`valor_matricula`/`metodos_pagamento` só vêm preenchidos quando `status = "aprovada_pendente_pagamento_matricula"`) |
-| POST | `/solicitacao-matricula/:codigo/pagamento-matricula` | `{ metodo_pagamento: "GPO"\|"REF"\|"GPO_QR", telefone? }` (só válido quando status é `aprovada_pendente_pagamento_matricula`) | `201` `{ cobranca: ChargeResult }` — **sem `qrCodeArr`, ver aviso 2.3**; **não ofereça `GPO_QR`**, ver 2.3 |
+| POST | `/solicitacao-matricula/:codigo/pagamento-matricula` | `{ metodo_pagamento: "GPO"\|"REF"\|"GPO_QR", telefone? }` (só válido quando status é `aprovada_pendente_pagamento_matricula`) | `201` `{ cobranca: QRCodeChargeResult }` — inclui `qrCodeArr` quando `metodo_pagamento = "GPO_QR"`, ver aviso 2.3 (resolvido) |
 
 Status possíveis de uma solicitação de matrícula (confirme os rótulos exatos em `internal/domain/aggregates/solicitacao_matricula.go`; a lista relevante para pagamento é):
 
@@ -247,7 +283,7 @@ Só é permitido quando o status da solicitação é `aprovada_pendente_pagament
 | GET | `/financeiro/appypay/cobrancas/:id` | academia (só cobranças do próprio contexto) / admin FPP (contexto `spuri`; **nunca** cobranças de uma academia em nome dela) | query opcional `contexto_tipo`, `codigo_academia` |
 | POST | `/financeiro/appypay/cobrancas/:id/cancelar` (confirmar rota exata em `financeiro_handlers.go`; se a rota real usar outro verbo/formato, seguir o que está no código) | mesmo escopo acima | `{ motivo? }` |
 
-`:id` aceita tanto o id interno da cobrança quanto o `merchantTransactionId`. Resposta é um `ChargeResult` completo, incluindo `qrCodeArr` quando o método originalmente usado foi `GPO_QR` — **este é o único caminho hoje em que o QR Code pode ser exibido**, e só para academia/admin (não para o pagador final).
+`:id` aceita tanto o id interno da cobrança quanto o `merchantTransactionId`. Resposta é um `ChargeResult` (id, provider_charge_id?, merchant_transaction_id, status, response?) — **sem garantia de `qrCodeArr`**, mesmo para uma cobrança originalmente `GPO_QR` (ver nota detalhada na seção 4.1-A). O caminho garantido para o pagador ver o QR Code é a própria resposta de criação do pagamento (4.6/4.8, corrigidas no aviso 2.3), não uma consulta posterior.
 
 ### 4.11 Solicitações de matrícula — campos novos na listagem/detalhe já existentes
 
@@ -338,25 +374,68 @@ export interface MensalidadePagamentoInput {
   telefone?: string;
 }
 
+// Campos confirmados em internal/finance/appypay.go (type ChargeResult). Note
+// que NÃO existem campos valor/moeda/metodo_pagamento/criado_em neste tipo —
+// não invente esses campos; se a tela precisar exibi-los, use os dados que
+// ela mesma já tem do formulário de pagamento, não espere que voltem aqui.
 export interface ChargeResult {
   id: string;
-  status: string;
-  valor: number;
-  moeda: string;
-  metodo_pagamento: FinanceiroMetodoPagamento;
-  merchant_transaction_id: string;
   provider_charge_id?: string;
-  referencia?: string;
-  entidade?: string;
-  qr_code_arr?: string;
-  criado_em: string;
-  atualizado_em?: string;
-  [key: string]: unknown; // a resposta real do AppyPay pode ter campos adicionais repassados
+  merchant_transaction_id: string;
+  status: string;
+  response?: Record<string, unknown>; // payload bruto repassado da AppyPay; formato pode variar por método/estado
+}
+
+// Usado nas respostas de pagamento (mensalidade/matrícula) quando o método é
+// GPO_QR — ver aviso 2.3. IMPORTANTE: o campo no JSON é "qrCodeArr", em
+// camelCase (exceção ao padrão snake_case do resto da API) — confirmado em
+// internal/finance/appypay.go, type QRCodeResult. Não normalize esse nome.
+export interface QRCodeChargeResult extends ChargeResult {
+  qrCodeArr?: string;
 }
 
 export interface MensalidadePagamentoResponse {
-  cobranca: ChargeResult;
+  cobranca: QRCodeChargeResult;
   meses: { ano_letivo: string; mes: number }[];
+}
+
+// ---- Listagem de cobranças (GET /financeiro/cobrancas) ----
+
+export type FinanceiroOrigemCobranca = 'matricula' | 'mensalidade' | 'avulsa';
+
+export interface CobrancaResumo {
+  id: string;
+  provider_charge_id?: string;
+  merchant_transaction_id: string;
+  contexto_tipo: FinanceiroContextoTipo;
+  codigo_academia?: string;
+  origem: FinanceiroOrigemCobranca;
+  status: string;
+  valor: number;
+  moeda?: string;
+  descricao?: string;
+  metodo_pagamento?: FinanceiroMetodoPagamento;
+  codigo_estudante?: string;
+  codigo_solicitacao?: string;
+  mensalidades?: { ano_letivo: string; mes: number }[];
+  atualizado_em: string;
+}
+
+export interface ListarCobrancasParams {
+  contexto_tipo?: FinanceiroContextoTipo;
+  codigo_academia?: string;
+  estado?: string[];
+  tipo?: FinanceiroOrigemCobranca[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListarCobrancasResponse {
+  cobrancas: CobrancaResumo[];
+  total: number; // quantidade nesta página (cobrancas.length)
+  total_geral: number; // quantidade total que casa com o filtro — use para paginação
+  limit: number;
+  offset: number;
 }
 
 // ---- Matrícula (taxa de matrícula) ----
@@ -414,7 +493,7 @@ export interface PagamentoMatriculaInput {
 }
 
 export interface PagamentoMatriculaResponse {
-  cobranca: ChargeResult;
+  cobranca: QRCodeChargeResult;
 }
 
 export interface CancelarSolicitacaoMatriculaInput {
@@ -500,6 +579,19 @@ export const financeiroService = {
     api.put<MatriculaConfiguracaoView>('/financeiro/matriculas/configuracoes', data, {
       token: token || tokenStorage.get() || undefined,
     }),
+
+  listarCobrancas: (params: ListarCobrancasParams, token?: string) => {
+    const qs = new URLSearchParams();
+    if (params.contexto_tipo) qs.set('contexto_tipo', params.contexto_tipo);
+    if (params.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
+    (params.estado || []).forEach((e) => qs.append('estado', e));
+    (params.tipo || []).forEach((t) => qs.append('tipo', t));
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    if (params.offset != null) qs.set('offset', String(params.offset));
+    return api.get<ListarCobrancasResponse>(`/financeiro/cobrancas?${qs.toString()}`, {
+      token: token || tokenStorage.get() || undefined,
+    });
+  },
 
   consultarCobranca: (id: string, params?: { contexto_tipo?: FinanceiroContextoTipo; codigo_academia?: string }, token?: string) =>
     api.get<ChargeResult>(`/financeiro/appypay/cobrancas/${encodeURIComponent(id)}${/* montar querystring com params, se houver */ ''}`, {
@@ -703,7 +795,7 @@ Organize em duas abas/seções (`Mensalidades (Propinas)` e `Matrícula`), cada 
    - Que cada configuração enviada cria uma **nova versão vigente a partir de agora**; não edita nem apaga versões passadas, e meses/matrículas já vencidos continuam usando o valor da versão que estava vigente na época (cite a regra de 2.5).
    - Que a configuração é específica por **nível de ensino** e, dentro dele, por **ano/série** (fundamental/médio) ou por **curso** (superior) — logo pode (e normalmente deve) haver várias configurações vigentes ao mesmo tempo, uma por combinação.
    - No caso da Matrícula: que, se **nenhuma** configuração existir para a combinação nível/ano/curso de uma solicitação, a matrícula daquele candidato é **gratuita** e a academia aprova direto, sem cobrança.
-   - Que pagamentos só podem ser feitos pelos métodos habilitados aqui: explique brevemente o que é cada um — `GPO` (Multicaixa Express via número de telefone), `REF` (referência para pagar em qualquer Multicaixa/ATM/homebanking) e `GPO_QR` (QR Code, mas hoje só é útil para conferência interna da academia — inclua a nota de que **o pagador não consegue ver o QR Code** nas telas de pagamento do estudante/candidato, então não recomende habilitá-lo como único método, ver 2.3).
+   - Que pagamentos só podem ser feitos pelos métodos habilitados aqui: explique brevemente o que é cada um — `GPO` (Multicaixa Express via número de telefone), `REF` (referência para pagar em qualquer Multicaixa/ATM/homebanking) e `GPO_QR` (QR Code, exibido para o pagador escanear no momento em que ele escolhe pagar).
    - Um aviso de que é **obrigatório configurar as credenciais AppyPay antes** (link direto para `/financas/credenciais`), senão nenhuma cobrança poderá ser criada mesmo com a configuração de valor pronta.
 
 2. **Formulário de nova versão**: campos `nivel` (select), `ano_academico` (number, condicional a fundamental/médio), `curso_id` (select de cursos da academia, condicional a superior — reaproveite o serviço de listagem de cursos já existente no projeto), `valor` (number, moeda AOA), `mes_fim_cobranca` (select 6/7, só na aba Mensalidades), `metodos_pagamento` (checkboxes `GPO`/`REF`/`GPO_QR`, com a nota de 2.3 ao lado de `GPO_QR`). Botão "Salvar nova versão" chamando `configurarMensalidade`/`configurarMatricula` (ou o `atualizarConfiguracaoX` — **pergunte-se**: como não existe "editar", use sempre o mesmo botão de submit; se já existir configuração para a combinação escolhida, é razoável usar PUT, senão POST — implemente essa escolha automaticamente com base no que veio do GET, mas trate o caso de falha de um deles tentando o outro só se a API indicar claramente que é esse o motivo do erro, não por tentativa-erro cega).
@@ -746,11 +838,12 @@ Fluxo:
    - `reprovada`: "Sua solicitação não foi aprovada."
    - `cancelada`: "Esta solicitação foi cancelada."
 
-3. **Formulário de pagamento** (só quando `aprovada_pendente_pagamento_matricula`): seletor de método limitado a `GPO`/`REF` dentre os retornados em `metodos_pagamento` (**nunca ofereça `GPO_QR`**, ver 2.3 — se `metodos_pagamento` só contiver `GPO_QR`, mostre uma mensagem informando que o pagamento deve ser combinado diretamente com a academia, em vez de quebrar a tela), campo `telefone` obrigatório só quando `GPO`, botão "Pagar" chamando `solicitacaoMatriculaService.iniciarPagamento(codigo, {...})`.
+3. **Formulário de pagamento** (só quando `aprovada_pendente_pagamento_matricula`): seletor de método com todas as opções retornadas em `metodos_pagamento` (`GPO`, `REF` e/ou `GPO_QR`, conforme o que a academia tiver habilitado — ver aviso 2.3, resolvido: os três métodos podem ser oferecidos normalmente aqui), campo `telefone` obrigatório só quando `GPO`, botão "Pagar" chamando `solicitacaoMatriculaService.iniciarPagamento(codigo, {...})`.
 
-4. **Após iniciar o pagamento**: mostre o resultado de `cobranca` de forma útil por método —
-   - `REF`: destaque `entidade`/`referencia`/`valor` (o que vier no `ChargeResult`) em destaque visual grande, com instrução "pague em qualquer ATM, Multicaixa Express ou homebanking usando estes dados".
+4. **Após iniciar o pagamento**: mostre o resultado de `cobranca` de forma útil por método — **atenção**: `entidade`/`referencia` (dados de referência Multicaixa) **não são campos de nível superior** de `ChargeResult`; se a AppyPay os devolver, eles vêm dentro de `cobranca.response` (`Record<string, unknown>`, formato variável) — inspecione uma resposta real de uma cobrança `REF` em ambiente de teste antes de decidir exatamente quais chaves ler de dentro de `response`, não presuma nomes de campo.
+   - `REF`: extraia e destaque os dados de referência de dentro de `cobranca.response`, em destaque visual grande, com instrução "pague em qualquer ATM, Multicaixa Express ou homebanking usando estes dados".
    - `GPO`: instrução "você receberá uma notificação no telefone informado para confirmar o pagamento".
+   - `GPO_QR`: renderize `cobranca.qrCodeArr` como imagem (ver formato exato a confirmar, aviso 2.3) com instrução "escaneie o QR Code no aplicativo do seu banco para confirmar o pagamento".
    - Um botão "Verificar status" que rechama `consultarStatus(codigo)` sob demanda (nunca em intervalo automático curto, ver 2.5) para o candidato conferir se já foi confirmado (`status` muda para `aprovada`).
 
 ---
@@ -787,17 +880,41 @@ Onde a página já tem um filtro/dropdown de status (`statusOptions` ou nome equ
 
 Arquivos: `src/app/(painel)/financas/pagamentos/page.tsx` + `src/components/paineis/FinanceiroPagamentosPainel.tsx`, mesmo padrão de organização da Parte E.
 
+> Esta parte foi reescrita: com a correção do backend (aviso 2.1), esta página deixou de precisar de contornos por busca pontual e passa a ser, como pedido originalmente, uma **listagem real** de "todos os pagamentos, em todos os estados", com abertura de subtela de detalhe por linha, sobre `GET /financeiro/cobrancas` (seção 4.1-A).
+
 ### H.1 Controle de acesso
 
-Idêntico ao E.1 (admin não-FPP → `UnauthorizedAccess`; admin FPP → seletor de academia; academia → escopo próprio automático).
+Idêntico ao E.1 (admin não-FPP → `UnauthorizedAccess`; admin FPP → seletor de academia; academia → escopo próprio automático). O seletor de academia do admin FPP define o `codigo_academia` usado em todas as chamadas desta página — sem uma academia selecionada, não chame `listarCobrancas` (evite uma primeira consulta sem filtro nenhum, que devolveria cobranças de todas as academias misturadas para um FPP).
 
-### H.2 Estrutura (três seções, pelo motivo explicado no aviso 2.1)
+### H.2 Listagem principal (tabela de cobranças)
 
-**Seção 1 — Solicitações de matrícula com pagamento.** Reaproveite a busca/listagem de solicitações de matrícula já existente (mesmo serviço usado em `/solicitacoes-matricula`), mas filtrada no client-side para mostrar apenas itens com `valor_matricula` definido. Ofereça filtro rápido por situação: "Aguardando pagamento" (`aprovada_pendente_pagamento_matricula`), "Pagas" (`aprovada` com `valor_matricula` presente), "Canceladas" (`cancelada` com `valor_matricula` presente). Cada linha abre, em modal (`useModal`/`Modal`), o mesmo bloco de detalhe de pagamento descrito em G.1 (extraia esse bloco para um componente compartilhado entre as duas telas, em vez de duplicar o JSX).
+Ao entrar na página (ou trocar de academia, para o admin FPP), chame `financeiroService.listarCobrancas({ codigo_academia, contexto_tipo: 'academia', limit: 20, offset: 0 })` e monte uma tabela paginada (reaproveite o componente de paginação já usado em `solicitacoes-matricula/PageContent.tsx`/`estudantes/PageContent.tsx`) com colunas:
 
-**Seção 2 — Mensalidades por estudante.** `SearchableSelect` de estudante (via `consultasService.listarEstudantes`, escopado à própria academia quando o ator é academia; livre, com aviso claro de que o resultado cobre todas as academias do estudante, quando o ator é admin FPP). Ao selecionar um estudante, chama `financeiroService.consultarMensalidadesEstudante(codigo)` e mostra uma tabela com `ano_letivo`, `mes`, `academia` (relevante principalmente para o admin FPP, que vê todas), `valor`, `estado` (badge colorido: pendente=warning, pago=success, anulado=neutro). Cada linha, ao clicar, abre em modal os `eventos_auditoria` daquele mês, se houver. Acima da tabela, para academia/admin FPP, dois botões de ação em massa sobre os meses selecionados (checkbox por linha): "Anular selecionados" / "Reativar selecionados", reaproveitando o mesmo fluxo/serviço da Parte E.2.4 (extraia também esse mini-formulário para um componente compartilhado, evitando duplicar entre `/financas/configuracoes` e `/financas/pagamentos`).
+- `Origem` (badge: "Matrícula" / "Mensalidade" / "Avulsa", a partir de `origem`).
+- `Descrição` (`descricao`, com fallback para "—" se vazio).
+- `Estudante` (`codigo_estudante`, só quando `origem !== 'avulsa'`; se o projeto já tiver um jeito de resolver código→nome de estudante em outra tela, reaproveite o mesmo padrão aqui, não implemente um novo).
+- `Valor` (`valor` formatado em AOA).
+- `Método` (`metodo_pagamento`).
+- `Estado` (`status`, como badge colorido — **atenção**: conforme a nota do código-fonte citada na seção 4.1-A, `status` mistura valores internos do Spuri (`"solicitada"`, `"criada"`, `"cancelada"`, `"falhada"`) com valores crus vindos da AppyPay (`"Success"`, `"Pending"`, `"Failed"`, etc. — case variável); mapeie o badge por comparação **case-insensitive**, não por igualdade exata de string, e trate qualquer valor não reconhecido com uma cor neutra em vez de quebrar).
+- `Atualizado em` (`atualizado_em`, formatado como data/hora local).
 
-**Seção 3 — Consultar cobrança específica.** Campo único de busca (aceita id interno ou `merchantTransactionId`, conforme 4.10), botão "Consultar" chamando `financeiroService.consultarCobranca`. Resultado exibido em modal com todos os campos do `ChargeResult`, incluindo, quando presente, o `qr_code_arr` renderizado como imagem (ver como o projeto já renderiza QR Codes em outra tela, se houver algum precedente — caso não haja, renderizar como `<img>` com o conteúdo em base64/URL conforme o formato real do campo, a confirmar inspecionando uma resposta real). Se a cobrança pertencer ao contexto certo e estiver com `status` pendente, mostrar botão "Cancelar cobrança" (`financeiroService.cancelarCobranca`, pedindo `motivo` opcional). Deixe explícito na UI, com uma nota pequena, que esta busca é individual (não é uma listagem) — texto sugerido: "Use esta busca quando já souber o identificador da cobrança (ex.: fornecido pelo estudante ou candidato)."
+**Filtros acima da tabela** (todos client-side viram parâmetros da mesma chamada, refazendo a consulta ao mudar qualquer um):
+
+- Por origem (`tipo`): "Todas" / "Matrícula" / "Mensalidade" / "Avulsa".
+- Por estado (`estado`, multi-seleção): construa a lista de opções a partir dos estados que já apareceram na página atual da listagem (não tente adivinhar todos os valores possíveis de antemão, já que a nota do backend deixa claro que o texto é passado adiante sem normalização).
+
+### H.3 Subtela de detalhe (clique na linha)
+
+Ao clicar numa linha, abra um modal (`useModal`/`Modal`) que chama `financeiroService.consultarCobranca(id, { contexto_tipo, codigo_academia })` (usando o `id` da linha) e mostra:
+
+- Todos os campos de `ChargeResult` (`id`, `provider_charge_id`, `merchant_transaction_id`, `status`).
+- O conteúdo de `response` (payload bruto da AppyPay) — apresente de forma legível (ex.: lista de chave/valor ou bloco de código formatado), não tente adivinhar um layout específico para ele, já que o formato varia por método/estado.
+- Se, e somente se, o campo `qrCodeArr` vier presente na resposta (ver seção 4.1-A: **não é garantido**, mesmo para cobranças originalmente criadas como `GPO_QR` — trate a ausência como caso normal), renderize-o como imagem, do mesmo jeito descrito no aviso 2.3.
+- Botão "Cancelar cobrança" (`financeiroService.cancelarCobranca`, pedindo `motivo` opcional), visível apenas quando `status` não estiver em um estado terminal (mesma lista de estados terminais que a API já valida do lado dela — trate o erro retornado pela API como fonte de verdade se a tentativa de cancelar for rejeitada, em vez de tentar replicar essa lista no frontend). Após sucesso, feche o modal e recarregue a linha/página atual da listagem.
+
+### H.4 Seção complementar — mensalidades por estudante
+
+Mantenha, abaixo da listagem principal, uma seção separada "Consultar mensalidades de um estudante": `SearchableSelect` de estudante (via `consultasService.listarEstudantes`, escopado à própria academia quando o ator é academia; livre, com aviso claro de que o resultado cobre todas as academias do estudante, quando o ator é admin FPP). Ao selecionar um estudante, chama `financeiroService.consultarMensalidadesEstudante(codigo)` e mostra uma tabela com `ano_letivo`, `mes`, `academia` (relevante principalmente para o admin FPP, que vê todas), `valor`, `estado` (mesmo esquema de badge da seção H.2). Esta seção continua necessária porque `GET /financeiro/cobrancas` lista **cobranças que já foram iniciadas** — um mês de propina ainda pendente, sem nenhuma cobrança criada para ele, não aparece na listagem principal, só nesta consulta por estudante. Acima da tabela, para academia/admin FPP, dois botões de ação em massa sobre os meses selecionados (checkbox por linha): "Anular selecionados" / "Reativar selecionados", reaproveitando o mesmo fluxo/serviço da Parte E.2.4 (extraia esse mini-formulário para um componente compartilhado, evitando duplicar entre `/financas/configuracoes` e `/financas/pagamentos`).
 
 ---
 
@@ -818,13 +935,13 @@ Isto **é totalmente suportado** pela API (diferente das telas de admin/academia
 Dentro de cada agrupamento por academia, se houver meses `pendente`, mostre um botão "Pagar mensalidades" que abre um formulário (modal ou seção expansível):
 
 - Checkboxes dos meses pendentes **daquela academia**, com a regra de 2.5 aplicada no client (desabilite/pré-marque o mês pendente mais antigo como obrigatório — não permita desmarcá-lo se houver outros meses selecionados depois dele).
-- Seletor de método, limitado ao subconjunto de `metodos_pagamento_por_academia[codigo_academia]` que **não** seja `GPO_QR` (ver 2.3); se sobrar só `GPO_QR`, mostrar mensagem "Esta academia só aceita pagamento por QR Code no momento; entre em contato com a secretaria para efetuar o pagamento presencialmente ou por outro meio", sem oferecer o botão de pagar.
+- Seletor de método com todas as opções de `metodos_pagamento_por_academia[codigo_academia]` (`GPO`, `REF` e/ou `GPO_QR`, ver aviso 2.3, resolvido).
 - Campo `telefone`, obrigatório só para `GPO`.
 - Botão "Confirmar pagamento" chamando `iniciarPagamentoMensalidades`.
 
 ### I.4 Resultado do pagamento
 
-Mesmo tratamento de exibição por método descrito em F.2 item 4 (referência/entidade para `REF`, instrução de confirmação por telefone para `GPO`), com botão "Verificar status" que re-chama `consultarMensalidadesEstudante` para atualizar o `estado` dos meses pagos (de `pendente` para `pago`) sob demanda — sem polling automático.
+Mesmo tratamento de exibição por método descrito em F.2 item 4 (dados de referência extraídos de `cobranca.response` para `REF`, instrução de confirmação por telefone para `GPO`, imagem de `cobranca.qrCodeArr` para `GPO_QR`), com botão "Verificar status" que re-chama `consultarMensalidadesEstudante` para atualizar o `estado` dos meses pagos (de `pendente` para `pago`) sob demanda — sem polling automático.
 
 ### I.5 Sessão financeira restrita
 
@@ -839,20 +956,20 @@ Ver Parte C por completo — esta página precisa funcionar integralmente (leitu
 - [ ] Login de estudante com `status = "inativo"` não entra em loop nem gera erro 403 visível; é redirecionado direto para `/pagamentos`, com menu lateral reduzido a "Pagamentos".
 - [ ] Admin com papel diferente de `fpp` vê tela de acesso restrito, sem erro no console, em `/financas/configuracoes` e `/financas/pagamentos`.
 - [ ] Admin `fpp` e academia conseguem configurar mensalidade e matrícula, versão após versão, com histórico visível.
-- [ ] `GPO_QR` nunca aparece como opção selecionável nas telas de pagamento de propina (estudante) e matrícula (público); aparece normalmente como opção de **configuração**.
+- [ ] `GPO_QR` aparece normalmente como opção selecionável nas telas de pagamento de propina (estudante) e matrícula (público), sempre que a academia o tiver habilitado — e, quando escolhido, a tela renderiza `cobranca.qrCodeArr` como imagem.
 - [ ] Detalhe de `/solicitacoes-matricula` mostra valor/métodos/situação de pagamento quando existentes, e permite à academia cancelar por falta de pagamento no status correto.
 - [ ] Página pública de matrícula permite acompanhar uma solicitação existente e pagar a taxa quando aplicável, sem prometer valor antes da aprovação.
-- [ ] `/financas/pagamentos` cobre as três ferramentas de consulta descritas na Parte H, com subtelas (modal) para detalhe de cada item.
-- [ ] `/pagamentos` (estudante) mostra o histórico completo de todas as academias e todos os status, e permite pagar mensalidades pendentes.
-- [ ] Nenhum endpoint inexistente foi inventado; nenhuma listagem "de todos os pagamentos" foi simulada com dados parciais sem deixar claro ao usuário que é uma busca pontual.
+- [ ] `/financas/pagamentos` mostra a listagem real de cobranças (`GET /financeiro/cobrancas`), com filtros por origem e estado, paginação, e subtela de detalhe por linha (Parte H.2/H.3), além da seção complementar de mensalidades por estudante (Parte H.4).
+- [ ] `/pagamentos` (estudante) mostra o histórico completo de todas as academias e todos os status, e permite pagar mensalidades pendentes por qualquer método habilitado, incluindo `GPO_QR`.
+- [ ] Nenhum endpoint inexistente foi inventado; nenhuma listagem foi simulada com dados parciais.
+- [ ] Nenhum campo inexistente foi inventado em `ChargeResult` (sem `valor`/`moeda`/`referencia`/`entidade` no nível superior — esses dados, quando existirem, vêm dentro de `response`).
 
 ---
 
 ## 6. Fora de escopo desta tarefa — recomendações para uma tarefa futura de backend
 
-Registradas aqui apenas para conhecimento; **não implementar agora**, pois esta tarefa é só de frontend:
+Registradas aqui apenas para conhecimento; **não implementar agora**, pois esta tarefa é só de frontend. Dois itens que estavam aqui (endpoint de listagem de cobranças, e `qrCodeArr` nas respostas de pagamento) **já foram corrigidos no backend** e por isso saíram desta lista — ver avisos 2.1 e 2.3, ambos marcados `[RESOLVIDO]`.
 
-1. Endpoint de listagem geral de cobranças por academia/contexto, com filtros por estado/período, para permitir uma verdadeira tela de "todos os pagamentos" em `/financas/pagamentos` (hoje contornado com as três ferramentas de busca pontual da Parte H).
-2. Permitir leitura (GET) das rotas `/financeiro/*` para qualquer papel de admin (não só `fpp`), mantendo escrita restrita a `fpp`, para viabilizar um modo "visualizar mas não executar" de fato em `/financas/configuracoes` para admins `adm`/`gerente`.
-3. Incluir `qr_code_arr` (ou equivalente) nas respostas de `IniciarPagamentoMensalidades` e `IniciarPagamentoMatricula` quando `metodo_pagamento = "GPO_QR"`, ou expor uma consulta segura para o próprio pagador buscar o QR Code depois de iniciar o pagamento — hoje esse método fica inutilizável nesses dois fluxos.
-4. Atualizar a seção "9. Solicitação de Matrícula" e o DTO da seção 2.5 de `Documentação da API.md` para refletir os campos e status de pagamento já implementados (hoje só documentados na seção separada de "Cobrança de matrícula por solicitação").
+1. Permitir leitura (GET) das rotas `/financeiro/*` para qualquer papel de admin (não só `fpp`), mantendo escrita restrita a `fpp`, para viabilizar um modo "visualizar mas não executar" de fato em `/financas/configuracoes` e `/financas/pagamentos` para admins `adm`/`gerente` (ver aviso 2.2, ainda em aberto).
+2. Fazer `GET /financeiro/appypay/cobrancas/:id` devolver `qrCodeArr` de forma confiável também para uma cobrança `GPO_QR` já existente (hoje só é garantido no momento da criação — ver nota da seção 4.1-A/4.10), para que a subtela de detalhe de `/financas/pagamentos` (Parte H.3) sempre consiga reexibir o QR Code de uma cobrança antiga, não só logo após criá-la.
+3. Atualizar a seção "9. Solicitação de Matrícula" e o DTO da seção 2.5 de `Documentação da API.md` para refletir os campos e status de pagamento já implementados (hoje só documentados na seção separada de "Cobrança de matrícula por solicitação").
