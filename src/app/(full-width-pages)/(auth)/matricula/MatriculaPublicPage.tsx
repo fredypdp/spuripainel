@@ -4,12 +4,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Input from "@/components/form/input/InputField";
 import SearchableSelect from "@/components/form/SearchableSelect";
+import Select from "@/components/form/Select";
 import BirthDatePicker from "@/components/form/BirthDatePicker";
 import DocumentUpload from "@/components/form/DocumentUpload";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
+import { Qr, money } from "@/components/paineis/FinanceiroPagamentosPainel";
 import { academiaService, consultasService, solicitacaoMatriculaService } from "@/lib/api/services";
-import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, Genero } from "@/types/api";
+import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, FinanceiroMetodoPagamento, Genero, SolicitacaoMatriculaResumo, SolicitacaoMatriculaStatusResponse } from "@/types/api";
 
 type StepId = 0 | 1 | 2 | 3 | 4;
 type FileKey = "bi_estudante" | "bi_encarregado" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
@@ -78,6 +80,14 @@ export default function MatriculaPublicPage() {
   const [loadingCursos, setLoadingCursos] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
+  const [busca, setBusca] = useState({ codigo: "", telefone: "", email: "", bi: "" });
+  const [solicitacoes, setSolicitacoes] = useState<SolicitacaoMatriculaResumo[]>([]);
+  const [solicitacao, setSolicitacao] = useState<SolicitacaoMatriculaResumo | null>(null);
+  const [statusSolicitacao, setStatusSolicitacao] = useState<SolicitacaoMatriculaStatusResponse | null>(null);
+  const [metodoPagamento, setMetodoPagamento] = useState<FinanceiroMetodoPagamento>("GPO");
+  const [telefonePagamento, setTelefonePagamento] = useState("");
+  const [resultadoPagamento, setResultadoPagamento] = useState<any>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
 
   useEffect(() => {
     consultasService
@@ -373,6 +383,43 @@ export default function MatriculaPublicPage() {
     }
   }
 
+  async function consultarSolicitacao(codigoParam?: string) {
+    const codigo = (codigoParam ?? busca.codigo).trim();
+    setErro(""); setResultadoPagamento(null);
+    if (!codigo) { setErro("Informe o código da solicitação."); return; }
+    setLoadingStatus(true);
+    try {
+      const status = await solicitacaoMatriculaService.consultarStatus(codigo);
+      setStatusSolicitacao(status);
+      setSolicitacao((prev) => prev?.codigo_solicitacao === codigo ? prev : { codigo_solicitacao: codigo, nome_estudante: "Solicitação", academia: status.codigo_academia, data_submissao: "", status: status.status });
+      setBusca((prev) => ({ ...prev, codigo }));
+      setMetodoPagamento((status.metodos_pagamento?.[0] ?? "GPO") as FinanceiroMetodoPagamento);
+    } catch (err: any) { setErro(err?.message ?? "Não foi possível consultar a solicitação."); }
+    finally { setLoadingStatus(false); }
+  }
+
+  async function buscarSolicitacoes() {
+    setErro(""); setSolicitacoes([]);
+    const params = { telefone: busca.telefone, email: busca.email, bilhete_identidade: busca.bi, bilhete_identidade_encarregado: busca.bi };
+    if (!params.telefone && !params.email && !params.bilhete_identidade) { setErro("Informe telefone, email ou BI para buscar solicitações."); return; }
+    setLoadingStatus(true);
+    try { const res = await solicitacaoMatriculaService.buscar(params); setSolicitacoes(res.solicitacoes ?? []); }
+    catch (err: any) { setErro(err?.message ?? "Não foi possível buscar solicitações."); }
+    finally { setLoadingStatus(false); }
+  }
+
+  async function iniciarPagamentoMatricula() {
+    if (!solicitacao) return;
+    if (metodoPagamento === "GPO" && !telefonePagamento.trim()) { setErro("Informe o telefone para pagamento GPO."); return; }
+    setErro(""); setLoadingStatus(true);
+    try {
+      const res = await solicitacaoMatriculaService.iniciarPagamento(solicitacao.codigo_solicitacao, { metodo_pagamento: metodoPagamento, telefone: metodoPagamento === "GPO" ? onlyDigits(telefonePagamento) : undefined });
+      setResultadoPagamento(res);
+      await consultarSolicitacao(solicitacao.codigo_solicitacao);
+    } catch (err: any) { setErro(err?.message ?? "Não foi possível iniciar o pagamento."); }
+    finally { setLoadingStatus(false); }
+  }
+
   function setDocumentoFile(key: FileKey, file?: File) {
     if (file && key === "cedula_estudante") setField("bilhete_identidade", "");
 
@@ -420,6 +467,15 @@ export default function MatriculaPublicPage() {
           </div>
           <Link href="/login" className="text-sm font-medium text-brand-500 hover:text-brand-600">Voltar</Link>
         </div>
+
+        <section className="mb-6 rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900 dark:bg-brand-900/20">
+          <h2 className="font-semibold text-brand-700 dark:text-brand-200">Acompanhar solicitação e pagar matrícula</h2>
+          <p className="mt-1 text-sm text-brand-700/90 dark:text-brand-300">Se já enviou a matrícula, informe o código recebido ou busque por telefone, email ou BI para consultar o estado e pagar a taxa quando ela existir.</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]"><Input placeholder="Código da solicitação" defaultValue={busca.codigo} onChange={(e)=>setBusca((prev)=>({...prev,codigo:e.target.value}))}/><Button onClick={()=>consultarSolicitacao()} disabled={loadingStatus}>Consultar status</Button></div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4"><Input placeholder="Telefone" defaultValue={busca.telefone} onChange={(e)=>setBusca((prev)=>({...prev,telefone:e.target.value}))}/><Input placeholder="Email" defaultValue={busca.email} onChange={(e)=>setBusca((prev)=>({...prev,email:e.target.value}))}/><Input placeholder="BI" defaultValue={busca.bi} onChange={(e)=>setBusca((prev)=>({...prev,bi:e.target.value}))}/><Button variant="outline" onClick={buscarSolicitacoes} disabled={loadingStatus}>Buscar solicitações</Button></div>
+          {solicitacoes.length > 0 && <div className="mt-3 space-y-2">{solicitacoes.map((item)=><button key={item.codigo_solicitacao} type="button" onClick={()=>{setSolicitacao(item); void consultarSolicitacao(item.codigo_solicitacao);}} className="block w-full rounded-lg border bg-white p-3 text-left text-sm hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900"><b>{item.codigo_solicitacao}</b> · {item.nome_estudante} · {item.status}</button>)}</div>}
+          {statusSolicitacao && solicitacao && <div className="mt-4 rounded-lg bg-white p-4 text-sm dark:bg-gray-900"><p><b>Solicitação:</b> {solicitacao.codigo_solicitacao}</p><p><b>Estado:</b> {statusSolicitacao.status}</p><p><b>Instituição:</b> {statusSolicitacao.codigo_academia}</p>{statusSolicitacao.valor_matricula != null && <p><b>Taxa de matrícula:</b> {money(statusSolicitacao.valor_matricula)}</p>}{statusSolicitacao.valor_matricula != null && statusSolicitacao.metodos_pagamento?.length ? <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]"><Select key={metodoPagamento} defaultValue={metodoPagamento} options={statusSolicitacao.metodos_pagamento.map((m)=>({value:m,label:m}))} onChange={(v)=>setMetodoPagamento(v as FinanceiroMetodoPagamento)}/>{metodoPagamento === "GPO" && <Input placeholder="Telefone para GPO" defaultValue={telefonePagamento} onChange={(e)=>setTelefonePagamento(e.target.value)}/>}<Button onClick={iniciarPagamentoMatricula} disabled={loadingStatus}>Pagar taxa</Button></div> : <p className="mt-2 text-gray-500">Nenhum pagamento de matrícula está pendente para esta solicitação.</p>}{resultadoPagamento?.cobranca && <div className="mt-3 space-y-2"><p><b>Status da cobrança:</b> {resultadoPagamento.cobranca.status}</p>{metodoPagamento === "GPO" && <p>Confirme a notificação no telefone informado.</p>}{metodoPagamento === "REF" && <pre className="overflow-auto rounded bg-gray-50 p-3 text-xs dark:bg-gray-800">{JSON.stringify(resultadoPagamento.cobranca.response ?? {}, null, 2)}</pre>}{metodoPagamento === "GPO_QR" && <Qr value={resultadoPagamento.cobranca.qrCodeArr}/>}<Button size="sm" variant="outline" onClick={()=>consultarSolicitacao(solicitacao.codigo_solicitacao)}>Verificar status</Button></div>}</div>}
+        </section>
 
         <div className="mb-5 flex flex-wrap gap-2">
           {steps.map((item, index) => (
