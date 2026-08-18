@@ -1274,7 +1274,18 @@ export interface FinanceiroCredencial {
   updated_at: string;
 }
 
-/** Corpo de POST /financeiro/appypay/credenciais e PUT /financeiro/appypay/credenciais/:id. */
+/**
+ * Corpo de POST /financeiro/appypay/credenciais e PUT
+ * /financeiro/appypay/credenciais/:id.
+ *
+ * O backend (finance.CredentialInput) NÃO tem — e nunca teve — campos de
+ * webhook aqui: o segredo é gerado automaticamente pelo servidor
+ * (crypto/rand, 15 caracteres) na primeira configuração da credencial, e o
+ * nome do cabeçalho é uma constante fixa (X-Spuri-Webhook-Secret,
+ * finance.WebhookHeaderName) — nunca configurável. Ver
+ * FinanceiroCredencialCriada, ConsultarSegredoWebhookResponse e
+ * RotacionarSegredoWebhookResponse abaixo para como o segredo é obtido.
+ */
 export interface CriarFinanceiroCredencialRequest {
   contexto_tipo: FinanceiroContextoTipo;
   codigo_academia?: string;
@@ -1282,8 +1293,6 @@ export interface CriarFinanceiroCredencialRequest {
   client_secret: string;
   gpo_payment_method: string;
   ref_payment_method: string;
-  webhook_secret?: string;
-  webhook_header_name?: string;
 }
 
 /** PUT é substituição completa — mesmo formato do POST. */
@@ -1296,6 +1305,31 @@ export interface ListarFinanceiroCredenciaisParams {
 
 export type ListarFinanceiroCredenciaisResponse = FinanceiroCredencial[];
 
+/**
+ * Resposta exclusiva de POST /financeiro/appypay/credenciais
+ * (CredencialAppyPayCriada no backend). webhook_secret só vem preenchido
+ * quando esta é a PRIMEIRA vez que a credencial recebe um segredo de
+ * webhook — é a única oportunidade em que o valor em texto plano aparece
+ * "de graça" numa resposta, fora do GET .../webhook-secret dedicado. Numa
+ * atualização (PUT) de credencial já existente, webhook_secret nunca vem
+ * preenchido; use ConsultarSegredoWebhookResponse para recuperá-lo depois.
+ */
+export interface FinanceiroCredencialCriada extends FinanceiroCredencial {
+  webhook_secret?: string;
+}
+
+/**
+ * Resposta de GET .../webhook-secret e de POST
+ * .../webhook-secret/rotacionar. webhook_header_name é sempre
+ * "X-Spuri-Webhook-Secret" (constante fixa do servidor).
+ */
+export interface ConsultarSegredoWebhookResponse {
+  webhook_secret: string;
+  webhook_header_name: string;
+}
+
+export type RotacionarSegredoWebhookResponse = ConsultarSegredoWebhookResponse;
+
 // ---- Mensalidade (propina) ----
 
 export type FinanceiroNivel = 'fundamental' | 'medio' | 'superior';
@@ -1305,7 +1339,14 @@ export type FinanceiroEstadoMensalidade = 'pendente' | 'pago' | 'anulado';
 export interface MensalidadeConfiguracaoInput {
   codigo_academia: string;
   nivel: FinanceiroNivel;
-  ano_academico?: number;
+  /**
+   * Formato "N_ano_fundamental" | "N_ano_medio" (ex.: "6_ano_fundamental")
+   * — o mesmo formato de AcademiaDetalhada.anos_academicos e
+   * Curso.anos_academicos. NUNCA um número solto: o backend
+   * (finance.MensalidadeConfiguracaoInput) sempre tratou este campo como
+   * string; o tipo `number` aqui era um bug que quebrava a requisição.
+   */
+  ano_academico?: string;
   curso_id?: string;
   valor: number;
   mes_fim_cobranca: 6 | 7;
@@ -1342,7 +1383,8 @@ export interface MensalidadeMesView {
   mes: number;
   data_referencia: string;
   nivel: FinanceiroNivel;
-  ano_academico?: number;
+  /** Formato "N_ano_fundamental" | "N_ano_medio" — ver MensalidadeConfiguracaoInput.ano_academico. */
+  ano_academico?: string;
   curso_id?: string;
   valor: number;
   mes_fim_cobranca: number;
@@ -1419,6 +1461,8 @@ export interface ListarCobrancasResponse {
 
 export interface ListarCobrancasEstudanteParams {
   estado?: string[];
+  /** Filtro por tipo de cobrança — mesmo filtro que ListarCobrancasParams já oferece à academia/admin (tarefa 49). */
+  tipo?: FinanceiroOrigemCobranca[];
   limit?: number;
   offset?: number;
 }
@@ -1426,7 +1470,8 @@ export interface ListarCobrancasEstudanteParams {
 export interface MatriculaConfiguracaoInput {
   codigo_academia: string;
   nivel: FinanceiroNivel;
-  ano_academico?: number;
+  /** Formato "N_ano_fundamental" | "N_ano_medio" — ver MensalidadeConfiguracaoInput.ano_academico. */
+  ano_academico?: string;
   curso_id?: string;
   valor: number;
   metodos_pagamento: FinanceiroMetodoPagamento[];
