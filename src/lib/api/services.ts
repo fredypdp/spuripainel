@@ -121,8 +121,11 @@ import type {
   GerirAnosAcademicosResponse,
   ListarAnosAcademicosResponse,
   FinanceiroCredencial,
+  FinanceiroCredencialCriada,
   CriarFinanceiroCredencialRequest,
   AtualizarFinanceiroCredencialRequest,
+  ConsultarSegredoWebhookResponse,
+  RotacionarSegredoWebhookResponse,
   ListarFinanceiroCredenciaisParams,
   ListarFinanceiroCredenciaisResponse,
   MensalidadeConfiguracaoInput,
@@ -846,8 +849,9 @@ export const financeiroService = {
     );
   },
 
+  /** Resposta traz webhook_secret preenchido só na primeira configuração da credencial — ver FinanceiroCredencialCriada. */
   criarCredencial: (data: CriarFinanceiroCredencialRequest, token?: string) =>
-    api.post<FinanceiroCredencial, CriarFinanceiroCredencialRequest>(
+    api.post<FinanceiroCredencialCriada, CriarFinanceiroCredencialRequest>(
       '/financeiro/appypay/credenciais',
       data,
       { token: token || tokenStorage.get() || undefined }
@@ -857,6 +861,21 @@ export const financeiroService = {
     api.put<FinanceiroCredencial, AtualizarFinanceiroCredencialRequest>(
       `/financeiro/appypay/credenciais/${id}`,
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** GET .../webhook-secret — devolve o segredo de webhook atual em texto plano (só dono do contexto). */
+  consultarSegredoWebhook: (id: string, token?: string) =>
+    api.get<ConsultarSegredoWebhookResponse>(
+      `/financeiro/appypay/credenciais/${encodeURIComponent(id)}/webhook-secret`,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /** POST .../webhook-secret/rotacionar — gera um novo segredo, invalidando o anterior imediatamente. */
+  rotacionarSegredoWebhook: (id: string, token?: string) =>
+    api.post<RotacionarSegredoWebhookResponse, undefined>(
+      `/financeiro/appypay/credenciais/${encodeURIComponent(id)}/webhook-secret/rotacionar`,
+      undefined,
       { token: token || tokenStorage.get() || undefined }
     ),
 
@@ -891,6 +910,7 @@ export const financeiroService = {
   consultarCobrancasEstudante: (codigoEstudante: string, params?: ListarCobrancasEstudanteParams, token?: string) => {
     const qs = new URLSearchParams();
     params?.estado?.forEach((e) => qs.append('estado', e));
+    params?.tipo?.forEach((t) => qs.append('tipo', t));
     if (params?.limit != null) qs.set('limit', String(params.limit));
     if (params?.offset != null) qs.set('offset', String(params.offset));
     return api.get<ListarCobrancasResponse>(`/financeiro/cobrancas/estudante/${encodeURIComponent(codigoEstudante)}${qs.toString() ? `?${qs.toString()}` : ''}`, { token: token || tokenStorage.get() || undefined });

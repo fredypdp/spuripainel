@@ -9,7 +9,7 @@ import BirthDatePicker from "@/components/form/BirthDatePicker";
 import DocumentUpload from "@/components/form/DocumentUpload";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { Qr, money } from "@/components/paineis/FinanceiroPagamentosPainel";
+import { Qr, money } from "@/components/paineis/financeiroShared";
 import { academiaService, consultasService, solicitacaoMatriculaService } from "@/lib/api/services";
 import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, FinanceiroMetodoPagamento, Genero, SolicitacaoMatriculaResumo, SolicitacaoMatriculaStatusResponse } from "@/types/api";
 

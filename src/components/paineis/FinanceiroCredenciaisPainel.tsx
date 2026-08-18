@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, consultasService, financeiroService, useApi } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
-import type { AcademiaDetalhada, CriarFinanceiroCredencialRequest, FinanceiroContextoTipo, FinanceiroCredencial, ListarFinanceiroCredenciaisParams } from "@/types/api";
+import type {
+  AcademiaDetalhada,
+  CriarFinanceiroCredencialRequest,
+  FinanceiroContextoTipo,
+  FinanceiroCredencial,
+  ListarFinanceiroCredenciaisParams,
+} from "@/types/api";
 import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
@@ -19,13 +25,20 @@ type AlertState = { variant: "success" | "error" | "warning" | "info"; message: 
 type ContextFilter = "todas" | "spuri" | "academia";
 type FormErrors = Partial<Record<keyof CredencialFormData | "contexto", string>>;
 
+/**
+ * Campos de credencial que o formulário coleta. NÃO inclui webhook_secret
+ * nem webhook_header_name: o backend (finance.CredentialInput) nunca teve
+ * esses campos no corpo da requisição — o segredo é gerado automaticamente
+ * pelo servidor na primeira configuração da credencial, e o nome do
+ * cabeçalho é a constante fixa "X-Spuri-Webhook-Secret"
+ * (finance.WebhookHeaderName), nunca configurável. Ver
+ * WebhookSecretPanel abaixo para consultar/rotacionar o segredo depois.
+ */
 type CredencialFormData = {
   client_id: string;
   client_secret: string;
   gpo_payment_method: string;
   ref_payment_method: string;
-  webhook_secret: string;
-  webhook_header_name: string;
 };
 
 const EMPTY_FORM: CredencialFormData = {
@@ -33,9 +46,9 @@ const EMPTY_FORM: CredencialFormData = {
   client_secret: "",
   gpo_payment_method: "",
   ref_payment_method: "",
-  webhook_secret: "",
-  webhook_header_name: "",
 };
+
+const WEBHOOK_HEADER_NAME = "X-Spuri-Webhook-Secret";
 
 function LoadingState() {
   return (
@@ -69,8 +82,6 @@ function contextParams(filter: ContextFilter, codigoAcademia: string): ListarFin
   return undefined;
 }
 
-const HTTP_HEADER_NAME_PATTERN = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/;
-
 export default function FinanceiroCredenciaisPainel() {
   const { user, isAdmin, isAcademia, loading } = useUserType();
   const isFpp = isAdmin && user?.admin?.role === "fpp";
@@ -83,8 +94,16 @@ export default function FinanceiroCredenciaisPainel() {
   const [editing, setEditing] = useState<FinanceiroCredencial | null>(null);
   const [formData, setFormData] = useState<CredencialFormData>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+  // Erro/sucesso do próprio formulário — renderizado DENTRO do card do
+  // formulário (não no topo da página), para que o usuário veja o erro
+  // exatamente onde ele foi disparado.
+  const [formAlert, setFormAlert] = useState<AlertState>(null);
   const [showClientSecret, setShowClientSecret] = useState(false);
-  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  // Segredo do webhook devolvido UMA VEZ pelo backend, na criação da
+  // credencial (finance.CredencialAppyPayCriada.WebhookSecret). Some
+  // depois de fechado — para vê-lo de novo, use "Consultar segredo" na
+  // linha da tabela (WebhookSecretPanel).
+  const [novoWebhookSecret, setNovoWebhookSecret] = useState<string | null>(null);
 
   const { execute: listarCredenciais, data: credenciais, loading: listando } = useApi(financeiroService.listarCredenciais);
   const { execute: criarCredencial, loading: criando } = useApi(financeiroService.criarCredencial);
@@ -128,8 +147,8 @@ export default function FinanceiroCredenciaisPainel() {
   const resetForm = () => {
     setFormData(EMPTY_FORM);
     setFormErrors({});
+    setFormAlert(null);
     setShowClientSecret(false);
-    setShowWebhookSecret(false);
   };
 
   const closeForm = () => {
@@ -160,12 +179,18 @@ export default function FinanceiroCredenciaisPainel() {
 
   const validate = () => {
     const errors: FormErrors = {};
-    const required: (keyof CredencialFormData)[] = ["client_id", "client_secret", "gpo_payment_method", "ref_payment_method", "webhook_secret"];
+    const required: (keyof CredencialFormData)[] = ["client_id", "client_secret", "gpo_payment_method", "ref_payment_method"];
     required.forEach((field) => {
       if (!formData[field].trim()) errors[field] = "Campo obrigatório.";
     });
-    if (formData.webhook_header_name.trim() && !HTTP_HEADER_NAME_PATTERN.test(formData.webhook_header_name.trim())) {
-      errors.webhook_header_name = "Nome de cabeçalho HTTP inválido (sem espaços ou dois-pontos).";
+    // A API da AppyPay exige que os identificadores dos métodos de
+    // pagamento comecem com o prefixo do método (validação espelhada de
+    // finance.ConfigureCredential no backend).
+    if (formData.gpo_payment_method.trim() && !formData.gpo_payment_method.trim().startsWith("GPO_")) {
+      errors.gpo_payment_method = 'Deve começar com "GPO_" (ex.: GPO_12345).';
+    }
+    if (formData.ref_payment_method.trim() && !formData.ref_payment_method.trim().startsWith("REF_")) {
+      errors.ref_payment_method = 'Deve começar com "REF_" (ex.: REF_12345).';
     }
     if (!resolveContext()) errors.contexto = "Selecione um contexto antes de salvar.";
     setFormErrors(errors);
@@ -173,6 +198,7 @@ export default function FinanceiroCredenciaisPainel() {
   };
 
   const handleSubmit = async () => {
+    setFormAlert(null);
     if (!validate()) return;
     const context = resolveContext();
     if (!context) return;
@@ -182,18 +208,24 @@ export default function FinanceiroCredenciaisPainel() {
       client_secret: formData.client_secret.trim(),
       gpo_payment_method: formData.gpo_payment_method.trim(),
       ref_payment_method: formData.ref_payment_method.trim(),
-      webhook_secret: formData.webhook_secret.trim(),
-      ...(formData.webhook_header_name.trim() ? { webhook_header_name: formData.webhook_header_name.trim() } : {}),
     };
 
     try {
-      if (editing) await atualizarCredencial(editing.id, payload);
-      else await criarCredencial(payload);
-      setAlert({ variant: "success", message: editing ? "Credencial atualizada com sucesso." : "Credencial configurada com sucesso." });
-      closeForm();
+      if (editing) {
+        await atualizarCredencial(editing.id, payload);
+        setAlert({ variant: "success", message: "Credencial atualizada com sucesso." });
+        closeForm();
+      } else {
+        const criada = await criarCredencial(payload);
+        setAlert({ variant: "success", message: "Credencial configurada com sucesso." });
+        closeForm();
+        if (criada?.webhook_secret) setNovoWebhookSecret(criada.webhook_secret);
+      }
       await carregarCredenciais();
     } catch (err) {
-      setAlert({ variant: "error", message: getErrorMessage(err) });
+      // Erro do envio: fica DENTRO do formulário (que continua aberto),
+      // e não no topo da página — é ali que o usuário está olhando.
+      setFormAlert({ variant: "error", message: getErrorMessage(err) });
     }
   };
 
@@ -206,6 +238,13 @@ export default function FinanceiroCredenciaisPainel() {
   return (
     <div className="space-y-6">
       {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Atenção"} message={alert.message} />}
+
+      {novoWebhookSecret && (
+        <NovoWebhookSecretAlert
+          segredo={novoWebhookSecret}
+          onFechar={() => setNovoWebhookSecret(null)}
+        />
+      )}
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -252,7 +291,7 @@ export default function FinanceiroCredenciaisPainel() {
         ) : (
           <div className="overflow-x-auto">
             <Table className="w-full text-left">
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]"><TableRow>{["Contexto", "Ambiente", "Client ID", "Método GPO", "Método REF", "Cabeçalho do Webhook", "Atualizado em", "Ações"].map((h) => <TableCell key={h} isHeader className="px-4 py-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>)}</TableRow></TableHeader>
+              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]"><TableRow>{["Contexto", "Ambiente", "Client ID", "Método GPO", "Método REF", "Segredo do webhook", "Atualizado em", "Ações"].map((h) => <TableCell key={h} isHeader className="px-4 py-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>)}</TableRow></TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {rows.map((credencial) => (
                   <TableRow key={credencial.id}>
@@ -261,7 +300,7 @@ export default function FinanceiroCredenciaisPainel() {
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.client_id_mask}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.gpo_payment_method_mask}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.ref_payment_method_mask}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.webhook_header_name || "X-API-Key"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300"><WebhookSecretPanel credencialId={credencial.id} /></TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{formatDate(credencial.updated_at)}</TableCell>
                     <TableCell className="px-4 py-3"><Button size="sm" variant="outline" onClick={() => openEdit(credencial)}>Editar</Button></TableCell>
                   </TableRow>
@@ -275,19 +314,117 @@ export default function FinanceiroCredenciaisPainel() {
       {formOpen && (
         <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03] lg:p-8">
           <Button variant="outline" size="sm" onClick={closeForm} disabled={saving} startIcon={<Icon icon="mdi:arrow-left" width={16} />}>Voltar</Button>
-          <div><h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{editing ? "Atualizar credencial" : "Configurar credenciais"}</h3>{formErrors.contexto && <p className="mt-1 text-xs text-error-500">{formErrors.contexto}</p>}</div>
-          {editing && <Alert variant="warning" title="Rotação completa" message="Por segurança, a AppyPay não devolve os valores atuais dos campos sensíveis. Preencha novamente todos os campos abaixo para atualizar esta credencial — os valores mascarados atuais continuam visíveis na tabela até a atualização ser concluída." />}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{editing ? "Atualizar credencial" : "Configurar credenciais"}</h3>
+            {formErrors.contexto && <p className="mt-1 text-xs text-error-500">{formErrors.contexto}</p>}
+          </div>
+          {/* Erro/sucesso do envio deste formulário — visível aqui dentro, não no topo da página. */}
+          {formAlert && <Alert variant={formAlert.variant} title={formAlert.variant === "success" ? "Sucesso" : "Não foi possível salvar"} message={formAlert.message} />}
+          {editing && <Alert variant="warning" title="Rotação completa" message="Por segurança, a AppyPay não devolve os valores atuais dos campos sensíveis. Preencha novamente todos os campos abaixo para atualizar esta credencial — os valores mascarados atuais continuam visíveis na tabela até a atualização ser concluída. O segredo do webhook NÃO muda ao editar; use 'Rotacionar' na tabela se precisar de um novo." />}
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Client ID *"><Input value={formData.client_id} onChange={(e) => setFormData((p) => ({ ...p, client_id: e.target.value }))} error={!!formErrors.client_id} hint={formErrors.client_id} /></Field>
             <PasswordField label="Client Secret *" value={formData.client_secret} show={showClientSecret} onToggle={() => setShowClientSecret((v) => !v)} onChange={(value) => setFormData((p) => ({ ...p, client_secret: value }))} error={formErrors.client_secret} />
-            <Field label="ID Método de pagamento GPO *"><Input value={formData.gpo_payment_method} onChange={(e) => setFormData((p) => ({ ...p, gpo_payment_method: e.target.value }))} error={!!formErrors.gpo_payment_method} hint={formErrors.gpo_payment_method ?? "Identificador do método GPO configurado na AppyPay."} /></Field>
-            <Field label="ID Método de pagamento REF *"><Input value={formData.ref_payment_method} onChange={(e) => setFormData((p) => ({ ...p, ref_payment_method: e.target.value }))} error={!!formErrors.ref_payment_method} hint={formErrors.ref_payment_method ?? "Identificador do método REF configurado na AppyPay."} /></Field>
-            <Field label="Nome do Cabeçalho do Webhook"><Input value={formData.webhook_header_name} onChange={(e) => setFormData((p) => ({ ...p, webhook_header_name: e.target.value }))} error={!!formErrors.webhook_header_name} hint={formErrors.webhook_header_name ?? "Nome do cabeçalho HTTP configurado no painel de webhooks da AppyPay. Deixe em branco para usar o padrão X-API-Key."} /></Field>
-            <PasswordField label="Segredo do Webhook *" value={formData.webhook_secret} show={showWebhookSecret} onToggle={() => setShowWebhookSecret((v) => !v)} onChange={(value) => setFormData((p) => ({ ...p, webhook_secret: value }))} error={formErrors.webhook_secret} />
+            <Field label="ID Método de pagamento GPO *"><Input value={formData.gpo_payment_method} onChange={(e) => setFormData((p) => ({ ...p, gpo_payment_method: e.target.value }))} error={!!formErrors.gpo_payment_method} hint={formErrors.gpo_payment_method ?? 'Identificador do método GPO configurado na AppyPay. Deve começar com "GPO_".'} /></Field>
+            <Field label="ID Método de pagamento REF *"><Input value={formData.ref_payment_method} onChange={(e) => setFormData((p) => ({ ...p, ref_payment_method: e.target.value }))} error={!!formErrors.ref_payment_method} hint={formErrors.ref_payment_method ?? 'Identificador do método REF configurado na AppyPay. Deve começar com "REF_".'} /></Field>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-white/[0.03] dark:text-gray-300">
+            <p className="font-medium text-gray-800 dark:text-white/90">Sobre o webhook</p>
+            <p className="mt-1">
+              Não é preciso configurar segredo nem cabeçalho de webhook aqui: o Spuri gera automaticamente um segredo
+              único{editing ? "" : ", exibido uma única vez logo após salvar"} e sempre envia o cabeçalho fixo{" "}
+              <code className="rounded bg-gray-200 px-1 py-0.5 text-xs dark:bg-gray-700">{WEBHOOK_HEADER_NAME}</code>.
+              Configure este mesmo nome de cabeçalho no painel da AppyPay. Para ver ou trocar o segredo depois, use as ações
+              na coluna &quot;Segredo do webhook&quot; da tabela.
+            </p>
           </div>
           <div className="flex justify-end gap-3"><Button variant="outline" size="sm" onClick={closeForm} disabled={saving}>Cancelar</Button><Button size="sm" onClick={handleSubmit} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button></div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Alerta que exibe (uma única vez) o segredo de webhook devolvido pela criação da credencial. */
+function NovoWebhookSecretAlert({ segredo, onFechar }: { segredo: string; onFechar: () => void }) {
+  const [copiado, setCopiado] = useState(false);
+  return (
+    <div className="rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-500/30 dark:bg-brand-500/10">
+      <div className="flex items-start gap-3">
+        <Icon icon="mdi:key-alert-outline" width={22} className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300" />
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">Segredo do webhook gerado</h3>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+            Copie e configure isto no painel da AppyPay agora — por segurança, este valor não será mostrado por
+            inteiro novamente (só via &quot;Consultar segredo&quot;, que exige confirmação).
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <code className="rounded bg-white px-3 py-1.5 text-sm dark:bg-gray-900 dark:text-white/90">{segredo}</code>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { navigator.clipboard?.writeText(segredo).catch(() => {}); setCopiado(true); setTimeout(() => setCopiado(false), 2000); }}
+            >
+              {copiado ? "Copiado!" : "Copiar"}
+            </Button>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Cabeçalho: {WEBHOOK_HEADER_NAME}</span>
+          </div>
+        </div>
+        <button type="button" onClick={onFechar} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="Fechar">
+          <Icon icon="mdi:close" width={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ações de consulta e rotação do segredo de webhook de uma credencial já
+ * existente (GET/POST .../webhook-secret). O erro de cada ação aparece
+ * aqui mesmo, dentro da célula da tabela — não no topo da página.
+ */
+function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
+  const consultar = useApi(financeiroService.consultarSegredoWebhook);
+  const rotacionar = useApi(financeiroService.rotacionarSegredoWebhook);
+  const [segredo, setSegredo] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const handleConsultar = async () => {
+    setErro(null);
+    try {
+      const r = await consultar.execute(credencialId);
+      setSegredo(r?.webhook_secret ?? null);
+    } catch (e) {
+      setErro(formatApiError(e, "Não foi possível consultar o segredo."));
+    }
+  };
+
+  const handleRotacionar = async () => {
+    if (!window.confirm("Isto invalida o segredo atual imediatamente. A AppyPay precisará ser reconfigurada com o novo valor. Continuar?")) return;
+    setErro(null);
+    try {
+      const r = await rotacionar.execute(credencialId);
+      setSegredo(r?.webhook_secret ?? null);
+    } catch (e) {
+      setErro(formatApiError(e, "Não foi possível rotacionar o segredo."));
+    }
+  };
+
+  if (segredo) {
+    return (
+      <div className="space-y-1">
+        <code className="block max-w-[180px] truncate rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">{segredo}</code>
+        <button type="button" className="text-xs text-brand-600 hover:underline dark:text-brand-300" onClick={() => setSegredo(null)}>Ocultar</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" disabled={consultar.loading} onClick={handleConsultar}>Consultar segredo</Button>
+        <Button size="sm" variant="outline" disabled={rotacionar.loading} onClick={handleRotacionar}>Rotacionar</Button>
+      </div>
+      {erro && <p className="text-xs text-error-500">{erro}</p>}
     </div>
   );
 }

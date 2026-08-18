@@ -1,43 +1,190 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { consultasService, financeiroService, useApi } from "@/lib/api";
+import { financeiroService, useApi } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
 import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Alert from "@/components/ui/alert/Alert";
-import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import SearchableSelect from "@/components/form/SearchableSelect";
-import Select from "@/components/form/Select";
-import { Modal } from "@/components/ui/modal";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import AnularReativarObrigacoesForm from "@/components/paineis/AnularReativarObrigacoesForm";
-import type { AcademiaDetalhada, ChargeResult, CobrancaResumo, FinanceiroOrigemCobranca } from "@/types/api";
+import {
+  CobrancaDetalhesModal,
+  CobrancasTable,
+  EmptyState,
+  LoadingState,
+  PaginacaoSetas,
+} from "@/components/paineis/financeiroShared";
+import type { CobrancaResumo, FinanceiroOrigemCobranca } from "@/types/api";
 
 const PAGE_SIZE = 30;
-const money=(v:number)=>new Intl.NumberFormat("pt-AO",{style:"currency",currency:"AOA"}).format(v);
-const dt=(v:string)=>{const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat("pt-AO",{dateStyle:"short",timeStyle:"short"}).format(d)};
-const badge=(s:string)=>{const x=s.toLowerCase(); const cls = x.includes("success")||x.includes("pago") ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400" : x.includes("pend") ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" : x.includes("fail")||x.includes("falh") ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400" : x.includes("cancel") ? "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400" : "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"; return <span className={`rounded-full px-2 py-1 text-xs font-medium ${cls}`}>{s}</span>};
-const origemLabel: Record<FinanceiroOrigemCobranca,string>={matricula:"Matrícula",mensalidade:"Mensalidade",avulsa:"Avulsa"};
-function LoadingState(){return <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]"><div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400"><span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500"/>Carregando pagamentos...</div></div>}
-function EmptyState({title,description}:{title:string;description:string}){return <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center dark:border-white/[0.08]"><Icon icon="mdi:credit-card-off-outline" width={32} className="mx-auto text-gray-400"/><p className="mt-2 font-medium text-gray-800 dark:text-white/90">{title}</p><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p></div>}
-function Qr({ value }: { value?: string }) { if (!value) return null; return value.startsWith("data:image") ? <> {/* eslint-disable-next-line @next/next/no-img-element */}<img src={value} alt="QR Code" className="max-h-64 rounded border p-2"/></> : <pre className="whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs dark:bg-gray-800">{value}</pre>; }
-function CobrancasTable({ rows, onOpen }: { rows: CobrancaResumo[]; onOpen: (r:CobrancaResumo)=>void }) { return <div className="overflow-x-auto"><Table><TableHeader><TableRow>{["Origem","Descrição","Estudante","Valor","Método","Estado","Atualizado em"].map(h=><TableCell key={h} isHeader className="px-3 py-2 text-xs uppercase text-gray-500">{h}</TableCell>)}</TableRow></TableHeader><TableBody>{rows.map(r=><TableRow key={r.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]" onClick={()=>onOpen(r)}><TableCell className="px-3 py-2">{origemLabel[r.origem]??r.origem}</TableCell><TableCell className="px-3 py-2">{r.descricao || "—"}</TableCell><TableCell className="px-3 py-2">{r.codigo_estudante || "—"}</TableCell><TableCell className="px-3 py-2">{money(r.valor)}</TableCell><TableCell className="px-3 py-2">{r.metodo_pagamento || "—"}</TableCell><TableCell className="px-3 py-2">{badge(r.status)}</TableCell><TableCell className="px-3 py-2">{dt(r.atualizado_em)}</TableCell></TableRow>)}</TableBody></Table></div> }
-export { CobrancasTable, badge, money, Qr };
 
-export default function FinanceiroPagamentosPainel(){
- const {user,isAdmin,isAcademia,loading}=useUserType(); const isFpp=isAdmin&&user?.admin?.role==="fpp"; const [academias,setAcademias]=useState<AcademiaDetalhada[]>([]); const [codigoAcademia,setCodigoAcademia]=useState(user?.academia?.codigo_academia??""); const [tipo,setTipo]=useState<""|FinanceiroOrigemCobranca>(""); const [estado,setEstado]=useState(""); const [page,setPage]=useState(0); const [paginaHistorico,setPaginaHistorico]=useState(0); const [alert,setAlert]=useState<string|null>(null); const [selected,setSelected]=useState<CobrancaResumo|null>(null); const [detail,setDetail]=useState<ChargeResult|null>(null); const [codigoEstudante,setCodigoEstudante]=useState(""); const [estudantes,setEstudantes]=useState<any[]>([]);
- const list=useApi(financeiroService.listarCobrancas); const detailApi=useApi(financeiroService.consultarCobranca); const cancelApi=useApi(financeiroService.cancelarCobranca); const mens=useApi(financeiroService.consultarMensalidadesEstudante); const hist=useApi(financeiroService.consultarCobrancasEstudante); const la=useApi(consultasService.listarAcademias); const le=useApi(consultasService.listarEstudantes);
- useEffect(()=>{if(user?.academia?.codigo_academia)setCodigoAcademia(user.academia.codigo_academia)},[user?.academia?.codigo_academia]);
- useEffect(()=>{if(isFpp)la.execute({status:"ativo"}).then(r=>setAcademias(r?.academias??[])).catch(e=>setAlert(formatApiError(e,"Erro ao carregar academias.")))},[isFpp,la.execute]);
- useEffect(()=>{if(isAcademia||isFpp)le.execute({ codigo_academia: isAcademia?codigoAcademia:undefined, limit:300, offset:0 }).then(r=>setEstudantes(r?.estudantes??[])).catch(()=>{})},[isAcademia,isFpp,codigoAcademia,le.execute]);
- const carregar=useCallback(()=>{if(isAcademia&&!codigoAcademia)return Promise.resolve(); return list.execute({contexto_tipo:codigoAcademia?"academia":undefined,codigo_academia:codigoAcademia||undefined,limit:PAGE_SIZE,offset:page*PAGE_SIZE,tipo:tipo?[tipo]:undefined,estado:estado?[estado]:undefined}).catch(e=>setAlert(formatApiError(e,"Não foi possível carregar cobranças.")))},[codigoAcademia,estado,isAcademia,list,page,tipo]);
- useEffect(()=>{if(!loading&&(isAcademia||isFpp))void carregar()},[loading,isAcademia,isFpp,carregar]);
- useEffect(()=>{if(codigoEstudante)void hist.execute(codigoEstudante,{limit:PAGE_SIZE,offset:paginaHistorico*PAGE_SIZE}).catch(e=>setAlert(formatApiError(e,"Não foi possível carregar histórico.")))},[codigoEstudante,paginaHistorico,hist.execute]);
- const open=async(r:CobrancaResumo)=>{setSelected(r);try{setDetail(await detailApi.execute(r.id,{contexto_tipo:codigoAcademia?"academia":undefined,codigo_academia:codigoAcademia||undefined})??null)}catch(e){setAlert(formatApiError(e,"Não foi possível consultar cobrança."))}};
- if(loading)return <LoadingState/>; if(!isAcademia&&!isFpp)return <UnauthorizedAccess requiredTypes={["Admin FPP","Academia"]} message="O módulo financeiro é exclusivo de administradores com papel FPP. A API bloqueia até a leitura para admins adm/gerente."/>;
- const academiaOptions=academias.map(a=>({value:a.codigo_academia,label:`${a.nome} (${a.codigo_academia})`})); const estudanteOptions=estudantes.map((e:any)=>({value:e.codigo_estudante,label:`${e.nome??e.codigo_estudante} (${e.codigo_estudante})`})); const estados=Array.from(new Set([...(list.data?.cobrancas??[]).map(c=>c.status),"pendente","pago","cancelado"])); const totalPaginas=Math.max(1,Math.ceil((list.data?.total_geral??0)/PAGE_SIZE)); const paginaAtual=page+1; const totalPaginasHistorico=Math.max(1,Math.ceil((hist.data?.total_geral??0)/PAGE_SIZE));
- return <div className="space-y-6">{alert&&<Alert variant="error" title="Finanças" message={alert}/>}<section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]"><div className="flex items-start gap-3"><Icon icon="mdi:credit-card-multiple-outline" width={24}/><div><h2 className="text-xl font-semibold">Pagamentos</h2><p className="text-sm text-gray-500">Listagem real de cobranças AppyPay em todos os estados.</p></div></div>{isFpp&&<div className="mt-4"><SearchableSelect value={codigoAcademia} options={academiaOptions} onChange={v=>{setCodigoAcademia(v);setPage(0)}} placeholder="Filtrar por academia" isClearable/><p className="mt-1 text-xs text-gray-500">Deixe em branco para ver cobranças de todas as academias.</p></div>}<div className="mt-4 grid gap-3 sm:grid-cols-2"><Select key={`tipo-${tipo}`} defaultValue={tipo} options={[{value:"",label:"Todas origens"},{value:"matricula",label:"Matrícula"},{value:"mensalidade",label:"Mensalidade"},{value:"avulsa",label:"Avulsa"}]} onChange={v=>{setTipo(v as any);setPage(0)}}/><Select key={`estado-${estado}`} defaultValue={estado} options={[{value:"",label:"Todos estados"},...estados.map(e=>({value:e,label:e}))]} onChange={v=>{setEstado(v);setPage(0)}}/></div><div className="mt-4">{list.loading?<LoadingState/>:(list.data?.cobrancas?.length??0)>0?<CobrancasTable rows={list.data?.cobrancas??[]} onOpen={open}/>:<EmptyState title="Nenhuma cobrança encontrada." description="Ajuste os filtros ou aguarde novas cobranças serem criadas."/>}</div><div className="mt-4 flex items-center gap-3"><span className="text-sm">Página {paginaAtual} de {totalPaginas} · {list.data?.total_geral??0} cobranças</span><Button size="sm" disabled={page===0} onClick={()=>setPage(p=>p-1)}>Anterior</Button><Button size="sm" disabled={paginaAtual>=totalPaginas} onClick={()=>setPage(p=>p+1)}>Próxima</Button></div></section>
- <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]"><div className="flex items-start gap-3"><Icon icon="mdi:account-search-outline" width={22}/><h2 className="font-semibold">Consultar mensalidades e histórico por estudante</h2></div><div className="mt-3"><SearchableSelect value={codigoEstudante} options={estudanteOptions} onChange={async v=>{setCodigoEstudante(v); setPaginaHistorico(0); if(v){await mens.execute(v);}}} placeholder="Selecione um estudante" isClearable/></div>{mens.data&&<div className="mt-4 overflow-x-auto"><h3 className="mb-2 text-sm font-semibold">Mensalidades</h3>{mens.data.mensalidades.length?<Table><TableBody>{mens.data.mensalidades.map((m,i)=><TableRow key={i}><TableCell className="px-3 py-2">{m.ano_letivo}</TableCell><TableCell className="px-3 py-2">Mês {m.mes}</TableCell><TableCell className="px-3 py-2">{m.codigo_academia}</TableCell><TableCell className="px-3 py-2">{money(m.valor)}</TableCell><TableCell className="px-3 py-2">{badge(m.estado)}</TableCell></TableRow>)}</TableBody></Table>:<EmptyState title="Sem mensalidades." description="Não há obrigações de mensalidade para este estudante."/>}</div>}{hist.data&&<div className="mt-6"><h3 className="mb-2 text-sm font-semibold">Histórico completo de cobranças</h3>{hist.data.cobrancas.length?<CobrancasTable rows={hist.data.cobrancas} onOpen={open}/>:<EmptyState title="Sem histórico." description="Nenhuma cobrança foi encontrada para este estudante."/>}<div className="mt-4 flex items-center gap-3"><span className="text-sm">Página {paginaHistorico+1} de {totalPaginasHistorico} · {hist.data.total_geral??0} cobranças</span><Button size="sm" disabled={paginaHistorico===0} onClick={()=>setPaginaHistorico(p=>p-1)}>Anterior</Button><Button size="sm" disabled={paginaHistorico+1>=totalPaginasHistorico} onClick={()=>setPaginaHistorico(p=>p+1)}>Próxima</Button></div></div>}{isAcademia&&codigoEstudante&&<div className="mt-4"><AnularReativarObrigacoesForm codigoAcademia={codigoAcademia} onSuccess={()=>{void mens.execute(codigoEstudante); void hist.execute(codigoEstudante,{limit:PAGE_SIZE,offset:paginaHistorico*PAGE_SIZE});}}/></div>}</section>
- <Modal isOpen={!!selected} onClose={()=>{setSelected(null);setDetail(null)}} className="max-w-2xl p-6"><h3 className="text-lg font-semibold">Detalhe da cobrança</h3>{detailApi.loading?<LoadingState/>:detail&&<div className="mt-4 space-y-3 text-sm"><p><b>ID:</b> {detail.id}</p><p><b>Provider:</b> {detail.provider_charge_id || "—"}</p><p><b>Transação:</b> {detail.merchant_transaction_id}</p><p><b>Status:</b> {detail.status}</p><Qr value={(detail as any).qrCodeArr}/><pre className="max-h-80 overflow-auto rounded bg-gray-50 p-3 text-xs dark:bg-gray-800">{JSON.stringify(detail.response??{},null,2)}</pre><Button size="sm" disabled={cancelApi.loading} onClick={async()=>{try{await cancelApi.execute(detail.id, window.prompt("Motivo do cancelamento (opcional)")||undefined); setSelected(null); await carregar();}catch(e){setAlert(formatApiError(e,"Não foi possível cancelar."))}}} startIcon={<Icon icon="mdi:close-circle-outline" width={16}/>}>Cancelar cobrança</Button></div>}</Modal></div>;
+const TIPO_OPCOES: { value: "" | FinanceiroOrigemCobranca; label: string }[] = [
+  { value: "", label: "Todos os tipos" },
+  { value: "mensalidade", label: "Mensalidade" },
+  { value: "matricula", label: "Matrícula" },
+  { value: "avulsa", label: "Outros" },
+];
+
+const ESTADO_OPCOES = [
+  { value: "", label: "Todos os estados" },
+  { value: "Success", label: "Pago" },
+  { value: "Pending", label: "Pendente" },
+  { value: "Failed", label: "Falhado" },
+  { value: "Cancelled", label: "Cancelado" },
+];
+
+/**
+ * Painel de pagamentos para academia e admin (FPP).
+ *
+ * - Academia: uma única tabela de cobranças, paginada de verdade (30 por
+ *   página, requisição sempre com limit/offset da página atual — mesmo
+ *   padrão de /estudantes), com filtro por tipo e por estado, e um botão
+ *   "Ver detalhes" por cobrança.
+ * - Admin (FPP): ainda não existe tipo de cobrança específico para o
+ *   Spuri, então a tela mostra apenas um aviso "indisponível no momento"
+ *   — sem listar cobranças de nenhuma academia.
+ *
+ * A antiga seção "Consultar mensalidades e histórico por estudante" (uma
+ * segunda tabela, separada) foi removida: agora há só a tabela acima,
+ * e "ver detalhes" mostra os dados do estudante vinculado quando houver.
+ */
+export default function FinanceiroPagamentosPainel() {
+  const { user, isAdmin, isAcademia, loading } = useUserType();
+  const isFpp = isAdmin && user?.admin?.role === "fpp";
+
+  const [codigoAcademia, setCodigoAcademia] = useState(user?.academia?.codigo_academia ?? "");
+  const [tipo, setTipo] = useState<"" | FinanceiroOrigemCobranca>("");
+  const [estado, setEstado] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const [alert, setAlert] = useState<string | null>(null);
+  const [selecionada, setSelecionada] = useState<CobrancaResumo | null>(null);
+
+  const list = useApi(financeiroService.listarCobrancas);
+  const cancelApi = useApi(financeiroService.cancelarCobranca);
+
+  useEffect(() => {
+    if (user?.academia?.codigo_academia) setCodigoAcademia(user.academia.codigo_academia);
+  }, [user?.academia?.codigo_academia]);
+
+  const parametros = useMemo(
+    () => ({
+      contexto_tipo: "academia" as const,
+      codigo_academia: codigoAcademia || undefined,
+      limit: PAGE_SIZE,
+      offset: (pagina - 1) * PAGE_SIZE,
+      tipo: tipo ? [tipo] : undefined,
+      estado: estado ? [estado] : undefined,
+    }),
+    [codigoAcademia, tipo, estado, pagina]
+  );
+
+  const carregar = useCallback(() => {
+    if (!codigoAcademia) return Promise.resolve();
+    return list.execute(parametros).catch((e) => setAlert(formatApiError(e, "Não foi possível carregar as cobranças.")));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codigoAcademia, parametros]);
+
+  useEffect(() => {
+    if (!loading && isAcademia) void carregar();
+  }, [loading, isAcademia, carregar]);
+
+  if (loading) return <LoadingState label="Carregando pagamentos..." />;
+
+  if (!isAcademia && !isFpp) {
+    return (
+      <UnauthorizedAccess
+        requiredTypes={["Admin FPP", "Academia"]}
+        message="O módulo financeiro é exclusivo de administradores com papel FPP e de academias."
+      />
+    );
+  }
+
+  if (isFpp) {
+    return (
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="flex items-start gap-3">
+          <Icon icon="mdi:credit-card-multiple-outline" width={24} className="text-gray-800 dark:text-white/90" />
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Pagamentos</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Ainda não existe um tipo de cobrança específico para o Spuri — indisponível no momento.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const totalGeral = list.data?.total_geral ?? 0;
+  const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
+  const cobrancas = list.data?.cobrancas ?? [];
+
+  return (
+    <div className="space-y-6">
+      {alert && <Alert variant="error" title="Finanças" message={alert} />}
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="flex items-start gap-3">
+          <Icon icon="mdi:credit-card-multiple-outline" width={24} className="text-gray-800 dark:text-white/90" />
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Pagamentos</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Cobranças AppyPay da sua academia, em todos os estados.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <SearchableSelect
+            value={tipo}
+            options={TIPO_OPCOES}
+            onChange={(v) => { setTipo(v); setPagina(1); }}
+            placeholder="Tipo de cobrança"
+            isSearchable={false}
+            isClearable={false}
+            inputId="pagamentos-tipo"
+            name="pagamentos-tipo"
+          />
+          <SearchableSelect
+            value={estado}
+            options={ESTADO_OPCOES}
+            onChange={(v) => { setEstado(v); setPagina(1); }}
+            placeholder="Estado do pagamento"
+            isSearchable={false}
+            isClearable={false}
+            inputId="pagamentos-estado"
+            name="pagamentos-estado"
+          />
+        </div>
+
+        <div className="mt-4">
+          {list.loading ? (
+            <LoadingState label="Carregando pagamentos..." />
+          ) : cobrancas.length > 0 ? (
+            <CobrancasTable rows={cobrancas} onOpen={setSelecionada} />
+          ) : (
+            <EmptyState title="Nenhuma cobrança encontrada." description="Ajuste os filtros ou aguarde novas cobranças serem criadas." />
+          )}
+        </div>
+
+        <div className="mt-4">
+          <PaginacaoSetas
+            paginaAtual={pagina}
+            totalPaginas={totalPaginas}
+            total={totalGeral}
+            porPagina={PAGE_SIZE}
+            onChange={setPagina}
+          />
+        </div>
+      </section>
+
+      <CobrancaDetalhesModal
+        cobranca={selecionada}
+        onClose={() => setSelecionada(null)}
+        mostrarDadosEstudante
+        onCancelar={async (cobranca, motivo) => {
+          await cancelApi.execute(cobranca.id, motivo);
+          await carregar();
+        }}
+      />
+    </div>
+  );
 }
