@@ -4,9 +4,9 @@ import { usePathname } from "next/navigation";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/financas/configuracoes": "Finanças — Configurações",
-  "/financas/credenciais": "Finanças — Credenciais",
-  "/financas/pagamentos": "Finanças — Pagamentos",
+  "/financas/configuracoes": "Finanças - Configurações",
+  "/financas/credenciais": "Finanças - Credenciais",
+  "/financas/pagamentos": "Finanças - Pagamentos",
 };
 
 export default function FinancasLayout({ children }: { children: React.ReactNode }) {
