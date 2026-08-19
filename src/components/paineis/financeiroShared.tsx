@@ -4,17 +4,16 @@ import { consultasService } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
-import { Modal } from "@/components/ui/modal";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import type { CobrancaResumo, EstudanteDetalhado, FinanceiroOrigemCobranca } from "@/types/api";
+import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroNivel, FinanceiroOrigemCobranca, NivelEscolar } from "@/types/api";
 
 /**
- * Utilitários e componentes partilhados pelas telas de pagamentos
- * (FinanceiroPagamentosPainel, EstudantePagamentosPainel e
- * MatriculaPublicPage). Extraído da tarefa 49: antes, `money` e `Qr`
- * viviam dentro de FinanceiroPagamentosPainel.tsx e eram importados por
- * essas outras páginas — misturando um utilitário genérico com a lógica
- * específica do painel de pagamentos de academia/admin.
+ * Utilitários e componentes partilhados pelas telas de pagamentos e de
+ * configurações financeiras (FinanceiroPagamentosPainel,
+ * EstudantePagamentosPainel, FinanceiroConfiguracoesPainel e
+ * MatriculaPublicPage). Extraído da tarefa 49 e ampliado na correção
+ * seguinte (subtelas em vez de modais, terminologia e inferência de nível
+ * a partir dos dados da própria academia).
  */
 
 export const money = (v: number) =>
@@ -27,12 +26,48 @@ export const dt = (v: string) => {
     : new Intl.DateTimeFormat("pt-AO", { dateStyle: "short", timeStyle: "short" }).format(d);
 };
 
+/** "2026_2027" (formato de armazenamento no backend) → "2026/2027" (exibição). Nunca mostrar o valor cru. */
+export function formatAnoLetivo(v?: string) {
+  if (!v) return "—";
+  return v.includes("_") ? v.replace("_", "/") : v;
+}
+
 /** "Avulsa" no backend passou a ser apresentada como "Outros" no frontend (pedido do produto). */
 export const origemLabel: Record<FinanceiroOrigemCobranca, string> = {
   matricula: "Matrícula",
   mensalidade: "Mensalidade",
   avulsa: "Outros",
 };
+
+/**
+ * Rótulo de exibição de cada nível de ensino, seguindo a terminologia
+ * angolana já padronizada no resto do painel (MateriaPainel.tsx,
+ * TurmasPainel.tsx): "fundamental" nunca aparece como "Fundamental" para o
+ * usuário, e sim como "Ensino Primário e Iº Ciclo".
+ */
+export const NIVEL_LABEL: Record<FinanceiroNivel, string> = {
+  fundamental: "Ensino Primário e Iº Ciclo",
+  medio: "Médio",
+  superior: "Superior",
+};
+
+/**
+ * Infere os níveis de ensino que a academia realmente oferece — nunca uma
+ * lista fixa. Mesma regra usada em MateriaPainel.tsx/TurmasPainel.tsx:
+ * `academia.nivel === "superior"` → só superior; `academia.nivel ===
+ * "escola"` → depende de `academia.nivel_escolar` (fundamental | medio |
+ * misto).
+ */
+export function niveisDaAcademia(academia?: { nivel?: AcademiaNivel; nivel_escolar?: NivelEscolar }): FinanceiroNivel[] {
+  if (!academia) return [];
+  if (academia.nivel === "superior") return ["superior"];
+  if (academia.nivel === "escola") {
+    if (academia.nivel_escolar === "fundamental") return ["fundamental"];
+    if (academia.nivel_escolar === "medio") return ["medio"];
+    if (academia.nivel_escolar === "misto") return ["fundamental", "medio"];
+  }
+  return [];
+}
 
 export function StatusBadge({ status }: { status: string }) {
   const x = status.toLowerCase();
@@ -124,45 +159,124 @@ export function PaginacaoSetas({ paginaAtual, totalPaginas, total, porPagina, on
 }
 
 /**
- * Tabela única de cobranças, com botão "Ver detalhes" explícito por linha
- * (antes o detalhe só abria clicando na linha inteira, sem afordância
- * visível — pedido do produto: cada cobrança deve ter o seu "ver
- * detalhes").
+ * Container padrão de subtela: título + botão "Voltar", sem sobreposição
+ * (nada de pop-up/modal). Usado por toda parte do módulo financeiro que
+ * precisa abrir uma tela de detalhe/formulário a partir de uma lista ou de
+ * um menu de opções — o mesmo padrão já usado em
+ * FinanceiroCredenciaisPainel para criar/editar credencial.
  */
-export function CobrancasTable({ rows, onOpen }: { rows: CobrancaResumo[]; onOpen: (r: CobrancaResumo) => void }) {
+export function SubtelaPanel({ title, icon, onVoltar, children }: { title: string; icon?: string; onVoltar: () => void; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto">
-      <Table className="w-full text-left">
-        <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-          <TableRow>
-            {["Tipo", "Descrição", "Estudante", "Valor", "Método", "Estado", "Atualizado em", ""].map((h) => (
-              <TableCell key={h || "acoes"} isHeader className="px-3 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-          {rows.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{origemLabel[r.origem] ?? r.origem}</TableCell>
-              <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.descricao || "—"}</TableCell>
-              <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.codigo_estudante || "—"}</TableCell>
-              <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{money(r.valor)}</TableCell>
-              <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.metodo_pagamento || "—"}</TableCell>
-              <TableCell className="px-3 py-2"><StatusBadge status={r.status} /></TableCell>
-              <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{dt(r.atualizado_em)}</TableCell>
-              <TableCell className="px-3 py-2">
-                <Button size="sm" variant="outline" onClick={() => onOpen(r)}>Ver detalhes</Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03] lg:p-8">
+      <Button variant="outline" size="sm" onClick={onVoltar} startIcon={<Icon icon="mdi:arrow-left" width={16} />}>Voltar</Button>
+      <div className="flex items-center gap-2">
+        {icon && <Icon icon={icon} width={22} className="text-gray-800 dark:text-white/90" />}
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">{title}</h2>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Cartão clicável de uma opção do menu de subtelas (ex.: menu de configurações financeiras). */
+export function SubtelaCard({ icon, label, descricao, onClick }: { icon: string; label: string; descricao: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-brand-300 hover:shadow-sm dark:border-white/[0.05] dark:bg-white/[0.03] dark:hover:border-brand-500/40"
+    >
+      <Icon icon={icon} width={22} className="mt-0.5 shrink-0 text-brand-500" />
+      <div>
+        <p className="font-medium text-gray-800 dark:text-white/90">{label}</p>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{descricao}</p>
+      </div>
+    </button>
+  );
+}
+
+/** Grade de SubtelaCard — menu inicial de uma página dividida em subtelas. */
+export function SubtelasMenu({ opcoes }: { opcoes: { id: string; icon: string; label: string; descricao: string; onClick: () => void }[] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {opcoes.map((o) => <SubtelaCard key={o.id} icon={o.icon} label={o.label} descricao={o.descricao} onClick={o.onClick} />)}
     </div>
   );
 }
 
 /**
- * Subtela (modal) de detalhes de uma cobrança.
+ * Tabela única de cobranças, com botão "Ver detalhes" explícito por linha
+ * e, quando `onCancelar` é fornecido, um botão "Cancelar" independente
+ * (na própria linha, não dentro do detalhe — cancelar é uma ação sobre a
+ * cobrança, não parte de "ler os detalhes dela").
+ */
+export function CobrancasTable({ rows, onOpen, onCancelar }: {
+  rows: CobrancaResumo[];
+  onOpen: (r: CobrancaResumo) => void;
+  onCancelar?: (r: CobrancaResumo, motivo?: string) => Promise<void>;
+}) {
+  const [cancelandoId, setCancelandoId] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const cancelavel = (r: CobrancaResumo) => !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(r.status.toLowerCase());
+
+  return (
+    <div className="space-y-2">
+      {erro && <p className="text-sm text-error-500">{erro}</p>}
+      <div className="overflow-x-auto">
+        <Table className="w-full text-left">
+          <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+            <TableRow>
+              {["Tipo", "Descrição", "Estudante", "Valor", "Método", "Estado", "Atualizado em", ""].map((h) => (
+                <TableCell key={h || "acoes"} isHeader className="px-3 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            {rows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{origemLabel[r.origem] ?? r.origem}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.descricao || "—"}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.codigo_estudante || "—"}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{money(r.valor)}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.metodo_pagamento || "—"}</TableCell>
+                <TableCell className="px-3 py-2"><StatusBadge status={r.status} /></TableCell>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{dt(r.atualizado_em)}</TableCell>
+                <TableCell className="px-3 py-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => onOpen(r)}>Ver detalhes</Button>
+                    {onCancelar && cancelavel(r) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={cancelandoId === r.id}
+                        onClick={async () => {
+                          setErro(null);
+                          setCancelandoId(r.id);
+                          try {
+                            await onCancelar(r, window.prompt("Motivo do cancelamento (opcional)") || undefined);
+                          } catch (e) {
+                            setErro(formatApiError(e, "Não foi possível cancelar a cobrança."));
+                          } finally {
+                            setCancelandoId(null);
+                          }
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Subtela de detalhes de uma cobrança (não é mais modal/pop-up).
  *
  * - Usa os dados já carregados na linha da tabela (CobrancaResumo) em vez
  *   de buscar a cobrança de novo no servidor — evita uma requisição
@@ -173,44 +287,36 @@ export function CobrancasTable({ rows, onOpen }: { rows: CobrancaResumo[]; onOpe
  *   estudante. GET /consultar-estudante/:codigo só é permitido para
  *   academia/admin — por isso EstudantePagamentosPainel usa
  *   mostrarDadosEstudante={false} (o estudante já sabe quem é).
- * - onCancelar, quando fornecido, mostra o botão "Cancelar cobrança"
- *   (ação restrita a academia/admin).
+ * - Não tem ação de cancelar: cancelar é uma ação sobre a cobrança na
+ *   listagem (CobrancasTable, botão "Cancelar" na própria linha), não faz
+ *   parte de "ler os detalhes" dela.
  */
-export function CobrancaDetalhesModal({ cobranca, onClose, mostrarDadosEstudante = false, onCancelar }: {
-  cobranca: CobrancaResumo | null;
-  onClose: () => void;
+export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudante = false }: {
+  cobranca: CobrancaResumo;
+  onVoltar: () => void;
   mostrarDadosEstudante?: boolean;
-  onCancelar?: (cobranca: CobrancaResumo, motivo?: string) => Promise<void>;
 }) {
   const [estudante, setEstudante] = useState<EstudanteDetalhado | null>(null);
   const [erroEstudante, setErroEstudante] = useState<string | null>(null);
   const [carregandoEstudante, setCarregandoEstudante] = useState(false);
-  const [erroCancelar, setErroCancelar] = useState<string | null>(null);
-  const [cancelando, setCancelando] = useState(false);
 
-  const codigoEstudante = cobranca?.codigo_estudante;
+  const codigoEstudante = cobranca.codigo_estudante;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reseta o estado de estudante ao trocar de cobrança, antes de buscar os novos dados.
     setEstudante(null);
     setErroEstudante(null);
-    setErroCancelar(null);
-    if (!cobranca || !mostrarDadosEstudante || !codigoEstudante) return;
+    if (!mostrarDadosEstudante || !codigoEstudante) return;
     setCarregandoEstudante(true);
     consultasService.estudante(codigoEstudante)
       .then((r) => setEstudante(r?.estudante ?? null))
       .catch((e) => setErroEstudante(formatApiError(e, "Não foi possível carregar os dados do estudante.")))
       .finally(() => setCarregandoEstudante(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cobranca?.id, mostrarDadosEstudante, codigoEstudante]);
-
-  if (!cobranca) return null;
-
-  const cancelavel = onCancelar && !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(cobranca.status.toLowerCase());
+  }, [cobranca.id, mostrarDadosEstudante, codigoEstudante]);
 
   return (
-    <Modal isOpen={!!cobranca} onClose={onClose} className="max-w-2xl p-6">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Detalhe da cobrança</h3>
-      <div className="mt-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
+    <SubtelaPanel title="Detalhe da cobrança" icon="mdi:receipt-text-outline" onVoltar={onVoltar}>
+      <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
         <p><b>Tipo:</b> {origemLabel[cobranca.origem] ?? cobranca.origem}</p>
         <p><b>Descrição:</b> {cobranca.descricao || "—"}</p>
         <p><b>Valor:</b> {money(cobranca.valor)} {cobranca.moeda ? `(${cobranca.moeda})` : ""}</p>
@@ -243,31 +349,7 @@ export function CobrancaDetalhesModal({ cobranca, onClose, mostrarDadosEstudante
             )}
           </div>
         )}
-
-        {erroCancelar && <p className="text-red-600 dark:text-red-400">{erroCancelar}</p>}
-        {cancelavel && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={cancelando}
-            startIcon={<Icon icon="mdi:close-circle-outline" width={16} />}
-            onClick={async () => {
-              setErroCancelar(null);
-              setCancelando(true);
-              try {
-                await onCancelar!(cobranca, window.prompt("Motivo do cancelamento (opcional)") || undefined);
-                onClose();
-              } catch (e) {
-                setErroCancelar(formatApiError(e, "Não foi possível cancelar a cobrança."));
-              } finally {
-                setCancelando(false);
-              }
-            }}
-          >
-            Cancelar cobrança
-          </Button>
-        )}
       </div>
-    </Modal>
+    </SubtelaPanel>
   );
 }
