@@ -5,7 +5,7 @@ import { formatApiError } from "@/lib/api/client";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroNivel, FinanceiroOrigemCobranca, NivelEscolar } from "@/types/api";
+import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroMetodoPagamento, FinanceiroNivel, FinanceiroOrigemCobranca, NivelEscolar } from "@/types/api";
 
 /**
  * Utilitários e componentes partilhados pelas telas de pagamentos e de
@@ -37,6 +37,17 @@ export const origemLabel: Record<FinanceiroOrigemCobranca, string> = {
   matricula: "Matrícula",
   mensalidade: "Mensalidade",
   avulsa: "Outros",
+};
+
+/**
+ * Texto de exibição de cada método de pagamento AppyPay — usado em toda
+ * parte de /financas/* e /pagamentos onde um método aparece para o
+ * usuário (nunca mostrar "GPO"/"REF"/"GPO_QR" cru).
+ */
+export const METODO_PAGAMENTO_LABEL: Record<FinanceiroMetodoPagamento, string> = {
+  GPO: "MCX Express via número de telefone",
+  REF: "Pagamento por referência",
+  GPO_QR: "QR Code",
 };
 
 /**
@@ -195,10 +206,10 @@ export function SubtelaCard({ icon, label, descricao, onClick }: { icon: string;
   );
 }
 
-/** Grade de SubtelaCard — menu inicial de uma página dividida em subtelas. */
+/** Grade de SubtelaCard — menu inicial de uma página dividida em subtelas. Máximo 2 colunas (nunca 3+); 1 coluna em telas pequenas. */
 export function SubtelasMenu({ opcoes }: { opcoes: { id: string; icon: string; label: string; descricao: string; onClick: () => void }[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       {opcoes.map((o) => <SubtelaCard key={o.id} icon={o.icon} label={o.label} descricao={o.descricao} onClick={o.onClick} />)}
     </div>
   );
@@ -238,7 +249,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.descricao || "—"}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.codigo_estudante || "—"}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{money(r.valor)}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.metodo_pagamento || "—"}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.metodo_pagamento ? METODO_PAGAMENTO_LABEL[r.metodo_pagamento] : "—"}</TableCell>
                 <TableCell className="px-3 py-2"><StatusBadge status={r.status} /></TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{dt(r.atualizado_em)}</TableCell>
                 <TableCell className="px-3 py-2">
@@ -320,7 +331,7 @@ export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudan
         <p><b>Tipo:</b> {origemLabel[cobranca.origem] ?? cobranca.origem}</p>
         <p><b>Descrição:</b> {cobranca.descricao || "—"}</p>
         <p><b>Valor:</b> {money(cobranca.valor)} {cobranca.moeda ? `(${cobranca.moeda})` : ""}</p>
-        <p><b>Método de pagamento:</b> {cobranca.metodo_pagamento || "—"}</p>
+        <p><b>Método de pagamento:</b> {cobranca.metodo_pagamento ? METODO_PAGAMENTO_LABEL[cobranca.metodo_pagamento] : "—"}</p>
         <p><b>Estado:</b> <StatusBadge status={cobranca.status} /></p>
         <p><b>Referência AppyPay:</b> {cobranca.provider_charge_id || "—"}</p>
         <p><b>Transação:</b> {cobranca.merchant_transaction_id}</p>

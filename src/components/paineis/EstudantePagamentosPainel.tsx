@@ -14,6 +14,7 @@ import {
   CobrancasTable,
   EmptyState,
   LoadingState,
+  METODO_PAGAMENTO_LABEL,
   PaginacaoSetas,
   Qr,
   StatusBadge,
@@ -159,7 +160,7 @@ export default function EstudantePagamentosPainel() {
             <Select
               key={metodo}
               defaultValue={metodo}
-              options={(mensalidades.data?.metodos_pagamento_por_academia[academia] ?? ["GPO"]).map((m) => ({ value: m, label: m }))}
+              options={(mensalidades.data?.metodos_pagamento_por_academia[academia] ?? ["GPO"]).map((m) => ({ value: m, label: METODO_PAGAMENTO_LABEL[m as FinanceiroMetodoPagamento] }))}
               onChange={(v) => setMetodo(v as FinanceiroMetodoPagamento)}
             />
             {metodo === "GPO" && <Input placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />}
