@@ -14,15 +14,11 @@ import Label from "@/components/form/Label";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import Checkbox from "@/components/form/input/Checkbox";
 import AnularReativarObrigacoesForm from "@/components/paineis/AnularReativarObrigacoesForm";
+import { LoadingState, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia } from "@/components/paineis/financeiroShared";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import type { Curso, FinanceiroMetodoPagamento, FinanceiroNivel, MatriculaConfiguracaoInput, MensalidadeConfiguracaoInput } from "@/types/api";
 
 const METODOS: FinanceiroMetodoPagamento[] = ["GPO", "REF", "GPO_QR"];
-const NIVEL_OPCOES: { value: FinanceiroNivel; label: string }[] = [
-  { value: "fundamental", label: "Fundamental" },
-  { value: "medio", label: "Médio" },
-  { value: "superior", label: "Superior" },
-];
 const MES_FIM_OPCOES = [
   { value: "6", label: "Junho" },
   { value: "7", label: "Julho" },
@@ -33,7 +29,6 @@ const MES_NOME_OPCOES = Array.from({ length: 12 }, (_, i) => ({
   label: new Intl.DateTimeFormat("pt-AO", { month: "long" }).format(new Date(2026, i, 1)),
 }));
 
-function money(value: number) { return new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA" }).format(value); }
 function date(value: string) { const d = new Date(value); return Number.isNaN(d.getTime()) ? value : new Intl.DateTimeFormat("pt-AO", { dateStyle: "short", timeStyle: "short" }).format(d); }
 
 /** "6_ano_fundamental" → "6ª Classe"; "2_ano_medio" → "2.º Ano (Médio)". Mesmo padrão usado nas telas de matrícula/turmas. */
@@ -44,10 +39,6 @@ function labelAnoAcademico(codigo: string): string {
   if (nivel === "fundamental") return `${numero}ª Classe`;
   if (nivel === "medio") return `${numero}.º Ano (Médio)`;
   return `${numero}.º Ano (Superior)`;
-}
-
-function LoadingState() {
-  return <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]"><div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400"><span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />Carregando configurações...</div></div>;
 }
 
 function InfoBox() {
@@ -80,31 +71,33 @@ type NivelFormState = {
 
 type FormFieldErrors = Partial<Record<"ano_academico" | "curso_id" | "valor", string>>;
 
+type Tela = "menu" | "mensalidade" | "matricula" | "historico" | "inicio-cobranca" | "anular-reativar";
+
 /**
- * Painel de configurações financeiras.
+ * Painel de configurações financeiras, dividido em subtelas (não seções
+ * empilhadas na mesma página): cada configuração — propina, matrícula,
+ * histórico, início de cobrança fora do padrão, anular/reativar
+ * obrigações — é a sua própria subtela, aberta a partir de um menu.
  *
  * Visão de admin (FPP): configuração de propina/matrícula é uma
  * responsabilidade exclusiva de cada academia — não existe hoje nenhuma
- * configuração financeira que pertença ao administrador (nenhum tipo de
- * cobrança do próprio Spuri existe ainda, mesmo caso de /financas/pagamentos).
- * Por isso o admin não vê seletor de academia, nem os formulários de
- * mensalidade/matrícula: só o aviso abaixo.
- *
- * Visão de academia: mostra só o que é dela — nenhum seletor de academia
- * (a academia já é a autenticada), formulários de propina/matrícula,
- * histórico de versões e "Ações excecionais" (exclusivas da academia).
+ * configuração financeira que pertença ao administrador. Por isso o admin
+ * não vê o menu de subtelas: só o aviso "indisponível no momento".
  */
 export default function FinanceiroConfiguracoesPainel() {
   const { user, isAdmin, isAcademia, loading } = useUserType();
   const isFpp = isAdmin && user?.admin?.role === "fpp";
   const codigoAcademia = user?.academia?.codigo_academia ?? "";
   const anosAcademicosAcademia = useMemo(() => user?.academia?.anos_academicos ?? [], [user?.academia?.anos_academicos]);
+  /** Níveis que a academia realmente oferece — nunca uma lista fixa fundamental/médio/superior. */
+  const niveisDisponiveis = useMemo(() => niveisDaAcademia(user?.academia), [user?.academia]);
 
+  const [tela, setTela] = useState<Tela>("menu");
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
-  const [mensalidadeForm, setMensalidadeForm] = useState<NivelFormState>({ nivel: "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"] });
+  const [mensalidadeForm, setMensalidadeForm] = useState<NivelFormState>({ nivel: niveisDisponiveis[0] ?? "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"] });
   const [mensalidadeMesFim, setMensalidadeMesFim] = useState("6");
   const [mensalidadeErrors, setMensalidadeErrors] = useState<FormFieldErrors>({});
-  const [matriculaForm, setMatriculaForm] = useState<NivelFormState>({ nivel: "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"] });
+  const [matriculaForm, setMatriculaForm] = useState<NivelFormState>({ nivel: niveisDisponiveis[0] ?? "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"] });
   const [matriculaErrors, setMatriculaErrors] = useState<FormFieldErrors>({});
   const [cursos, setCursos] = useState<Curso[]>([]);
 
@@ -114,6 +107,12 @@ export default function FinanceiroConfiguracoesPainel() {
   const salvarMatricula = useApi(financeiroService.configurarMatricula);
   const atualizarMensalidade = useApi(financeiroService.atualizarConfiguracaoMensalidade);
   const atualizarMatricula = useApi(financeiroService.atualizarConfiguracaoMatricula);
+
+  useEffect(() => {
+    if (niveisDisponiveis.length === 0) return;
+    setMensalidadeForm((prev) => (niveisDisponiveis.includes(prev.nivel) ? prev : { ...prev, nivel: niveisDisponiveis[0], curso_id: "", ano_academico: "" }));
+    setMatriculaForm((prev) => (niveisDisponiveis.includes(prev.nivel) ? prev : { ...prev, nivel: niveisDisponiveis[0], curso_id: "", ano_academico: "" }));
+  }, [niveisDisponiveis]);
 
   const reload = async () => {
     if (!codigoAcademia) return;
@@ -135,8 +134,8 @@ export default function FinanceiroConfiguracoesPainel() {
       .catch(() => setCursos([]));
   }, [isAcademia, codigoAcademia]);
 
-  if (loading) return <LoadingState />;
-  if (!isAcademia && !isFpp) return <UnauthorizedAccess requiredTypes={["Admin FPP", "Academia"]} message="O módulo financeiro é exclusivo de administradores FPP e academias. Administradores adm/gerente não conseguem ler dados financeiros pela API atual." />;
+  if (loading) return <LoadingState label="Carregando configurações..." />;
+  if (!isAcademia && !isFpp) return <UnauthorizedAccess requiredTypes={["Admin FPP", "Academia"]} message="O módulo financeiro é exclusivo de administradores FPP e academias." />;
 
   if (isFpp) {
     return (
@@ -245,18 +244,25 @@ export default function FinanceiroConfiguracoesPainel() {
     </div>
   );
 
+  /** Nível só aparece como escolha quando a academia oferece mais de um (ex.: nivel_escolar="misto"). Com um único nível, ele é aplicado direto, sem select. */
   const renderNivelFields = (kind: "mensalidade" | "matricula", form: NivelFormState, errors: FormFieldErrors, setForm: (updater: (prev: NivelFormState) => NivelFormState) => void) => (
     <>
-      <Label>Nível</Label>
-      <SearchableSelect
-        value={form.nivel}
-        options={NIVEL_OPCOES}
-        onChange={(v) => updateNivel(kind, (v || "fundamental") as FinanceiroNivel)}
-        isSearchable={false}
-        isClearable={false}
-        inputId={`${kind}-nivel`}
-        name={`${kind}-nivel`}
-      />
+      {niveisDisponiveis.length > 1 ? (
+        <>
+          <Label>Nível</Label>
+          <SearchableSelect
+            value={form.nivel}
+            options={niveisDisponiveis.map((n) => ({ value: n, label: NIVEL_LABEL[n] }))}
+            onChange={(v) => updateNivel(kind, (v || niveisDisponiveis[0]) as FinanceiroNivel)}
+            isSearchable={false}
+            isClearable={false}
+            inputId={`${kind}-nivel`}
+            name={`${kind}-nivel`}
+          />
+        </>
+      ) : (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Nível: <span className="font-medium text-gray-800 dark:text-white/90">{NIVEL_LABEL[form.nivel]}</span></p>
+      )}
       {form.nivel !== "fundamental" && (
         <>
           <Label>Curso</Label>
@@ -297,71 +303,83 @@ export default function FinanceiroConfiguracoesPainel() {
     </>
   );
 
-  return (
-    <div className="space-y-6">
-      {alert && <Alert variant={alert.variant} title="Finanças" message={alert.message} />}
-      <InfoBox />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="flex items-center gap-2">
-            <Icon icon="mdi:calendar-month-outline" width={22} className="text-gray-800 dark:text-white/90" />
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">Propina / mensalidade</h2>
-          </div>
-          <div className="mt-4 grid gap-4">
-            {renderNivelFields("mensalidade", mensalidadeForm, mensalidadeErrors, setMensalidadeForm)}
-            <Label>Mês de encerramento da cobrança</Label>
-            <SearchableSelect
-              value={mensalidadeMesFim}
-              options={MES_FIM_OPCOES}
-              onChange={(v) => setMensalidadeMesFim(v || "6")}
-              isSearchable={false}
-              isClearable={false}
-              inputId="mensalidade-mes-fim"
-              name="mensalidade-mes-fim"
-            />
-            <Label>Métodos de pagamento aceites</Label>
-            {renderMetodos("mensalidade", mensalidadeForm.metodos_pagamento)}
-            <Button onClick={submitMensalidade} disabled={salvarMensalidade.loading || atualizarMensalidade.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
-              Salvar nova versão
-            </Button>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="flex items-center gap-2">
-            <Icon icon="mdi:school-outline" width={22} className="text-gray-800 dark:text-white/90" />
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">Taxa de matrícula</h2>
-          </div>
-          <div className="mt-4 grid gap-4">
-            {renderNivelFields("matricula", matriculaForm, matriculaErrors, setMatriculaForm)}
-            <Label>Métodos de pagamento aceites</Label>
-            {renderMetodos("matricula", matriculaForm.metodos_pagamento)}
-            <Button onClick={submitMatricula} disabled={salvarMatricula.loading || atualizarMatricula.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
-              Salvar nova versão
-            </Button>
-          </div>
-        </section>
+  if (tela === "menu") {
+    return (
+      <div className="space-y-6">
+        {alert && <Alert variant={alert.variant} title="Finanças" message={alert.message} />}
+        <InfoBox />
+        <SubtelasMenu
+          opcoes={[
+            { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Propina / mensalidade", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("mensalidade") },
+            { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("matricula") },
+            { id: "historico", icon: "mdi:history", label: "Histórico de versões", descricao: "Ver todas as configurações já salvas, com a data de vigência.", onClick: () => setTela("historico") },
+            { id: "inicio-cobranca", icon: "mdi:calendar-start", label: "Início de cobrança fora do padrão", descricao: "Ajustar a partir de qual mês a propina passa a valer num ano letivo específico.", onClick: () => setTela("inicio-cobranca") },
+            { id: "anular-reativar", icon: "mdi:receipt-text-remove-outline", label: "Anular ou reativar obrigações", descricao: "Anular ou reativar mensalidades pontuais de um estudante específico.", onClick: () => setTela("anular-reativar") },
+          ]}
+        />
       </div>
+    );
+  }
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div className="flex items-center gap-2">
-          <Icon icon="mdi:history" width={22} className="text-gray-800 dark:text-white/90" />
-          <h2 className="font-semibold text-gray-800 dark:text-white/90">Histórico de versões</h2>
+  if (tela === "mensalidade") {
+    return (
+      <SubtelaPanel title="Propina / mensalidade" icon="mdi:calendar-month-outline" onVoltar={() => setTela("menu")}>
+        {alert && <Alert variant={alert.variant} title="Finanças" message={alert.message} />}
+        <div className="grid gap-4">
+          {renderNivelFields("mensalidade", mensalidadeForm, mensalidadeErrors, setMensalidadeForm)}
+          <Label>Mês de encerramento da cobrança</Label>
+          <SearchableSelect
+            value={mensalidadeMesFim}
+            options={MES_FIM_OPCOES}
+            onChange={(v) => setMensalidadeMesFim(v || "6")}
+            isSearchable={false}
+            isClearable={false}
+            inputId="mensalidade-mes-fim"
+            name="mensalidade-mes-fim"
+          />
+          <Label>Métodos de pagamento aceites</Label>
+          {renderMetodos("mensalidade", mensalidadeForm.metodos_pagamento)}
+          <Button onClick={submitMensalidade} disabled={salvarMensalidade.loading || atualizarMensalidade.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
+            Salvar nova versão
+          </Button>
         </div>
-        <div className="mt-4 overflow-x-auto">
+      </SubtelaPanel>
+    );
+  }
+
+  if (tela === "matricula") {
+    return (
+      <SubtelaPanel title="Taxa de matrícula" icon="mdi:school-outline" onVoltar={() => setTela("menu")}>
+        {alert && <Alert variant={alert.variant} title="Finanças" message={alert.message} />}
+        <div className="grid gap-4">
+          {renderNivelFields("matricula", matriculaForm, matriculaErrors, setMatriculaForm)}
+          <Label>Métodos de pagamento aceites</Label>
+          {renderMetodos("matricula", matriculaForm.metodos_pagamento)}
+          <Button onClick={submitMatricula} disabled={salvarMatricula.loading || atualizarMatricula.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
+            Salvar nova versão
+          </Button>
+        </div>
+      </SubtelaPanel>
+    );
+  }
+
+  if (tela === "historico") {
+    const linhas = [
+      ...(mensalidadesApi.data?.configuracoes ?? []).map((c) => ({ tipo: "Propina", fim: String(c.mes_fim_cobranca), ...c })),
+      ...(matriculasApi.data?.configuracoes ?? []).map((c) => ({ tipo: "Matrícula", fim: "—", ...c })),
+    ];
+    return (
+      <SubtelaPanel title="Histórico de versões" icon="mdi:history" onVoltar={() => setTela("menu")}>
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>{["Tipo", "Nível", "Ano/Curso", "Valor", "Fim", "Métodos", "Vigente em"].map((h) => <TableCell key={h} isHeader className="px-3 py-2 text-xs uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>)}</TableRow>
             </TableHeader>
             <TableBody>
-              {[
-                ...(mensalidadesApi.data?.configuracoes ?? []).map((c) => ({ tipo: "Propina", fim: String(c.mes_fim_cobranca), ...c })),
-                ...(matriculasApi.data?.configuracoes ?? []).map((c) => ({ tipo: "Matrícula", fim: "—", ...c })),
-              ].map((c, i) => (
+              {linhas.map((c, i) => (
                 <TableRow key={i}>
                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.tipo}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{NIVEL_OPCOES.find((n) => n.value === c.nivel)?.label ?? c.nivel}</TableCell>
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{NIVEL_LABEL[c.nivel]}</TableCell>
                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.ano_academico ? labelAnoAcademico(c.ano_academico) : (cursos.find((cu) => cu.id === c.curso_id)?.nome ?? c.curso_id ?? "—")}</TableCell>
                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{money(c.valor)}</TableCell>
                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.fim === "6" ? "Junho" : c.fim === "7" ? "Julho" : c.fim}</TableCell>
@@ -372,30 +390,31 @@ export default function FinanceiroConfiguracoesPainel() {
             </TableBody>
           </Table>
         </div>
-      </section>
+      </SubtelaPanel>
+    );
+  }
 
-      {/* "Ações excecionais" é exclusiva da academia — o backend já bloqueia
-          anular/reativar obrigações para admin (403), e definir início de
-          cobrança fora do padrão só faz sentido para quem opera o ano letivo
-          da própria academia. */}
-      {isAcademia && (
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="flex items-center gap-2">
-            <Icon icon="mdi:alert-circle-outline" width={22} className="text-gray-800 dark:text-white/90" />
-            <h2 className="font-semibold text-gray-800 dark:text-white/90">Ações excecionais</h2>
-          </div>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Use apenas se o ano letivo começou fora do padrão (ex.: turma que iniciou em março em vez de fevereiro) — isso ajusta a partir de qual mês a cobrança de propina passa a valer para esse ano letivo, e permite anular ou reativar obrigações pontuais de um estudante.
-          </p>
-          <div className="mt-4">
-            <DefinirInicioCobrancaForm codigoAcademia={codigoAcademia} />
-          </div>
-          <div className="mt-5">
-            <AnularReativarObrigacoesForm codigoAcademia={codigoAcademia} onSuccess={reload} />
-          </div>
-        </section>
-      )}
-    </div>
+  if (tela === "inicio-cobranca") {
+    return (
+      <SubtelaPanel title="Início de cobrança fora do padrão" icon="mdi:calendar-start" onVoltar={() => setTela("menu")}>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Use apenas se o ano letivo começou fora do padrão (ex.: turma que iniciou em março em vez de fevereiro) — isso ajusta a partir de qual mês a cobrança de propina passa a valer para esse ano letivo.
+        </p>
+        <div className="mt-4">
+          <DefinirInicioCobrancaForm codigoAcademia={codigoAcademia} />
+        </div>
+      </SubtelaPanel>
+    );
+  }
+
+  // tela === "anular-reativar"
+  return (
+    <SubtelaPanel title="Anular ou reativar obrigações" icon="mdi:receipt-text-remove-outline" onVoltar={() => setTela("menu")}>
+      <p className="text-sm text-gray-500 dark:text-gray-400">Anule ou reative mensalidades pontuais de um estudante específico (ex.: bolsa concedida, erro de lançamento).</p>
+      <div className="mt-4">
+        <AnularReativarObrigacoesForm codigoAcademia={codigoAcademia} onSuccess={reload} />
+      </div>
+    </SubtelaPanel>
   );
 }
 
@@ -442,7 +461,7 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
           <Label>Ano letivo</Label>
           <SearchableSelect
             value={anoLetivo}
-            options={anosLetivos.map((a) => ({ value: a, label: a.replace("_", "/") }))}
+            options={anosLetivos.map((a) => ({ value: a, label: formatAnoLetivo(a) }))}
             onChange={(v) => setAnoLetivo(v)}
             placeholder={anosLetivos.length ? "Selecione o ano letivo" : "Nenhum ano letivo definido para esta academia"}
             isSearchable={false}

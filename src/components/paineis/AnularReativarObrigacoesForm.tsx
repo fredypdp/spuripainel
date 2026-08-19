@@ -9,6 +9,7 @@ import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
 import Icon from "@/components/ui/Icon";
+import { formatAnoLetivo } from "@/components/paineis/financeiroShared";
 
 /** Nomes reais dos meses — corrige o bug de exibir "Mês 1", "Mês 2"... */
 const MESES = Array.from({ length: 12 }, (_, i) => ({
@@ -68,7 +69,7 @@ export default function AnularReativarObrigacoesForm({ codigoAcademia, onSuccess
         <Label>Ano letivo</Label>
         <SearchableSelect
           value={anoLetivo}
-          options={anosLetivos.map((a) => ({ value: a, label: a.replace("_", "/") }))}
+          options={anosLetivos.map((a) => ({ value: a, label: formatAnoLetivo(a) }))}
           onChange={setAnoLetivo}
           placeholder={anosLetivos.length ? "Selecione o ano letivo" : "Nenhum ano letivo definido para esta academia"}
           isSearchable={false}

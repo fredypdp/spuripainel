@@ -8,16 +8,18 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Select from "@/components/form/Select";
 import SearchableSelect from "@/components/form/SearchableSelect";
-import { Modal } from "@/components/ui/modal";
+import Checkbox from "@/components/form/input/Checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  CobrancaDetalhesModal,
   CobrancasTable,
   EmptyState,
   LoadingState,
   PaginacaoSetas,
   Qr,
   StatusBadge,
+  SubtelaDetalheCobranca,
+  SubtelaPanel,
+  formatAnoLetivo,
   money,
 } from "@/components/paineis/financeiroShared";
 import type { CobrancaResumo, FinanceiroMetodoPagamento, FinanceiroOrigemCobranca, MensalidadeMesView } from "@/types/api";
@@ -41,27 +43,29 @@ const ESTADO_HISTORICO_OPCOES = [
   { value: "Cancelled", label: "Cancelado" },
 ];
 
+type Tela = { nome: "lista" } | { nome: "pagar"; academia: string } | { nome: "detalhe"; cobranca: CobrancaResumo };
+
 export default function EstudantePagamentosPainel() {
   const { user, loading } = useUserCookie();
   const restricted = tokenStorage.isRestrictedFinance();
   const codigo = getCodigo(user);
 
-  // ── Mensalidades pendentes + pagamento (feature independente, não alterada nesta tarefa) ──
+  const [tela, setTela] = useState<Tela>({ nome: "lista" });
+
+  // ── Mensalidades pendentes + pagamento (feature independente, não alterada na regra de negócio) ──
   const mensalidades = useApi(financeiroService.consultarMensalidadesEstudante);
   const pagar = useApi(financeiroService.iniciarPagamentoMensalidades);
   const [estadoMensalidades, setEstadoMensalidades] = useState("");
-  const [payAcademia, setPayAcademia] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [metodo, setMetodo] = useState<FinanceiroMetodoPagamento>("GPO");
   const [telefone, setTelefone] = useState("");
   const [result, setResult] = useState<any>(null);
 
-  // ── Histórico completo de cobranças (tarefa 49: tipo + estado + ver detalhes) ──
+  // ── Histórico completo de cobranças (tipo + estado + ver detalhes) ──
   const historico = useApi(financeiroService.consultarCobrancasEstudante);
   const [tipoHistorico, setTipoHistorico] = useState<"" | FinanceiroOrigemCobranca>("");
   const [estadoHistorico, setEstadoHistorico] = useState("");
   const [paginaHistorico, setPaginaHistorico] = useState(1);
-  const [selecionada, setSelecionada] = useState<CobrancaResumo | null>(null);
 
   const [alert, setAlert] = useState<string | null>(null);
 
@@ -92,19 +96,19 @@ export default function EstudantePagamentosPainel() {
     [filtered]
   );
 
-  const openPay = (academia: string, meses: MensalidadeMesView[]) => {
+  const abrirPagamento = (academia: string, meses: MensalidadeMesView[]) => {
     const pend = meses.filter((m) => m.estado === "pendente").sort((a, b) => a.ano_letivo.localeCompare(b.ano_letivo) || a.mes - b.mes);
-    setPayAcademia(academia);
     setSelected(pend[0] ? [`${pend[0].ano_letivo}:${pend[0].mes}`] : []);
     setMetodo((mensalidades.data?.metodos_pagamento_por_academia[academia]?.[0] ?? "GPO") as FinanceiroMetodoPagamento);
     setTelefone("");
     setResult(null);
+    setTela({ nome: "pagar", academia });
   };
 
-  const confirm = async () => {
+  const confirmarPagamento = async (academia: string) => {
     try {
       const meses = selected.map((x) => { const [ano_letivo, mes] = x.split(":"); return { ano_letivo, mes: Number(mes) }; });
-      const r = await pagar.execute({ codigo_academia: payAcademia, meses, metodo_pagamento: metodo, telefone: metodo === "GPO" ? telefone : undefined });
+      const r = await pagar.execute({ codigo_academia: academia, meses, metodo_pagamento: metodo, telefone: metodo === "GPO" ? telefone : undefined });
       setResult(r);
       await mensalidades.execute(codigo);
     } catch (e) {
@@ -114,6 +118,57 @@ export default function EstudantePagamentosPainel() {
 
   if (loading) return <LoadingState label="Carregando..." />;
   if (!codigo) return <Alert variant="error" title="Pagamentos" message="Não foi possível identificar o estudante logado." />;
+
+  if (tela.nome === "detalhe") {
+    return <SubtelaDetalheCobranca cobranca={tela.cobranca} onVoltar={() => setTela({ nome: "lista" })} mostrarDadosEstudante={false} />;
+  }
+
+  if (tela.nome === "pagar") {
+    const academia = tela.academia;
+    const pendentes = (mensalidades.data?.mensalidades ?? [])
+      .filter((m) => m.codigo_academia === academia && m.estado === "pendente")
+      .sort((a, b) => a.ano_letivo.localeCompare(b.ano_letivo) || a.mes - b.mes);
+    return (
+      <SubtelaPanel title={`Pagar mensalidades — Academia ${academia}`} icon="mdi:cash-multiple" onVoltar={() => setTela({ nome: "lista" })}>
+        {alert && <Alert variant="error" title="Pagamentos" message={alert} />}
+        {result ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-700 dark:text-gray-300">Status: {result.cobranca.status}</p>
+            {metodo === "GPO" && <p className="text-sm text-gray-700 dark:text-gray-300">Você receberá uma notificação no telefone informado para confirmar o pagamento.</p>}
+            {metodo === "REF" && <pre className="rounded bg-gray-50 p-3 text-xs dark:bg-gray-800">{JSON.stringify(result.cobranca.response ?? {}, null, 2)}</pre>}
+            {metodo === "GPO_QR" && <Qr value={result.cobranca.qrCodeArr} />}
+            <Button size="sm" onClick={() => void mensalidades.execute(codigo)}>Verificar status</Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              {pendentes.map((m, i) => {
+                const key = `${m.ano_letivo}:${m.mes}`;
+                return (
+                  <Checkbox
+                    key={key}
+                    id={`mes-${key}`}
+                    checked={selected.includes(key)}
+                    disabled={i === 0}
+                    onChange={(checked) => setSelected((s) => (checked ? [...s, key] : s.filter((x) => x !== key)))}
+                    label={`${formatAnoLetivo(m.ano_letivo)} · ${mesNome(m.mes)} · ${money(m.valor)}${i === 0 ? " (mais antigo, obrigatório)" : ""}`}
+                  />
+                );
+              })}
+            </div>
+            <Select
+              key={metodo}
+              defaultValue={metodo}
+              options={(mensalidades.data?.metodos_pagamento_por_academia[academia] ?? ["GPO"]).map((m) => ({ value: m, label: m }))}
+              onChange={(v) => setMetodo(v as FinanceiroMetodoPagamento)}
+            />
+            {metodo === "GPO" && <Input placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />}
+            <Button disabled={!selected.length || (metodo === "GPO" && !telefone)} onClick={() => confirmarPagamento(academia)}>Confirmar pagamento</Button>
+          </div>
+        )}
+      </SubtelaPanel>
+    );
+  }
 
   const totalHistorico = historico.data?.total_geral ?? 0;
   const totalPaginasHistorico = Math.max(1, Math.ceil(totalHistorico / PAGE_SIZE));
@@ -137,7 +192,7 @@ export default function EstudantePagamentosPainel() {
           <div key={academia} className="mt-5 rounded-xl border p-4 dark:border-white/[0.05]">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 dark:text-white/90">Academia {academia}</h2>
-              {rows.some((m) => m.estado === "pendente") && <Button size="sm" onClick={() => openPay(academia, rows)}>Pagar mensalidades</Button>}
+              {rows.some((m) => m.estado === "pendente") && <Button size="sm" onClick={() => abrirPagamento(academia, rows)}>Pagar mensalidades</Button>}
             </div>
             <div className="mt-3 overflow-x-auto">
               <Table>
@@ -147,7 +202,7 @@ export default function EstudantePagamentosPainel() {
                 <TableBody>
                   {rows.map((m, i) => (
                     <TableRow key={i}>
-                      <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{m.ano_letivo}</TableCell>
+                      <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{formatAnoLetivo(m.ano_letivo)}</TableCell>
                       <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{mesNome(m.mes)}</TableCell>
                       <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{money(m.valor)}</TableCell>
                       <TableCell className="px-3 py-2"><StatusBadge status={m.estado} /></TableCell>
@@ -192,7 +247,7 @@ export default function EstudantePagamentosPainel() {
               {historico.loading ? (
                 <LoadingState label="Carregando histórico..." />
               ) : (historico.data?.cobrancas?.length ?? 0) > 0 ? (
-                <CobrancasTable rows={historico.data?.cobrancas ?? []} onOpen={setSelecionada} />
+                <CobrancasTable rows={historico.data?.cobrancas ?? []} onOpen={(c) => setTela({ nome: "detalhe", cobranca: c })} />
               ) : (
                 <EmptyState title="Sem histórico." description="Nenhuma cobrança foi encontrada para os filtros selecionados." />
               )}
@@ -203,44 +258,6 @@ export default function EstudantePagamentosPainel() {
           </>
         )}
       </section>
-
-      <CobrancaDetalhesModal cobranca={selecionada} onClose={() => setSelecionada(null)} mostrarDadosEstudante={false} />
-
-      <Modal isOpen={!!payAcademia} onClose={() => setPayAcademia("")} className="max-w-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Pagar mensalidades</h3>
-        {result ? (
-          <div className="mt-4 space-y-3">
-            <p>Status: {result.cobranca.status}</p>
-            {metodo === "GPO" && <p>Você receberá uma notificação no telefone informado para confirmar o pagamento.</p>}
-            {metodo === "REF" && <pre className="rounded bg-gray-50 p-3 text-xs dark:bg-gray-800">{JSON.stringify(result.cobranca.response ?? {}, null, 2)}</pre>}
-            {metodo === "GPO_QR" && <Qr value={result.cobranca.qrCodeArr} />}
-            <Button size="sm" onClick={() => void mensalidades.execute(codigo)}>Verificar status</Button>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {(mensalidades.data?.mensalidades ?? [])
-              .filter((m) => m.codigo_academia === payAcademia && m.estado === "pendente")
-              .sort((a, b) => a.ano_letivo.localeCompare(b.ano_letivo) || a.mes - b.mes)
-              .map((m, i) => {
-                const key = `${m.ano_letivo}:${m.mes}`;
-                return (
-                  <label key={key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input type="checkbox" checked={selected.includes(key)} disabled={i === 0} onChange={(e) => setSelected((s) => (e.target.checked ? [...s, key] : s.filter((x) => x !== key)))} />
-                    {m.ano_letivo} · {mesNome(m.mes)} · {money(m.valor)} {i === 0 && "(mais antigo obrigatório)"}
-                  </label>
-                );
-              })}
-            <Select
-              key={metodo}
-              defaultValue={metodo}
-              options={(mensalidades.data?.metodos_pagamento_por_academia[payAcademia] ?? ["GPO"]).map((m) => ({ value: m, label: m }))}
-              onChange={(v) => setMetodo(v as FinanceiroMetodoPagamento)}
-            />
-            {metodo === "GPO" && <Input placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />}
-            <Button disabled={!selected.length || (metodo === "GPO" && !telefone)} onClick={confirm}>Confirmar pagamento</Button>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

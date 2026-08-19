@@ -8,11 +8,11 @@ import Alert from "@/components/ui/alert/Alert";
 import Icon from "@/components/ui/Icon";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import {
-  CobrancaDetalhesModal,
   CobrancasTable,
   EmptyState,
   LoadingState,
   PaginacaoSetas,
+  SubtelaDetalheCobranca,
 } from "@/components/paineis/financeiroShared";
 import type { CobrancaResumo, FinanceiroOrigemCobranca } from "@/types/api";
 
@@ -38,15 +38,12 @@ const ESTADO_OPCOES = [
  *
  * - Academia: uma única tabela de cobranças, paginada de verdade (30 por
  *   página, requisição sempre com limit/offset da página atual — mesmo
- *   padrão de /estudantes), com filtro por tipo e por estado, e um botão
- *   "Ver detalhes" por cobrança.
+ *   padrão de /estudantes), com filtro por tipo e por estado. Cada
+ *   cobrança tem seu botão "Ver detalhes", que abre uma SUBTELA (não um
+ *   pop-up) no lugar da tabela; "Cancelar" é uma ação independente, na
+ *   própria linha da tabela.
  * - Admin (FPP): ainda não existe tipo de cobrança específico para o
- *   Spuri, então a tela mostra apenas um aviso "indisponível no momento"
- *   — sem listar cobranças de nenhuma academia.
- *
- * A antiga seção "Consultar mensalidades e histórico por estudante" (uma
- * segunda tabela, separada) foi removida: agora há só a tabela acima,
- * e "ver detalhes" mostra os dados do estudante vinculado quando houver.
+ *   Spuri, então a tela mostra apenas um aviso "indisponível no momento".
  */
 export default function FinanceiroPagamentosPainel() {
   const { user, isAdmin, isAcademia, loading } = useUserType();
@@ -115,6 +112,16 @@ export default function FinanceiroPagamentosPainel() {
     );
   }
 
+  if (selecionada) {
+    return (
+      <SubtelaDetalheCobranca
+        cobranca={selecionada}
+        onVoltar={() => setSelecionada(null)}
+        mostrarDadosEstudante
+      />
+    );
+  }
+
   const totalGeral = list.data?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const cobrancas = list.data?.cobrancas ?? [];
@@ -159,7 +166,14 @@ export default function FinanceiroPagamentosPainel() {
           {list.loading ? (
             <LoadingState label="Carregando pagamentos..." />
           ) : cobrancas.length > 0 ? (
-            <CobrancasTable rows={cobrancas} onOpen={setSelecionada} />
+            <CobrancasTable
+              rows={cobrancas}
+              onOpen={setSelecionada}
+              onCancelar={async (cobranca, motivo) => {
+                await cancelApi.execute(cobranca.id, motivo);
+                await carregar();
+              }}
+            />
           ) : (
             <EmptyState title="Nenhuma cobrança encontrada." description="Ajuste os filtros ou aguarde novas cobranças serem criadas." />
           )}
@@ -175,16 +189,6 @@ export default function FinanceiroPagamentosPainel() {
           />
         </div>
       </section>
-
-      <CobrancaDetalhesModal
-        cobranca={selecionada}
-        onClose={() => setSelecionada(null)}
-        mostrarDadosEstudante
-        onCancelar={async (cobranca, motivo) => {
-          await cancelApi.execute(cobranca.id, motivo);
-          await carregar();
-        }}
-      />
     </div>
   );
 }
