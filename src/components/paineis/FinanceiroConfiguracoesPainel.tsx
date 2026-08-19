@@ -14,9 +14,9 @@ import Label from "@/components/form/Label";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import Checkbox from "@/components/form/input/Checkbox";
 import AnularReativarObrigacoesForm from "@/components/paineis/AnularReativarObrigacoesForm";
-import { LoadingState, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia } from "@/components/paineis/financeiroShared";
+import { LoadingState, METODO_PAGAMENTO_LABEL, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia } from "@/components/paineis/financeiroShared";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import type { Curso, FinanceiroMetodoPagamento, FinanceiroNivel, MatriculaConfiguracaoInput, MensalidadeConfiguracaoInput } from "@/types/api";
+import type { Curso, FinanceiroMetodoPagamento, FinanceiroNivel, MatriculaConfiguracaoInput, MatriculaConfiguracaoView, MensalidadeConfiguracaoInput, MensalidadeConfiguracaoView } from "@/types/api";
 
 const METODOS: FinanceiroMetodoPagamento[] = ["GPO", "REF", "GPO_QR"];
 const MES_FIM_OPCOES = [
@@ -41,23 +41,15 @@ function labelAnoAcademico(codigo: string): string {
   return `${numero}.º Ano (Superior)`;
 }
 
-function InfoBox() {
+function RegrasDeFuncionamento() {
   return (
-    <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900 dark:bg-brand-900/20">
-      <div className="flex items-start gap-3">
-        <Icon icon="mdi:information-outline" width={20} className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300" />
-        <div>
-          <p className="text-sm font-semibold text-brand-700 dark:text-brand-200">Regras financeiras importantes</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-brand-700/90 dark:text-brand-300">
-            <li>Cada configuração enviada cria uma <b>nova versão vigente a partir de agora</b> — não edita nem apaga versões passadas. Meses e matrículas já vencidos continuam usando o valor que estava vigente na época em que venceram.</li>
-            <li>A configuração é específica por <b>nível de ensino</b> e, dentro dele, por <b>ano/classe</b> (fundamental) ou por <b>curso e ano</b> (médio/superior) — por isso pode (e normalmente deve) haver várias configurações vigentes ao mesmo tempo, uma por combinação.</li>
-            <li>Na Matrícula: se <b>nenhuma</b> configuração existir para a combinação nível/ano/curso de uma solicitação, a matrícula daquele candidato é <b>gratuita</b> e a academia aprova direto, sem cobrança.</li>
-            <li>Pagamentos só podem ser feitos pelos métodos habilitados aqui: <b>GPO</b> (Multicaixa Express via número de telefone), <b>REF</b> (referência para pagar em qualquer Multicaixa/ATM/homebanking) e <b>GPO_QR</b> (QR Code, exibido para o pagador escanear no momento em que ele escolhe pagar).</li>
-            <li>É <b>obrigatório configurar as credenciais AppyPay antes</b> — sem isso, nenhuma cobrança pode ser criada mesmo com o valor já configurado aqui. <Link href="/financas/credenciais" className="font-medium underline">Configurar credenciais</Link>.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+    <ul className="list-disc space-y-2 pl-5 text-sm text-gray-600 dark:text-gray-300">
+      <li>Cada configuração enviada cria uma <b>nova versão vigente a partir de agora</b> — não edita nem apaga versões passadas. Meses e matrículas já vencidos continuam usando o valor que estava vigente na época em que venceram.</li>
+      <li>A configuração é específica por <b>nível de ensino</b> ({NIVEL_LABEL.fundamental}, {NIVEL_LABEL.medio} ou {NIVEL_LABEL.superior}) e, dentro dele, por <b>ano/classe</b> ({NIVEL_LABEL.fundamental}) ou por <b>curso e ano</b> ({NIVEL_LABEL.medio}/{NIVEL_LABEL.superior}) — por isso pode (e normalmente deve) haver várias configurações vigentes ao mesmo tempo, uma por combinação.</li>
+      <li>Na Matrícula: se <b>nenhuma</b> configuração existir para a combinação nível/ano/curso de uma solicitação, a matrícula daquele candidato é <b>gratuita</b> e a academia aprova direto, sem cobrança.</li>
+      <li>Pagamentos só podem ser feitos pelos métodos habilitados aqui: <b>{METODO_PAGAMENTO_LABEL.GPO}</b>, <b>{METODO_PAGAMENTO_LABEL.REF}</b> e <b>{METODO_PAGAMENTO_LABEL.GPO_QR}</b> (exibido para o pagador escanear no momento em que ele escolhe pagar).</li>
+      <li>É <b>obrigatório configurar as credenciais AppyPay antes</b> — sem isso, nenhuma cobrança pode ser criada mesmo com o valor já configurado aqui. <Link href="/financas/credenciais" className="font-medium underline">Configurar credenciais</Link>.</li>
+    </ul>
   );
 }
 
@@ -71,13 +63,16 @@ type NivelFormState = {
 
 type FormFieldErrors = Partial<Record<"ano_academico" | "curso_id" | "valor", string>>;
 
-type Tela = "menu" | "mensalidade" | "matricula" | "historico" | "inicio-cobranca" | "anular-reativar";
+type Tela = "menu" | "mensalidade" | "matricula" | "inicio-cobranca" | "anular-reativar" | "regras";
 
 /**
- * Painel de configurações financeiras, dividido em subtelas (não seções
- * empilhadas na mesma página): cada configuração — propina, matrícula,
- * histórico, início de cobrança fora do padrão, anular/reativar
- * obrigações — é a sua própria subtela, aberta a partir de um menu.
+ * Painel de configurações financeiras, dividido em subtelas: cada
+ * configuração — propina, matrícula, início de cobrança fora do padrão,
+ * anular/reativar obrigações — é a sua própria subtela, aberta a partir de
+ * um menu com no máximo 2 colunas (2 cartões por linha; 1 por linha em
+ * telas pequenas). As configurações já salvas de cada tipo aparecem
+ * dentro da própria subtela daquele tipo (não existe mais uma tela de
+ * "Histórico de versões" separada).
  *
  * Visão de admin (FPP): configuração de propina/matrícula é uma
  * responsabilidade exclusiva de cada academia — não existe hoje nenhuma
@@ -239,7 +234,7 @@ export default function FinanceiroConfiguracoesPainel() {
   const renderMetodos = (kind: "mensalidade" | "matricula", selected: FinanceiroMetodoPagamento[]) => (
     <div className="flex flex-wrap gap-4">
       {METODOS.map((m) => (
-        <Checkbox key={m} id={`${kind}-metodo-${m}`} label={m} checked={selected.includes(m)} onChange={() => toggleMetodo(kind, m)} />
+        <Checkbox key={m} id={`${kind}-metodo-${m}`} label={METODO_PAGAMENTO_LABEL[m]} checked={selected.includes(m)} onChange={() => toggleMetodo(kind, m)} />
       ))}
     </div>
   );
@@ -303,21 +298,68 @@ export default function FinanceiroConfiguracoesPainel() {
     </>
   );
 
+  /** Configurações já salvas de um tipo, exibidas dentro da própria subtela — substitui a antiga tela separada "Histórico de versões". */
+  const renderConfiguracoesSalvas = (linhas: (MensalidadeConfiguracaoView | MatriculaConfiguracaoView)[], comMesFim: boolean) => {
+    if (linhas.length === 0) {
+      return <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma configuração salva ainda.</p>;
+    }
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {["Nível", "Ano/Curso", "Valor", ...(comMesFim ? ["Fim"] : []), "Métodos", "Vigente em"].map((h) => (
+                <TableCell key={h} isHeader className="px-3 py-2 text-xs uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {linhas.map((c, i) => (
+              <TableRow key={i}>
+                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{NIVEL_LABEL[c.nivel]}</TableCell>
+                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.ano_academico ? labelAnoAcademico(c.ano_academico) : (cursos.find((cu) => cu.id === c.curso_id)?.nome ?? c.curso_id ?? "—")}</TableCell>
+                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{money(c.valor)}</TableCell>
+                {comMesFim && (
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                    {"mes_fim_cobranca" in c ? (c.mes_fim_cobranca === 6 ? "Junho" : c.mes_fim_cobranca === 7 ? "Julho" : c.mes_fim_cobranca) : "—"}
+                  </TableCell>
+                )}
+                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.metodos_pagamento.map((m) => METODO_PAGAMENTO_LABEL[m]).join(", ")}</TableCell>
+                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{date(c.vigente_em)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
   if (tela === "menu") {
     return (
       <div className="space-y-6">
         {alert && <Alert variant={alert.variant} title="Finanças" message={alert.message} />}
-        <InfoBox />
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={() => setTela("regras")} startIcon={<Icon icon="mdi:information-outline" width={16} />}>
+            Regras de funcionamento
+          </Button>
+        </div>
         <SubtelasMenu
           opcoes={[
             { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Propina / mensalidade", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("mensalidade") },
             { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("matricula") },
-            { id: "historico", icon: "mdi:history", label: "Histórico de versões", descricao: "Ver todas as configurações já salvas, com a data de vigência.", onClick: () => setTela("historico") },
             { id: "inicio-cobranca", icon: "mdi:calendar-start", label: "Início de cobrança fora do padrão", descricao: "Ajustar a partir de qual mês a propina passa a valer num ano letivo específico.", onClick: () => setTela("inicio-cobranca") },
             { id: "anular-reativar", icon: "mdi:receipt-text-remove-outline", label: "Anular ou reativar obrigações", descricao: "Anular ou reativar mensalidades pontuais de um estudante específico.", onClick: () => setTela("anular-reativar") },
           ]}
         />
       </div>
+    );
+  }
+
+  if (tela === "regras") {
+    return (
+      <SubtelaPanel title="Regras de funcionamento" icon="mdi:information-outline" onVoltar={() => setTela("menu")}>
+        <RegrasDeFuncionamento />
+      </SubtelaPanel>
     );
   }
 
@@ -343,6 +385,10 @@ export default function FinanceiroConfiguracoesPainel() {
             Salvar nova versão
           </Button>
         </div>
+        <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/[0.05]">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Configurações já feitas</h3>
+          {renderConfiguracoesSalvas(mensalidadesApi.data?.configuracoes ?? [], true)}
+        </div>
       </SubtelaPanel>
     );
   }
@@ -359,36 +405,9 @@ export default function FinanceiroConfiguracoesPainel() {
             Salvar nova versão
           </Button>
         </div>
-      </SubtelaPanel>
-    );
-  }
-
-  if (tela === "historico") {
-    const linhas = [
-      ...(mensalidadesApi.data?.configuracoes ?? []).map((c) => ({ tipo: "Propina", fim: String(c.mes_fim_cobranca), ...c })),
-      ...(matriculasApi.data?.configuracoes ?? []).map((c) => ({ tipo: "Matrícula", fim: "—", ...c })),
-    ];
-    return (
-      <SubtelaPanel title="Histórico de versões" icon="mdi:history" onVoltar={() => setTela("menu")}>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>{["Tipo", "Nível", "Ano/Curso", "Valor", "Fim", "Métodos", "Vigente em"].map((h) => <TableCell key={h} isHeader className="px-3 py-2 text-xs uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>)}</TableRow>
-            </TableHeader>
-            <TableBody>
-              {linhas.map((c, i) => (
-                <TableRow key={i}>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.tipo}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{NIVEL_LABEL[c.nivel]}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.ano_academico ? labelAnoAcademico(c.ano_academico) : (cursos.find((cu) => cu.id === c.curso_id)?.nome ?? c.curso_id ?? "—")}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{money(c.valor)}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.fim === "6" ? "Junho" : c.fim === "7" ? "Julho" : c.fim}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.metodos_pagamento.join(", ")}</TableCell>
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{date(c.vigente_em)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/[0.05]">
+          <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Configurações já feitas</h3>
+          {renderConfiguracoesSalvas(matriculasApi.data?.configuracoes ?? [], false)}
         </div>
       </SubtelaPanel>
     );
