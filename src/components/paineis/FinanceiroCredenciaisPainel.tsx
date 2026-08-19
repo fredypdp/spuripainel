@@ -276,7 +276,7 @@ export default function FinanceiroCredenciaisPainel() {
         )}
       </div>
 
-      <AdesaoAppyPayInfo />
+      <AdesaoAppyPayInfo temCredenciais={rows.length > 0} />
 
       {!formOpen && <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
         {listando ? <LoadingState /> : rows.length === 0 ? (
@@ -429,27 +429,59 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
   );
 }
 
-function AdesaoAppyPayInfo() {
+/**
+ * "Antes de configurar as credenciais": quando a academia AINDA NÃO tem
+ * nenhuma credencial gravada, a nota de adesão fica sempre em destaque e
+ * visível por inteiro (não pode ficar escondida atrás de um clique nesse
+ * momento — é a informação mais importante da tela). Depois que já existe
+ * pelo menos uma credencial, a nota passa a vir recolhida por padrão, com
+ * um botão para expandir/ocultar (em vez do `<details>`/`<summary>` nativo
+ * do navegador, que tem uma UX pobre e visualmente inconsistente com o
+ * resto do painel).
+ */
+function AdesaoAppyPayInfo({ temCredenciais }: { temCredenciais: boolean }) {
+  const [aberta, setAberta] = useState(false);
+  const destaque = !temCredenciais;
+  const mostrarConteudo = destaque || aberta;
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+    <div
+      className={
+        destaque
+          ? "rounded-2xl border border-brand-300 bg-brand-50 p-5 dark:border-brand-500/40 dark:bg-brand-500/10"
+          : "rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]"
+      }
+    >
       <div className="flex items-start gap-3">
-        <Icon icon="mdi:bank-outline" width={22} className="mt-0.5 shrink-0 text-brand-500" />
-        <div>
+        <Icon icon="mdi:bank-outline" width={22} className={`mt-0.5 shrink-0 ${destaque ? "text-brand-600 dark:text-brand-300" : "text-brand-500"}`} />
+        <div className="flex-1">
           <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">Antes de configurar as credenciais</h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Para ter acesso ao módulo de finanças e fazer cobranças e receber pagamentos dos estudantes, é necessário aderir aos serviços de Gateway de Pagamento Online junto ao seu banco.
           </p>
         </div>
+        {!destaque && (
+          <button
+            type="button"
+            onClick={() => setAberta((v) => !v)}
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-white/[0.08] dark:text-gray-300 dark:hover:bg-white/[0.05]"
+          >
+            {aberta ? "Ocultar nota" : "Ver nota de adesão"}
+            <Icon icon={aberta ? "mdi:chevron-up" : "mdi:chevron-down"} width={16} />
+          </button>
+        )}
       </div>
-      <details className="mt-4 rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03]">
-        <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">Nota para Adesão ao Serviço (enviada pela AppyPay)</summary>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-500 dark:text-gray-400">
-          <li>É necessário ter uma conta bancária empresarial em um dos bancos angolanos.</li>
-          <li>O processo de adesão começa no seu banco comercial: dirija-se ao seu banco e solicite os formulários de adesão aos métodos de pagamento que deseja utilizar (Multicaixa Express e/ou Referência).</li>
-          <li>Informe ao banco que vai trabalhar com a AppyPay como seu facilitador tecnológico.</li>
-          <li>A AppyPay tem parceria com o BAI (GPO), BCS e Standard Bank (GPO e REF) — se selecionar um destes bancos, não terá de pagar as comissões da AppyPay (0,4% por cobrança, com comissão mínima de 50 Kz por cobrança), nem assinar o contrato com a AppyPay.</li>
-        </ol>
-      </details>
+      {mostrarConteudo && (
+        <div className={`mt-4 rounded-xl p-4 ${destaque ? "bg-white/60 dark:bg-white/[0.06]" : "bg-gray-50 dark:bg-white/[0.03]"}`}>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Nota para Adesão ao Serviço</p>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-500 dark:text-gray-400">
+            <li>É necessário ter uma conta bancária empresarial em um dos bancos angolanos.</li>
+            <li>O processo de adesão começa no seu banco comercial: dirija-se ao seu banco e solicite os formulários de adesão aos métodos de pagamento que deseja utilizar (Multicaixa Express e/ou Referência).</li>
+            <li>Informe ao banco que vai trabalhar com a AppyPay como seu facilitador tecnológico.</li>
+            <li>A AppyPay tem parceria com o BAI (GPO), BCS e Standard Bank (GPO e REF) — se selecionar um destes bancos, não terá de pagar as comissões da AppyPay (0,4% por cobrança, com comissão mínima de 50 Kz por cobrança), nem assinar o contrato com a AppyPay.</li>
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
