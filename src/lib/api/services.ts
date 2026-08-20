@@ -128,10 +128,13 @@ import type {
   RotacionarSegredoWebhookResponse,
   ListarFinanceiroCredenciaisParams,
   ListarFinanceiroCredenciaisResponse,
+  RemoverFinanceiroCredencialRequest,
   MensalidadeConfiguracaoInput,
   MensalidadeConfiguracaoView,
   ListarConfiguracoesMensalidadeResponse,
+  RemoverMensalidadeConfiguracaoRequest,
   MesInicioCobrancaInput,
+  RemoverMesInicioCobrancaRequest,
   ObrigacaoMensalidadeInput,
   ConsultarMensalidadesEstudanteResponse,
   MensalidadePagamentoInput,
@@ -139,6 +142,7 @@ import type {
   MatriculaConfiguracaoInput,
   MatriculaConfiguracaoView,
   ListarConfiguracoesMatriculaResponse,
+  RemoverMatriculaConfiguracaoRequest,
   ListarCobrancasParams,
   ListarCobrancasResponse,
   ListarCobrancasEstudanteParams,
@@ -864,6 +868,20 @@ export const financeiroService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * DELETE /financeiro/appypay/credenciais — remove a credencial vigente
+   * do contexto informado (evento imutável no backend; o histórico de
+   * configuração nunca é apagado). A partir desta chamada, novas
+   * cobranças nesse contexto voltam a ser bloqueadas por falta de
+   * credenciais até uma nova configuração.
+   */
+  removerCredencial: (data: RemoverFinanceiroCredencialRequest, token?: string) =>
+    api.delete<void, RemoverFinanceiroCredencialRequest>(
+      '/financeiro/appypay/credenciais',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   /** GET .../webhook-secret — devolve o segredo de webhook atual em texto plano (só dono do contexto). */
   consultarSegredoWebhook: (id: string, token?: string) =>
     api.get<ConsultarSegredoWebhookResponse>(
@@ -883,7 +901,11 @@ export const financeiroService = {
     api.get<ListarConfiguracoesMensalidadeResponse>(`/financeiro/mensalidades/configuracoes${params.codigo_academia ? `?codigo_academia=${encodeURIComponent(params.codigo_academia)}` : ''}`, { token: token || tokenStorage.get() || undefined }),
   configurarMensalidade: (data: MensalidadeConfiguracaoInput, token?: string) => api.post<MensalidadeConfiguracaoView, MensalidadeConfiguracaoInput>('/financeiro/mensalidades/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
   atualizarConfiguracaoMensalidade: (data: MensalidadeConfiguracaoInput, token?: string) => api.put<MensalidadeConfiguracaoView, MensalidadeConfiguracaoInput>('/financeiro/mensalidades/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
+  /** DELETE /financeiro/mensalidades/configuracoes — remove a configuração vigente do escopo; nunca reescreve preço de mês já cobrado. */
+  removerConfiguracaoMensalidade: (data: RemoverMensalidadeConfiguracaoRequest, token?: string) => api.delete<void, RemoverMensalidadeConfiguracaoRequest>('/financeiro/mensalidades/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
   definirInicioCobranca: (data: MesInicioCobrancaInput, token?: string) => api.post<void, MesInicioCobrancaInput>('/financeiro/mensalidades/inicio-cobranca', data, { token: token || tokenStorage.get() || undefined }),
+  /** DELETE /financeiro/mensalidades/inicio-cobranca — reverte ao mês natural do ano letivo. */
+  removerInicioCobranca: (data: RemoverMesInicioCobrancaRequest, token?: string) => api.delete<void, RemoverMesInicioCobrancaRequest>('/financeiro/mensalidades/inicio-cobranca', data, { token: token || tokenStorage.get() || undefined }),
   anularObrigacoes: (data: ObrigacaoMensalidadeInput, token?: string) => api.post<void, ObrigacaoMensalidadeInput>('/financeiro/mensalidades/obrigacoes/anular', data, { token: token || tokenStorage.get() || undefined }),
   reativarObrigacoes: (data: ObrigacaoMensalidadeInput, token?: string) => api.post<void, ObrigacaoMensalidadeInput>('/financeiro/mensalidades/obrigacoes/reativar', data, { token: token || tokenStorage.get() || undefined }),
   consultarMensalidadesEstudante: (codigoEstudante: string, token?: string) => api.get<ConsultarMensalidadesEstudanteResponse>(`/financeiro/mensalidades/estudante/${encodeURIComponent(codigoEstudante)}`, { token: token || tokenStorage.get() || undefined }),
@@ -891,6 +913,8 @@ export const financeiroService = {
   listarConfiguracoesMatricula: (params: { codigo_academia?: string } = {}, token?: string) => api.get<ListarConfiguracoesMatriculaResponse>(`/financeiro/matriculas/configuracoes${params.codigo_academia ? `?codigo_academia=${encodeURIComponent(params.codigo_academia)}` : ''}`, { token: token || tokenStorage.get() || undefined }),
   configurarMatricula: (data: MatriculaConfiguracaoInput, token?: string) => api.post<MatriculaConfiguracaoView, MatriculaConfiguracaoInput>('/financeiro/matriculas/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
   atualizarConfiguracaoMatricula: (data: MatriculaConfiguracaoInput, token?: string) => api.put<MatriculaConfiguracaoView, MatriculaConfiguracaoInput>('/financeiro/matriculas/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
+  /** DELETE /financeiro/matriculas/configuracoes — remove a configuração vigente; matrícula volta a ser gratuita para o escopo. */
+  removerConfiguracaoMatricula: (data: RemoverMatriculaConfiguracaoRequest, token?: string) => api.delete<void, RemoverMatriculaConfiguracaoRequest>('/financeiro/matriculas/configuracoes', data, { token: token || tokenStorage.get() || undefined }),
   listarCobrancas: (params: ListarCobrancasParams, token?: string) => {
     const qs = new URLSearchParams();
     if (params.contexto_tipo) qs.set('contexto_tipo', params.contexto_tipo);

@@ -119,7 +119,6 @@ export interface CriarUniversidadeRequest {
   cursos?: string[];
 }
 
-
 /**
  * Cadastro público de academia (sem autenticação) — POST /academia/registo-publico.
  * Mesmos campos de CriarEscolaRequest/CriarUniversidadeRequest, mais um campo
@@ -145,7 +144,6 @@ export interface CadastroAcademiaPublicaResponse {
   };
   aviso: string;
 }
-
 
 export interface AnoLetivoItem {
   ano_letivo: string;
@@ -189,7 +187,6 @@ export interface CriarEstudanteRequest {
   certificado_9_ano_fundamental?: File;
   certificado_ensino_medio?: File;
 }
-
 
 export interface MotivoEstudanteRequest {
   motivo: string;
@@ -873,7 +870,6 @@ export type CategoriaNotaEscolar =
 
 export type CategoriaNota = CategoriaNotaEscolar | string;
 
-
 /**
  * Fórmula textual declarativa (`formula_textual_v1`) usada pelo backend para
  * avaliação final. Ex.: `([nota_professor,1_trimestre]+[prova_trimestral,1_trimestre])/2`.
@@ -998,7 +994,6 @@ export interface CorrigirNotaResponse {
   message: string;
   id: string;
 }
-
 
 export interface CriarCategoriaNotaRequest {
   codigo: string;
@@ -1181,7 +1176,6 @@ export interface AvaliacaoFinal {
   version: number;
 }
 
-
 export type GerirAnosAcademicosRequest =
   | { type: 'fundamental'; anos_academicos: string[] }
   | { type: 'medio'; curso_id: string; anos_academicos: string[] };
@@ -1306,6 +1300,18 @@ export interface ListarFinanceiroCredenciaisParams {
 export type ListarFinanceiroCredenciaisResponse = FinanceiroCredencial[];
 
 /**
+ * Corpo de DELETE /financeiro/appypay/credenciais (finance.RemoveCredential
+ * no backend). Remove a credencial vigente do contexto informado — não
+ * apaga o evento original do ledger, apenas registra um novo evento de
+ * remoção; a partir daí, novas cobranças nesse contexto voltam a ser
+ * bloqueadas por falta de credenciais até uma nova configuração.
+ */
+export interface RemoverFinanceiroCredencialRequest {
+  contexto_tipo: FinanceiroContextoTipo;
+  codigo_academia?: string;
+}
+
+/**
  * Resposta exclusiva de POST /financeiro/appypay/credenciais
  * (CredencialAppyPayCriada no backend). webhook_secret só vem preenchido
  * quando esta é a PRIMEIRA vez que a credencial recebe um segredo de
@@ -1362,10 +1368,34 @@ export interface ListarConfiguracoesMensalidadeResponse {
   configuracoes: MensalidadeConfiguracaoView[];
 }
 
+/**
+ * Corpo de DELETE /financeiro/mensalidades/configuracoes
+ * (finance.RemoveMensalidadeConfiguracao). Remove a configuração vigente
+ * do escopo (nivel + ano_academico + curso_id, quando aplicável) — nunca
+ * apaga nem reescreve o preço de meses já cobrados antes da remoção.
+ */
+export interface RemoverMensalidadeConfiguracaoRequest {
+  codigo_academia: string;
+  nivel: FinanceiroNivel;
+  ano_academico?: string;
+  curso_id?: string;
+}
+
 export interface MesInicioCobrancaInput {
   codigo_academia: string;
   ano_letivo: string;
   mes_inicio: number;
+}
+
+/**
+ * Corpo de DELETE /financeiro/mensalidades/inicio-cobranca
+ * (finance.RemoveMesInicioCobranca). Remove a exceção de início de
+ * cobrança de um ano letivo, revertendo ao mês natural (setembro para
+ * fundamental/médio, outubro para superior).
+ */
+export interface RemoverMesInicioCobrancaRequest {
+  codigo_academia: string;
+  ano_letivo: string;
 }
 
 export interface ObrigacaoMensalidadeInput {
@@ -1486,6 +1516,19 @@ export interface ListarConfiguracoesMatriculaResponse {
   configuracoes: MatriculaConfiguracaoView[];
 }
 
+/**
+ * Corpo de DELETE /financeiro/matriculas/configuracoes
+ * (finance.RemoveMatriculaConfiguracao). Remove a configuração vigente do
+ * escopo — depois de removida, a matrícula volta a ser gratuita para essa
+ * combinação nível/ano/curso, como se nunca tivesse tido configuração.
+ */
+export interface RemoverMatriculaConfiguracaoRequest {
+  codigo_academia: string;
+  nivel: FinanceiroNivel;
+  ano_academico?: string;
+  curso_id?: string;
+}
+
 export interface BuscarSolicitacoesMatriculaParams {
   telefone?: string;
   telefone_encarregado?: string;
@@ -1525,7 +1568,6 @@ export interface PagamentoMatriculaResponse {
 export interface CancelarSolicitacaoMatriculaInput {
   motivo: string;
 }
-
 
 export interface CategoriaNotaItem {
   id?: string;
@@ -1828,7 +1870,6 @@ export interface ListarAnosLetivosAcademiaResponse {
     definido_em?: string;
   }>;
 }
-
 
 export type AnoLetivoTipo = 'escolar' | 'superior';
 

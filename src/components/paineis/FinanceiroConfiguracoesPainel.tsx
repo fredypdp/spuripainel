@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { academiaService, financeiroService, useApi } from "@/lib/api";
+import { academiaService, ApiError, financeiroService, useApi } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
 import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
@@ -102,6 +102,9 @@ export default function FinanceiroConfiguracoesPainel() {
   const salvarMatricula = useApi(financeiroService.configurarMatricula);
   const atualizarMensalidade = useApi(financeiroService.atualizarConfiguracaoMensalidade);
   const atualizarMatricula = useApi(financeiroService.atualizarConfiguracaoMatricula);
+  const removerMensalidade = useApi(financeiroService.removerConfiguracaoMensalidade);
+  const removerMatricula = useApi(financeiroService.removerConfiguracaoMatricula);
+  const [removendoConfig, setRemovendoConfig] = useState<string | null>(null);
 
   useEffect(() => {
     if (niveisDisponiveis.length === 0) return;
@@ -224,6 +227,50 @@ export default function FinanceiroConfiguracoesPainel() {
     }
   };
 
+  /** Chave estável para identificar qual linha está com remoção em andamento (desabilita só o botão daquela linha). */
+  const configKey = (kind: "mensalidade" | "matricula", c: { nivel: string; ano_academico?: string; curso_id?: string }) =>
+    `${kind}|${c.nivel}|${c.ano_academico ?? ""}|${c.curso_id ?? ""}`;
+
+  const labelEscopo = (c: { ano_academico?: string; curso_id?: string }) =>
+    c.ano_academico ? labelAnoAcademico(c.ano_academico) : (cursos.find((cu) => cu.id === c.curso_id)?.nome ?? "este escopo");
+
+  /**
+   * Remove a configuração vigente de propina do escopo da linha clicada.
+   * O backend nunca reescreve o preço de meses já cobrados antes da
+   * remoção (event sourcing) — só deixa de haver configuração ativa daqui
+   * para frente, até uma nova versão ser salva.
+   */
+  const handleRemoverMensalidade = async (c: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string }) => {
+    if (!window.confirm(`Remover a configuração de propina de ${NIVEL_LABEL[c.nivel]} — ${labelEscopo(c)}? Meses já cobrados não são afetados; a partir de agora, novas mensalidades desse escopo ficam sem valor definido até configurar de novo.`)) return;
+    setAlert(null);
+    setRemovendoConfig(configKey("mensalidade", c));
+    try {
+      await removerMensalidade.execute({ codigo_academia: codigoAcademia, nivel: c.nivel, ano_academico: c.ano_academico, curso_id: c.curso_id });
+      setAlert({ variant: "success", message: "Configuração de mensalidade removida com sucesso." });
+      await reload();
+    } catch (err) {
+      setAlert({ variant: "error", message: formatApiError(err, "Não foi possível remover a configuração de mensalidade.") });
+    } finally {
+      setRemovendoConfig(null);
+    }
+  };
+
+  /** Remove a configuração vigente de taxa de matrícula do escopo da linha clicada — a matrícula volta a ser gratuita para ele. */
+  const handleRemoverMatricula = async (c: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string }) => {
+    if (!window.confirm(`Remover a configuração de taxa de matrícula de ${NIVEL_LABEL[c.nivel]} — ${labelEscopo(c)}? A matrícula volta a ser gratuita para este escopo até configurar de novo.`)) return;
+    setAlert(null);
+    setRemovendoConfig(configKey("matricula", c));
+    try {
+      await removerMatricula.execute({ codigo_academia: codigoAcademia, nivel: c.nivel, ano_academico: c.ano_academico, curso_id: c.curso_id });
+      setAlert({ variant: "success", message: "Configuração de matrícula removida com sucesso." });
+      await reload();
+    } catch (err) {
+      setAlert({ variant: "error", message: formatApiError(err, "Não foi possível remover a configuração de matrícula.") });
+    } finally {
+      setRemovendoConfig(null);
+    }
+  };
+
   const updateNivel = (kind: "mensalidade" | "matricula", nivel: FinanceiroNivel) => {
     const setter = kind === "mensalidade" ? setMensalidadeForm : setMatriculaForm;
     const setErrors = kind === "mensalidade" ? setMensalidadeErrors : setMatriculaErrors;
@@ -299,35 +346,44 @@ export default function FinanceiroConfiguracoesPainel() {
   );
 
   /** Configurações já salvas de um tipo, exibidas dentro da própria subtela — substitui a antiga tela separada "Histórico de versões". */
-  const renderConfiguracoesSalvas = (linhas: (MensalidadeConfiguracaoView | MatriculaConfiguracaoView)[], comMesFim: boolean) => {
+  const renderConfiguracoesSalvas = (linhas: (MensalidadeConfiguracaoView | MatriculaConfiguracaoView)[], comMesFim: boolean, kind: "mensalidade" | "matricula") => {
     if (linhas.length === 0) {
       return <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma configuração salva ainda.</p>;
     }
+    const onRemover = kind === "mensalidade" ? handleRemoverMensalidade : handleRemoverMatricula;
     return (
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              {["Nível", "Ano/Curso", "Valor", ...(comMesFim ? ["Fim"] : []), "Métodos", "Vigente em"].map((h) => (
-                <TableCell key={h} isHeader className="px-3 py-2 text-xs uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
+              {["Nível", "Ano/Curso", "Valor", ...(comMesFim ? ["Fim"] : []), "Métodos", "Vigente em", ""].map((h) => (
+                <TableCell key={h || "acoes"} isHeader className="px-3 py-2 text-xs uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linhas.map((c, i) => (
-              <TableRow key={i}>
-                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{NIVEL_LABEL[c.nivel]}</TableCell>
-                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.ano_academico ? labelAnoAcademico(c.ano_academico) : (cursos.find((cu) => cu.id === c.curso_id)?.nome ?? c.curso_id ?? "—")}</TableCell>
-                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{money(c.valor)}</TableCell>
-                {comMesFim && (
-                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                    {"mes_fim_cobranca" in c ? (c.mes_fim_cobranca === 6 ? "Junho" : c.mes_fim_cobranca === 7 ? "Julho" : c.mes_fim_cobranca) : "—"}
+            {linhas.map((c, i) => {
+              const key = configKey(kind, c);
+              return (
+                <TableRow key={i}>
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{NIVEL_LABEL[c.nivel]}</TableCell>
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.ano_academico ? labelAnoAcademico(c.ano_academico) : (cursos.find((cu) => cu.id === c.curso_id)?.nome ?? c.curso_id ?? "—")}</TableCell>
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{money(c.valor)}</TableCell>
+                  {comMesFim && (
+                    <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                      {"mes_fim_cobranca" in c ? (c.mes_fim_cobranca === 6 ? "Junho" : c.mes_fim_cobranca === 7 ? "Julho" : c.mes_fim_cobranca) : "—"}
+                    </TableCell>
+                  )}
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.metodos_pagamento.map((m) => METODO_PAGAMENTO_LABEL[m]).join(", ")}</TableCell>
+                  <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{date(c.vigente_em)}</TableCell>
+                  <TableCell className="px-3 py-2">
+                    <Button size="sm" variant="danger" disabled={removendoConfig === key} onClick={() => onRemover(c)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+                      {removendoConfig === key ? "Removendo..." : "Remover"}
+                    </Button>
                   </TableCell>
-                )}
-                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.metodos_pagamento.map((m) => METODO_PAGAMENTO_LABEL[m]).join(", ")}</TableCell>
-                <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{date(c.vigente_em)}</TableCell>
-              </TableRow>
-            ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
@@ -387,7 +443,7 @@ export default function FinanceiroConfiguracoesPainel() {
         </div>
         <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/[0.05]">
           <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Configurações já feitas</h3>
-          {renderConfiguracoesSalvas(mensalidadesApi.data?.configuracoes ?? [], true)}
+          {renderConfiguracoesSalvas(mensalidadesApi.data?.configuracoes ?? [], true, "mensalidade")}
         </div>
       </SubtelaPanel>
     );
@@ -407,7 +463,7 @@ export default function FinanceiroConfiguracoesPainel() {
         </div>
         <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/[0.05]">
           <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Configurações já feitas</h3>
-          {renderConfiguracoesSalvas(matriculasApi.data?.configuracoes ?? [], false)}
+          {renderConfiguracoesSalvas(matriculasApi.data?.configuracoes ?? [], false, "matricula")}
         </div>
       </SubtelaPanel>
     );
@@ -446,8 +502,9 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
   const [anosLetivos, setAnosLetivos] = useState<string[]>([]);
   const [anoLetivo, setAnoLetivo] = useState("");
   const [mesInicio, setMesInicio] = useState("2");
-  const [alert, setAlert] = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [alert, setAlert] = useState<{ variant: "success" | "error" | "info"; message: string } | null>(null);
   const definirInicio = useApi(financeiroService.definirInicioCobranca);
+  const removerInicio = useApi(financeiroService.removerInicioCobranca);
 
   useEffect(() => {
     if (!codigoAcademia) return;
@@ -469,6 +526,31 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
       setAlert({ variant: "success", message: "Início de cobrança definido com sucesso." });
     } catch (err) {
       setAlert({ variant: "error", message: formatApiError(err, "Não foi possível definir o início de cobrança.") });
+    }
+  };
+
+  /**
+   * Remove a exceção de início de cobrança do ano letivo selecionado,
+   * revertendo ao mês natural (setembro para Ensino Primário/Iº Ciclo e
+   * Médio, outubro para Superior). Não há como esta tela saber de antemão
+   * se existe uma exceção definida para o ano letivo escolhido (não existe
+   * uma consulta dedicada para isso) — por isso o botão fica sempre
+   * disponível, e um 404 do backend (nada para remover) é tratado como
+   * informação neutra, não como erro.
+   */
+  const removerException = async () => {
+    setAlert(null);
+    if (!anoLetivo) { setAlert({ variant: "error", message: "Selecione o ano letivo." }); return; }
+    if (!window.confirm(`Remover a exceção de início de cobrança de ${formatAnoLetivo(anoLetivo)}? A cobrança volta a considerar o mês natural do ano letivo.`)) return;
+    try {
+      await removerInicio.execute({ codigo_academia: codigoAcademia, ano_letivo: anoLetivo });
+      setAlert({ variant: "success", message: "Início de cobrança removido — voltou ao mês natural do ano letivo." });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setAlert({ variant: "info", message: "Não havia nenhuma exceção de início de cobrança definida para este ano letivo — já está no mês natural." });
+        return;
+      }
+      setAlert({ variant: "error", message: formatApiError(err, "Não foi possível remover o início de cobrança.") });
     }
   };
 
@@ -503,6 +585,16 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
         <div className="self-end">
           <Button onClick={submit} disabled={!anoLetivo || definirInicio.loading} startIcon={<Icon icon="mdi:calendar-start" width={16} />}>
             Definir início de cobrança
+          </Button>
+        </div>
+      </div>
+      <div className="border-t border-gray-100 pt-4 dark:border-white/[0.05]">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Se este ano letivo não deveria mais ter um início de cobrança fora do padrão, remova a exceção — a cobrança volta a considerar o mês natural.
+        </p>
+        <div className="mt-2">
+          <Button size="sm" variant="danger" onClick={removerException} disabled={!anoLetivo || removerInicio.loading} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+            {removerInicio.loading ? "Removendo..." : "Remover início de cobrança deste ano letivo"}
           </Button>
         </div>
       </div>
