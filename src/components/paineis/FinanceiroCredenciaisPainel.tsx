@@ -108,7 +108,9 @@ export default function FinanceiroCredenciaisPainel() {
   const { execute: listarCredenciais, data: credenciais, loading: listando } = useApi(financeiroService.listarCredenciais);
   const { execute: criarCredencial, loading: criando } = useApi(financeiroService.criarCredencial);
   const { execute: atualizarCredencial, loading: atualizando } = useApi(financeiroService.atualizarCredencial);
+  const { execute: removerCredencial } = useApi(financeiroService.removerCredencial);
   const { execute: listarAcademias, loading: listandoAcademias } = useApi(consultasService.listarAcademias);
+  const [removendoId, setRemovendoId] = useState<string | null>(null);
 
   const saving = criando || atualizando;
 
@@ -140,7 +142,6 @@ export default function FinanceiroCredenciaisPainel() {
   }, [isFpp, listarAcademias]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!loading) void carregarCredenciais();
   }, [carregarCredenciais, loading]);
 
@@ -229,6 +230,31 @@ export default function FinanceiroCredenciaisPainel() {
     }
   };
 
+  /**
+   * Remove a credencial vigente do contexto da linha clicada. Ação
+   * destrutiva com consequência imediata (bloqueia novas cobranças nesse
+   * contexto) — por isso passa por confirmação explícita, mesmo padrão já
+   * usado em "Rotacionar" (WebhookSecretPanel.handleRotacionar) nesta
+   * mesma tela. O evento de configuração original nunca é apagado no
+   * backend: configurar de novo (via "Configurar credenciais") volta a
+   * habilitar cobranças normalmente a qualquer momento depois.
+   */
+  const handleRemover = async (credencial: FinanceiroCredencial) => {
+    const alvo = credencial.contexto_tipo === "spuri" ? "Spuri (Global)" : `da academia ${credencial.codigo_academia ?? ""}`;
+    if (!window.confirm(`Remover as credenciais AppyPay ${alvo}? A partir de agora, nenhuma cobrança nova poderá ser criada nesse contexto até configurar novas credenciais. Cobranças já criadas não são afetadas.`)) return;
+    setAlert(null);
+    setRemovendoId(credencial.id);
+    try {
+      await removerCredencial({ contexto_tipo: credencial.contexto_tipo, codigo_academia: credencial.codigo_academia });
+      setAlert({ variant: "success", message: "Credencial removida com sucesso." });
+      await carregarCredenciais();
+    } catch (err) {
+      setAlert({ variant: "error", message: formatApiError(err, "Não foi possível remover a credencial.") });
+    } finally {
+      setRemovendoId(null);
+    }
+  };
+
   if (loading) return <LoadingState />;
   if (!isAcademia && !isFpp) return <UnauthorizedAccess requiredTypes={["Admin FPP", "Academia"]} />;
 
@@ -302,7 +328,14 @@ export default function FinanceiroCredenciaisPainel() {
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{credencial.ref_payment_method_mask}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300"><WebhookSecretPanel credencialId={credencial.id} /></TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{formatDate(credencial.updated_at)}</TableCell>
-                    <TableCell className="px-4 py-3"><Button size="sm" variant="outline" onClick={() => openEdit(credencial)}>Editar</Button></TableCell>
+                    <TableCell className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => openEdit(credencial)}>Editar</Button>
+                        <Button size="sm" variant="danger" disabled={removendoId === credencial.id} onClick={() => handleRemover(credencial)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+                          {removendoId === credencial.id ? "Removendo..." : "Remover"}
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
