@@ -23,9 +23,17 @@ import { gerarModeloExcel } from './massaTemplate';
 
 interface SelecaoContextoMassaProps {
   onModeloGerado: (contexto: ContextoModelo) => void;
+  /**
+   * Modo de cadastro (turma/geral) selecionado — controlado pelo
+   * componente pai (CadastroMassaForm) porque também é usado para validar
+   * o ficheiro no passo de upload: um modelo gerado num modo não pode ser
+   * aceite enquanto o outro modo estiver selecionado (ver massaParser.ts).
+   */
+  modoCadastro: 'turma' | 'geral';
+  onModoCadastroChange: (modo: 'turma' | 'geral') => void;
 }
 
-export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContextoMassaProps) {
+export default function SelecaoContextoMassa({ onModeloGerado, modoCadastro, onModoCadastroChange }: SelecaoContextoMassaProps) {
   const { user } = useUserCookie();
   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
   const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
@@ -41,7 +49,6 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
     return ['fundamental'];
   }, [isSuperior, nivelEscolar]);
 
-  const [modoCadastro, setModoCadastro] = useState<'turma' | 'geral'>('turma');
   const [nivel, setNivel] = useState<NivelBulk | ''>('');
   const [cursoId, setCursoId] = useState('');
   const [anoAcademico, setAnoAcademico] = useState('');
@@ -161,7 +168,7 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
               { value: 'turma', title: 'Cadastrar por turma', desc: 'Vai cadastrar os estudantes turma por turma. É necessário que a turma já exista na plataforma.' },
               { value: 'geral', title: 'Cadastrar de forma geral', desc: 'Os estudantes serão cadastrados sem vínculo a nenhuma turma. Pode vincular cada um depois.' },
             ].map((op) => (
-              <button key={op.value} type="button" onClick={() => { setModoCadastro(op.value as 'turma' | 'geral'); setCodigoTurma(''); }} className={`rounded-xl border p-4 text-left transition ${modoCadastro === op.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300' : 'border-gray-200 text-gray-700 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300'}`}>
+              <button key={op.value} type="button" onClick={() => { onModoCadastroChange(op.value as 'turma' | 'geral'); setCodigoTurma(''); }} className={`rounded-xl border p-4 text-left transition ${modoCadastro === op.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300' : 'border-gray-200 text-gray-700 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300'}`}>
                 <span className="block font-semibold">{op.title}</span>
                 <span className="mt-1 block text-xs opacity-80">{op.desc}</span>
               </button>

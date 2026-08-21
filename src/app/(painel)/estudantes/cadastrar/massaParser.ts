@@ -278,8 +278,18 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
  * @param file Ficheiro .xlsx selecionado pelo utilizador.
  * @param codigoAcademiaAtual Código da academia autenticada — usado para
  *   confirmar que o modelo foi gerado para a academia certa.
+ * @param modoCadastroEsperado Modo de cadastro (turma/geral) atualmente
+ *   selecionado no passo 1 do formulário — usado para impedir que um
+ *   modelo gerado num modo seja aceite enquanto o outro modo estiver
+ *   selecionado (ver SelecaoContextoMassa/CadastroMassaForm). Um modelo de
+ *   turma tem `codigo_turma` embutido no `_meta`; um modelo geral não —
+ *   por isso não podem ser usados de forma intercambiável.
  */
-export async function analisarPlanilha(file: File, codigoAcademiaAtual?: string): Promise<ResultadoAnalise> {
+export async function analisarPlanilha(
+  file: File,
+  codigoAcademiaAtual?: string,
+  modoCadastroEsperado?: 'turma' | 'geral'
+): Promise<ResultadoAnalise> {
   let wb: any;
   try {
     const buffer = await file.arrayBuffer();
@@ -304,6 +314,21 @@ export async function analisarPlanilha(file: File, codigoAcademiaAtual?: string)
       file.name,
       'Este modelo foi gerado para outra academia. Descarregue novamente o modelo a partir desta conta antes de preencher os dados.'
     );
+  }
+
+  // Um modelo gerado no modo "Cadastrar por turma" nunca pode ser aceite
+  // enquanto o passo 1 estiver em "Cadastrar de forma geral", e
+  // vice-versa — os dois modos produzem cadastros diferentes (com ou sem
+  // codigo_turma) e misturá-los levaria a estudantes vinculados (ou não)
+  // a uma turma sem o utilizador perceber.
+  if (modoCadastroEsperado && contexto.modoCadastro !== modoCadastroEsperado) {
+    const mensagem =
+      modoCadastroEsperado === 'turma'
+        ? `Este modelo foi gerado no modo "Cadastrar de forma geral" (sem turma), mas o passo 1 está com "Cadastrar por turma" selecionado. Mude o modo de cadastro para "Cadastrar de forma geral" antes de enviar este ficheiro, ou descarregue um novo modelo para a turma pretendida.`
+        : `Este modelo foi gerado no modo "Cadastrar por turma" (Turma ${
+            contexto.turmaLabel || contexto.codigoTurma || ''
+          }), mas o passo 1 está com "Cadastrar de forma geral" selecionado. Mude o modo de cadastro para "Cadastrar por turma" antes de enviar este ficheiro, ou descarregue um novo modelo geral.`;
+    return erroGenerico(file.name, mensagem);
   }
 
   const ws = wb.Sheets ? wb.Sheets['Estudantes'] : undefined;

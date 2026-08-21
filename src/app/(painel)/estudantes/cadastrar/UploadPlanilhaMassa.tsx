@@ -7,10 +7,16 @@ import { analisarPlanilha } from './massaParser';
 
 interface UploadPlanilhaMassaProps {
   codigoAcademiaAtual?: string;
+  /**
+   * Modo de cadastro (turma/geral) selecionado no passo 1 — repassado ao
+   * parser para rejeitar um modelo gerado no outro modo (ver
+   * massaParser.analisarPlanilha e SelecaoContextoMassa).
+   */
+  modoCadastroSelecionado: 'turma' | 'geral';
   onResultado: (resultado: ResultadoAnalise, nomeArquivo: string) => void;
 }
 
-export default function UploadPlanilhaMassa({ codigoAcademiaAtual, onResultado }: UploadPlanilhaMassaProps) {
+export default function UploadPlanilhaMassa({ codigoAcademiaAtual, modoCadastroSelecionado, onResultado }: UploadPlanilhaMassaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [analisando, setAnalisando] = useState(false);
   const [nomeArquivo, setNomeArquivo] = useState('');
@@ -21,7 +27,7 @@ export default function UploadPlanilhaMassa({ codigoAcademiaAtual, onResultado }
     setAnalisando(true);
     setNomeArquivo(file.name);
     try {
-      const analise = await analisarPlanilha(file, codigoAcademiaAtual);
+      const analise = await analisarPlanilha(file, codigoAcademiaAtual, modoCadastroSelecionado);
       onResultado(analise, file.name);
     } catch (err: any) {
       setErroLeitura(
@@ -48,6 +54,13 @@ export default function UploadPlanilhaMassa({ codigoAcademiaAtual, onResultado }
           <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">2. Enviar a planilha preenchida</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Envie o modelo já preenchido. Todos os dados são validados antes de qualquer cadastro.
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            Modo selecionado no passo 1:{' '}
+            <span className="font-medium text-gray-600 dark:text-gray-300">
+              {modoCadastroSelecionado === 'turma' ? 'Cadastrar por turma' : 'Cadastrar de forma geral'}
+            </span>
+            . Só é aceite um modelo gerado neste mesmo modo.
           </p>
         </div>
       </div>
