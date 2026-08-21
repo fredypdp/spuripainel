@@ -22,6 +22,12 @@ export default function CadastroMassaForm() {
   const { user } = useUserCookie();
 
   const [fase, setFase] = useState<Fase>({ tipo: 'verificando' });
+  // Modo de cadastro (turma/geral) — única fonte de verdade para todo o
+  // fluxo de cadastro em massa: define tanto o modelo gerado no passo 1
+  // (SelecaoContextoMassa) quanto qual modelo é aceite no passo 2
+  // (UploadPlanilhaMassa/massaParser.analisarPlanilha). Um modelo gerado
+  // num modo nunca é aceite enquanto o outro estiver selecionado aqui.
+  const [modoCadastro, setModoCadastro] = useState<'turma' | 'geral'>('turma');
   const [contextoBaixado, setContextoBaixado] = useState<ContextoModelo | null>(null);
   const [resultado, setResultado] = useState<ResultadoAnalise | null>(null);
   const [nomeArquivo, setNomeArquivo] = useState('');
@@ -37,6 +43,15 @@ export default function CadastroMassaForm() {
     let ativo = true;
     (async () => {
       const token = tokenStorage.get();
+      // Restaura o modo de cadastro (turma/geral) de um rascunho anterior,
+      // se existir — evita que um recarregamento de página volte ao modo
+      // padrão ("turma") e rejeite, por engano, um reenvio de planilha de
+      // falhas/rascunho que pertence a um cadastro em massa "geral" em
+      // andamento (ver massaParser.analisarPlanilha).
+      const rascunho = lerRascunhoCadastroMassa();
+      if (ativo && rascunho?.contexto?.modoCadastro) {
+        setModoCadastro(rascunho.contexto.modoCadastro);
+      }
       if (!token) {
         if (ativo) setFase({ tipo: 'normal' });
         return;
@@ -47,7 +62,6 @@ export default function CadastroMassaForm() {
           (j) => j.type === 'register_estudante_batch' && (j.status === 'pending' || j.status === 'processing')
         );
         if (ativo) {
-          const rascunho = lerRascunhoCadastroMassa();
           setFase(
             jobsAtivos.length > 0
               ? { tipo: 'progresso', jobIds: jobsAtivos.map((j) => j.id), contexto: rascunho?.contexto ?? null }
@@ -69,6 +83,18 @@ export default function CadastroMassaForm() {
     setNomeArquivo('');
     setErroEnvio('');
     setFase({ tipo: 'normal' });
+  }, []);
+
+  // Trocar o modo de cadastro invalida qualquer modelo já baixado ou
+  // planilha já validada no modo anterior — evita mostrar um relatório de
+  // validação (ou o aviso de "modelo baixado") que não corresponde mais ao
+  // modo agora selecionado.
+  const handleModoCadastroChange = useCallback((modo: 'turma' | 'geral') => {
+    setModoCadastro(modo);
+    setContextoBaixado(null);
+    setResultado(null);
+    setNomeArquivo('');
+    setErroEnvio('');
   }, []);
 
   const handleConfirmar = async () => {
@@ -149,7 +175,11 @@ export default function CadastroMassaForm() {
 
   return (
     <div className="space-y-5">
-      <SelecaoContextoMassa onModeloGerado={setContextoBaixado} />
+      <SelecaoContextoMassa
+        onModeloGerado={setContextoBaixado}
+        modoCadastro={modoCadastro}
+        onModoCadastroChange={handleModoCadastroChange}
+      />
 
       {contextoBaixado && !resultado && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
@@ -165,6 +195,7 @@ export default function CadastroMassaForm() {
 
       <UploadPlanilhaMassa
         codigoAcademiaAtual={user?.academia?.codigo_academia}
+        modoCadastroSelecionado={modoCadastro}
         onResultado={(analise, nome) => {
           setResultado(analise);
           setNomeArquivo(nome);

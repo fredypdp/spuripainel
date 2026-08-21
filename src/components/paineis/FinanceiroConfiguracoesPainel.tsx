@@ -14,7 +14,7 @@ import Label from "@/components/form/Label";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import Checkbox from "@/components/form/input/Checkbox";
 import AnularReativarObrigacoesForm from "@/components/paineis/AnularReativarObrigacoesForm";
-import { LoadingState, METODO_PAGAMENTO_LABEL, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia } from "@/components/paineis/financeiroShared";
+import { LoadingState, METODO_PAGAMENTO_LABEL, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia, ConfirmDialog } from "@/components/paineis/financeiroShared";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import type { Curso, FinanceiroMetodoPagamento, FinanceiroNivel, MatriculaConfiguracaoInput, MatriculaConfiguracaoView, MensalidadeConfiguracaoInput, MensalidadeConfiguracaoView } from "@/types/api";
 
@@ -105,6 +105,10 @@ export default function FinanceiroConfiguracoesPainel() {
   const removerMensalidade = useApi(financeiroService.removerConfiguracaoMensalidade);
   const removerMatricula = useApi(financeiroService.removerConfiguracaoMatricula);
   const [removendoConfig, setRemovendoConfig] = useState<string | null>(null);
+  // Configuração (mensalidade ou matrícula) selecionada para remoção —
+  // controla a exibição do ConfirmDialog dentro de renderConfiguracoesSalvas
+  // (ver handleRemoverMensalidade/handleRemoverMatricula, abaixo).
+  const [configParaRemover, setConfigParaRemover] = useState<{ kind: "mensalidade" | "matricula"; config: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string } } | null>(null);
 
   useEffect(() => {
     if (niveisDisponiveis.length === 0) return;
@@ -241,7 +245,6 @@ export default function FinanceiroConfiguracoesPainel() {
    * para frente, até uma nova versão ser salva.
    */
   const handleRemoverMensalidade = async (c: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string }) => {
-    if (!window.confirm(`Remover a configuração de propina de ${NIVEL_LABEL[c.nivel]} — ${labelEscopo(c)}? Meses já cobrados não são afetados; a partir de agora, novas mensalidades desse escopo ficam sem valor definido até configurar de novo.`)) return;
     setAlert(null);
     setRemovendoConfig(configKey("mensalidade", c));
     try {
@@ -257,7 +260,6 @@ export default function FinanceiroConfiguracoesPainel() {
 
   /** Remove a configuração vigente de taxa de matrícula do escopo da linha clicada — a matrícula volta a ser gratuita para ele. */
   const handleRemoverMatricula = async (c: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string }) => {
-    if (!window.confirm(`Remover a configuração de taxa de matrícula de ${NIVEL_LABEL[c.nivel]} — ${labelEscopo(c)}? A matrícula volta a ser gratuita para este escopo até configurar de novo.`)) return;
     setAlert(null);
     setRemovendoConfig(configKey("matricula", c));
     try {
@@ -351,8 +353,22 @@ export default function FinanceiroConfiguracoesPainel() {
       return <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma configuração salva ainda.</p>;
     }
     const onRemover = kind === "mensalidade" ? handleRemoverMensalidade : handleRemoverMatricula;
+    const alvoRemocao = configParaRemover && configParaRemover.kind === kind ? configParaRemover.config : null;
     return (
       <div className="overflow-x-auto">
+        {alvoRemocao && (
+          <ConfirmDialog
+            title={kind === "mensalidade" ? "Remover configuração de propina" : "Remover taxa de matrícula"}
+            message={
+              kind === "mensalidade"
+                ? `Tem certeza que deseja remover a configuração de propina de ${NIVEL_LABEL[alvoRemocao.nivel]} — ${labelEscopo(alvoRemocao)}? Meses já cobrados não são afetados; a partir de agora, novas mensalidades desse escopo ficam sem valor definido até configurar de novo.`
+                : `Tem certeza que deseja remover a configuração de taxa de matrícula de ${NIVEL_LABEL[alvoRemocao.nivel]} — ${labelEscopo(alvoRemocao)}? A matrícula volta a ser gratuita para este escopo até configurar de novo.`
+            }
+            confirmLabel="Remover"
+            onConfirm={() => onRemover(alvoRemocao)}
+            onClose={() => setConfigParaRemover(null)}
+          />
+        )}
         <Table>
           <TableHeader>
             <TableRow>
@@ -377,7 +393,7 @@ export default function FinanceiroConfiguracoesPainel() {
                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.metodos_pagamento.map((m) => METODO_PAGAMENTO_LABEL[m]).join(", ")}</TableCell>
                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{date(c.vigente_em)}</TableCell>
                   <TableCell className="px-3 py-2">
-                    <Button size="sm" variant="danger" disabled={removendoConfig === key} onClick={() => onRemover(c)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+                    <Button size="sm" variant="danger" disabled={removendoConfig === key} onClick={() => setConfigParaRemover({ kind, config: c })} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
                       {removendoConfig === key ? "Removendo..." : "Remover"}
                     </Button>
                   </TableCell>
@@ -505,6 +521,9 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "info"; message: string } | null>(null);
   const definirInicio = useApi(financeiroService.definirInicioCobranca);
   const removerInicio = useApi(financeiroService.removerInicioCobranca);
+  // Controla a exibição do ConfirmDialog antes de remover a exceção (ver
+  // abrirConfirmacaoRemocao/removerException, abaixo).
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
 
   useEffect(() => {
     if (!codigoAcademia) return;
@@ -530,6 +549,17 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
   };
 
   /**
+   * Valida o ano letivo selecionado e, se válido, abre o ConfirmDialog de
+   * remoção (removerException só executa a ação em si, chamada pelo
+   * modal).
+   */
+  const abrirConfirmacaoRemocao = () => {
+    setAlert(null);
+    if (!anoLetivo) { setAlert({ variant: "error", message: "Selecione o ano letivo." }); return; }
+    setConfirmandoRemocao(true);
+  };
+
+  /**
    * Remove a exceção de início de cobrança do ano letivo selecionado,
    * revertendo ao mês natural (setembro para Ensino Primário/Iº Ciclo e
    * Médio, outubro para Superior). Não há como esta tela saber de antemão
@@ -539,9 +569,6 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
    * informação neutra, não como erro.
    */
   const removerException = async () => {
-    setAlert(null);
-    if (!anoLetivo) { setAlert({ variant: "error", message: "Selecione o ano letivo." }); return; }
-    if (!window.confirm(`Remover a exceção de início de cobrança de ${formatAnoLetivo(anoLetivo)}? A cobrança volta a considerar o mês natural do ano letivo.`)) return;
     try {
       await removerInicio.execute({ codigo_academia: codigoAcademia, ano_letivo: anoLetivo });
       setAlert({ variant: "success", message: "Início de cobrança removido — voltou ao mês natural do ano letivo." });
@@ -556,6 +583,15 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
 
   return (
     <div className="space-y-3">
+      {confirmandoRemocao && (
+        <ConfirmDialog
+          title="Remover início de cobrança"
+          message={`Tem certeza que deseja remover a exceção de início de cobrança de ${formatAnoLetivo(anoLetivo)}? A cobrança volta a considerar o mês natural do ano letivo.`}
+          confirmLabel="Remover"
+          onConfirm={removerException}
+          onClose={() => setConfirmandoRemocao(false)}
+        />
+      )}
       {alert && <Alert variant={alert.variant} title="Início de cobrança" message={alert.message} />}
       <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
         <div>
@@ -593,7 +629,7 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string 
           Se este ano letivo não deveria mais ter um início de cobrança fora do padrão, remova a exceção — a cobrança volta a considerar o mês natural.
         </p>
         <div className="mt-2">
-          <Button size="sm" variant="danger" onClick={removerException} disabled={!anoLetivo || removerInicio.loading} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+          <Button size="sm" variant="danger" onClick={abrirConfirmacaoRemocao} disabled={!anoLetivo || removerInicio.loading} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
             {removerInicio.loading ? "Removendo..." : "Remover início de cobrança deste ano letivo"}
           </Button>
         </div>

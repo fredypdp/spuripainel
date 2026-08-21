@@ -20,6 +20,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { ConfirmDialog } from "./financeiroShared";
 
 type AlertState = { variant: "success" | "error" | "warning" | "info"; message: string } | null;
 type ContextFilter = "todas" | "spuri" | "academia";
@@ -104,6 +105,9 @@ export default function FinanceiroCredenciaisPainel() {
   // depois de fechado — para vê-lo de novo, use "Consultar segredo" na
   // linha da tabela (WebhookSecretPanel).
   const [novoWebhookSecret, setNovoWebhookSecret] = useState<string | null>(null);
+  // Credencial selecionada para remoção — controla a exibição do
+  // ConfirmDialog (ver handleRemover, abaixo).
+  const [credencialParaRemover, setCredencialParaRemover] = useState<FinanceiroCredencial | null>(null);
 
   const { execute: listarCredenciais, data: credenciais, loading: listando } = useApi(financeiroService.listarCredenciais);
   const { execute: criarCredencial, loading: criando } = useApi(financeiroService.criarCredencial);
@@ -233,15 +237,14 @@ export default function FinanceiroCredenciaisPainel() {
   /**
    * Remove a credencial vigente do contexto da linha clicada. Ação
    * destrutiva com consequência imediata (bloqueia novas cobranças nesse
-   * contexto) — por isso passa por confirmação explícita, mesmo padrão já
+   * contexto) — por isso passa por confirmação explícita num modal
+   * (ConfirmDialog, aberto via credencialParaRemover), mesmo padrão já
    * usado em "Rotacionar" (WebhookSecretPanel.handleRotacionar) nesta
    * mesma tela. O evento de configuração original nunca é apagado no
    * backend: configurar de novo (via "Configurar credenciais") volta a
    * habilitar cobranças normalmente a qualquer momento depois.
    */
   const handleRemover = async (credencial: FinanceiroCredencial) => {
-    const alvo = credencial.contexto_tipo === "spuri" ? "Spuri (Global)" : `da academia ${credencial.codigo_academia ?? ""}`;
-    if (!window.confirm(`Remover as credenciais AppyPay ${alvo}? A partir de agora, nenhuma cobrança nova poderá ser criada nesse contexto até configurar novas credenciais. Cobranças já criadas não são afetadas.`)) return;
     setAlert(null);
     setRemovendoId(credencial.id);
     try {
@@ -263,6 +266,15 @@ export default function FinanceiroCredenciaisPainel() {
 
   return (
     <div className="space-y-6">
+      {credencialParaRemover && (
+        <ConfirmDialog
+          title="Remover credenciais AppyPay"
+          message={`Tem certeza que deseja remover as credenciais AppyPay ${credencialParaRemover.contexto_tipo === "spuri" ? "Spuri (Global)" : `da academia ${credencialParaRemover.codigo_academia ?? ""}`}? A partir de agora, nenhuma cobrança nova poderá ser criada nesse contexto até configurar novas credenciais. Cobranças já criadas não são afetadas.`}
+          confirmLabel="Remover"
+          onConfirm={() => handleRemover(credencialParaRemover)}
+          onClose={() => setCredencialParaRemover(null)}
+        />
+      )}
       {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Atenção"} message={alert.message} />}
 
       {novoWebhookSecret && (
@@ -331,7 +343,7 @@ export default function FinanceiroCredenciaisPainel() {
                     <TableCell className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" onClick={() => openEdit(credencial)}>Editar</Button>
-                        <Button size="sm" variant="danger" disabled={removendoId === credencial.id} onClick={() => handleRemover(credencial)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+                        <Button size="sm" variant="danger" disabled={removendoId === credencial.id} onClick={() => setCredencialParaRemover(credencial)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
                           {removendoId === credencial.id ? "Removendo..." : "Remover"}
                         </Button>
                       </div>
@@ -420,6 +432,9 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
   const rotacionar = useApi(financeiroService.rotacionarSegredoWebhook);
   const [segredo, setSegredo] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  // Controla a exibição do ConfirmDialog antes de rotacionar (ver
+  // handleRotacionar, abaixo).
+  const [confirmandoRotacao, setConfirmandoRotacao] = useState(false);
 
   const handleConsultar = async () => {
     setErro(null);
@@ -432,7 +447,6 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
   };
 
   const handleRotacionar = async () => {
-    if (!window.confirm("Isto invalida o segredo atual imediatamente. A AppyPay precisará ser reconfigurada com o novo valor. Continuar?")) return;
     setErro(null);
     try {
       const r = await rotacionar.execute(credencialId);
@@ -453,9 +467,18 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
 
   return (
     <div className="space-y-1">
+      {confirmandoRotacao && (
+        <ConfirmDialog
+          title="Rotacionar segredo do webhook"
+          message="Isto invalida o segredo atual imediatamente. A AppyPay precisará ser reconfigurada com o novo valor."
+          confirmLabel="Continuar"
+          onConfirm={handleRotacionar}
+          onClose={() => setConfirmandoRotacao(false)}
+        />
+      )}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" disabled={consultar.loading} onClick={handleConsultar}>Consultar segredo</Button>
-        <Button size="sm" variant="outline" disabled={rotacionar.loading} onClick={handleRotacionar}>Rotacionar</Button>
+        <Button size="sm" variant="outline" disabled={rotacionar.loading} onClick={() => setConfirmandoRotacao(true)}>Rotacionar</Button>
       </div>
       {erro && <p className="text-xs text-error-500">{erro}</p>}
     </div>

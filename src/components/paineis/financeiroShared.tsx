@@ -4,6 +4,8 @@ import { consultasService } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
+import Input from "@/components/form/input/InputField";
+import Label from "@/components/form/Label";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroMetodoPagamento, FinanceiroNivel, FinanceiroOrigemCobranca, NivelEscolar } from "@/types/api";
 
@@ -126,6 +128,130 @@ export function EmptyState({ title, description }: { title: string; description:
 }
 
 /**
+ * Modal de confirmação genérico do módulo financeiro — mesmo padrão visual
+ * já usado em ModalConfirmarDeleteCurso/ModalConfirmarDeleteTurma
+ * (CursosPainel.tsx, TurmasPainel.tsx): overlay + cartão central, título,
+ * mensagem, botão "Cancelar" (outline) e botão de ação (vermelho),
+ * desabilitados durante o carregamento. Substitui os `window.confirm`
+ * que só existiam em /financas/* — inconsistente com o resto do app, que
+ * nunca usa pop-ups nativos do navegador para confirmação.
+ *
+ * `onConfirm` é assíncrono e o próprio modal controla o estado de
+ * carregamento (mesmo contrato do ModalConfirmarDeleteCurso/Turma): o
+ * chamador só precisa passar a função que executa a ação, sem gerir
+ * loading manualmente.
+ */
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel = "Confirmar",
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  async function handle() {
+    setLoading(true);
+    try {
+      await onConfirm();
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Cancelar</Button>
+          <button
+            onClick={handle}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Aguarde..." : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Modal com um campo de texto opcional — mesmo padrão visual do
+ * ConfirmDialog acima, com um campo de texto no lugar do `window.prompt`
+ * nativo. Usado hoje apenas pelo motivo de cancelamento de cobrança
+ * (CobrancasTable, abaixo), mas mantido genérico por props para servir a
+ * outros casos do módulo financeiro sem duplicar o wrapper visual.
+ *
+ * Diferença deliberada de comportamento em relação ao `window.prompt`
+ * anterior: antes, mesmo clicando "Cancelar" na caixa nativa do
+ * navegador, a cobrança ERA cancelada mesmo assim (só sem motivo) — efeito
+ * colateral confuso de reaproveitar `window.prompt` para uma ação que, na
+ * prática, não era opcional. Aqui, "Voltar" fecha o modal sem executar
+ * nada; só o botão de ação confirma (com ou sem o campo preenchido) — mais
+ * intuitivo e consistente com os demais modais de confirmação do app.
+ */
+export function PromptDialog({
+  title,
+  description,
+  label,
+  placeholder,
+  confirmLabel = "Confirmar",
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  description?: string;
+  label: string;
+  placeholder?: string;
+  confirmLabel?: string;
+  onConfirm: (valor: string | undefined) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [valor, setValor] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function handle() {
+    setLoading(true);
+    try {
+      await onConfirm(valor.trim() || undefined);
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
+        {description && <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{description}</p>}
+        <div className="mb-4">
+          <Label>{label}</Label>
+          <Input value={valor} onChange={(e) => setValor(e.target.value)} placeholder={placeholder} disabled={loading} />
+        </div>
+        <div className="flex gap-3 justify-end">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Voltar</Button>
+          <button
+            onClick={handle}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Aguarde..." : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Paginação por botões numerados. Mesmo padrão visual e de comportamento
  * do componente PaginacaoSetas usado em /estudantes (PageContent.tsx) —
  * replicado aqui (e não importado de lá) porque aquele componente não é
@@ -228,6 +354,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
 }) {
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [cobrancaParaCancelar, setCobrancaParaCancelar] = useState<CobrancaResumo | null>(null);
   const cancelavel = (r: CobrancaResumo) => !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(r.status.toLowerCase());
 
   return (
@@ -260,17 +387,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
                         size="sm"
                         variant="outline"
                         disabled={cancelandoId === r.id}
-                        onClick={async () => {
-                          setErro(null);
-                          setCancelandoId(r.id);
-                          try {
-                            await onCancelar(r, window.prompt("Motivo do cancelamento (opcional)") || undefined);
-                          } catch (e) {
-                            setErro(formatApiError(e, "Não foi possível cancelar a cobrança."));
-                          } finally {
-                            setCancelandoId(null);
-                          }
-                        }}
+                        onClick={() => { setErro(null); setCobrancaParaCancelar(r); }}
                       >
                         Cancelar
                       </Button>
@@ -282,6 +399,26 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
           </TableBody>
         </Table>
       </div>
+      {cobrancaParaCancelar && onCancelar && (
+        <PromptDialog
+          title="Cancelar cobrança"
+          description="O motivo é opcional e fica registado junto ao cancelamento."
+          label="Motivo do cancelamento (opcional)"
+          placeholder="Ex.: solicitado pelo encarregado"
+          confirmLabel="Cancelar cobrança"
+          onConfirm={async (motivo) => {
+            setCancelandoId(cobrancaParaCancelar.id);
+            try {
+              await onCancelar(cobrancaParaCancelar, motivo);
+            } catch (e) {
+              setErro(formatApiError(e, "Não foi possível cancelar a cobrança."));
+            } finally {
+              setCancelandoId(null);
+            }
+          }}
+          onClose={() => setCobrancaParaCancelar(null)}
+        />
+      )}
     </div>
   );
 }
