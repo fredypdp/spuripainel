@@ -1,0 +1,648 @@
+diff --git a/src/app/(painel)/estudantes/cadastrar/CadastroMassaForm.tsx b/src/app/(painel)/estudantes/cadastrar/CadastroMassaForm.tsx
+index e3a6963..ab8048b 100644
+--- a/src/app/(painel)/estudantes/cadastrar/CadastroMassaForm.tsx
++++ b/src/app/(painel)/estudantes/cadastrar/CadastroMassaForm.tsx
+@@ -22,6 +22,12 @@ export default function CadastroMassaForm() {
+   const { user } = useUserCookie();
+ 
+   const [fase, setFase] = useState<Fase>({ tipo: 'verificando' });
++  // Modo de cadastro (turma/geral) — única fonte de verdade para todo o
++  // fluxo de cadastro em massa: define tanto o modelo gerado no passo 1
++  // (SelecaoContextoMassa) quanto qual modelo é aceite no passo 2
++  // (UploadPlanilhaMassa/massaParser.analisarPlanilha). Um modelo gerado
++  // num modo nunca é aceite enquanto o outro estiver selecionado aqui.
++  const [modoCadastro, setModoCadastro] = useState<'turma' | 'geral'>('turma');
+   const [contextoBaixado, setContextoBaixado] = useState<ContextoModelo | null>(null);
+   const [resultado, setResultado] = useState<ResultadoAnalise | null>(null);
+   const [nomeArquivo, setNomeArquivo] = useState('');
+@@ -37,6 +43,15 @@ export default function CadastroMassaForm() {
+     let ativo = true;
+     (async () => {
+       const token = tokenStorage.get();
++      // Restaura o modo de cadastro (turma/geral) de um rascunho anterior,
++      // se existir — evita que um recarregamento de página volte ao modo
++      // padrão ("turma") e rejeite, por engano, um reenvio de planilha de
++      // falhas/rascunho que pertence a um cadastro em massa "geral" em
++      // andamento (ver massaParser.analisarPlanilha).
++      const rascunho = lerRascunhoCadastroMassa();
++      if (ativo && rascunho?.contexto?.modoCadastro) {
++        setModoCadastro(rascunho.contexto.modoCadastro);
++      }
+       if (!token) {
+         if (ativo) setFase({ tipo: 'normal' });
+         return;
+@@ -47,7 +62,6 @@ export default function CadastroMassaForm() {
+           (j) => j.type === 'register_estudante_batch' && (j.status === 'pending' || j.status === 'processing')
+         );
+         if (ativo) {
+-          const rascunho = lerRascunhoCadastroMassa();
+           setFase(
+             jobsAtivos.length > 0
+               ? { tipo: 'progresso', jobIds: jobsAtivos.map((j) => j.id), contexto: rascunho?.contexto ?? null }
+@@ -71,6 +85,18 @@ export default function CadastroMassaForm() {
+     setFase({ tipo: 'normal' });
+   }, []);
+ 
++  // Trocar o modo de cadastro invalida qualquer modelo já baixado ou
++  // planilha já validada no modo anterior — evita mostrar um relatório de
++  // validação (ou o aviso de "modelo baixado") que não corresponde mais ao
++  // modo agora selecionado.
++  const handleModoCadastroChange = useCallback((modo: 'turma' | 'geral') => {
++    setModoCadastro(modo);
++    setContextoBaixado(null);
++    setResultado(null);
++    setNomeArquivo('');
++    setErroEnvio('');
++  }, []);
++
+   const handleConfirmar = async () => {
+     if (!resultado?.contexto) return;
+     setEnviando(true);
+@@ -149,7 +175,11 @@ export default function CadastroMassaForm() {
+ 
+   return (
+     <div className="space-y-5">
+-      <SelecaoContextoMassa onModeloGerado={setContextoBaixado} />
++      <SelecaoContextoMassa
++        onModeloGerado={setContextoBaixado}
++        modoCadastro={modoCadastro}
++        onModoCadastroChange={handleModoCadastroChange}
++      />
+ 
+       {contextoBaixado && !resultado && (
+         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+@@ -165,6 +195,7 @@ export default function CadastroMassaForm() {
+ 
+       <UploadPlanilhaMassa
+         codigoAcademiaAtual={user?.academia?.codigo_academia}
++        modoCadastroSelecionado={modoCadastro}
+         onResultado={(analise, nome) => {
+           setResultado(analise);
+           setNomeArquivo(nome);
+diff --git a/src/app/(painel)/estudantes/cadastrar/SelecaoContextoMassa.tsx b/src/app/(painel)/estudantes/cadastrar/SelecaoContextoMassa.tsx
+index 3d85469..9b13685 100644
+--- a/src/app/(painel)/estudantes/cadastrar/SelecaoContextoMassa.tsx
++++ b/src/app/(painel)/estudantes/cadastrar/SelecaoContextoMassa.tsx
+@@ -23,9 +23,17 @@ import { gerarModeloExcel } from './massaTemplate';
+ 
+ interface SelecaoContextoMassaProps {
+   onModeloGerado: (contexto: ContextoModelo) => void;
++  /**
++   * Modo de cadastro (turma/geral) selecionado — controlado pelo
++   * componente pai (CadastroMassaForm) porque também é usado para validar
++   * o ficheiro no passo de upload: um modelo gerado num modo não pode ser
++   * aceite enquanto o outro modo estiver selecionado (ver massaParser.ts).
++   */
++  modoCadastro: 'turma' | 'geral';
++  onModoCadastroChange: (modo: 'turma' | 'geral') => void;
+ }
+ 
+-export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContextoMassaProps) {
++export default function SelecaoContextoMassa({ onModeloGerado, modoCadastro, onModoCadastroChange }: SelecaoContextoMassaProps) {
+   const { user } = useUserCookie();
+   const { data: dataCursos, execute: carregarCursos } = useApi(academiaService.listarCursos);
+   const { data: dataTurmas, execute: carregarTurmas } = useApi(academiaService.listarTurmas);
+@@ -41,7 +49,6 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
+     return ['fundamental'];
+   }, [isSuperior, nivelEscolar]);
+ 
+-  const [modoCadastro, setModoCadastro] = useState<'turma' | 'geral'>('turma');
+   const [nivel, setNivel] = useState<NivelBulk | ''>('');
+   const [cursoId, setCursoId] = useState('');
+   const [anoAcademico, setAnoAcademico] = useState('');
+@@ -161,7 +168,7 @@ export default function SelecaoContextoMassa({ onModeloGerado }: SelecaoContexto
+               { value: 'turma', title: 'Cadastrar por turma', desc: 'Vai cadastrar os estudantes turma por turma. É necessário que a turma já exista na plataforma.' },
+               { value: 'geral', title: 'Cadastrar de forma geral', desc: 'Os estudantes serão cadastrados sem vínculo a nenhuma turma. Pode vincular cada um depois.' },
+             ].map((op) => (
+-              <button key={op.value} type="button" onClick={() => { setModoCadastro(op.value as 'turma' | 'geral'); setCodigoTurma(''); }} className={`rounded-xl border p-4 text-left transition ${modoCadastro === op.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300' : 'border-gray-200 text-gray-700 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300'}`}>
++              <button key={op.value} type="button" onClick={() => { onModoCadastroChange(op.value as 'turma' | 'geral'); setCodigoTurma(''); }} className={`rounded-xl border p-4 text-left transition ${modoCadastro === op.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300' : 'border-gray-200 text-gray-700 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300'}`}>
+                 <span className="block font-semibold">{op.title}</span>
+                 <span className="mt-1 block text-xs opacity-80">{op.desc}</span>
+               </button>
+diff --git a/src/app/(painel)/estudantes/cadastrar/UploadPlanilhaMassa.tsx b/src/app/(painel)/estudantes/cadastrar/UploadPlanilhaMassa.tsx
+index 26225af..9c18e93 100644
+--- a/src/app/(painel)/estudantes/cadastrar/UploadPlanilhaMassa.tsx
++++ b/src/app/(painel)/estudantes/cadastrar/UploadPlanilhaMassa.tsx
+@@ -7,10 +7,16 @@ import { analisarPlanilha } from './massaParser';
+ 
+ interface UploadPlanilhaMassaProps {
+   codigoAcademiaAtual?: string;
++  /**
++   * Modo de cadastro (turma/geral) selecionado no passo 1 — repassado ao
++   * parser para rejeitar um modelo gerado no outro modo (ver
++   * massaParser.analisarPlanilha e SelecaoContextoMassa).
++   */
++  modoCadastroSelecionado: 'turma' | 'geral';
+   onResultado: (resultado: ResultadoAnalise, nomeArquivo: string) => void;
+ }
+ 
+-export default function UploadPlanilhaMassa({ codigoAcademiaAtual, onResultado }: UploadPlanilhaMassaProps) {
++export default function UploadPlanilhaMassa({ codigoAcademiaAtual, modoCadastroSelecionado, onResultado }: UploadPlanilhaMassaProps) {
+   const inputRef = useRef<HTMLInputElement>(null);
+   const [analisando, setAnalisando] = useState(false);
+   const [nomeArquivo, setNomeArquivo] = useState('');
+@@ -21,7 +27,7 @@ export default function UploadPlanilhaMassa({ codigoAcademiaAtual, onResultado }
+     setAnalisando(true);
+     setNomeArquivo(file.name);
+     try {
+-      const analise = await analisarPlanilha(file, codigoAcademiaAtual);
++      const analise = await analisarPlanilha(file, codigoAcademiaAtual, modoCadastroSelecionado);
+       onResultado(analise, file.name);
+     } catch (err: any) {
+       setErroLeitura(
+@@ -49,6 +55,13 @@ export default function UploadPlanilhaMassa({ codigoAcademiaAtual, onResultado }
+           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+             Envie o modelo já preenchido. Todos os dados são validados antes de qualquer cadastro.
+           </p>
++          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
++            Modo selecionado no passo 1:{' '}
++            <span className="font-medium text-gray-600 dark:text-gray-300">
++              {modoCadastroSelecionado === 'turma' ? 'Cadastrar por turma' : 'Cadastrar de forma geral'}
++            </span>
++            . Só é aceite um modelo gerado neste mesmo modo.
++          </p>
+         </div>
+       </div>
+ 
+diff --git a/src/app/(painel)/estudantes/cadastrar/massaParser.ts b/src/app/(painel)/estudantes/cadastrar/massaParser.ts
+index 52dc0e2..23401c6 100644
+--- a/src/app/(painel)/estudantes/cadastrar/massaParser.ts
++++ b/src/app/(painel)/estudantes/cadastrar/massaParser.ts
+@@ -278,8 +278,18 @@ function validarLinha(linha: EstudanteBulkRow, contexto: ContextoModelo): ErroVa
+  * @param file Ficheiro .xlsx selecionado pelo utilizador.
+  * @param codigoAcademiaAtual Código da academia autenticada — usado para
+  *   confirmar que o modelo foi gerado para a academia certa.
++ * @param modoCadastroEsperado Modo de cadastro (turma/geral) atualmente
++ *   selecionado no passo 1 do formulário — usado para impedir que um
++ *   modelo gerado num modo seja aceite enquanto o outro modo estiver
++ *   selecionado (ver SelecaoContextoMassa/CadastroMassaForm). Um modelo de
++ *   turma tem `codigo_turma` embutido no `_meta`; um modelo geral não —
++ *   por isso não podem ser usados de forma intercambiável.
+  */
+-export async function analisarPlanilha(file: File, codigoAcademiaAtual?: string): Promise<ResultadoAnalise> {
++export async function analisarPlanilha(
++  file: File,
++  codigoAcademiaAtual?: string,
++  modoCadastroEsperado?: 'turma' | 'geral'
++): Promise<ResultadoAnalise> {
+   let wb: any;
+   try {
+     const buffer = await file.arrayBuffer();
+@@ -306,6 +316,21 @@ export async function analisarPlanilha(file: File, codigoAcademiaAtual?: string)
+     );
+   }
+ 
++  // Um modelo gerado no modo "Cadastrar por turma" nunca pode ser aceite
++  // enquanto o passo 1 estiver em "Cadastrar de forma geral", e
++  // vice-versa — os dois modos produzem cadastros diferentes (com ou sem
++  // codigo_turma) e misturá-los levaria a estudantes vinculados (ou não)
++  // a uma turma sem o utilizador perceber.
++  if (modoCadastroEsperado && contexto.modoCadastro !== modoCadastroEsperado) {
++    const mensagem =
++      modoCadastroEsperado === 'turma'
++        ? `Este modelo foi gerado no modo "Cadastrar de forma geral" (sem turma), mas o passo 1 está com "Cadastrar por turma" selecionado. Mude o modo de cadastro para "Cadastrar de forma geral" antes de enviar este ficheiro, ou descarregue um novo modelo para a turma pretendida.`
++        : `Este modelo foi gerado no modo "Cadastrar por turma" (Turma ${
++            contexto.turmaLabel || contexto.codigoTurma || ''
++          }), mas o passo 1 está com "Cadastrar de forma geral" selecionado. Mude o modo de cadastro para "Cadastrar por turma" antes de enviar este ficheiro, ou descarregue um novo modelo geral.`;
++    return erroGenerico(file.name, mensagem);
++  }
++
+   const ws = wb.Sheets ? wb.Sheets['Estudantes'] : undefined;
+   if (!ws) {
+     return erroGenerico(
+diff --git a/src/components/paineis/FinanceiroConfiguracoesPainel.tsx b/src/components/paineis/FinanceiroConfiguracoesPainel.tsx
+index cdde3db..731fada 100644
+--- a/src/components/paineis/FinanceiroConfiguracoesPainel.tsx
++++ b/src/components/paineis/FinanceiroConfiguracoesPainel.tsx
+@@ -14,7 +14,7 @@ import Label from "@/components/form/Label";
+ import SearchableSelect from "@/components/form/SearchableSelect";
+ import Checkbox from "@/components/form/input/Checkbox";
+ import AnularReativarObrigacoesForm from "@/components/paineis/AnularReativarObrigacoesForm";
+-import { LoadingState, METODO_PAGAMENTO_LABEL, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia } from "@/components/paineis/financeiroShared";
++import { LoadingState, METODO_PAGAMENTO_LABEL, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia, ConfirmDialog } from "@/components/paineis/financeiroShared";
+ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+ import type { Curso, FinanceiroMetodoPagamento, FinanceiroNivel, MatriculaConfiguracaoInput, MatriculaConfiguracaoView, MensalidadeConfiguracaoInput, MensalidadeConfiguracaoView } from "@/types/api";
+ 
+@@ -105,6 +105,10 @@ export default function FinanceiroConfiguracoesPainel() {
+   const removerMensalidade = useApi(financeiroService.removerConfiguracaoMensalidade);
+   const removerMatricula = useApi(financeiroService.removerConfiguracaoMatricula);
+   const [removendoConfig, setRemovendoConfig] = useState<string | null>(null);
++  // Configuração (mensalidade ou matrícula) selecionada para remoção —
++  // controla a exibição do ConfirmDialog dentro de renderConfiguracoesSalvas
++  // (ver handleRemoverMensalidade/handleRemoverMatricula, abaixo).
++  const [configParaRemover, setConfigParaRemover] = useState<{ kind: "mensalidade" | "matricula"; config: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string } } | null>(null);
+ 
+   useEffect(() => {
+     if (niveisDisponiveis.length === 0) return;
+@@ -241,7 +245,6 @@ export default function FinanceiroConfiguracoesPainel() {
+    * para frente, até uma nova versão ser salva.
+    */
+   const handleRemoverMensalidade = async (c: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string }) => {
+-    if (!window.confirm(`Remover a configuração de propina de ${NIVEL_LABEL[c.nivel]} — ${labelEscopo(c)}? Meses já cobrados não são afetados; a partir de agora, novas mensalidades desse escopo ficam sem valor definido até configurar de novo.`)) return;
+     setAlert(null);
+     setRemovendoConfig(configKey("mensalidade", c));
+     try {
+@@ -257,7 +260,6 @@ export default function FinanceiroConfiguracoesPainel() {
+ 
+   /** Remove a configuração vigente de taxa de matrícula do escopo da linha clicada — a matrícula volta a ser gratuita para ele. */
+   const handleRemoverMatricula = async (c: { nivel: FinanceiroNivel; ano_academico?: string; curso_id?: string }) => {
+-    if (!window.confirm(`Remover a configuração de taxa de matrícula de ${NIVEL_LABEL[c.nivel]} — ${labelEscopo(c)}? A matrícula volta a ser gratuita para este escopo até configurar de novo.`)) return;
+     setAlert(null);
+     setRemovendoConfig(configKey("matricula", c));
+     try {
+@@ -351,8 +353,22 @@ export default function FinanceiroConfiguracoesPainel() {
+       return <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma configuração salva ainda.</p>;
+     }
+     const onRemover = kind === "mensalidade" ? handleRemoverMensalidade : handleRemoverMatricula;
++    const alvoRemocao = configParaRemover && configParaRemover.kind === kind ? configParaRemover.config : null;
+     return (
+       <div className="overflow-x-auto">
++        {alvoRemocao && (
++          <ConfirmDialog
++            title={kind === "mensalidade" ? "Remover configuração de propina" : "Remover taxa de matrícula"}
++            message={
++              kind === "mensalidade"
++                ? `Tem certeza que deseja remover a configuração de propina de ${NIVEL_LABEL[alvoRemocao.nivel]} — ${labelEscopo(alvoRemocao)}? Meses já cobrados não são afetados; a partir de agora, novas mensalidades desse escopo ficam sem valor definido até configurar de novo.`
++                : `Tem certeza que deseja remover a configuração de taxa de matrícula de ${NIVEL_LABEL[alvoRemocao.nivel]} — ${labelEscopo(alvoRemocao)}? A matrícula volta a ser gratuita para este escopo até configurar de novo.`
++            }
++            confirmLabel="Remover"
++            onConfirm={() => onRemover(alvoRemocao)}
++            onClose={() => setConfigParaRemover(null)}
++          />
++        )}
+         <Table>
+           <TableHeader>
+             <TableRow>
+@@ -377,7 +393,7 @@ export default function FinanceiroConfiguracoesPainel() {
+                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{c.metodos_pagamento.map((m) => METODO_PAGAMENTO_LABEL[m]).join(", ")}</TableCell>
+                   <TableCell className="px-3 py-2 text-gray-700 dark:text-gray-300">{date(c.vigente_em)}</TableCell>
+                   <TableCell className="px-3 py-2">
+-                    <Button size="sm" variant="danger" disabled={removendoConfig === key} onClick={() => onRemover(c)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
++                    <Button size="sm" variant="danger" disabled={removendoConfig === key} onClick={() => setConfigParaRemover({ kind, config: c })} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+                       {removendoConfig === key ? "Removendo..." : "Remover"}
+                     </Button>
+                   </TableCell>
+@@ -505,6 +521,9 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string
+   const [alert, setAlert] = useState<{ variant: "success" | "error" | "info"; message: string } | null>(null);
+   const definirInicio = useApi(financeiroService.definirInicioCobranca);
+   const removerInicio = useApi(financeiroService.removerInicioCobranca);
++  // Controla a exibição do ConfirmDialog antes de remover a exceção (ver
++  // abrirConfirmacaoRemocao/removerException, abaixo).
++  const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
+ 
+   useEffect(() => {
+     if (!codigoAcademia) return;
+@@ -529,6 +548,17 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string
+     }
+   };
+ 
++  /**
++   * Valida o ano letivo selecionado e, se válido, abre o ConfirmDialog de
++   * remoção (removerException só executa a ação em si, chamada pelo
++   * modal).
++   */
++  const abrirConfirmacaoRemocao = () => {
++    setAlert(null);
++    if (!anoLetivo) { setAlert({ variant: "error", message: "Selecione o ano letivo." }); return; }
++    setConfirmandoRemocao(true);
++  };
++
+   /**
+    * Remove a exceção de início de cobrança do ano letivo selecionado,
+    * revertendo ao mês natural (setembro para Ensino Primário/Iº Ciclo e
+@@ -539,9 +569,6 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string
+    * informação neutra, não como erro.
+    */
+   const removerException = async () => {
+-    setAlert(null);
+-    if (!anoLetivo) { setAlert({ variant: "error", message: "Selecione o ano letivo." }); return; }
+-    if (!window.confirm(`Remover a exceção de início de cobrança de ${formatAnoLetivo(anoLetivo)}? A cobrança volta a considerar o mês natural do ano letivo.`)) return;
+     try {
+       await removerInicio.execute({ codigo_academia: codigoAcademia, ano_letivo: anoLetivo });
+       setAlert({ variant: "success", message: "Início de cobrança removido — voltou ao mês natural do ano letivo." });
+@@ -556,6 +583,15 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string
+ 
+   return (
+     <div className="space-y-3">
++      {confirmandoRemocao && (
++        <ConfirmDialog
++          title="Remover início de cobrança"
++          message={`Tem certeza que deseja remover a exceção de início de cobrança de ${formatAnoLetivo(anoLetivo)}? A cobrança volta a considerar o mês natural do ano letivo.`}
++          confirmLabel="Remover"
++          onConfirm={removerException}
++          onClose={() => setConfirmandoRemocao(false)}
++        />
++      )}
+       {alert && <Alert variant={alert.variant} title="Início de cobrança" message={alert.message} />}
+       <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
+         <div>
+@@ -593,7 +629,7 @@ function DefinirInicioCobrancaForm({ codigoAcademia }: { codigoAcademia: string
+           Se este ano letivo não deveria mais ter um início de cobrança fora do padrão, remova a exceção — a cobrança volta a considerar o mês natural.
+         </p>
+         <div className="mt-2">
+-          <Button size="sm" variant="danger" onClick={removerException} disabled={!anoLetivo || removerInicio.loading} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
++          <Button size="sm" variant="danger" onClick={abrirConfirmacaoRemocao} disabled={!anoLetivo || removerInicio.loading} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+             {removerInicio.loading ? "Removendo..." : "Remover início de cobrança deste ano letivo"}
+           </Button>
+         </div>
+diff --git a/src/components/paineis/FinanceiroCredenciaisPainel.tsx b/src/components/paineis/FinanceiroCredenciaisPainel.tsx
+index 7fd5df4..d4119b0 100644
+--- a/src/components/paineis/FinanceiroCredenciaisPainel.tsx
++++ b/src/components/paineis/FinanceiroCredenciaisPainel.tsx
+@@ -20,6 +20,7 @@ import Label from "@/components/form/Label";
+ import Select from "@/components/form/Select";
+ import SearchableSelect from "@/components/form/SearchableSelect";
+ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
++import { ConfirmDialog } from "./financeiroShared";
+ 
+ type AlertState = { variant: "success" | "error" | "warning" | "info"; message: string } | null;
+ type ContextFilter = "todas" | "spuri" | "academia";
+@@ -104,6 +105,9 @@ export default function FinanceiroCredenciaisPainel() {
+   // depois de fechado — para vê-lo de novo, use "Consultar segredo" na
+   // linha da tabela (WebhookSecretPanel).
+   const [novoWebhookSecret, setNovoWebhookSecret] = useState<string | null>(null);
++  // Credencial selecionada para remoção — controla a exibição do
++  // ConfirmDialog (ver handleRemover, abaixo).
++  const [credencialParaRemover, setCredencialParaRemover] = useState<FinanceiroCredencial | null>(null);
+ 
+   const { execute: listarCredenciais, data: credenciais, loading: listando } = useApi(financeiroService.listarCredenciais);
+   const { execute: criarCredencial, loading: criando } = useApi(financeiroService.criarCredencial);
+@@ -233,15 +237,14 @@ export default function FinanceiroCredenciaisPainel() {
+   /**
+    * Remove a credencial vigente do contexto da linha clicada. Ação
+    * destrutiva com consequência imediata (bloqueia novas cobranças nesse
+-   * contexto) — por isso passa por confirmação explícita, mesmo padrão já
++   * contexto) — por isso passa por confirmação explícita num modal
++   * (ConfirmDialog, aberto via credencialParaRemover), mesmo padrão já
+    * usado em "Rotacionar" (WebhookSecretPanel.handleRotacionar) nesta
+    * mesma tela. O evento de configuração original nunca é apagado no
+    * backend: configurar de novo (via "Configurar credenciais") volta a
+    * habilitar cobranças normalmente a qualquer momento depois.
+    */
+   const handleRemover = async (credencial: FinanceiroCredencial) => {
+-    const alvo = credencial.contexto_tipo === "spuri" ? "Spuri (Global)" : `da academia ${credencial.codigo_academia ?? ""}`;
+-    if (!window.confirm(`Remover as credenciais AppyPay ${alvo}? A partir de agora, nenhuma cobrança nova poderá ser criada nesse contexto até configurar novas credenciais. Cobranças já criadas não são afetadas.`)) return;
+     setAlert(null);
+     setRemovendoId(credencial.id);
+     try {
+@@ -263,6 +266,15 @@ export default function FinanceiroCredenciaisPainel() {
+ 
+   return (
+     <div className="space-y-6">
++      {credencialParaRemover && (
++        <ConfirmDialog
++          title="Remover credenciais AppyPay"
++          message={`Tem certeza que deseja remover as credenciais AppyPay ${credencialParaRemover.contexto_tipo === "spuri" ? "Spuri (Global)" : `da academia ${credencialParaRemover.codigo_academia ?? ""}`}? A partir de agora, nenhuma cobrança nova poderá ser criada nesse contexto até configurar novas credenciais. Cobranças já criadas não são afetadas.`}
++          confirmLabel="Remover"
++          onConfirm={() => handleRemover(credencialParaRemover)}
++          onClose={() => setCredencialParaRemover(null)}
++        />
++      )}
+       {alert && <Alert variant={alert.variant} title={alert.variant === "success" ? "Sucesso" : "Atenção"} message={alert.message} />}
+ 
+       {novoWebhookSecret && (
+@@ -331,7 +343,7 @@ export default function FinanceiroCredenciaisPainel() {
+                     <TableCell className="px-4 py-3">
+                       <div className="flex flex-wrap gap-2">
+                         <Button size="sm" variant="outline" onClick={() => openEdit(credencial)}>Editar</Button>
+-                        <Button size="sm" variant="danger" disabled={removendoId === credencial.id} onClick={() => handleRemover(credencial)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
++                        <Button size="sm" variant="danger" disabled={removendoId === credencial.id} onClick={() => setCredencialParaRemover(credencial)} startIcon={<Icon icon="mdi:delete-outline" width={14} />}>
+                           {removendoId === credencial.id ? "Removendo..." : "Remover"}
+                         </Button>
+                       </div>
+@@ -420,6 +432,9 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
+   const rotacionar = useApi(financeiroService.rotacionarSegredoWebhook);
+   const [segredo, setSegredo] = useState<string | null>(null);
+   const [erro, setErro] = useState<string | null>(null);
++  // Controla a exibição do ConfirmDialog antes de rotacionar (ver
++  // handleRotacionar, abaixo).
++  const [confirmandoRotacao, setConfirmandoRotacao] = useState(false);
+ 
+   const handleConsultar = async () => {
+     setErro(null);
+@@ -432,7 +447,6 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
+   };
+ 
+   const handleRotacionar = async () => {
+-    if (!window.confirm("Isto invalida o segredo atual imediatamente. A AppyPay precisará ser reconfigurada com o novo valor. Continuar?")) return;
+     setErro(null);
+     try {
+       const r = await rotacionar.execute(credencialId);
+@@ -453,9 +467,18 @@ function WebhookSecretPanel({ credencialId }: { credencialId: string }) {
+ 
+   return (
+     <div className="space-y-1">
++      {confirmandoRotacao && (
++        <ConfirmDialog
++          title="Rotacionar segredo do webhook"
++          message="Isto invalida o segredo atual imediatamente. A AppyPay precisará ser reconfigurada com o novo valor."
++          confirmLabel="Continuar"
++          onConfirm={handleRotacionar}
++          onClose={() => setConfirmandoRotacao(false)}
++        />
++      )}
+       <div className="flex flex-wrap gap-2">
+         <Button size="sm" variant="outline" disabled={consultar.loading} onClick={handleConsultar}>Consultar segredo</Button>
+-        <Button size="sm" variant="outline" disabled={rotacionar.loading} onClick={handleRotacionar}>Rotacionar</Button>
++        <Button size="sm" variant="outline" disabled={rotacionar.loading} onClick={() => setConfirmandoRotacao(true)}>Rotacionar</Button>
+       </div>
+       {erro && <p className="text-xs text-error-500">{erro}</p>}
+     </div>
+diff --git a/src/components/paineis/financeiroShared.tsx b/src/components/paineis/financeiroShared.tsx
+index f11f0da..331ae25 100644
+--- a/src/components/paineis/financeiroShared.tsx
++++ b/src/components/paineis/financeiroShared.tsx
+@@ -4,6 +4,8 @@ import { consultasService } from "@/lib/api";
+ import { formatApiError } from "@/lib/api/client";
+ import Button from "@/components/ui/button/Button";
+ import Icon from "@/components/ui/Icon";
++import Input from "@/components/form/input/InputField";
++import Label from "@/components/form/Label";
+ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+ import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroMetodoPagamento, FinanceiroNivel, FinanceiroOrigemCobranca, NivelEscolar } from "@/types/api";
+ 
+@@ -125,6 +127,130 @@ export function EmptyState({ title, description }: { title: string; description:
+   );
+ }
+ 
++/**
++ * Modal de confirmação genérico do módulo financeiro — mesmo padrão visual
++ * já usado em ModalConfirmarDeleteCurso/ModalConfirmarDeleteTurma
++ * (CursosPainel.tsx, TurmasPainel.tsx): overlay + cartão central, título,
++ * mensagem, botão "Cancelar" (outline) e botão de ação (vermelho),
++ * desabilitados durante o carregamento. Substitui os `window.confirm`
++ * que só existiam em /financas/* — inconsistente com o resto do app, que
++ * nunca usa pop-ups nativos do navegador para confirmação.
++ *
++ * `onConfirm` é assíncrono e o próprio modal controla o estado de
++ * carregamento (mesmo contrato do ModalConfirmarDeleteCurso/Turma): o
++ * chamador só precisa passar a função que executa a ação, sem gerir
++ * loading manualmente.
++ */
++export function ConfirmDialog({
++  title,
++  message,
++  confirmLabel = "Confirmar",
++  onConfirm,
++  onClose,
++}: {
++  title: string;
++  message: string;
++  confirmLabel?: string;
++  onConfirm: () => Promise<void>;
++  onClose: () => void;
++}) {
++  const [loading, setLoading] = useState(false);
++  async function handle() {
++    setLoading(true);
++    try {
++      await onConfirm();
++      onClose();
++    } finally {
++      setLoading(false);
++    }
++  }
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
++      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
++        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
++        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{message}</p>
++        <div className="flex gap-3 justify-end">
++          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Cancelar</Button>
++          <button
++            onClick={handle}
++            disabled={loading}
++            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
++          >
++            {loading ? "Aguarde..." : confirmLabel}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++/**
++ * Modal com um campo de texto opcional — mesmo padrão visual do
++ * ConfirmDialog acima, com um campo de texto no lugar do `window.prompt`
++ * nativo. Usado hoje apenas pelo motivo de cancelamento de cobrança
++ * (CobrancasTable, abaixo), mas mantido genérico por props para servir a
++ * outros casos do módulo financeiro sem duplicar o wrapper visual.
++ *
++ * Diferença deliberada de comportamento em relação ao `window.prompt`
++ * anterior: antes, mesmo clicando "Cancelar" na caixa nativa do
++ * navegador, a cobrança ERA cancelada mesmo assim (só sem motivo) — efeito
++ * colateral confuso de reaproveitar `window.prompt` para uma ação que, na
++ * prática, não era opcional. Aqui, "Voltar" fecha o modal sem executar
++ * nada; só o botão de ação confirma (com ou sem o campo preenchido) — mais
++ * intuitivo e consistente com os demais modais de confirmação do app.
++ */
++export function PromptDialog({
++  title,
++  description,
++  label,
++  placeholder,
++  confirmLabel = "Confirmar",
++  onConfirm,
++  onClose,
++}: {
++  title: string;
++  description?: string;
++  label: string;
++  placeholder?: string;
++  confirmLabel?: string;
++  onConfirm: (valor: string | undefined) => Promise<void>;
++  onClose: () => void;
++}) {
++  const [valor, setValor] = useState("");
++  const [loading, setLoading] = useState(false);
++  async function handle() {
++    setLoading(true);
++    try {
++      await onConfirm(valor.trim() || undefined);
++      onClose();
++    } finally {
++      setLoading(false);
++    }
++  }
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
++      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
++        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
++        {description && <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{description}</p>}
++        <div className="mb-4">
++          <Label>{label}</Label>
++          <Input value={valor} onChange={(e) => setValor(e.target.value)} placeholder={placeholder} disabled={loading} />
++        </div>
++        <div className="flex gap-3 justify-end">
++          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>Voltar</Button>
++          <button
++            onClick={handle}
++            disabled={loading}
++            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
++          >
++            {loading ? "Aguarde..." : confirmLabel}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
+ /**
+  * Paginação por botões numerados. Mesmo padrão visual e de comportamento
+  * do componente PaginacaoSetas usado em /estudantes (PageContent.tsx) —
+@@ -228,6 +354,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
+ }) {
+   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
+   const [erro, setErro] = useState<string | null>(null);
++  const [cobrancaParaCancelar, setCobrancaParaCancelar] = useState<CobrancaResumo | null>(null);
+   const cancelavel = (r: CobrancaResumo) => !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(r.status.toLowerCase());
+ 
+   return (
+@@ -260,17 +387,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
+                         size="sm"
+                         variant="outline"
+                         disabled={cancelandoId === r.id}
+-                        onClick={async () => {
+-                          setErro(null);
+-                          setCancelandoId(r.id);
+-                          try {
+-                            await onCancelar(r, window.prompt("Motivo do cancelamento (opcional)") || undefined);
+-                          } catch (e) {
+-                            setErro(formatApiError(e, "Não foi possível cancelar a cobrança."));
+-                          } finally {
+-                            setCancelandoId(null);
+-                          }
+-                        }}
++                        onClick={() => { setErro(null); setCobrancaParaCancelar(r); }}
+                       >
+                         Cancelar
+                       </Button>
+@@ -282,6 +399,26 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
+           </TableBody>
+         </Table>
+       </div>
++      {cobrancaParaCancelar && onCancelar && (
++        <PromptDialog
++          title="Cancelar cobrança"
++          description="O motivo é opcional e fica registado junto ao cancelamento."
++          label="Motivo do cancelamento (opcional)"
++          placeholder="Ex.: solicitado pelo encarregado"
++          confirmLabel="Cancelar cobrança"
++          onConfirm={async (motivo) => {
++            setCancelandoId(cobrancaParaCancelar.id);
++            try {
++              await onCancelar(cobrancaParaCancelar, motivo);
++            } catch (e) {
++              setErro(formatApiError(e, "Não foi possível cancelar a cobrança."));
++            } finally {
++              setCancelandoId(null);
++            }
++          }}
++          onClose={() => setCobrancaParaCancelar(null)}
++        />
++      )}
+     </div>
+   );
+ }
