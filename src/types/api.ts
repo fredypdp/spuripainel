@@ -1477,6 +1477,16 @@ export interface ListarCobrancasParams {
   codigo_academia?: string;
   estado?: string[];
   tipo?: FinanceiroOrigemCobranca[];
+  /** Restringe a cobranças de mensalidade vinculadas a esta turma (tarefa 59/60 do backend). */
+  turma_id?: string;
+  /** Restringe a cobranças de mensalidade vinculadas a este curso. */
+  curso_id?: string;
+  /** Restringe a cobranças de mensalidade deste ano/classe (ex.: "7_ano_fundamental"). */
+  ano_academico?: string;
+  /** Restringe a cobranças de mensalidade deste ano letivo (ex.: "2026_2027"). */
+  ano_letivo?: string;
+  /** Restringe a um mês de calendário (1-12) — só tem efeito combinado com pelo menos um dos quatro filtros acima. */
+  mes?: number;
   limit?: number;
   offset?: number;
 }
@@ -1487,6 +1497,15 @@ export interface ListarCobrancasResponse {
   total_geral: number;
   limit: number;
   offset: number;
+  /**
+   * Meses de mensalidade em estado "pendente" que NUNCA tiveram nenhuma
+   * tentativa de cobrança — por isso não aparecem em `cobrancas` (que só
+   * lista tentativas de cobrança já feitas, com sucesso ou não). Só vem
+   * preenchido quando a consulta usa pelo menos um dos filtros de escopo
+   * (turma_id, curso_id, ano_academico ou ano_letivo); do contrário fica
+   * ausente. Ver GET /financeiro/cobrancas.
+   */
+  pendencias_sem_cobranca?: MensalidadeMesView[];
 }
 
 export interface ListarCobrancasEstudanteParams {
