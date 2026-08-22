@@ -1,7 +1,7 @@
 ---
 criado: 2026-08-22 00:00
 origem: Pedido do usuário (Spuri), orquestrado por Claude (Anthropic) em sandbox com Node 22, tsc, ESLint e `next build` reais
-status: pendente
+status: feito
 prioridade: alta
 depende_de:
   - "spuri-backend: tarefa 59 (já mesclada em origin/main) — pendencias_sem_cobranca e filtros turma_id/curso_id/ano_academico/ano_letivo em GET /financeiro/cobrancas"
@@ -718,3 +718,16 @@ antes deste `git status --short` — reflete o diff final, não o estado interme
 
 Gere a documentação de tarefa concluída (crie `docs/Tarefas feitas/` se ainda não existir neste repositório)
 com o mesmo nome deste arquivo, `status: feito`, e um resumo do que foi validado.
+
+
+---
+
+## Conclusão da execução
+
+Implementação concluída em 2026-08-22. Foram adicionados os filtros de escopo e mês ao contrato e cliente de cobranças, e a tela de pagamentos passou a oferecer cartões por tipo, drill-down de ano letivo e mês para mensalidades e a tabela de pendências sem cobrança.
+
+Validações executadas:
+
+- `npx tsc --noEmit`
+- `npx eslint src/components/paineis/FinanceiroPagamentosPainel.tsx src/types/api.ts src/lib/api/services.ts`
+- `npm run build`

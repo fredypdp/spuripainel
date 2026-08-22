@@ -921,6 +921,11 @@ export const financeiroService = {
     if (params.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
     params.estado?.forEach((e) => qs.append('estado', e));
     params.tipo?.forEach((t) => qs.append('tipo', t));
+    if (params.turma_id) qs.set('turma_id', params.turma_id);
+    if (params.curso_id) qs.set('curso_id', params.curso_id);
+    if (params.ano_academico) qs.set('ano_academico', params.ano_academico);
+    if (params.ano_letivo) qs.set('ano_letivo', params.ano_letivo);
+    if (params.mes != null) qs.set('mes', String(params.mes));
     if (params.limit != null) qs.set('limit', String(params.limit));
     if (params.offset != null) qs.set('offset', String(params.offset));
     return api.get<ListarCobrancasResponse>(`/financeiro/cobrancas${qs.toString() ? `?${qs.toString()}` : ''}`, { token: token || tokenStorage.get() || undefined });
