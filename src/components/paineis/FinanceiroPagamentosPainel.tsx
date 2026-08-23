@@ -12,10 +12,12 @@ import {
   CobrancasTable,
   EmptyState,
   LoadingState,
+  NOME_MES,
   PaginacaoSetas,
   SubtelaDetalheCobranca,
   SubtelaPanel,
   SubtelasMenu,
+  capitalizar,
   formatAnoLetivo,
   money,
 } from "@/components/paineis/financeiroShared";
@@ -30,14 +32,6 @@ const ESTADO_OPCOES = [
   { value: "Failed", label: "Falhado" },
   { value: "Cancelled", label: "Cancelado" },
 ];
-
-/** Nomes reais dos meses em pt-AO — mesmo padrão de MES_NOME_OPCOES em FinanceiroConfiguracoesPainel.tsx. */
-const NOME_MES = Array.from({ length: 12 }, (_, i) =>
-  new Intl.DateTimeFormat("pt-AO", { month: "long" }).format(new Date(2026, i, 1))
-);
-function capitalizar(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 type MesDoAnoLetivo = { mes: number; ano: number; label: string };
 
