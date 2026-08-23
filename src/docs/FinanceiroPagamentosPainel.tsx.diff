@@ -1,0 +1,30 @@
+--- pristine/spuripainel-main/src/components/paineis/FinanceiroPagamentosPainel.tsx	2026-08-22 14:56:44.000000000 +0000
++++ spuripainel-main/src/components/paineis/FinanceiroPagamentosPainel.tsx	2026-08-22 23:04:27.091853427 +0000
+@@ -12,10 +12,12 @@
+   CobrancasTable,
+   EmptyState,
+   LoadingState,
++  NOME_MES,
+   PaginacaoSetas,
+   SubtelaDetalheCobranca,
+   SubtelaPanel,
+   SubtelasMenu,
++  capitalizar,
+   formatAnoLetivo,
+   money,
+ } from "@/components/paineis/financeiroShared";
+@@ -31,14 +33,6 @@
+   { value: "Cancelled", label: "Cancelado" },
+ ];
+ 
+-/** Nomes reais dos meses em pt-AO — mesmo padrão de MES_NOME_OPCOES em FinanceiroConfiguracoesPainel.tsx. */
+-const NOME_MES = Array.from({ length: 12 }, (_, i) =>
+-  new Intl.DateTimeFormat("pt-AO", { month: "long" }).format(new Date(2026, i, 1))
+-);
+-function capitalizar(s: string) {
+-  return s.charAt(0).toUpperCase() + s.slice(1);
+-}
+-
+ type MesDoAnoLetivo = { mes: number; ano: number; label: string };
+ 
+ /**
