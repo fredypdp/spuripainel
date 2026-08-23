@@ -1,0 +1,36 @@
+--- ../live/spuripainel-main/src/components/paineis/EstudantePagamentosPainel.tsx	2026-08-23 13:20:26.000000000 +0000
++++ src/components/paineis/EstudantePagamentosPainel.tsx	2026-08-23 13:58:23.096638816 +0000
+@@ -108,7 +108,7 @@
+       {linhas.length === 0 ? (
+         <p className={`text-sm text-gray-500 dark:text-gray-400 ${titulo ? "mt-3" : ""}`}>Nenhuma mensalidade neste filtro.</p>
+       ) : (
+-        <div className={`space-y-2 ${titulo ? "mt-3" : ""}`}>
++        <div className={`flex flex-col gap-2 ${titulo ? "mt-3" : ""}`}>
+           {linhas.map((m) => {
+             const chave = chaveMensalidade(m);
+             const label = formatarLinhaMensalidade(m);
+@@ -277,7 +277,23 @@
+     faltantes.forEach((codigoAcademia) => {
+       consultasService
+         .academia(codigoAcademia)
+-        .then((r) => setNomesAcademias((prev) => ({ ...prev, [codigoAcademia]: r.academia.nome })))
++        .then((r) => {
++          // GET /consultar-academia/:codigo devolve os campos da academia
++          // NO NÍVEL RAIZ da resposta (gin.H{"nome": ..., ...} em
++          // internal/handlers/academia_handlers.go, GetAcademiaPorCodigo),
++          // não envolvidos em `{ academia: {...} }` como o tipo
++          // ConsultarAcademiaResponse sugere — mesma divergência já
++          // contornada em MatriculaPublicPage.tsx (normalizarAcademia). O
++          // acesso a `.nome` é resolvido aqui, FORA do updater funcional
++          // de setState: se ficasse dentro do updater e lançasse, o React
++          // invocaria o updater depois, fora do try/catch desta promise, e
++          // o erro escaparia do `.catch()` abaixo como uma exceção não
++          // tratada durante a atualização de estado.
++          const bruto = r as unknown as { academia?: { nome?: string }; nome?: string };
++          const nome = bruto.academia?.nome ?? bruto.nome;
++          if (!nome) return;
++          setNomesAcademias((prev) => ({ ...prev, [codigoAcademia]: nome }));
++        })
+         .catch(() => { /* mantém o fallback "Academia [código]" no título desta academia */ });
+     });
+   }, [mensalidades.data]);
