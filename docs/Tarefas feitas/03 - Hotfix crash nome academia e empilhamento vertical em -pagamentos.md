@@ -1,7 +1,7 @@
 ---
 criado: 2026-08-23 14:00
 origem: Erro de produção reportado por Fredy após a tarefa 02, diagnosticado por Claude (Anthropic) com leitura do backend real e simulação do crash em Node
-status: pendente
+status: feito
 prioridade: crítica (crash em produção)
 depende_de: ["02 - Ordenacao cronologica e pagamento inline em -pagamentos do estudante.md"]
 ---
