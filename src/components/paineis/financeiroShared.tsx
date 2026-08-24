@@ -7,7 +7,7 @@ import Icon from "@/components/ui/Icon";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroMetodoPagamento, FinanceiroNivel, FinanceiroOrigemCobranca, MensalidadeMesView, NivelEscolar } from "@/types/api";
+import type { AcademiaNivel, EstudanteDetalhado, FinanceiroMetodoPagamento, FinanceiroNivel, FinanceiroOrigemCobranca, MensalidadeMesView, NivelEscolar, PagamentoResumo } from "@/types/api";
 
 /**
  * Utilitários e componentes partilhados pelas telas de pagamentos e de
@@ -21,7 +21,8 @@ import type { AcademiaNivel, CobrancaResumo, EstudanteDetalhado, FinanceiroMetod
 export const money = (v: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA" }).format(v);
 
-export const dt = (v: string) => {
+export const dt = (v?: string) => {
+  if (!v) return "—";
   const d = new Date(v);
   return Number.isNaN(d.getTime())
     ? v
@@ -455,14 +456,18 @@ export function SubtelasMenu({ opcoes }: { opcoes: { id: string; icon: string; l
  * cobrança, não parte de "ler os detalhes dela").
  */
 export function CobrancasTable({ rows, onOpen, onCancelar }: {
-  rows: CobrancaResumo[];
-  onOpen: (r: CobrancaResumo) => void;
-  onCancelar?: (r: CobrancaResumo, motivo?: string) => Promise<void>;
+  rows: PagamentoResumo[];
+  onOpen: (r: PagamentoResumo) => void;
+  onCancelar?: (r: PagamentoResumo, motivo?: string) => Promise<void>;
 }) {
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [cobrancaParaCancelar, setCobrancaParaCancelar] = useState<CobrancaResumo | null>(null);
-  const cancelavel = (r: CobrancaResumo) => !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(r.status.toLowerCase());
+  const [cobrancaParaCancelar, setCobrancaParaCancelar] = useState<PagamentoResumo | null>(null);
+  // Uma pendência sem cobrança (pendencia_sem_cobranca=true) nunca é
+  // cancelável — não existe nenhuma cobrança real por trás dela para
+  // cancelar (ver PagamentoResumo).
+  const cancelavel = (r: PagamentoResumo) =>
+    !r.pendencia_sem_cobranca && !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(r.status.toLowerCase());
 
   return (
     <div className="space-y-2">
@@ -484,7 +489,16 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.codigo_estudante || "—"}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{money(r.valor)}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.metodo_pagamento ? METODO_PAGAMENTO_LABEL[r.metodo_pagamento] : "—"}</TableCell>
-                <TableCell className="px-3 py-2"><StatusBadge status={r.status} /></TableCell>
+                <TableCell className="px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StatusBadge status={r.status} />
+                    {r.pendencia_sem_cobranca && (
+                      <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                        Sem cobrança gerada
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{dt(r.atualizado_em)}</TableCell>
                 <TableCell className="px-3 py-2">
                   <div className="flex flex-wrap gap-2">
@@ -531,13 +545,13 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
 }
 
 /**
- * Subtela de detalhes de uma cobrança (não é mais modal/pop-up).
+ * Subtela de detalhes de um pagamento (não é mais modal/pop-up).
  *
- * - Usa os dados já carregados na linha da tabela (CobrancaResumo) em vez
- *   de buscar a cobrança de novo no servidor — evita uma requisição
- *   redundante a cada "ver detalhes" (a listagem já trouxe tudo que a
- *   cobrança tem).
- * - Quando a cobrança está vinculada a um estudante (codigo_estudante) e
+ * - Usa os dados já carregados na linha da tabela (PagamentoResumo) em vez
+ *   de buscar o pagamento de novo no servidor — evita uma requisição
+ *   redundante a cada "ver detalhes" (a listagem já trouxe tudo que o
+ *   pagamento tem).
+ * - Quando o pagamento está vinculado a um estudante (codigo_estudante) e
  *   mostrarDadosEstudante=true, busca e exibe também os dados desse
  *   estudante. GET /consultar-estudante/:codigo só é permitido para
  *   academia/admin — por isso EstudantePagamentosPainel usa
@@ -545,9 +559,13 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
  * - Não tem ação de cancelar: cancelar é uma ação sobre a cobrança na
  *   listagem (CobrancasTable, botão "Cancelar" na própria linha), não faz
  *   parte de "ler os detalhes" dela.
+ * - Quando pendencia_sem_cobranca=true, vários campos que só existem para
+ *   uma cobrança real (referência AppyPay, transação, atualizado em) ficam
+ *   "—": não existe nenhuma cobrança de verdade por trás desse item, e um
+ *   aviso explica isso no lugar da ação de cancelar.
  */
 export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudante = false }: {
-  cobranca: CobrancaResumo;
+  cobranca: PagamentoResumo;
   onVoltar: () => void;
   mostrarDadosEstudante?: boolean;
 }) {
@@ -572,13 +590,21 @@ export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudan
   return (
     <SubtelaPanel title="Detalhe da cobrança" icon="mdi:receipt-text-outline" onVoltar={onVoltar}>
       <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+        {cobranca.pendencia_sem_cobranca && (
+          <p className="rounded-lg bg-amber-50 p-3 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            Este mês ainda não foi pago e não tem nenhuma cobrança gerada — nenhuma tentativa de pagamento foi feita ainda.
+          </p>
+        )}
         <p><b>Tipo:</b> {origemLabel[cobranca.origem] ?? cobranca.origem}</p>
         <p><b>Descrição:</b> {cobranca.descricao || "—"}</p>
+        {cobranca.mensalidades?.[0] && (
+          <p><b>Mês de referência:</b> {capitalizar(NOME_MES[cobranca.mensalidades[0].mes - 1])} ({formatAnoLetivo(cobranca.mensalidades[0].ano_letivo)})</p>
+        )}
         <p><b>Valor:</b> {money(cobranca.valor)} {cobranca.moeda ? `(${cobranca.moeda})` : ""}</p>
         <p><b>Método de pagamento:</b> {cobranca.metodo_pagamento ? METODO_PAGAMENTO_LABEL[cobranca.metodo_pagamento] : "—"}</p>
         <p><b>Estado:</b> <StatusBadge status={cobranca.status} /></p>
         <p><b>Referência AppyPay:</b> {cobranca.provider_charge_id || "—"}</p>
-        <p><b>Transação:</b> {cobranca.merchant_transaction_id}</p>
+        <p><b>Transação:</b> {cobranca.merchant_transaction_id || "—"}</p>
         <p><b>Atualizado em:</b> {dt(cobranca.atualizado_em)}</p>
         {cobranca.codigo_solicitacao && <p><b>Solicitação de matrícula:</b> {cobranca.codigo_solicitacao}</p>}
 
