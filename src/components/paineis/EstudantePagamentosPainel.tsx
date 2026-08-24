@@ -23,7 +23,7 @@ import {
   compararMensalidadesPorData,
   formatarLinhaMensalidade,
 } from "@/components/paineis/financeiroShared";
-import type { CobrancaResumo, FinanceiroMetodoPagamento, FinanceiroOrigemCobranca, MensalidadeMesView, QRCodeChargeResult } from "@/types/api";
+import type { FinanceiroMetodoPagamento, FinanceiroOrigemCobranca, MensalidadeMesView, PagamentoResumo, QRCodeChargeResult } from "@/types/api";
 
 const PAGE_SIZE = 30;
 function getCodigo(user: any) { return user?.estudante?.codigo_estudante || user?.estudante?.codigo || user?.codigo; }
@@ -45,7 +45,7 @@ const ESTADO_HISTORICO_OPCOES = [
 
 type ResultadoPagamento = { cobranca: QRCodeChargeResult; metodoUsado: FinanceiroMetodoPagamento };
 
-type Tela = { nome: "lista" } | { nome: "historico" } | { nome: "detalhe"; cobranca: CobrancaResumo };
+type Tela = { nome: "lista" } | { nome: "historico" } | { nome: "detalhe"; cobranca: PagamentoResumo };
 
 /**
  * Uma seção de mensalidades de uma única academia: lista (não mais
@@ -370,8 +370,8 @@ export default function EstudantePagamentosPainel() {
             <div className="mt-4">
               {historico.loading ? (
                 <LoadingState label="Carregando histórico..." />
-              ) : (historico.data?.cobrancas?.length ?? 0) > 0 ? (
-                <CobrancasTable rows={historico.data?.cobrancas ?? []} onOpen={(c) => setTela({ nome: "detalhe", cobranca: c })} />
+              ) : (historico.data?.pagamentos?.length ?? 0) > 0 ? (
+                <CobrancasTable rows={historico.data?.pagamentos ?? []} onOpen={(c) => setTela({ nome: "detalhe", cobranca: c })} />
               ) : (
                 <EmptyState title="Sem histórico." description="Nenhuma cobrança foi encontrada para os filtros selecionados." />
               )}

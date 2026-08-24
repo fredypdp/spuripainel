@@ -7,7 +7,6 @@ import UnauthorizedAccess from "@/components/guards/UnauthorizedAccess";
 import Alert from "@/components/ui/alert/Alert";
 import Icon from "@/components/ui/Icon";
 import SearchableSelect from "@/components/form/SearchableSelect";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
   CobrancasTable,
   EmptyState,
@@ -19,9 +18,8 @@ import {
   SubtelasMenu,
   capitalizar,
   formatAnoLetivo,
-  money,
 } from "@/components/paineis/financeiroShared";
-import type { CobrancaResumo, FinanceiroOrigemCobranca, MensalidadeMesView } from "@/types/api";
+import type { FinanceiroOrigemCobranca, PagamentoResumo } from "@/types/api";
 
 const PAGE_SIZE = 30;
 
@@ -57,56 +55,6 @@ function mesesDoAnoLetivo(anoLetivo: string, tipo: "escolar" | "superior"): MesD
   return meses;
 }
 
-/**
- * Tabela de pendências de mensalidade sem cobrança — estudantes que devem
- * aquele mês mas nunca geraram (nem tentaram gerar) nenhuma cobrança para
- * ele. Não reaproveita CobrancasTable porque uma pendência não é uma
- * cobrança: não tem id real, nem status AppyPay, nem ação de "ver
- * detalhes"/"cancelar" (não há nada ainda para ver ou cancelar). Sempre em
- * estado "pendente" — o próprio backend só devolve entradas pendentes aqui
- * (ver finance.PendenciasSemCobranca).
- */
-function PendenciasSemCobrancaTable({ pendencias }: { pendencias: MensalidadeMesView[] }) {
-  if (pendencias.length === 0) return null;
-  return (
-    <div className="mt-6 space-y-2">
-      <div className="flex items-center gap-2">
-        <Icon icon="mdi:alert-circle-outline" width={18} className="text-amber-500" />
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-          Pendências sem cobrança ({pendencias.length})
-        </h3>
-      </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Estudantes que devem este mês mas ainda não geraram (nem tentaram gerar) nenhuma cobrança — por isso não aparecem na tabela de cobranças acima.
-      </p>
-      <div className="overflow-x-auto">
-        <Table className="w-full text-left">
-          <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-            <TableRow>
-              {["Estudante", "Valor", ""].map((h) => (
-                <TableCell key={h || "estado"} isHeader className="px-3 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-            {pendencias.map((p) => (
-              <TableRow key={`${p.codigo_estudante}-${p.ano_letivo}-${p.mes}`}>
-                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{p.codigo_estudante}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{money(p.valor)}</TableCell>
-                <TableCell className="px-3 py-2">
-                  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                    Pendente — sem cobrança criada
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
 type Tela = "menu" | "mensalidade-ano" | "mensalidade-mes" | "lista";
 
 /**
@@ -121,12 +69,16 @@ type Tela = "menu" | "mensalidade-ano" | "mensalidade-mes" | "lista";
  *
  * A listagem final sempre mostra TODOS os estados (Pago/Pendente/Falhado/
  * Cancelado) — o filtro de estado que já existia continua disponível para
- * quem quiser restringir mais. Para Mensalidade, a listagem também traz,
- * abaixo da tabela de cobranças, as pendências sem cobrança daquele mês
- * específico (ver PendenciasSemCobrancaTable) — o motivo de existir o
- * drill-down por ano letivo/mês: sem um mês específico selecionado, o
- * backend não computa pendências (evita varredura de toda a academia sem
- * limite) e a paginação da tabela de cobranças não seria confiável.
+ * quem quiser restringir mais. Para Mensalidade, a mesma tabela também já
+ * traz os meses ainda não pagos sem nenhuma cobrança gerada, marcados com
+ * `pendencia_sem_cobranca: true` (ver CobrancasTable e
+ * PagamentoResumo.pendencia_sem_cobranca) — antes desta tarefa isso vinha
+ * como uma segunda lista separada (`pendencias_sem_cobranca`), com
+ * paginação própria; agora é uma lista só, paginada pelo backend como uma
+ * única sequência (ver `ListarPagamentosUnificado` no backend). O
+ * drill-down por ano letivo/mês continua existindo pelo mesmo motivo de
+ * antes: sem um mês específico selecionado, o backend não computa
+ * pendências (evita varredura de toda a academia sem limite).
  *
  * Admin (FPP): ainda não existe tipo de cobrança específico para o Spuri,
  * então a tela mostra apenas um aviso "indisponível no momento" — igual a
@@ -145,7 +97,7 @@ export default function FinanceiroPagamentosPainel() {
   const [estado, setEstado] = useState("");
   const [pagina, setPagina] = useState(1);
   const [alert, setAlert] = useState<string | null>(null);
-  const [selecionada, setSelecionada] = useState<CobrancaResumo | null>(null);
+  const [selecionada, setSelecionada] = useState<PagamentoResumo | null>(null);
 
   const [anosLetivos, setAnosLetivos] = useState<{ ano_letivo: string; tipo: "escolar" | "superior" }[]>([]);
   const [anosLetivosCarregando, setAnosLetivosCarregando] = useState(false);
@@ -333,8 +285,7 @@ export default function FinanceiroPagamentosPainel() {
 
   const totalGeral = list.data?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
-  const cobrancas = list.data?.cobrancas ?? [];
-  const pendencias = list.data?.pendencias_sem_cobranca ?? [];
+  const pagamentos = list.data?.pagamentos ?? [];
 
   const tituloLista =
     origem === "mensalidade" && anoLetivoSelecionado && mesSelecionado
@@ -368,17 +319,17 @@ export default function FinanceiroPagamentosPainel() {
       <div className="mt-4">
         {list.loading ? (
           <LoadingState label="Carregando pagamentos..." />
-        ) : cobrancas.length > 0 ? (
+        ) : pagamentos.length > 0 ? (
           <CobrancasTable
-            rows={cobrancas}
+            rows={pagamentos}
             onOpen={setSelecionada}
-            onCancelar={async (cobranca, motivo) => {
-              await cancelApi.execute(cobranca.id, motivo);
+            onCancelar={async (pagamento, motivo) => {
+              await cancelApi.execute(pagamento.id, motivo);
               await carregar();
             }}
           />
         ) : (
-          <EmptyState title="Nenhuma cobrança encontrada." description="Ajuste os filtros ou aguarde novas cobranças serem criadas." />
+          <EmptyState title="Nenhum pagamento encontrado." description="Ajuste os filtros ou aguarde novas cobranças serem criadas." />
         )}
       </div>
 
@@ -391,8 +342,6 @@ export default function FinanceiroPagamentosPainel() {
           onChange={setPagina}
         />
       </div>
-
-      {origem === "mensalidade" && <PendenciasSemCobrancaTable pendencias={pendencias} />}
     </SubtelaPanel>
   );
 }

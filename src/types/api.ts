@@ -1469,7 +1469,32 @@ export interface CobrancaResumo {
   codigo_estudante?: string;
   codigo_solicitacao?: string;
   mensalidades?: { ano_letivo: string; mes: number }[];
-  atualizado_em: string;
+  /**
+   * Ausente para um item sintético (`pendencia_sem_cobranca: true`) — não
+   * existe nenhuma atividade real para reportar nesse caso. Sempre
+   * presente para um item real.
+   */
+  atualizado_em?: string;
+}
+
+/**
+ * PagamentoResumo é CobrancaResumo mais um único campo adicional,
+ * `pendencia_sem_cobranca` — ver ListarCobrancasResponse.pagamentos para o
+ * porquê da unificação com as antigas `pendencias_sem_cobranca`. Quando
+ * `pendencia_sem_cobranca` é `true`, o item foi sintetizado a partir de uma
+ * pendência de mensalidade sem NENHUMA cobrança criada (nem tentada) — não
+ * existe uma cobrança real por trás dele, e por isso vários campos de
+ * CobrancaResumo (provider_charge_id, merchant_transaction_id,
+ * metodo_pagamento, atualizado_em) ficam ausentes. Quando é `false`, é uma
+ * cobrança real, com todos os campos preenchidos como sempre foi.
+ *
+ * `status === "pendente"` pode vir de QUALQUER um dos dois casos — é
+ * `pendencia_sem_cobranca` que desambigua: uma cobrança real cujo status
+ * ainda não foi resolvido pelo provedor (`pendencia_sem_cobranca: false`),
+ * ou uma pendência sintética (`pendencia_sem_cobranca: true`).
+ */
+export interface PagamentoResumo extends CobrancaResumo {
+  pendencia_sem_cobranca: boolean;
 }
 
 export interface ListarCobrancasParams {
@@ -1492,20 +1517,20 @@ export interface ListarCobrancasParams {
 }
 
 export interface ListarCobrancasResponse {
-  cobrancas: CobrancaResumo[];
+  /**
+   * Lista única de pagamentos — cobranças reais e pendências de
+   * mensalidade sem nenhuma cobrança vinculada, juntas, paginadas como uma
+   * lista só (ver PagamentoResumo.pendencia_sem_cobranca para distinguir
+   * as duas). Itens sintéticos vêm sempre primeiro (representam ação
+   * pendente); cobranças reais depois, por atividade mais recente.
+   * Substituiu os antigos campos separados `cobrancas` +
+   * `pendencias_sem_cobranca` — ver GET /financeiro/cobrancas.
+   */
+  pagamentos: PagamentoResumo[];
   total: number;
   total_geral: number;
   limit: number;
   offset: number;
-  /**
-   * Meses de mensalidade em estado "pendente" que NUNCA tiveram nenhuma
-   * tentativa de cobrança — por isso não aparecem em `cobrancas` (que só
-   * lista tentativas de cobrança já feitas, com sucesso ou não). Só vem
-   * preenchido quando a consulta usa pelo menos um dos filtros de escopo
-   * (turma_id, curso_id, ano_academico ou ano_letivo); do contrário fica
-   * ausente. Ver GET /financeiro/cobrancas.
-   */
-  pendencias_sem_cobranca?: MensalidadeMesView[];
 }
 
 export interface ListarCobrancasEstudanteParams {
