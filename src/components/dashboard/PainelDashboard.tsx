@@ -893,7 +893,15 @@ export default function PainelDashboard() {
       ) : (
         <>
           {tipo === "admin" && user && <DashboardAdmin user={user} />}
-          {tipo === "academia" && user && (deveMostrarGuiaAcademia ? <GuiaConfiguracoesSection /> : <DashboardAcademia user={user} />)}
+          {tipo === "academia" && user && (
+            configuracaoStatus.loading ? (
+              <section className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white p-8 text-center dark:border-brand-500/20 dark:from-brand-500/10 dark:to-gray-900">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-300"><Icon icon="mdi:clipboard-text-clock-outline" width={26} className="animate-pulse" /></span>
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Montando a guia de configurações</h2>
+                <p className="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">Estamos a consultar as configurações da sua academia para mostrar os próximos passos mais importantes.</p>
+              </section>
+            ) : deveMostrarGuiaAcademia ? <GuiaConfiguracoesSection /> : <DashboardAcademia user={user} />
+          )}
           {tipo === "estudante" && user && <DashboardEstudante user={user} />}
         </>
       )}

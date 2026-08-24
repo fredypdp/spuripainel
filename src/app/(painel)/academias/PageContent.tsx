@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import { useApi, consultasService, adminService, tokenStorage } from '@/lib/api';
+import { useApi, consultasService, adminService, documentosService, tokenStorage } from '@/lib/api';
 import { useUserCookie } from "@/hooks/useUserCookie";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
@@ -92,6 +92,15 @@ function formatarData(data: string) {
   }
 }
 
+function formatarDataHora(data?: string) {
+  if (!data) return '-';
+  const date = new Date(data);
+  if (Number.isNaN(date.getTime())) return '-';
+  const [dia, mes, ano] = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date).split('/');
+  const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+  return `${dia}/${mes}/${ano}, às ${hora}`;
+}
+
 function getStatusBadgeClass(status: string) {
   switch (status?.toLowerCase()) {
     case 'ativo':   return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
@@ -112,6 +121,45 @@ function labelNatureza(type?: string): string {
   if (type === 'public')  return 'Pública';
   if (type === 'private') return 'Privada';
   return type ?? '-';
+}
+
+function DetailItem({ label, value }: { label: string; value: string | number | undefined }) {
+  return <div><p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p><p className="mt-1 text-sm text-gray-900 dark:text-white">{value || '-'}</p></div>;
+}
+
+function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDetalhada; onVoltar: () => void }) {
+  const [documentoAberto, setDocumentoAberto] = useState<string | null>(null);
+  const [carregandoDocumento, setCarregandoDocumento] = useState(false);
+  const [erroDocumento, setErroDocumento] = useState('');
+
+  useEffect(() => () => { if (documentoAberto) URL.revokeObjectURL(documentoAberto); }, [documentoAberto]);
+
+  const abrirAlvara = async () => {
+    setErroDocumento('');
+    setCarregandoDocumento(true);
+    try {
+      const blob = await documentosService.baixarAlvaraAcademia(academia.codigo_academia, tokenStorage.get() || undefined);
+      const url = URL.createObjectURL(blob);
+      setDocumentoAberto((atual) => { if (atual) URL.revokeObjectURL(atual); return url; });
+    } catch (err: any) {
+      setErroDocumento(err?.message || 'Não foi possível abrir o alvará pela rota autenticada de documentos.');
+    } finally {
+      setCarregandoDocumento(false);
+    }
+  };
+
+  return <div className="space-y-5">
+    <Button variant="outline" size="sm" onClick={onVoltar} startIcon={<Icon icon="mdi:arrow-left" width={16} />}>Voltar para academias</Button>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div><h2 className="text-xl font-semibold capitalize text-gray-900 dark:text-white">{academia.nome}</h2><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">{academia.codigo_academia}</span><span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium capitalize ${getStatusBadgeClass(academia.status)}`}>{academia.status}</span></div></div>
+        <Icon icon="mdi:school-outline" width={34} className="text-brand-500" />
+      </div>
+    </section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white">Dados da academia</h3><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><DetailItem label="Nível" value={labelNivel(academia.nivel)} /><DetailItem label="Natureza" value={labelNatureza(academia.type)} /><DetailItem label="Nível escolar" value={academia.nivel_escolar || '-'} /><DetailItem label="Província" value={academia.provincia} /><DetailItem label="Endereço" value={academia.endereco} /><DetailItem label="Website" value={academia.website || '-'} /><DetailItem label="E-mail" value={academia.email || '-'} /><DetailItem label="Telefone" value={academia.telefone || '-'} /><DetailItem label="Total de estudantes" value={academia.total_estudantes} /><DetailItem label="Data de criação" value={formatarDataHora(academia.created_at)} /></div></section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">Anos académicos</h3>{academia.anos_academicos?.length ? <div className="flex flex-wrap gap-2">{academia.anos_academicos.map((ano) => <span key={ano} className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">{formatAnoAcademico(ano)}</span>)}</div> : <p className="text-sm text-gray-500 dark:text-gray-400">Não há anos académicos registados.</p>}</section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Documentos</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Visualize o alvará da academia sem sair desta tela.</p></div><Button size="sm" variant="outline" disabled={carregandoDocumento} onClick={abrirAlvara} startIcon={<Icon icon={carregandoDocumento ? 'mdi:loading' : 'mdi:file-eye-outline'} width={16} className={carregandoDocumento ? 'animate-spin' : undefined} />}>{carregandoDocumento ? 'A abrir...' : 'Visualizar alvará'}</Button></div>{erroDocumento && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}{documentoAberto && <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"><iframe title={`Alvará de ${academia.nome}`} src={documentoAberto} className="h-[70vh] w-full bg-white" /></div>}</section>
+  </div>;
 }
 
 function ordenarAcademias(
@@ -594,6 +642,7 @@ function TabelaAcademias({
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nível Escolar</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Província</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Estudantes</TableCell>
+          <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Data de criação</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Situação</TableCell>
           <TableCell isHeader className="whitespace-nowrap px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Ações</TableCell>
         </TableRow>
@@ -625,6 +674,7 @@ function TabelaAcademias({
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{academia.nivel_escolar || '-'}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400 capitalize">{academia.provincia}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-center text-theme-sm text-gray-500 dark:text-gray-400">{academia.total_estudantes}</TableCell>
+            <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm text-gray-500 dark:text-gray-400">{formatarDataHora(academia.created_at)}</TableCell>
             <TableCell className="whitespace-nowrap px-5 py-3 text-start text-theme-sm">
               <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusBadgeClass(academia.status)}`}>
                 {academia.status || '-'}
@@ -1005,7 +1055,6 @@ function VistaEscalaAcademias({
 
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
-  const { isOpen: isDetailsOpen,       openModal: openDetailsModal,       closeModal: closeDetailsModal       } = useModal();
   const { isOpen: isDesativarOpen,     openModal: openDesativarModal,     closeModal: closeDesativarModal     } = useModal();
   const { isOpen: isDesativarLoteOpen, openModal: openDesativarLoteModal, closeModal: closeDesativarLoteModal } = useModal();
   const { isOpen: isResultadoLoteOpen, openModal: openResultadoLoteModal, closeModal: closeResultadoLoteModal } = useModal();
@@ -1069,7 +1118,7 @@ export default function Academias() {
 
   // ─── Handlers individuais ──────────────────────────────────────────────────
 
-  const handleVerDetalhes    = (a: AcademiaDetalhada) => { setAcademiaSelecionada(a); openDetailsModal(); };
+  const handleVerDetalhes    = (a: AcademiaDetalhada) => setAcademiaSelecionada(a);
   const handleAbrirDesativar = (a: AcademiaDetalhada) => { setAcademiaParaDesativar(a); setMotivoDesativacao(''); openDesativarModal(); };
 
   const handleAtivar = async (academia: AcademiaDetalhada) => {
@@ -1205,6 +1254,10 @@ export default function Academias() {
     setSelecionadas(new Set());
     carregarLista();
   };
+
+  if (academiaSelecionada) {
+    return <div><PageBreadcrumb pageTitle="Academias" /><SubtelaDetalhesAcademia academia={academiaSelecionada} onVoltar={() => setAcademiaSelecionada(null)} /></div>;
+  }
 
   return (
     <div>
@@ -1342,81 +1395,6 @@ export default function Academias() {
             )}
           </div>
         )}
-
-        {/* Modal Detalhes */}
-        <Modal isOpen={isDetailsOpen} onClose={closeDetailsModal} className="max-w-[640px] p-5 lg:p-10">
-          {academiaSelecionada && (
-            <div>
-              <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">
-                Detalhes da Academia
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nome</p>
-                  <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nome}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Código</p>
-                  <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.codigo_academia}</p>
-                </div>
-                {/* nivel: escola | superior */}
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível</p>
-                  <p className="text-sm text-gray-900 dark:text-white">{labelNivel(academiaSelecionada.nivel)}</p>
-                </div>
-                {/* type: public | private */}
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Natureza</p>
-                  <p className="text-sm text-gray-900 dark:text-white">{labelNatureza(academiaSelecionada.type)}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nível Escolar</p>
-                  <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.nivel_escolar || '-'}</p>
-                </div>
-                {academiaSelecionada.anos_academicos && academiaSelecionada.anos_academicos.length > 0 && (
-                  <div className="col-span-2">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Anos Académicos</p>
-                    <div className="flex flex-wrap gap-1">
-                      {academiaSelecionada.anos_academicos.map((ano) => (
-                        <span
-                          key={ano}
-                          className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded"
-                        >
-                          {formatAnoAcademico(ano)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Província</p>
-                  <p className="text-sm text-gray-900 dark:text-white capitalize">{academiaSelecionada.provincia}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Situação</p>
-                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(academiaSelecionada.status)}`}>
-                    {academiaSelecionada.status}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Estudantes</p>
-                  <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.total_estudantes}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">E-mail</p>
-                  <p className="text-sm text-gray-900 dark:text-white">{academiaSelecionada.email || '-'}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Data de Criação</p>
-                  <p className="text-sm text-gray-900 dark:text-white">{formatarData(academiaSelecionada.created_at)}</p>
-                </div>
-              </div>
-              <div className="flex justify-end mt-6">
-                <Button size="sm" variant="outline" onClick={closeDetailsModal}>Fechar</Button>
-              </div>
-            </div>
-          )}
-        </Modal>
 
         {/* Modal Desativar individual */}
         <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">

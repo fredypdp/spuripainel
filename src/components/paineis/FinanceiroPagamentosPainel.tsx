@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { academiaService, financeiroService, useApi } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import { useUserType } from "@/hooks/useRoutePermission";
@@ -105,10 +106,17 @@ export default function FinanceiroPagamentosPainel() {
 
   const list = useApi(financeiroService.listarCobrancas);
   const cancelApi = useApi(financeiroService.cancelarCobranca);
+  const credenciaisApi = useApi(financeiroService.listarCredenciais);
 
   useEffect(() => {
     if (user?.academia?.codigo_academia) setCodigoAcademia(user.academia.codigo_academia);
   }, [user?.academia?.codigo_academia]);
+
+  useEffect(() => {
+    if (!isAcademia || !codigoAcademia) return;
+    void credenciaisApi.execute({ contexto_tipo: "academia", codigo_academia: codigoAcademia });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAcademia, codigoAcademia]);
 
   // Anos letivos que a academia já teve — carregado uma vez, reaproveitado
   // sempre que o cartão "Mensalidade / Propina" é aberto. Mesma fonte já
@@ -218,6 +226,17 @@ export default function FinanceiroPagamentosPainel() {
     );
   }
 
+  const temCredenciais = (credenciaisApi.data?.length ?? 0) > 0;
+  const bloquearSubtelas = credenciaisApi.loading || !temCredenciais;
+  const avisoCredenciais = bloquearSubtelas && (
+    <div className="space-y-3">
+      <Alert variant="warning" title="Adesão ao Gateway de Pagamento Online" message="A sua instituição precisa aderir ao Gateway de Pagamento Online." />
+      <Link href="/financas/credenciais" className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-600">
+        Siga as instruções aqui <Icon icon="mdi:arrow-right" width={16} />
+      </Link>
+    </div>
+  );
+
   if (tela === "menu") {
     return (
       <div className="space-y-6">
@@ -232,11 +251,12 @@ export default function FinanceiroPagamentosPainel() {
           </div>
           <SubtelasMenu
             opcoes={[
-              { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Mensalidade / Propina", descricao: "Consultar por ano letivo e mês.", onClick: () => abrirLista("mensalidade") },
-              { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Todas as cobranças de matrícula, em todos os estados.", onClick: () => abrirLista("matricula") },
-              { id: "avulsa", icon: "mdi:cash-multiple", label: "Outros", descricao: "Cobranças avulsas, em todos os estados.", onClick: () => abrirLista("avulsa") },
+              { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Mensalidade / Propina", descricao: "Consultar por ano letivo e mês.", onClick: () => abrirLista("mensalidade"), disabled: bloquearSubtelas },
+              { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Todas as cobranças de matrícula, em todos os estados.", onClick: () => abrirLista("matricula"), disabled: bloquearSubtelas },
+              { id: "avulsa", icon: "mdi:cash-multiple", label: "Outros", descricao: "Cobranças avulsas, em todos os estados.", onClick: () => abrirLista("avulsa"), disabled: bloquearSubtelas },
             ]}
           />
+          {avisoCredenciais}
         </section>
       </div>
     );

@@ -549,7 +549,7 @@ function AdesaoAppyPayInfo({ temCredenciais }: { temCredenciais: boolean }) {
       </div>
       {mostrarConteudo && (
         <div className={`mt-4 rounded-xl p-4 ${destaque ? "bg-white/60 dark:bg-white/[0.06]" : "bg-gray-50 dark:bg-white/[0.03]"}`}>
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Nota para Adesão ao Serviço</p>
+          <p className={`flex items-center gap-2 text-sm font-bold ${destaque ? "text-brand-800 dark:text-brand-100" : "text-gray-700 dark:text-gray-300"}`}><Icon icon="mdi:information-outline" width={18} /> Nota para Adesão ao Serviço</p>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-500 dark:text-gray-400">
             <li>É necessário ter uma conta bancária empresarial em um dos bancos angolanos.</li>
             <li>O processo de adesão começa no seu banco comercial: dirija-se ao seu banco e solicite os formulários de adesão aos métodos de pagamento que deseja utilizar (Multicaixa Express e/ou Referência).</li>

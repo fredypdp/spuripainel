@@ -424,12 +424,13 @@ export function SubtelaPanel({ title, icon, onVoltar, children }: { title: strin
 }
 
 /** Cartão clicável de uma opção do menu de subtelas (ex.: menu de configurações financeiras). */
-export function SubtelaCard({ icon, label, descricao, onClick }: { icon: string; label: string; descricao: string; onClick: () => void }) {
+export function SubtelaCard({ icon, label, descricao, onClick, disabled = false }: { icon: string; label: string; descricao: string; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-brand-300 hover:shadow-sm dark:border-white/[0.05] dark:bg-white/[0.03] dark:hover:border-brand-500/40"
+      disabled={disabled}
+      className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-brand-300 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-200 disabled:hover:shadow-none dark:border-white/[0.05] dark:bg-white/[0.03] dark:hover:border-brand-500/40"
     >
       <Icon icon={icon} width={22} className="mt-0.5 shrink-0 text-brand-500" />
       <div>
@@ -441,10 +442,10 @@ export function SubtelaCard({ icon, label, descricao, onClick }: { icon: string;
 }
 
 /** Grade de SubtelaCard — menu inicial de uma página dividida em subtelas. Máximo 2 colunas (nunca 3+); 1 coluna em telas pequenas. */
-export function SubtelasMenu({ opcoes }: { opcoes: { id: string; icon: string; label: string; descricao: string; onClick: () => void }[] }) {
+export function SubtelasMenu({ opcoes }: { opcoes: { id: string; icon: string; label: string; descricao: string; onClick: () => void; disabled?: boolean }[] }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {opcoes.map((o) => <SubtelaCard key={o.id} icon={o.icon} label={o.label} descricao={o.descricao} onClick={o.onClick} />)}
+      {opcoes.map((o) => <SubtelaCard key={o.id} icon={o.icon} label={o.label} descricao={o.descricao} onClick={o.onClick} disabled={o.disabled} />)}
     </div>
   );
 }
