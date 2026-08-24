@@ -228,7 +228,14 @@ export default function FinanceiroPagamentosPainel() {
 
   const temCredenciais = (credenciaisApi.data?.length ?? 0) > 0;
   const bloquearSubtelas = credenciaisApi.loading || !temCredenciais;
-  const avisoCredenciais = bloquearSubtelas && <Alert variant="warning" title="Adesão ao Gateway de Pagamento Online" message={<span>A sua instituição precisa aderir ao Gateway de Pagamento Online. <Link href="/financas/credenciais" className="font-semibold underline">Siga as instruções aqui.</Link></span>} />;
+  const avisoCredenciais = bloquearSubtelas && (
+    <div className="space-y-3">
+      <Alert variant="warning" title="Adesão ao Gateway de Pagamento Online" message="A sua instituição precisa aderir ao Gateway de Pagamento Online." />
+      <Link href="/financas/credenciais" className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-600">
+        Siga as instruções aqui <Icon icon="mdi:arrow-right" width={16} />
+      </Link>
+    </div>
+  );
 
   if (tela === "menu") {
     return (
