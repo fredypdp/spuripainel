@@ -104,6 +104,7 @@ export default function FinanceiroConfiguracoesPainel() {
   const atualizarMatricula = useApi(financeiroService.atualizarConfiguracaoMatricula);
   const removerMensalidade = useApi(financeiroService.removerConfiguracaoMensalidade);
   const removerMatricula = useApi(financeiroService.removerConfiguracaoMatricula);
+  const credenciaisApi = useApi(financeiroService.listarCredenciais);
   const [removendoConfig, setRemovendoConfig] = useState<string | null>(null);
   // Configuração (mensalidade ou matrícula) selecionada para remoção —
   // controla a exibição do ConfirmDialog dentro de renderConfiguracoesSalvas
@@ -134,6 +135,12 @@ export default function FinanceiroConfiguracoesPainel() {
     academiaService.listarCursos({ codigo_academia: codigoAcademia })
       .then((r) => setCursos((r.cursos ?? []).filter((c) => c.status === "ativo")))
       .catch(() => setCursos([]));
+  }, [isAcademia, codigoAcademia]);
+
+  useEffect(() => {
+    if (!isAcademia || !codigoAcademia) return;
+    void credenciaisApi.execute({ contexto_tipo: "academia", codigo_academia: codigoAcademia });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAcademia, codigoAcademia]);
 
   if (loading) return <LoadingState label="Carregando configurações..." />;
@@ -406,6 +413,10 @@ export default function FinanceiroConfiguracoesPainel() {
     );
   };
 
+  const temCredenciais = (credenciaisApi.data?.length ?? 0) > 0;
+  const bloquearSubtelas = credenciaisApi.loading || !temCredenciais;
+  const avisoCredenciais = bloquearSubtelas && <Alert variant="warning" title="Adesão ao Gateway de Pagamento Online" message={<span>A sua instituição precisa aderir ao Gateway de Pagamento Online. <Link href="/financas/credenciais" className="font-semibold underline">Siga as instruções aqui.</Link></span>} />;
+
   if (tela === "menu") {
     return (
       <div className="space-y-6">
@@ -417,12 +428,13 @@ export default function FinanceiroConfiguracoesPainel() {
         </div>
         <SubtelasMenu
           opcoes={[
-            { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Propina / mensalidade", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("mensalidade") },
-            { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("matricula") },
-            { id: "inicio-cobranca", icon: "mdi:calendar-start", label: "Início de cobrança fora do padrão", descricao: "Ajustar a partir de qual mês a propina passa a valer num ano letivo específico.", onClick: () => setTela("inicio-cobranca") },
-            { id: "anular-reativar", icon: "mdi:receipt-text-remove-outline", label: "Anular ou reativar obrigações", descricao: "Anular ou reativar mensalidades pontuais de um estudante específico.", onClick: () => setTela("anular-reativar") },
+            { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Propina / mensalidade", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("mensalidade"), disabled: bloquearSubtelas },
+            { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Definir o valor e os métodos aceites por ano/curso.", onClick: () => setTela("matricula"), disabled: bloquearSubtelas },
+            { id: "inicio-cobranca", icon: "mdi:calendar-start", label: "Início de cobrança fora do padrão", descricao: "Ajustar a partir de qual mês a propina passa a valer num ano letivo específico.", onClick: () => setTela("inicio-cobranca"), disabled: bloquearSubtelas },
+            { id: "anular-reativar", icon: "mdi:receipt-text-remove-outline", label: "Anular ou reativar obrigações", descricao: "Anular ou reativar mensalidades pontuais de um estudante específico.", onClick: () => setTela("anular-reativar"), disabled: bloquearSubtelas },
           ]}
         />
+        {avisoCredenciais}
       </div>
     );
   }
