@@ -2036,6 +2036,13 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  deletarAcademia: (codigoAcademia: string, data: DesativarRequest, token?: string) =>
+    api.delete<{ message: string }, DesativarRequest>(
+      `/dominis/academia/${codigoAcademia}`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   ativarAdmin: (adminId: string, token?: string) =>
     api.put<{ message: string; email: string }>(
       `/dominis/admin/${adminId}/ativar`,

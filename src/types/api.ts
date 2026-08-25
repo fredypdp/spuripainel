@@ -1692,6 +1692,7 @@ export interface AcademiaDetalhada {
    */
   type: AcademiaType;
   nome: string;
+  nif?: string;
   codigo_academia: string;
   provincia: string;
   endereco: string;
@@ -1705,6 +1706,8 @@ export interface AcademiaDetalhada {
   status: string;
   cursos: string[];
   motivo_desativacao?: string;
+  deleted_at?: string;
+  deletado_por?: string;
   created_at: string;
   updated_at: string;
   total_estudantes: number;
@@ -1713,6 +1716,7 @@ export interface AcademiaDetalhada {
   tipo_ano_letivo?: 'escolar' | 'superior';
   ano_letivo_ativado_em?: string;
   anos_letivos_lista: AnoLetivoItem[];
+  documentos?: Record<string, SolicitacaoMatriculaDocumento | string | null | undefined>;
   documentos_obrigatorios?: DocumentosObrigatorios;
 }
 

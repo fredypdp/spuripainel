@@ -123,8 +123,9 @@ function labelNatureza(type?: string): string {
   return type ?? '-';
 }
 
-function DetailItem({ label, value }: { label: string; value: string | number | undefined }) {
-  return <div><p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p><p className="mt-1 text-sm text-gray-900 dark:text-white">{value || '-'}</p></div>;
+function DetailItem({ label, value }: { label: string; value: string | number | boolean | undefined | null }) {
+  const displayValue = value === undefined || value === null || value === '' ? '-' : String(value);
+  return <div><p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p><p className="mt-1 text-sm text-gray-900 dark:text-white">{displayValue}</p></div>;
 }
 
 function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDetalhada; onVoltar: () => void }) {
@@ -134,7 +135,18 @@ function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDet
 
   useEffect(() => () => { if (documentoAberto) URL.revokeObjectURL(documentoAberto); }, [documentoAberto]);
 
+  const fecharAlvara = () => {
+    setDocumentoAberto((atual) => {
+      if (atual) URL.revokeObjectURL(atual);
+      return null;
+    });
+  };
+
   const abrirAlvara = async () => {
+    if (documentoAberto) {
+      fecharAlvara();
+      return;
+    }
     setErroDocumento('');
     setCarregandoDocumento(true);
     try {
@@ -156,9 +168,9 @@ function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDet
         <Icon icon="mdi:school-outline" width={34} className="text-brand-500" />
       </div>
     </section>
-    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white">Dados da academia</h3><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><DetailItem label="Nível" value={labelNivel(academia.nivel)} /><DetailItem label="Natureza" value={labelNatureza(academia.type)} /><DetailItem label="Nível escolar" value={academia.nivel_escolar || '-'} /><DetailItem label="Província" value={academia.provincia} /><DetailItem label="Endereço" value={academia.endereco} /><DetailItem label="Website" value={academia.website || '-'} /><DetailItem label="E-mail" value={academia.email || '-'} /><DetailItem label="Telefone" value={academia.telefone || '-'} /><DetailItem label="Total de estudantes" value={academia.total_estudantes} /><DetailItem label="Data de criação" value={formatarDataHora(academia.created_at)} /></div></section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white">Dados da academia</h3><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><DetailItem label="NIF" value={academia.nif} /><DetailItem label="Nível" value={labelNivel(academia.nivel)} /><DetailItem label="Natureza" value={labelNatureza(academia.type)} /><DetailItem label="Nível escolar" value={academia.nivel_escolar || '-'} /><DetailItem label="Província" value={academia.provincia} /><DetailItem label="Endereço" value={academia.endereco} /><DetailItem label="Website" value={academia.website || '-'} /><DetailItem label="E-mail" value={academia.email || '-'} /><DetailItem label="E-mail verificado" value={academia.email_verificado ? 'Sim' : 'Não'} /><DetailItem label="Telefone" value={academia.telefone || '-'} /><DetailItem label="Telefone verificado" value={academia.telefone_verificado ? 'Sim' : 'Não'} /><DetailItem label="Total de estudantes" value={academia.total_estudantes} /><DetailItem label="Ano letivo" value={academia.ano_letivo} /><DetailItem label="Tipo do ano letivo" value={academia.tipo_ano_letivo} /><DetailItem label="Ativação do ano letivo" value={formatarDataHora(academia.ano_letivo_ativado_em)} /><DetailItem label="Motivo de desativação/deleção" value={academia.motivo_desativacao} /><DetailItem label="Deletada em" value={formatarDataHora(academia.deleted_at)} /><DetailItem label="Deletada por" value={academia.deletado_por} /><DetailItem label="Versão" value={academia.version} /><DetailItem label="Data de criação" value={formatarDataHora(academia.created_at)} /><DetailItem label="Última atualização" value={formatarDataHora(academia.updated_at)} /></div></section>
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">Anos académicos</h3>{academia.anos_academicos?.length ? <div className="flex flex-wrap gap-2">{academia.anos_academicos.map((ano) => <span key={ano} className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">{formatAnoAcademico(ano)}</span>)}</div> : <p className="text-sm text-gray-500 dark:text-gray-400">Não há anos académicos registados.</p>}</section>
-    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Documentos</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Visualize o alvará da academia sem sair desta tela.</p></div><Button size="sm" variant="outline" disabled={carregandoDocumento} onClick={abrirAlvara} startIcon={<Icon icon={carregandoDocumento ? 'mdi:loading' : 'mdi:file-eye-outline'} width={16} className={carregandoDocumento ? 'animate-spin' : undefined} />}>{carregandoDocumento ? 'A abrir...' : 'Visualizar alvará'}</Button></div>{erroDocumento && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}{documentoAberto && <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"><iframe title={`Alvará de ${academia.nome}`} src={documentoAberto} className="h-[70vh] w-full bg-white" /></div>}</section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Documentos</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Visualize o alvará da academia sem sair desta tela.</p></div><Button size="sm" variant="outline" disabled={carregandoDocumento} onClick={abrirAlvara} startIcon={<Icon icon={carregandoDocumento ? 'mdi:loading' : documentoAberto ? 'mdi:close' : 'mdi:file-eye-outline'} width={16} className={carregandoDocumento ? 'animate-spin' : undefined} />}>{carregandoDocumento ? 'A abrir...' : documentoAberto ? 'Fechar alvará' : 'Visualizar alvará'}</Button></div>{erroDocumento && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}{documentoAberto && <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"><iframe title={`Alvará de ${academia.nome}`} src={documentoAberto} className="h-[70vh] w-full bg-white" /></div>}</section>
   </div>;
 }
 
@@ -379,19 +391,25 @@ function PaginacaoSetas({
 function AcoesDropdown({
   academia,
   isAdmin,
+  canDeletar,
   carregandoAtivar,
   carregandoDesativar,
+  carregandoDeletar,
   onVerDetalhes,
   onAtivar,
   onAbrirDesativar,
+  onAbrirDeletar,
 }: {
   academia: AcademiaDetalhada;
   isAdmin: boolean;
+  canDeletar: boolean;
   carregandoAtivar: boolean;
   carregandoDesativar: boolean;
+  carregandoDeletar: boolean;
   onVerDetalhes: (a: AcademiaDetalhada) => void;
   onAtivar: (a: AcademiaDetalhada) => void;
   onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  onAbrirDeletar: (a: AcademiaDetalhada) => void;
 }) {
   const [open, setOpen]       = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -473,6 +491,20 @@ function AcoesDropdown({
               >
                 <Icon icon="mdi:close-circle-outline" width={16} />
                 Desativar
+              </button>
+            </>
+          )}
+          {canDeletar && academia.status !== 'deletado' && (
+            <>
+              <div className="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+              <button
+                type="button"
+                onClick={() => handleItem(() => onAbrirDeletar(academia))}
+                disabled={carregandoDeletar}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Icon icon="mdi:trash-can-outline" width={16} />
+                {carregandoDeletar ? 'Deletando...' : 'Deletar'}
               </button>
             </>
           )}
@@ -586,22 +618,28 @@ function ModalResultadoLote({
 function TabelaAcademias({
   academias,
   isAdmin,
+  canDeletar,
   carregandoAtivar,
   carregandoDesativar,
+  carregandoDeletar,
   onVerDetalhes,
   onAtivar,
   onAbrirDesativar,
+  onAbrirDeletar,
   selecionadas,
   onToggleSelecao,
   onToggleTodas,
 }: {
   academias: AcademiaDetalhada[];
   isAdmin: boolean;
+  canDeletar: boolean;
   carregandoAtivar: boolean;
   carregandoDesativar: boolean;
+  carregandoDeletar: boolean;
   onVerDetalhes: (a: AcademiaDetalhada) => void;
   onAtivar: (a: AcademiaDetalhada) => void;
   onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  onAbrirDeletar: (a: AcademiaDetalhada) => void;
   selecionadas: Set<string>;
   onToggleSelecao: (id: string) => void;
   onToggleTodas: (todas: AcademiaDetalhada[]) => void;
@@ -684,11 +722,14 @@ function TabelaAcademias({
               <AcoesDropdown
                 academia={academia}
                 isAdmin={isAdmin}
+                canDeletar={canDeletar}
                 carregandoAtivar={carregandoAtivar}
                 carregandoDesativar={carregandoDesativar}
+                carregandoDeletar={carregandoDeletar}
                 onVerDetalhes={onVerDetalhes}
                 onAtivar={onAtivar}
                 onAbrirDesativar={onAbrirDesativar}
+                onAbrirDeletar={onAbrirDeletar}
               />
             </TableCell>
           </TableRow>
@@ -784,11 +825,14 @@ function VistaEscalaAcademias({
   academias,
   ordem,
   isAdmin,
+  canDeletar,
   carregandoAtivar,
   carregandoDesativar,
+  carregandoDeletar,
   onVerDetalhes,
   onAtivar,
   onAbrirDesativar,
+  onAbrirDeletar,
   selecionadas,
   onToggleSelecao,
   onToggleTodas,
@@ -796,11 +840,14 @@ function VistaEscalaAcademias({
   academias: AcademiaDetalhada[];
   ordem: OrdemAcademias;
   isAdmin: boolean;
+  canDeletar: boolean;
   carregandoAtivar: boolean;
   carregandoDesativar: boolean;
+  carregandoDeletar: boolean;
   onVerDetalhes: (a: AcademiaDetalhada) => void;
   onAtivar: (a: AcademiaDetalhada) => void;
   onAbrirDesativar: (a: AcademiaDetalhada) => void;
+  onAbrirDeletar: (a: AcademiaDetalhada) => void;
   selecionadas: Set<string>;
   onToggleSelecao: (id: string) => void;
   onToggleTodas: (todas: AcademiaDetalhada[]) => void;
@@ -1036,11 +1083,14 @@ function VistaEscalaAcademias({
           <TabelaAcademias
             academias={academiasDoLayer}
             isAdmin={isAdmin}
+            canDeletar={canDeletar}
             carregandoAtivar={carregandoAtivar}
             carregandoDesativar={carregandoDesativar}
+            carregandoDeletar={carregandoDeletar}
             onVerDetalhes={onVerDetalhes}
             onAtivar={onAtivar}
             onAbrirDesativar={onAbrirDesativar}
+            onAbrirDeletar={onAbrirDeletar}
             selecionadas={selecionadas}
             onToggleSelecao={onToggleSelecao}
             onToggleTodas={onToggleTodas}
@@ -1056,6 +1106,7 @@ function VistaEscalaAcademias({
 export default function Academias() {
   const { user, loading: loadingUser } = useUserCookie();
   const { isOpen: isDesativarOpen,     openModal: openDesativarModal,     closeModal: closeDesativarModal     } = useModal();
+  const { isOpen: isDeletarOpen,       openModal: openDeletarModal,       closeModal: closeDeletarModal       } = useModal();
   const { isOpen: isDesativarLoteOpen, openModal: openDesativarLoteModal, closeModal: closeDesativarLoteModal } = useModal();
   const { isOpen: isResultadoLoteOpen, openModal: openResultadoLoteModal, closeModal: closeResultadoLoteModal } = useModal();
 
@@ -1073,14 +1124,18 @@ export default function Academias() {
   const { data: dataAcademias, loading: carregandoAcademias, error: erroAcademias, execute: carregarAcademias } = useApi(listarTodasAcademias);
   const { loading: carregandoAtivar,    error: erroAtivarAcademia,    execute: executarAtivar    } = useApi(adminService.ativarAcademia);
   const { loading: carregandoDesativar, error: erroDesativarAcademia, execute: executarDesativar } = useApi(adminService.desativarAcademia);
+  const { loading: carregandoDeletar,   error: erroDeletarAcademia,   execute: executarDeletar   } = useApi(adminService.deletarAcademia);
 
   const [academiaSelecionada,   setAcademiaSelecionada]   = useState<AcademiaDetalhada | null>(null);
   const [academiaParaDesativar, setAcademiaParaDesativar] = useState<AcademiaDetalhada | null>(null);
+  const [academiaParaDeletar,   setAcademiaParaDeletar]   = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao,     setMotivoDesativacao]     = useState('');
+  const [motivoDelecao,         setMotivoDelecao]         = useState('');
 
   const isAdmin = !loadingUser && user?.tipo === 'admin';
   const canCadastrarAcademia = isAdmin;
   const canAlterarSituacaoAcademia = isAdmin && (user?.admin?.role === 'adm' || user?.admin?.role === 'fpp');
+  const canDeletarAcademia = isAdmin && user?.admin?.role === 'fpp';
 
   const carregarLista = useCallback(async () => {
     try {
@@ -1120,6 +1175,7 @@ export default function Academias() {
 
   const handleVerDetalhes    = (a: AcademiaDetalhada) => setAcademiaSelecionada(a);
   const handleAbrirDesativar = (a: AcademiaDetalhada) => { setAcademiaParaDesativar(a); setMotivoDesativacao(''); openDesativarModal(); };
+  const handleAbrirDeletar = (a: AcademiaDetalhada) => { setAcademiaParaDeletar(a); setMotivoDelecao(''); openDeletarModal(); };
 
   const handleAtivar = async (academia: AcademiaDetalhada) => {
     if (!confirm(`Tem certeza que deseja ativar "${academia.nome}"?`)) return;
@@ -1148,6 +1204,26 @@ export default function Academias() {
       carregarLista();
     } catch {
       alert('Erro ao desativar academia.');
+    }
+  };
+
+  const handleDeletar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!motivoDelecao.trim() || !academiaParaDeletar) return;
+    try {
+      await executarDeletar(
+        academiaParaDeletar.codigo_academia,
+        { motivo: motivoDelecao.trim() },
+        tokenStorage.get() || undefined,
+      );
+      alert('Academia deletada!');
+      closeDeletarModal();
+      setAcademiaParaDeletar(null);
+      setMotivoDelecao('');
+      setSelecionadas(new Set());
+      carregarLista();
+    } catch {
+      alert('Erro ao deletar academia.');
     }
   };
 
@@ -1337,11 +1413,14 @@ export default function Academias() {
                 academias={academiasList}
                 ordem={ordem}
                 isAdmin={canAlterarSituacaoAcademia}
+                canDeletar={canDeletarAcademia}
                 carregandoAtivar={carregandoAtivar}
                 carregandoDesativar={carregandoDesativar}
+                carregandoDeletar={carregandoDeletar}
                 onVerDetalhes={handleVerDetalhes}
                 onAtivar={handleAtivar}
                 onAbrirDesativar={handleAbrirDesativar}
+                onAbrirDeletar={handleAbrirDeletar}
                 selecionadas={selecionadas}
                 onToggleSelecao={handleToggleSelecao}
                 onToggleTodas={handleToggleTodas}
@@ -1372,11 +1451,14 @@ export default function Academias() {
                   <TabelaAcademias
                     academias={academiasPaginadas}
                     isAdmin={canAlterarSituacaoAcademia}
+                    canDeletar={canDeletarAcademia}
                     carregandoAtivar={carregandoAtivar}
                     carregandoDesativar={carregandoDesativar}
+                    carregandoDeletar={carregandoDeletar}
                     onVerDetalhes={handleVerDetalhes}
                     onAtivar={handleAtivar}
                     onAbrirDesativar={handleAbrirDesativar}
+                    onAbrirDeletar={handleAbrirDeletar}
                     selecionadas={selecionadas}
                     onToggleSelecao={handleToggleSelecao}
                     onToggleTodas={handleToggleTodas}
@@ -1395,6 +1477,51 @@ export default function Academias() {
             )}
           </div>
         )}
+
+        {/* Modal Desativar individual */}
+        <Modal isOpen={isDeletarOpen} onClose={closeDeletarModal} className="max-w-[520px] p-5 lg:p-10">
+          <form onSubmit={handleDeletar}>
+            <h4 className="mb-6 text-lg font-medium text-gray-800 dark:text-white/90">Deletar academia</h4>
+            {academiaParaDeletar && (
+              <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  <span className="font-semibold">Academia:</span> {academiaParaDeletar.nome}
+                </p>
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  <span className="font-semibold">Código:</span> {academiaParaDeletar.codigo_academia}
+                </p>
+                <p className="mt-2 text-xs text-red-700 dark:text-red-400">
+                  Esta ação marca a academia como deletada e remove seus documentos formais do armazenamento.
+                </p>
+              </div>
+            )}
+            <div>
+              <Label>Motivo da deleção *</Label>
+              <textarea
+                className="w-full px-4 py-3 text-sm text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-lg dark:bg-white/[0.03] dark:border-white/[0.05] dark:text-white dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none resize-none"
+                placeholder="Descreva o motivo auditável..."
+                rows={4}
+                value={motivoDelecao}
+                onChange={(e) => setMotivoDelecao(e.target.value)}
+                disabled={carregandoDeletar}
+                required
+              />
+            </div>
+            {erroDeletarAcademia && (
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-700 dark:text-red-400">{erroDeletarAcademia}</p>
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <Button size="sm" variant="outline" onClick={closeDeletarModal} disabled={carregandoDeletar}>
+                Cancelar
+              </Button>
+              <Button size="sm" variant="danger" disabled={carregandoDeletar}>
+                {carregandoDeletar ? 'Deletando...' : 'Deletar Academia'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
 
         {/* Modal Desativar individual */}
         <Modal isOpen={isDesativarOpen} onClose={closeDesativarModal} className="max-w-[520px] p-5 lg:p-10">
