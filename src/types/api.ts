@@ -1470,32 +1470,32 @@ export interface CobrancaResumo {
   codigo_solicitacao?: string;
   mensalidades?: { ano_letivo: string; mes: number }[];
   /**
-   * Ausente para um item sintético (`pendencia_sem_cobranca: true`) — não
-   * existe nenhuma atividade real para reportar nesse caso. Sempre
-   * presente para um item real.
+   * Ausente para um item sintético (`status === "pendente"`, ver
+   * PagamentoResumo) — não existe nenhuma atividade real para reportar
+   * nesse caso. Sempre presente para um item real.
    */
   atualizado_em?: string;
 }
 
 /**
- * PagamentoResumo é CobrancaResumo mais um único campo adicional,
- * `pendencia_sem_cobranca` — ver ListarCobrancasResponse.pagamentos para o
- * porquê da unificação com as antigas `pendencias_sem_cobranca`. Quando
- * `pendencia_sem_cobranca` é `true`, o item foi sintetizado a partir de uma
- * pendência de mensalidade sem NENHUMA cobrança criada (nem tentada) — não
- * existe uma cobrança real por trás dele, e por isso vários campos de
- * CobrancaResumo (provider_charge_id, merchant_transaction_id,
- * metodo_pagamento, atualizado_em) ficam ausentes. Quando é `false`, é uma
- * cobrança real, com todos os campos preenchidos como sempre foi.
+ * PagamentoResumo é a unidade de ListarCobrancasResponse.pagamentos — ver
+ * esse tipo para o porquê da unificação com as antigas
+ * `pendencias_sem_cobranca`. Hoje é idêntico a CobrancaResumo.
  *
- * `status === "pendente"` pode vir de QUALQUER um dos dois casos — é
- * `pendencia_sem_cobranca` que desambigua: uma cobrança real cujo status
- * ainda não foi resolvido pelo provedor (`pendencia_sem_cobranca: false`),
- * ou uma pendência sintética (`pendencia_sem_cobranca: true`).
+ * Existem dois casos possíveis por trás de cada item, e `status` sozinho
+ * já diz qual é, sem precisar de nenhum campo booleano adicional:
+ * - `status === "pendente"`: pendência sintética — o item foi sintetizado
+ *   a partir de uma pendência de mensalidade sem NENHUMA cobrança criada
+ *   (nem tentada); não existe uma cobrança real por trás dele, e por isso
+ *   vários campos de CobrancaResumo (provider_charge_id,
+ *   merchant_transaction_id, metodo_pagamento, atualizado_em) ficam
+ *   ausentes.
+ * - Qualquer outro `status` (incluindo `"aguardando_pagamento"`, o estado
+ *   de uma cobrança real já gerada/tentada junto à AppyPay mas ainda sem
+ *   resolução): cobrança real, com todos os campos preenchidos como
+ *   sempre foi. Uma cobrança real NUNCA tem `status === "pendente"`.
  */
-export interface PagamentoResumo extends CobrancaResumo {
-  pendencia_sem_cobranca: boolean;
-}
+export type PagamentoResumo = CobrancaResumo;
 
 export interface ListarCobrancasParams {
   contexto_tipo?: FinanceiroContextoTipo;
@@ -1520,8 +1520,8 @@ export interface ListarCobrancasResponse {
   /**
    * Lista única de pagamentos — cobranças reais e pendências de
    * mensalidade sem nenhuma cobrança vinculada, juntas, paginadas como uma
-   * lista só (ver PagamentoResumo.pendencia_sem_cobranca para distinguir
-   * as duas). Itens sintéticos vêm sempre primeiro (representam ação
+   * lista só (ver PagamentoResumo: `status === "pendente"` distingue as
+   * duas). Itens sintéticos vêm sempre primeiro (representam ação
    * pendente); cobranças reais depois, por atividade mais recente.
    * Substituiu os antigos campos separados `cobrancas` +
    * `pendencias_sem_cobranca` — ver GET /financeiro/cobrancas.

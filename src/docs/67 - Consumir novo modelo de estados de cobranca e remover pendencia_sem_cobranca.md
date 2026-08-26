@@ -1,7 +1,8 @@
 ---
 criado: 2026-08-26
 origem: conversa com Fredy (Claude como orquestrador, Codex como executor) — companion da tarefa 66 do backend (spuri-backend)
-status: pendente
+status: concluido
+concluido: 2026-08-26
 tipo: correcao_de_bug_e_ajuste_de_contrato
 depende_de: docs/Lista de Tarefas/66 (repositório spuri-backend) — aplicar DEPOIS ou JUNTO desta, nunca esta sozinha em produção por muito tempo
 ---
