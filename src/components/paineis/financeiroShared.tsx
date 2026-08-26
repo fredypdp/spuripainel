@@ -43,6 +43,30 @@ export const origemLabel: Record<FinanceiroOrigemCobranca, string> = {
 };
 
 /**
+ * Opções do filtro de estado usado tanto em FinanceiroPagamentosPainel
+ * quanto em EstudantePagamentosPainel — antes desta constante existir, os
+ * dois arquivos mantinham cada um a sua própria cópia idêntica, com risco
+ * de desalinhar.
+ *
+ * O valor "aguardando_pagamento" substitui o antigo "Pending" (rotulado
+ * "Pendente") — ver PagamentoResumo em types/api.ts para o porquê: o back
+ * end agora usa esse nome para qualquer cobrança real já gerada/tentada
+ * junto à AppyPay mas ainda sem resolução, reservando "pendente" (que não
+ * aparece aqui como opção de filtro de COBRANÇA — só existe como o status
+ * de uma pendência sintética, sem nenhuma cobrança gerada) para esse outro
+ * significado. "Expirado" foi adicionado nesta mesma tarefa: cobre
+ * referências REF que a AppyPay expira sem pagamento, estado que antes não
+ * tinha nenhuma opção de filtro correspondente.
+ */
+export const ESTADO_PAGAMENTO_OPCOES = [
+  { value: "Success", label: "Pago" },
+  { value: "aguardando_pagamento", label: "Aguardando pagamento" },
+  { value: "Failed", label: "Falhado" },
+  { value: "Cancelled", label: "Cancelado" },
+  { value: "Expired", label: "Expirado" },
+];
+
+/**
  * Texto de exibição de cada método de pagamento AppyPay — usado em toda
  * parte de /financas/* e /pagamentos onde um método aparece para o
  * usuário (nunca mostrar "GPO"/"REF"/"GPO_QR" cru).
@@ -142,11 +166,11 @@ export function StatusBadge({ status }: { status: string }) {
   const x = status.toLowerCase();
   const cls = x.includes("success") || x.includes("pago")
     ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-    : x.includes("pend")
+    : x.includes("pend") || x.includes("aguardando")
     ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
     : x.includes("fail") || x.includes("falh")
     ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-    : x.includes("cancel")
+    : x.includes("cancel") || x.includes("expir")
     ? "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
     : "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400";
   return <span className={`rounded-full px-2 py-1 text-xs font-medium ${cls}`}>{status}</span>;
@@ -464,11 +488,17 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [cobrancaParaCancelar, setCobrancaParaCancelar] = useState<PagamentoResumo | null>(null);
-  // Uma pendência sem cobrança (pendencia_sem_cobranca=true) nunca é
-  // cancelável — não existe nenhuma cobrança real por trás dela para
-  // cancelar (ver PagamentoResumo).
+  // Uma pendência sintética (status="pendente") nunca é cancelável — não
+  // existe nenhuma cobrança real por trás dela para cancelar (ver
+  // PagamentoResumo em types/api.ts: desde esta tarefa, status="pendente"
+  // é o único sinal necessário para saber isso, sem precisar de nenhum
+  // campo adicional). "expired"/"expirado" foi adicionado à lista de
+  // estados terminais nesta mesma tarefa — faltava antes, o que deixava o
+  // botão "Cancelar" aparecer para uma referência REF já expirada na
+  // AppyPay.
   const cancelavel = (r: PagamentoResumo) =>
-    !r.pendencia_sem_cobranca && !["success", "pago", "cancelado", "cancelled", "failed", "falhado"].includes(r.status.toLowerCase());
+    r.status.toLowerCase() !== "pendente" &&
+    !["success", "pago", "cancelado", "cancelled", "failed", "falhado", "expired", "expirado"].includes(r.status.toLowerCase());
 
   return (
     <div className="space-y-2">
@@ -493,7 +523,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
                 <TableCell className="px-3 py-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <StatusBadge status={r.status} />
-                    {r.pendencia_sem_cobranca && (
+                    {r.status.toLowerCase() === "pendente" && (
                       <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         Sem cobrança gerada
                       </span>
@@ -560,10 +590,11 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
  * - Não tem ação de cancelar: cancelar é uma ação sobre a cobrança na
  *   listagem (CobrancasTable, botão "Cancelar" na própria linha), não faz
  *   parte de "ler os detalhes" dela.
- * - Quando pendencia_sem_cobranca=true, vários campos que só existem para
- *   uma cobrança real (referência AppyPay, transação, atualizado em) ficam
- *   "—": não existe nenhuma cobrança de verdade por trás desse item, e um
- *   aviso explica isso no lugar da ação de cancelar.
+ * - Quando status="pendente" (pendência sintética, ver PagamentoResumo em
+ *   types/api.ts), vários campos que só existem para uma cobrança real
+ *   (referência AppyPay, transação, atualizado em) ficam "—": não existe
+ *   nenhuma cobrança de verdade por trás desse item, e um aviso explica
+ *   isso no lugar da ação de cancelar.
  */
 export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudante = false }: {
   cobranca: PagamentoResumo;
@@ -591,7 +622,7 @@ export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudan
   return (
     <SubtelaPanel title="Detalhe da cobrança" icon="mdi:receipt-text-outline" onVoltar={onVoltar}>
       <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-        {cobranca.pendencia_sem_cobranca && (
+        {cobranca.status.toLowerCase() === "pendente" && (
           <p className="rounded-lg bg-amber-50 p-3 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
             Este mês ainda não foi pago e não tem nenhuma cobrança gerada — nenhuma tentativa de pagamento foi feita ainda.
           </p>

@@ -12,6 +12,7 @@ import Checkbox from "@/components/form/input/Checkbox";
 import {
   CobrancasTable,
   EmptyState,
+  ESTADO_PAGAMENTO_OPCOES,
   LoadingState,
   MetodoPagamentoSelector,
   PaginacaoSetas,
@@ -35,13 +36,7 @@ const TIPO_OPCOES: { value: "" | FinanceiroOrigemCobranca; label: string }[] = [
   { value: "avulsa", label: "Outros" },
 ];
 
-const ESTADO_HISTORICO_OPCOES = [
-  { value: "", label: "Todos os estados" },
-  { value: "Success", label: "Pago" },
-  { value: "Pending", label: "Pendente" },
-  { value: "Failed", label: "Falhado" },
-  { value: "Cancelled", label: "Cancelado" },
-];
+const ESTADO_HISTORICO_OPCOES = [{ value: "", label: "Todos os estados" }, ...ESTADO_PAGAMENTO_OPCOES];
 
 type ResultadoPagamento = { cobranca: QRCodeChargeResult; metodoUsado: FinanceiroMetodoPagamento };
 

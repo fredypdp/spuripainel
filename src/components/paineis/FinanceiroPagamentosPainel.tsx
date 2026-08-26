@@ -11,6 +11,7 @@ import SearchableSelect from "@/components/form/SearchableSelect";
 import {
   CobrancasTable,
   EmptyState,
+  ESTADO_PAGAMENTO_OPCOES,
   LoadingState,
   NOME_MES,
   PaginacaoSetas,
@@ -24,13 +25,7 @@ import type { FinanceiroOrigemCobranca, PagamentoResumo } from "@/types/api";
 
 const PAGE_SIZE = 30;
 
-const ESTADO_OPCOES = [
-  { value: "", label: "Todos os estados" },
-  { value: "Success", label: "Pago" },
-  { value: "Pending", label: "Pendente" },
-  { value: "Failed", label: "Falhado" },
-  { value: "Cancelled", label: "Cancelado" },
-];
+const ESTADO_OPCOES = [{ value: "", label: "Todos os estados" }, ...ESTADO_PAGAMENTO_OPCOES];
 
 type MesDoAnoLetivo = { mes: number; ano: number; label: string };
 
@@ -68,18 +63,20 @@ type Tela = "menu" | "mensalidade-ano" | "mensalidade-mes" | "lista";
  * direto para a listagem, sem esse passo extra (uma cobrança de matrícula
  * ou avulsa não tem o conceito de "mês do ano letivo").
  *
- * A listagem final sempre mostra TODOS os estados (Pago/Pendente/Falhado/
- * Cancelado) — o filtro de estado que já existia continua disponível para
- * quem quiser restringir mais. Para Mensalidade, a mesma tabela também já
- * traz os meses ainda não pagos sem nenhuma cobrança gerada, marcados com
- * `pendencia_sem_cobranca: true` (ver CobrancasTable e
- * PagamentoResumo.pendencia_sem_cobranca) — antes desta tarefa isso vinha
- * como uma segunda lista separada (`pendencias_sem_cobranca`), com
- * paginação própria; agora é uma lista só, paginada pelo backend como uma
- * única sequência (ver `ListarPagamentosUnificado` no backend). O
- * drill-down por ano letivo/mês continua existindo pelo mesmo motivo de
- * antes: sem um mês específico selecionado, o backend não computa
- * pendências (evita varredura de toda a academia sem limite).
+ * A listagem final sempre mostra TODOS os estados (Pago/Aguardando
+ * pagamento/Falhado/Cancelado/Expirado) — o filtro de estado que já
+ * existia continua disponível para quem quiser restringir mais. Para
+ * Mensalidade, a mesma tabela também já traz os meses ainda não pagos sem
+ * nenhuma cobrança gerada, marcados com `status: "pendente"` (ver
+ * CobrancasTable e PagamentoResumo em types/api.ts — desde esta tarefa,
+ * "pendente" sozinho já diz isso, sem precisar de nenhum campo adicional)
+ * — antes disso vinha como uma segunda lista separada
+ * (`pendencias_sem_cobranca`), com paginação própria; agora é uma lista
+ * só, paginada pelo backend como uma única sequência (ver
+ * `ListarPagamentosUnificado` no backend). O drill-down por ano letivo/mês
+ * continua existindo pelo mesmo motivo de antes: sem um mês específico
+ * selecionado, o backend não computa pendências (evita varredura de toda
+ * a academia sem limite).
  *
  * Admin (FPP): ainda não existe tipo de cobrança específico para o Spuri,
  * então a tela mostra apenas um aviso "indisponível no momento" — igual a
