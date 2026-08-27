@@ -1,7 +1,8 @@
 ---
 criado: 2026-08-27
 origem: conversa com Fredy (Claude como orquestrador, Codex como executor) — companion da tarefa 69 do backend (spuri-backend), mas sem nenhuma dependência técnica real entre as duas (ver seção 0)
-status: pronto_para_execucao
+status: concluido
+concluido: 2026-08-27
 tipo: correcao_de_bug
 depende_de: nenhuma — o backend já suporta estado=pendente desde a tarefa 66 (spuri-backend)
 ---
