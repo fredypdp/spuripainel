@@ -51,14 +51,24 @@ export const origemLabel: Record<FinanceiroOrigemCobranca, string> = {
  * O valor "aguardando_pagamento" substitui o antigo "Pending" (rotulado
  * "Pendente") — ver PagamentoResumo em types/api.ts para o porquê: o back
  * end agora usa esse nome para qualquer cobrança real já gerada/tentada
- * junto à AppyPay mas ainda sem resolução, reservando "pendente" (que não
- * aparece aqui como opção de filtro de COBRANÇA — só existe como o status
- * de uma pendência sintética, sem nenhuma cobrança gerada) para esse outro
- * significado. "Expirado" foi adicionado nesta mesma tarefa: cobre
- * referências REF que a AppyPay expira sem pagamento, estado que antes não
- * tinha nenhuma opção de filtro correspondente.
+ * junto à AppyPay mas ainda sem resolução. "Expirado" foi adicionado nesta
+ * mesma tarefa: cobre referências REF que a AppyPay expira sem pagamento,
+ * estado que antes não tinha nenhuma opção de filtro correspondente.
+ *
+ * "pendente" (bug relatado por Fredy, tarefa 69): reservado para o outro
+ * significado de "pendência sintética, sem nenhuma cobrança gerada" — foi
+ * deliberadamente deixado de fora daqui na tarefa que criou esta lista,
+ * com o raciocínio de que não era um "estado de cobrança" de verdade. Mas
+ * /financas/pagamentos e /pagamentos consultam a lista UNIFICADA (cobranças
+ * reais + pendências sintéticas — ver 19.7/19.8 na documentação da API), e
+ * sem esta opção não havia nenhuma forma de filtrar só as pendências: o
+ * dropdown pulava direto de "Pago" para "Aguardando pagamento", escondendo
+ * os meses que ainda nem foram cobrados. O backend já suportava
+ * `estado=pendente` desde antes (ver DeveIncluirPendenciasSemCobranca em
+ * pagamentos_unificado.go) — faltava só a opção aqui.
  */
 export const ESTADO_PAGAMENTO_OPCOES = [
+  { value: "pendente", label: "Pendente (sem cobrança gerada)" },
   { value: "Success", label: "Pago" },
   { value: "aguardando_pagamento", label: "Aguardando pagamento" },
   { value: "Failed", label: "Falhado" },
