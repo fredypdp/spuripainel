@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, adminService, documentosService, tokenStorage } from '@/lib/api';
+import { formatApiError } from '@/lib/api/client';
 import { useUserCookie } from "@/hooks/useUserCookie";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
@@ -1131,6 +1132,7 @@ export default function Academias() {
   const [academiaParaDeletar,   setAcademiaParaDeletar]   = useState<AcademiaDetalhada | null>(null);
   const [motivoDesativacao,     setMotivoDesativacao]     = useState('');
   const [motivoDelecao,         setMotivoDelecao]         = useState('');
+  const [erroDelecaoModal,      setErroDelecaoModal]      = useState('');
 
   const isAdmin = !loadingUser && user?.tipo === 'admin';
   const canCadastrarAcademia = isAdmin;
@@ -1175,7 +1177,7 @@ export default function Academias() {
 
   const handleVerDetalhes    = (a: AcademiaDetalhada) => setAcademiaSelecionada(a);
   const handleAbrirDesativar = (a: AcademiaDetalhada) => { setAcademiaParaDesativar(a); setMotivoDesativacao(''); openDesativarModal(); };
-  const handleAbrirDeletar = (a: AcademiaDetalhada) => { setAcademiaParaDeletar(a); setMotivoDelecao(''); openDeletarModal(); };
+  const handleAbrirDeletar = (a: AcademiaDetalhada) => { setAcademiaParaDeletar(a); setMotivoDelecao(''); setErroDelecaoModal(''); openDeletarModal(); };
 
   const handleAtivar = async (academia: AcademiaDetalhada) => {
     if (!confirm(`Tem certeza que deseja ativar "${academia.nome}"?`)) return;
@@ -1210,20 +1212,20 @@ export default function Academias() {
   const handleDeletar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!motivoDelecao.trim() || !academiaParaDeletar) return;
+    setErroDelecaoModal('');
     try {
       await executarDeletar(
         academiaParaDeletar.codigo_academia,
         { motivo: motivoDelecao.trim() },
         tokenStorage.get() || undefined,
       );
-      alert('Academia deletada!');
       closeDeletarModal();
       setAcademiaParaDeletar(null);
       setMotivoDelecao('');
       setSelecionadas(new Set());
       carregarLista();
-    } catch {
-      alert('Erro ao deletar academia.');
+    } catch (err) {
+      setErroDelecaoModal(formatApiError(err, 'Erro ao deletar academia.'));
     }
   };
 
@@ -1507,9 +1509,9 @@ export default function Academias() {
                 required
               />
             </div>
-            {erroDeletarAcademia && (
+            {(erroDelecaoModal || erroDeletarAcademia) && (
               <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-700 dark:text-red-400">{erroDeletarAcademia}</p>
+                <p className="text-sm text-red-700 dark:text-red-400">{erroDelecaoModal || erroDeletarAcademia}</p>
               </div>
             )}
             <div className="flex items-center justify-end gap-3 mt-6">

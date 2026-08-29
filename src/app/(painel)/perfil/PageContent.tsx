@@ -4,10 +4,16 @@ import Details from "@/components/user-profile/Details";
 import UserInfoCard from "@/components/user-profile/UserInfoCard";
 import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import Alert from "@/components/ui/alert/Alert";
-import { perfilService, useApi } from "@/lib/api";
+import { estudanteService, perfilService, tokenStorage, useApi } from "@/lib/api";
+import { formatApiError } from "@/lib/api/client";
+import { Modal } from "@/components/ui/modal";
+import Button from "@/components/ui/button/Button";
+import Label from "@/components/form/Label";
+import { useModal } from "@/hooks/useModal";
+import Link from "next/link";
 import { setCookie } from "@/lib/utils/cookies";
 import type { MeuPerfilResponse } from "@/types/api";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 function ProfileSkeleton() {
   return (
@@ -67,8 +73,32 @@ export default function PerfilPageContent() {
           <UserMetaCard user={profile} />
           <UserInfoCard user={profile} />
           <Details user={profile} />
+          <DangerZoneEstudante profile={profile} />
         </div>
       ) : null}
     </div>
   );
+}
+
+
+function DangerZoneEstudante({ profile }: { profile: MeuPerfilResponse }) {
+  const modal = useModal();
+  const { loading, execute } = useApi(estudanteService.deletarContaEstudante);
+  const [motivo, setMotivo] = useState("");
+  const [erro, setErro] = useState("");
+  if (profile.tipo !== "estudante" || !profile.estudante) return null;
+  const vinculado = Boolean(profile.estudante.academia_info || profile.estudante.academia || profile.estudante.codigo_academia);
+  async function deletarConta(event: React.FormEvent) {
+    event.preventDefault();
+    if (!motivo.trim()) return;
+    setErro("");
+    try {
+      await execute({ motivo: motivo.trim() }, tokenStorage.get() || undefined);
+      tokenStorage.remove();
+      window.location.href = "/signin?conta_deletada=1";
+    } catch (err) {
+      setErro(formatApiError(err, "Não foi possível deletar sua conta."));
+    }
+  }
+  return <div className="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-900/60 dark:bg-red-900/10 lg:p-6"><h4 className="text-lg font-semibold text-red-800 dark:text-red-200">Zona de Perigo</h4><p className="mt-2 text-sm text-red-700 dark:text-red-300">A deleção desativa sua conta. O histórico acadêmico de notas e faltas permanece preservado para consultas futuras, mas você não conseguirá mais entrar no painel.</p>{vinculado && <p className="mt-3 text-sm text-red-700 dark:text-red-300">Você precisa se desvincular da academia antes de deletar sua conta. Use o fluxo de <Link className="font-medium underline" href="/solicitacoes">solicitação de desvinculação</Link>.</p>}<div className="mt-4"><Button size="sm" variant="danger" disabled={vinculado} onClick={() => { setErro(""); setMotivo(""); modal.openModal(); }}>Deletar minha conta</Button></div><Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-[540px] p-6 lg:p-10"><form onSubmit={deletarConta} className="space-y-4"><h4 className="text-lg font-medium text-gray-800 dark:text-white/90">Confirmar deleção da conta</h4><p className="text-sm text-gray-600 dark:text-gray-300">Sua conta será desativada e você será redirecionado para o login. Registros acadêmicos já lançados continuarão guardados.</p><Label>Motivo *</Label><textarea className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-white/[0.05] dark:bg-white/[0.03]" rows={4} value={motivo} onChange={(e)=>setMotivo(e.target.value)} required disabled={loading} />{erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erro}</p>}<div className="flex justify-end gap-3"><Button size="sm" variant="outline" onClick={modal.closeModal} disabled={loading}>Cancelar</Button><Button size="sm" variant="danger" disabled={loading}>{loading ? "Deletando..." : "Deletar conta"}</Button></div></form></Modal></div>;
 }

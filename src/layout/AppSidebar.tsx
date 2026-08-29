@@ -95,6 +95,16 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    icon: <Icon width="24px" icon="mdi:account-tie-outline" />,
+    name: "Administradores",
+    path: "/administradores",
+  },
+  {
+    icon: <Icon width="24px" icon="mdi:clipboard-search-outline" />,
+    name: "Auditoria",
+    path: "/auditoria",
+  },
+  {
     icon: <Icon width="24px" icon="mdi:cloud-outline" />,
     name: "Armazenamento",
     path: "/armazenamento",
@@ -245,6 +255,14 @@ export default function AppSidebar() {
           // Configurações: admin FPP, academia ou estudante (segurança)
           if (item.name === "Configurações") {
             return user.tipo === "admin" || user.tipo === "academia" || user.tipo === "estudante";
+          }
+          // Administradores: apenas admin
+          if (item.path === "/administradores") {
+            return user.tipo === "admin";
+          }
+          // Auditoria: admin FPP ou ADM
+          if (item.path === "/auditoria") {
+            return user.tipo === "admin" && ["fpp", "adm"].includes(user?.admin?.role ?? "");
           }
           // Armazenamento: apenas admin
           if (item.path === "/armazenamento") {
