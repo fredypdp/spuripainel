@@ -459,6 +459,7 @@ export interface CriarAdminRequest {
   nome: string;
   email: string;
   role: AdminType;
+  senha?: string;
 }
 
 export interface DesativarRequest {
@@ -2007,6 +2008,38 @@ export interface DeletarCursoResponse {
   materias_deletadas: string[];
   turmas_deletadas: string[];
   auditavel: true;
+}
+
+export type AuditoriaDelecaoTipo = 'academia' | 'admin' | 'estudante';
+
+export interface AuditoriaDelecaoItem {
+  id: string;
+  tipo: AuditoriaDelecaoTipo;
+  entidade_id?: string;
+  identificador?: string;
+  nome?: string;
+  email?: string;
+  motivo: string;
+  deletado_por?: string;
+  deletado_por_nome?: string;
+  deleted_by?: string;
+  deleted_by_nome?: string;
+  created_at?: string;
+  deleted_at?: string;
+}
+
+export interface ListarAuditoriaDelecoesParams {
+  tipo?: AuditoriaDelecaoTipo | '';
+  limit?: number;
+  offset?: number;
+  token?: string;
+}
+
+export interface ListarAuditoriaDelecoesResponse {
+  delecoes: AuditoriaDelecaoItem[];
+  total: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface ListarAdminsResponse {

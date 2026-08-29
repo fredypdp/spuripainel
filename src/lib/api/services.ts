@@ -57,6 +57,8 @@ import type {
   AtualizarDadosAdminRequest,
   AtualizarRoleAdminRequest,
   ListarAdminsResponse,
+  ListarAuditoriaDelecoesParams,
+  ListarAuditoriaDelecoesResponse,
   DefinirAnoLetivoAcademiaRequest,
   DefinirAnoLetivoGlobalRequest,
   AnoLetivoAcademiaResponse,
@@ -1026,6 +1028,11 @@ export const estudanteService = {
 
   solicitarDesvinculacao: (data: CriarSolicitacaoStatusAcademicoRequest, token?: string) =>
     api.post<CriarSolicitacaoStatusAcademicoResponse>('/estudante/solicitacoes-status/desvinculacao', data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  deletarContaEstudante: (data: DesativarRequest, token?: string) =>
+    api.delete<{ message: string }, DesativarRequest>('/estudante/conta', data, {
       token: token || tokenStorage.get() || undefined,
     }),
 
@@ -2043,6 +2050,17 @@ export const adminService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  listarAuditoriaDelecoes: (params?: ListarAuditoriaDelecoesParams) => {
+    const search = new URLSearchParams();
+    if (params?.tipo) search.set('tipo', params.tipo);
+    if (typeof params?.limit === 'number') search.set('limit', String(params.limit));
+    if (typeof params?.offset === 'number') search.set('offset', String(params.offset));
+    const qs = search.toString() ? `?${search.toString()}` : '';
+    return api.get<ListarAuditoriaDelecoesResponse>(`/dominis/auditoria/delecoes${qs}`, {
+      token: params?.token || tokenStorage.get() || undefined,
+    });
+  },
+
   ativarAdmin: (adminId: string, token?: string) =>
     api.put<{ message: string; email: string }>(
       `/dominis/admin/${adminId}/ativar`,
@@ -2053,6 +2071,13 @@ export const adminService = {
   desativarAdmin: (adminId: string, data: DesativarRequest, token?: string) =>
     api.put<{ message: string; email: string }>(
       `/dominis/admin/${adminId}/desativar`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  deletarAdmin: (adminId: string, data: DesativarRequest, token?: string) =>
+    api.delete<{ message: string; email?: string }, DesativarRequest>(
+      `/dominis/admin/${adminId}`,
       data,
       { token: token || tokenStorage.get() || undefined }
     ),

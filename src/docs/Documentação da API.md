@@ -1637,7 +1637,112 @@ Remove logicamente uma academia pelo padrão de event sourcing. A operação gra
 - `400` — motivo ausente/vazio
 - `403` — administrador executor não encontrado ou sem role `fpp`
 - `404` — academia não encontrada ou já deletada
+- `409` — academia ainda possui estudante(s) vinculado(s); desvincule-os antes da deleção auditável
 - `500` — falha ao persistir o evento auditável ou ao deletar os documentos da academia no storage
+
+---
+
+
+### DELETE /dominis/admin/:id
+
+Remove logicamente um administrador. A operação grava a deleção auditável com motivo obrigatório e mantém o histórico de ações para consulta posterior.
+
+**Proteção**: autenticado + admin com hierarquia superior ao administrador alvo
+
+**Path Params:**
+
+- `id` — identificador do administrador
+
+**Request:**
+
+```json
+{
+  "motivo": "string"
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "message": "administrador deletado com sucesso"
+}
+```
+
+**Erros:**
+
+- `400` — motivo ausente/vazio ou tentativa de autodeleção
+- `403` — executor sem permissão hierárquica
+- `404` — administrador não encontrado ou já deletado
+- `409` — deleção bloqueada por regra de integridade do domínio
+
+---
+
+### DELETE /estudante/conta
+
+Permite ao estudante autenticado solicitar a deleção auditável da própria conta. A conta deixa de autenticar, mas o histórico acadêmico permanece preservado.
+
+**Proteção**: autenticado + estudante
+
+**Request:**
+
+```json
+{
+  "motivo": "string"
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "message": "conta deletada com sucesso"
+}
+```
+
+**Erros:**
+
+- `400` — motivo ausente/vazio ou estudante ainda vinculado a uma academia
+- `401` — token ausente/inválido
+- `404` — estudante não encontrado ou já deletado
+
+---
+
+### GET /dominis/auditoria/delecoes
+
+Lista os registros de deleções auditáveis, em ordem decrescente de criação, com filtro opcional por tipo de entidade e paginação por `limit`/`offset`.
+
+**Proteção**: autenticado + admin role `fpp` ou `adm`
+
+**Query Params:**
+
+- `tipo` — opcional; `academia`, `admin` ou `estudante`
+- `limit` — opcional; quantidade de registros
+- `offset` — opcional; deslocamento da paginação
+
+**Response 200:**
+
+```json
+{
+  "delecoes": [
+    {
+      "id": "string",
+      "tipo": "academia",
+      "identificador": "string",
+      "nome": "string",
+      "motivo": "string",
+      "deletado_por": "string",
+      "deleted_at": "2026-08-29T00:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Erros:**
+
+- `400` — filtro `tipo`, `limit` ou `offset` inválido
+- `403` — administrador sem permissão para consultar auditoria
 
 ---
 
