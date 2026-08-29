@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useApi, academiaService, consultasService, tokenStorage } from "@/lib/api";
 import { listarTodosEstudantes } from "@/lib/api/pagination";
 import type {
-  ApiDate, MeuPerfilResponse, Falta,
+  ApiDate, MeuPerfilResponse, Falta, Sumario,
   Turma, Curso, EstudanteDetalhado,
 } from "@/types/api";
 import Icon from "@/components/ui/Icon";
@@ -259,19 +259,29 @@ function TabelaFaltas({
   );
 }
 
-function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm }: { falta: Falta | null; isOpen: boolean; onClose: () => void; onConfirm: (id: string, data: { quantidade: number; observacao?: string; motivo: string }) => Promise<void>; }) {
+function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm, onDesvincular }: { falta: Falta | null; isOpen: boolean; onClose: () => void; onConfirm: (id: string, data: { quantidade: number; observacao?: string; motivo: string; sumario_id?: string }) => Promise<void>; onDesvincular: (falta: Falta) => Promise<void>; }) {
   const [quantidade, setQuantidade] = useState("");
   const [observacao, setObservacao] = useState("");
   const [motivo, setMotivo] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sumarios, setSumarios] = useState<Sumario[]>([]);
+  const [sumarioId, setSumarioId] = useState("");
+  const [loadingSumarios, setLoadingSumarios] = useState(false);
+  const [desvinculando, setDesvinculando] = useState(false);
 
   useEffect(() => {
     if (!falta || !isOpen) return;
     setQuantidade(String(falta.quantidade));
     setObservacao(falta.observacao ?? "");
     setMotivo("");
+    setSumarioId(falta.sumario_id ?? "");
     setError(null);
+    setLoadingSumarios(true);
+    academiaService.listarSumarios(tokenStorage.get() ?? undefined, { materia_id: falta.materia_disciplinar_id, periodo: falta.periodo, ano_academico: falta.ano_academico })
+      .then(response => setSumarios(response.sumarios ?? []))
+      .catch(() => setSumarios([]))
+      .finally(() => setLoadingSumarios(false));
   }, [falta, isOpen]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -283,10 +293,18 @@ function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm }: { falta: Falt
     if (!motivo.trim()) { setError("Informe o motivo da correção."); return; }
     setLoading(true);
     try {
-      await onConfirm(falta.id, { quantidade: qtd, observacao: observacao || undefined, motivo: motivo.trim() });
+      await onConfirm(falta.id, { quantidade: qtd, observacao: observacao || undefined, motivo: motivo.trim(), ...(sumarioId && sumarioId !== falta.sumario_id ? { sumario_id: sumarioId } : {}) });
       onClose();
     } catch (err: any) { setError(err?.message ?? "Não foi possível corrigir a falta."); }
     finally { setLoading(false); }
+  }
+
+  async function handleDesvincular() {
+    if (!falta) return;
+    setDesvinculando(true);
+    try { await onDesvincular(falta); onClose(); }
+    catch (err: any) { setError(err?.message ?? "Não foi possível desvincular o sumário."); }
+    finally { setDesvinculando(false); }
   }
 
   if (!isOpen || !falta) return null;
@@ -297,6 +315,7 @@ function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm }: { falta: Falt
         {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
         <div><Label>Quantidade (1–100) *</Label><Input type="number" min="1" max="100" value={quantidade} onChange={e => setQuantidade(e.target.value)} /></div>
         <div><Label>Observação</Label><Input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" /></div>
+        <div><Label>Sumário de aula</Label><div className="flex gap-2"><select value={sumarioId} onChange={e => setSumarioId(e.target.value)} disabled={loadingSumarios || desvinculando} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{!falta.sumario_id && <option value="">{loadingSumarios ? "Carregando sumários..." : "Nenhum sumário"}</option>}{sumarios.map(sumario => <option key={sumario.id} value={sumario.id}>{sumario.sumario_titulo}</option>)}</select>{falta.sumario_id && <Button type="button" size="sm" variant="outline" onClick={handleDesvincular} disabled={desvinculando}>{desvinculando ? "Desvinculando..." : "Desvincular"}</Button>}</div></div>
         <div><Label>Motivo da correção *</Label><Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique o motivo" /></div>
         <div className="flex gap-3 justify-end"><Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button><Button disabled={loading}>{loading ? "Corrigindo..." : "Corrigir"}</Button></div>
       </form>
@@ -540,9 +559,16 @@ export default function FaltasAcademia() {
 
   // ─── handlers de escrita ────────────────────────────────────────────────────
 
-  async function handleCorrigirFalta(id: string, data: { quantidade: number; observacao?: string; motivo: string }) {
+  async function handleCorrigirFalta(id: string, data: { quantidade: number; observacao?: string; motivo: string; sumario_id?: string }) {
     await academiaService.corrigirFalta(id, data, token);
     showAlert("success", "Falta corrigida com sucesso.");
+    const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
+    if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true, { periodo: (layer as any).periodo });
+  }
+
+  async function handleDesvincularSumario(falta: Falta) {
+    await academiaService.desvincularSumarioFalta(falta.id, token);
+    showAlert("success", "Sumário desvinculado com sucesso.");
     const turmaAtual = layer.type === "faltas" ? (layer as any).turma : null;
     if (turmaAtual) await carregarFaltasDosEstudantesDaTurma(turmaAtual, true, { periodo: (layer as any).periodo });
   }
@@ -677,8 +703,8 @@ export default function FaltasAcademia() {
         </div>
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
           <table className="w-full text-sm min-w-[700px]">
-            <thead className="bg-gray-50 dark:bg-gray-800/70"><tr><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th><th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Lectivo</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th><th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Ações</th></tr></thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">{detalheFaltas.faltas.map(f => <tr key={f.id} className="bg-white dark:bg-gray-800"><td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatarData(f.data)}</td><td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}><span title={tituloCorrecaoFalta(f)}>{f.quantidade}<FaltaCorrigidaBadge falta={f} /></span></td><td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{f.ano_lectivo?.replace("_", "/")}</td><td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => { setFaltaSelecionada(f); openCorrigirModal(); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"><Icon icon="mdi:pencil" width={14} /> Corrigir</button></td></tr>)}</tbody>
+            <thead className="bg-gray-50 dark:bg-gray-800/70"><tr><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Data</th><th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Lectivo</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th><th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Sumário</th><th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Ações</th></tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">{detalheFaltas.faltas.map(f => <tr key={f.id} className="bg-white dark:bg-gray-800"><td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatarData(f.data)}</td><td className={`px-4 py-3 text-center text-base font-bold ${corQuantidade(f.quantidade)}`}><span title={tituloCorrecaoFalta(f)}>{f.quantidade}<FaltaCorrigidaBadge falta={f} /></span></td><td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{f.ano_lectivo?.replace("_", "/")}</td><td className="px-4 py-3 text-gray-500 dark:text-gray-400">{f.observacao || "—"}</td><td className="max-w-40 truncate px-4 py-3 text-gray-500 dark:text-gray-400" title={f.sumario_titulo}>{f.sumario_titulo || "—"}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => { setFaltaSelecionada(f); openCorrigirModal(); }} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"><Icon icon="mdi:pencil" width={14} /> Corrigir</button></td></tr>)}</tbody>
           </table>
         </div>
       </div>
@@ -1134,6 +1160,7 @@ export default function FaltasAcademia() {
         isOpen={isCorrigirOpen}
         onClose={closeCorrigirModal}
         onConfirm={handleCorrigirFalta}
+        onDesvincular={handleDesvincularSumario}
       />
     </div>
   );
