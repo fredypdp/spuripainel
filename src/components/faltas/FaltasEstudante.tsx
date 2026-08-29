@@ -607,6 +607,7 @@ export default function FaltasEstudante() {
                   <th className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">Quantidade</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Ano Lectivo</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Observação</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Sumário</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -626,6 +627,9 @@ export default function FaltasEstudante() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                       {f.observacao || "—"}
+                    </td>
+                    <td className="max-w-40 truncate px-4 py-3 text-gray-500 dark:text-gray-400" title={f.sumario_titulo}>
+                      {f.sumario_titulo || "—"}
                     </td>
                   </tr>
                 ))}

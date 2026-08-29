@@ -442,12 +442,15 @@ export interface RegistrarFaltasRequest {
   periodo: Periodo;
   quantidade: number;
   observacao?: string;
+  sumario_id?: string;
 }
 
 export interface CorrigirFaltaRequest {
   quantidade: number;
   observacao?: string;
   motivo: string;
+  /** Omitido preserva o vínculo atual; para remover, use a rota de desvinculação. */
+  sumario_id?: string;
 }
 
 export interface CorrigirFaltaResponse {
@@ -1120,6 +1123,8 @@ export interface Falta {
   registered_at: string;
   event_id: string;
   version: number;
+  sumario_id?: string;
+  sumario_titulo?: string;
 }
 
 export interface AprovacaoAno {
@@ -1225,6 +1230,37 @@ export interface Materia {
   created_at: string;
   updated_at: string;
   version: number;
+}
+
+export interface Sumario {
+  id: string;
+  codigo_academia: string;
+  sumario_titulo: string;
+  descricao?: string;
+  periodo: Periodo;
+  ano_academico: AnoFundamental | AnoMedio | AnoSuperior;
+  nivel: MateriaType;
+  type: 'escolar' | 'superior';
+  curso_id?: string;
+  materia_id: string;
+  criado_por?: string;
+  status: 'ativo' | 'deletado';
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface CriarSumarioRequest {
+  sumario_titulo: string;
+  descricao?: string;
+  materia_id: string;
+  periodo: Periodo;
+  ano_academico: AnoFundamental | AnoMedio | AnoSuperior;
+}
+
+export interface AtualizarSumarioRequest {
+  sumario_titulo?: string;
+  descricao?: string;
 }
 
 export interface Turma {

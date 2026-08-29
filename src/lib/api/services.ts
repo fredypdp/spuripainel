@@ -40,6 +40,9 @@ import type {
   AtualizarCursoRequest,
   CriarMateriaRequest,
   AtualizarMateriaRequest,
+  CriarSumarioRequest,
+  AtualizarSumarioRequest,
+  Sumario,
   ListarCursosResponse,
   ListarMateriasResponse,
   AtualizarDadosPessoaisEstudanteRequest,
@@ -1624,6 +1627,39 @@ export const academiaService = {
     api.delete<{ message: string; nome: string }>(
       `/academia/materia/${materiaId}`,
       { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // ── Sumários de aula ───────────────────────────────────────────────
+
+  criarSumario: (data: CriarSumarioRequest, token?: string) =>
+    api.post<{ message: string; id: string }>(
+      '/academia/sumario', data, { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarSumarios: (token?: string, filtros?: { materia_id?: string; periodo?: string; ano_academico?: string; codigo_academia?: string }) => {
+    const params = new URLSearchParams();
+    if (filtros?.materia_id) params.set('materia_id', filtros.materia_id);
+    if (filtros?.periodo) params.set('periodo', filtros.periodo);
+    if (filtros?.ano_academico) params.set('ano_academico', filtros.ano_academico);
+    if (filtros?.codigo_academia) params.set('codigo_academia', filtros.codigo_academia);
+    const qs = params.toString();
+    return api.get<{ sumarios: Sumario[] }>(`/academia/sumarios${qs ? `?${qs}` : ''}`, {
+      token: token || tokenStorage.get() || undefined,
+    });
+  },
+
+  getSumario: (id: string, token?: string) =>
+    api.get<Sumario>(`/academia/sumario/${id}`, { token: token || tokenStorage.get() || undefined }),
+
+  atualizarSumario: (id: string, data: AtualizarSumarioRequest, token?: string) =>
+    api.put<{ message: string }>(`/academia/sumario/${id}/dados`, data, { token: token || tokenStorage.get() || undefined }),
+
+  deletarSumario: (id: string, token?: string) =>
+    api.delete<{ message: string }>(`/academia/sumario/${id}`, { token: token || tokenStorage.get() || undefined }),
+
+  desvincularSumarioFalta: (faltaId: string, token?: string) =>
+    api.put<{ message: string; id: string }>(
+      `/academia/faltas-aluno/${faltaId}/desvincular-sumario`, {}, { token: token || tokenStorage.get() || undefined }
     ),
 
   // ── Turmas ────────────────────────────────────────────────────────
