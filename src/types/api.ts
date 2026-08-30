@@ -1378,6 +1378,7 @@ export type RotacionarSegredoWebhookResponse = ConsultarSegredoWebhookResponse;
 export type FinanceiroNivel = 'fundamental' | 'medio' | 'superior';
 export type FinanceiroMetodoPagamento = 'GPO' | 'REF' | 'GPO_QR';
 export type FinanceiroEstadoMensalidade = 'pendente' | 'pago' | 'anulado';
+export type FinanceiroModoVigencia = 'cobrancas_pendentes' | 'a_partir_da_atualizacao';
 
 export interface MensalidadeConfiguracaoInput {
   codigo_academia: string;
@@ -1394,6 +1395,7 @@ export interface MensalidadeConfiguracaoInput {
   valor: number;
   mes_fim_cobranca: 6 | 7;
   metodos_pagamento: FinanceiroMetodoPagamento[];
+  modo_vigencia: FinanceiroModoVigencia;
 }
 
 export interface MensalidadeConfiguracaoView extends MensalidadeConfiguracaoInput {
@@ -1586,10 +1588,19 @@ export interface MatriculaConfiguracaoInput {
   curso_id?: string;
   valor: number;
   metodos_pagamento: FinanceiroMetodoPagamento[];
+  modo_vigencia: FinanceiroModoVigencia;
+}
+
+export interface MatriculaRepricingResumo {
+  atualizadas: number;
+  ignoradas: number;
+  falhas: number;
 }
 
 export interface MatriculaConfiguracaoView extends MatriculaConfiguracaoInput {
   vigente_em: string;
+  /** Só presente na resposta de POST/PUT quando modo_vigencia="cobrancas_pendentes". */
+  repricing_pendentes?: MatriculaRepricingResumo;
 }
 
 export interface ListarConfiguracoesMatriculaResponse {

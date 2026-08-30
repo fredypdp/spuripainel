@@ -13,10 +13,11 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import SearchableSelect from "@/components/form/SearchableSelect";
 import Checkbox from "@/components/form/input/Checkbox";
+import Radio from "@/components/form/input/Radio";
 import AnularReativarObrigacoesForm from "@/components/paineis/AnularReativarObrigacoesForm";
 import { LoadingState, METODO_PAGAMENTO_LABEL, NIVEL_LABEL, SubtelaPanel, SubtelasMenu, formatAnoLetivo, money, niveisDaAcademia, ConfirmDialog } from "@/components/paineis/financeiroShared";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import type { Curso, FinanceiroMetodoPagamento, FinanceiroNivel, MatriculaConfiguracaoInput, MatriculaConfiguracaoView, MensalidadeConfiguracaoInput, MensalidadeConfiguracaoView } from "@/types/api";
+import type { Curso, FinanceiroMetodoPagamento, FinanceiroModoVigencia, FinanceiroNivel, MatriculaConfiguracaoInput, MatriculaConfiguracaoView, MensalidadeConfiguracaoInput, MensalidadeConfiguracaoView } from "@/types/api";
 
 const METODOS: FinanceiroMetodoPagamento[] = ["GPO", "REF", "GPO_QR"];
 const MES_FIM_OPCOES = [
@@ -59,9 +60,10 @@ type NivelFormState = {
   curso_id: string;
   valor: string;
   metodos_pagamento: FinanceiroMetodoPagamento[];
+  modo_vigencia: "" | FinanceiroModoVigencia;
 };
 
-type FormFieldErrors = Partial<Record<"ano_academico" | "curso_id" | "valor", string>>;
+type FormFieldErrors = Partial<Record<"ano_academico" | "curso_id" | "valor" | "modo_vigencia", string>>;
 
 type Tela = "menu" | "mensalidade" | "matricula" | "inicio-cobranca" | "anular-reativar" | "regras";
 
@@ -89,10 +91,10 @@ export default function FinanceiroConfiguracoesPainel() {
 
   const [tela, setTela] = useState<Tela>("menu");
   const [alert, setAlert] = useState<{ variant: "success" | "error" | "warning" | "info"; message: string } | null>(null);
-  const [mensalidadeForm, setMensalidadeForm] = useState<NivelFormState>({ nivel: niveisDisponiveis[0] ?? "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"] });
+  const [mensalidadeForm, setMensalidadeForm] = useState<NivelFormState>({ nivel: niveisDisponiveis[0] ?? "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"], modo_vigencia: "" });
   const [mensalidadeMesFim, setMensalidadeMesFim] = useState("6");
   const [mensalidadeErrors, setMensalidadeErrors] = useState<FormFieldErrors>({});
-  const [matriculaForm, setMatriculaForm] = useState<NivelFormState>({ nivel: niveisDisponiveis[0] ?? "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"] });
+  const [matriculaForm, setMatriculaForm] = useState<NivelFormState>({ nivel: niveisDisponiveis[0] ?? "fundamental", ano_academico: "", curso_id: "", valor: "", metodos_pagamento: ["GPO"], modo_vigencia: "" });
   const [matriculaErrors, setMatriculaErrors] = useState<FormFieldErrors>({});
   const [cursos, setCursos] = useState<Curso[]>([]);
 
@@ -179,6 +181,7 @@ export default function FinanceiroConfiguracoesPainel() {
     const errors: FormFieldErrors = {};
     const valorNumero = Number(form.valor);
     if (!form.valor.trim() || !(valorNumero > 0)) errors.valor = "Informe um valor maior que zero.";
+    if (!form.modo_vigencia) errors.modo_vigencia = "Escolha o que acontece com quem já está pendente.";
     if (form.nivel === "fundamental") {
       if (!form.ano_academico) errors.ano_academico = "Selecione o ano/classe.";
     } else {
@@ -205,6 +208,7 @@ export default function FinanceiroConfiguracoesPainel() {
         valor: Number(mensalidadeForm.valor),
         mes_fim_cobranca: Number(mensalidadeMesFim) as 6 | 7,
         metodos_pagamento: mensalidadeForm.metodos_pagamento,
+        modo_vigencia: mensalidadeForm.modo_vigencia as FinanceiroModoVigencia,
       };
       const exists = (mensalidadesApi.data?.configuracoes ?? []).some((c) => matches(c, mensalidadeForm));
       await (exists ? atualizarMensalidade.execute(p) : salvarMensalidade.execute(p));
@@ -228,10 +232,17 @@ export default function FinanceiroConfiguracoesPainel() {
         curso_id: matriculaForm.nivel === "fundamental" ? undefined : matriculaForm.curso_id,
         valor: Number(matriculaForm.valor),
         metodos_pagamento: matriculaForm.metodos_pagamento,
+        modo_vigencia: matriculaForm.modo_vigencia as FinanceiroModoVigencia,
       };
       const exists = (matriculasApi.data?.configuracoes ?? []).some((c) => matches(c, matriculaForm));
-      await (exists ? atualizarMatricula.execute(p) : salvarMatricula.execute(p));
-      setAlert({ variant: "success", message: "Configuração de matrícula versionada com sucesso." });
+      const resultado = await (exists ? atualizarMatricula.execute(p) : salvarMatricula.execute(p));
+      const resumo = resultado?.repricing_pendentes;
+      setAlert({
+        variant: "success",
+        message: resumo
+          ? `Configuração de matrícula versionada com sucesso. ${resumo.atualizadas} solicitação(ões) já aprovada(s) foram atualizadas para o novo valor${resumo.ignoradas ? `; ${resumo.ignoradas} não foram alteradas por já terem cobrança em aberto` : ""}.`
+          : "Configuração de matrícula versionada com sucesso.",
+      });
       await reload();
     } catch (err) {
       setAlert({ variant: "error", message: formatApiError(err, "Não foi possível salvar matrícula.") });
@@ -351,6 +362,30 @@ export default function FinanceiroConfiguracoesPainel() {
         error={!!errors.valor}
         hint={errors.valor}
       />
+      <Label>O que acontece com quem já está pendente?</Label>
+      <div className="flex flex-col gap-3">
+        <Radio
+          id={`${kind}-modo-vigencia-pendentes`}
+          name={`${kind}-modo-vigencia`}
+          value="cobrancas_pendentes"
+          checked={form.modo_vigencia === "cobrancas_pendentes"}
+          label={
+            kind === "mensalidade"
+              ? "Aplicar já a todas as mensalidades em atraso ainda não pagas (mesmo de meses anteriores)"
+              : "Aplicar já a todas as matrículas já aprovadas que ainda não foram pagas"
+          }
+          onChange={() => setForm((prev) => ({ ...prev, modo_vigencia: "cobrancas_pendentes" }))}
+        />
+        <Radio
+          id={`${kind}-modo-vigencia-futuro`}
+          name={`${kind}-modo-vigencia`}
+          value="a_partir_da_atualizacao"
+          checked={form.modo_vigencia === "a_partir_da_atualizacao"}
+          label="Só a partir de agora — quem já está pendente continua no valor antigo até pagar"
+          onChange={() => setForm((prev) => ({ ...prev, modo_vigencia: "a_partir_da_atualizacao" }))}
+        />
+      </div>
+      {errors.modo_vigencia && <p className="text-sm text-error-500">{errors.modo_vigencia}</p>}
     </>
   );
 
@@ -472,7 +507,7 @@ export default function FinanceiroConfiguracoesPainel() {
           />
           <Label>Métodos de pagamento aceites</Label>
           {renderMetodos("mensalidade", mensalidadeForm.metodos_pagamento)}
-          <Button onClick={submitMensalidade} disabled={salvarMensalidade.loading || atualizarMensalidade.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
+          <Button onClick={submitMensalidade} disabled={!mensalidadeForm.modo_vigencia || salvarMensalidade.loading || atualizarMensalidade.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
             Salvar nova versão
           </Button>
         </div>
@@ -492,7 +527,7 @@ export default function FinanceiroConfiguracoesPainel() {
           {renderNivelFields("matricula", matriculaForm, matriculaErrors, setMatriculaForm)}
           <Label>Métodos de pagamento aceites</Label>
           {renderMetodos("matricula", matriculaForm.metodos_pagamento)}
-          <Button onClick={submitMatricula} disabled={salvarMatricula.loading || atualizarMatricula.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
+          <Button onClick={submitMatricula} disabled={!matriculaForm.modo_vigencia || salvarMatricula.loading || atualizarMatricula.loading} startIcon={<Icon icon="mdi:content-save-outline" width={16} />}>
             Salvar nova versão
           </Button>
         </div>
