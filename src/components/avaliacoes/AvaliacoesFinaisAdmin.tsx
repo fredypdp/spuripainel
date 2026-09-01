@@ -9,6 +9,7 @@ import type {
 } from "@/types/api";
 import { Provincias } from "@/types/api";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 
 
 const ITEMS_POR_PAGINA = 50;
@@ -103,16 +104,14 @@ function AnoLetivoSelector({
     <div className="flex items-center gap-2">
       <Icon icon="mdi:calendar-school" width={16} className="text-gray-400 flex-shrink-0" />
       <span className="text-xs text-gray-500 whitespace-nowrap">{label}</span>
-      <select
-        value={anoSelecionado}
-        onChange={e => onChange(e.target.value)}
-        className="h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-      >
-        <option value="">Todos os anos</option>
-        {anosDisponiveis.map(al => (
-          <option key={al} value={al}>{al.replace("_", "/")}</option>
-        ))}
-      </select>
+      <div className="min-w-[160px]">
+        <SearchableSelect
+          value={anoSelecionado}
+          onChange={v => onChange(v || "")}
+          isClearable={false}
+          options={[{ value: "", label: "Todos os anos" }, ...anosDisponiveis.map(al => ({ value: al, label: al.replace("_", "/") }))]}
+        />
+      </div>
     </div>
   );
 }
@@ -310,14 +309,14 @@ function AcademiaDetalhe({
         {tiposEnsino.length > 1 && (
           <div className="flex items-center gap-2">
             <Icon icon="mdi:filter-outline" width={16} className="text-gray-400" />
-            <select
-              value={tipoSel}
-              onChange={e => setTipoSel(e.target.value as TipoEnsino | "")}
-              className="h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-            >
-              <option value="">Todos os tipos</option>
-              {tiposEnsino.map(t => <option key={t} value={t}>{tipoLabel[t]}</option>)}
-            </select>
+            <div className="min-w-[160px]">
+              <SearchableSelect
+                value={tipoSel}
+                onChange={v => setTipoSel((v || "") as TipoEnsino | "")}
+                isClearable={false}
+                options={[{ value: "", label: "Todos os tipos" }, ...tiposEnsino.map(t => ({ value: t, label: tipoLabel[t] }))]}
+              />
+            </div>
           </div>
         )}
       </div>

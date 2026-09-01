@@ -7,6 +7,7 @@ import { useUserType } from "@/hooks/useRoutePermission";
 import { academiaService, adminService } from "@/lib/api/services";
 import { descreverJanelaFinalizacao, formatAnoLetivo, formatPeriodoAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
 import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
@@ -377,22 +378,21 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
                 >
                   De
                 </label>
-                <select
-                  id="al-de"
+                <SearchableSelect
+                  inputId="al-de"
                   value={anoDe}
-                  onChange={(e) => setAnoDeOverride(e.target.value)}
-                  disabled={false}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-                >
-                  <option value="">Selecione</option>
-                  {opcoesAnoDe.map((ano) => (
-                    <option key={ano} value={String(ano)}>
-                      {ano}
-                      {anoDeOficial && String(ano) === anoDeOficial ? " (oficial do sistema)" : ""}
-                      {valorAtual.startsWith(`${ano}_`) ? " (actual)" : ""}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setAnoDeOverride(v || "")}
+                  isClearable={false}
+                  options={[
+                    { value: "", label: "Selecione" },
+                    ...opcoesAnoDe.map((ano) => ({
+                      value: String(ano),
+                      label: `${ano}${anoDeOficial && String(ano) === anoDeOficial ? " (oficial do sistema)" : ""}${
+                        valorAtual.startsWith(`${ano}_`) ? " (actual)" : ""
+                      }`,
+                    })),
+                  ]}
+                />
               </div>
 
               {/* Até — calculado automaticamente */}

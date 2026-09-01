@@ -7,7 +7,7 @@ import SearchableSelect from '@/components/form/SearchableSelect';
 import Label from '@/components/form/Label';
 import Button from '@/components/ui/button/Button';
 import Icon from '@/components/ui/Icon';
-import type { Curso, Turma, EstudanteDetalhado } from '@/types/api';
+import type { Curso, Turma, EstudanteDetalhado, Sumario } from '@/types/api';
 import {
   ANOS_FUNDAMENTAL_LIST,
   isAnoMedioValue,
@@ -44,6 +44,8 @@ export default function SelecaoContextoFaltas({ onModeloGerado }: SelecaoContext
   const [materias, setMaterias] = useState<any[]>([]);
   const [estudantes, setEstudantes] = useState<EstudanteDetalhado[]>([]);
   const [loadingEstudantes, setLoadingEstudantes] = useState(false);
+  const [sumarios, setSumarios] = useState<Sumario[]>([]);
+  const [loadingSumarios, setLoadingSumarios] = useState(false);
 
   const isSuperior = user?.academia?.nivel === 'superior';
   const nivelEscolar = user?.academia?.nivel_escolar ?? 'fundamental';
@@ -60,6 +62,7 @@ export default function SelecaoContextoFaltas({ onModeloGerado }: SelecaoContext
   const [codigoTurma, setCodigoTurma] = useState('');
   const [periodo, setPeriodo] = useState('');
   const [materiaId, setMateriaId] = useState('');
+  const [sumarioId, setSumarioId] = useState('');
 
   useEffect(() => {
     academiaService.listarTurmas(token).then((r: any) => setTurmas((r?.turmas ?? []).filter((t: Turma) => t.status === 'ativo')));
@@ -105,6 +108,25 @@ export default function SelecaoContextoFaltas({ onModeloGerado }: SelecaoContext
     // turma ou o período mudam.
     setMateriaId('');
   }, [codigoTurma, periodo]);
+
+  useEffect(() => {
+    // O sumário é opcional e depende diretamente da matéria (além do período
+    // e ano académico, já fixados antes da matéria poder ser escolhida), por
+    // isso é buscado novamente — e o vínculo anterior é limpo — sempre que a
+    // matéria muda.
+    setSumarioId('');
+    if (!materiaId) {
+      setSumarios([]);
+      return;
+    }
+    setLoadingSumarios(true);
+    academiaService
+      .listarSumarios(token, { materia_id: materiaId, periodo, ano_academico: anoAcademico })
+      .then((r: any) => setSumarios(r?.sumarios ?? []))
+      .catch(() => setSumarios([]))
+      .finally(() => setLoadingSumarios(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materiaId]);
 
   useEffect(() => {
     if (!codigoTurma) {
@@ -161,6 +183,7 @@ export default function SelecaoContextoFaltas({ onModeloGerado }: SelecaoContext
     if (!podeBaixar || !nivel || !user?.academia) return;
 
     const materiaSelecionada = materiasCompativeis.find((m: any) => m.id === materiaId);
+    const sumarioSelecionado = sumarios.find((s) => s.id === sumarioId);
 
     const contexto: ContextoModeloFaltas = {
       codigoAcademia: user.academia.codigo_academia,
@@ -177,6 +200,8 @@ export default function SelecaoContextoFaltas({ onModeloGerado }: SelecaoContext
       materiaId,
       materiaNome: materiaSelecionada?.nome || materiaId,
       versaoModelo: '1',
+      sumarioId: sumarioId || undefined,
+      sumarioTitulo: sumarioSelecionado?.sumario_titulo,
     };
 
     gerarModeloExcelFaltas(contexto, estudantes.map((e) => ({ nome: e.nome, codigo_estudante: e.codigo_estudante })));
@@ -288,6 +313,29 @@ export default function SelecaoContextoFaltas({ onModeloGerado }: SelecaoContext
               isClearable={false}
               isDisabled={materiasCompativeis.length === 0}
             />
+          </div>
+        )}
+
+        {materiaId && (
+          <div>
+            <Label>Sumário da aula (opcional)</Label>
+            <SearchableSelect
+              value={sumarioId}
+              options={sumarios.map((s) => ({ value: s.id, label: s.sumario_titulo }))}
+              onChange={(v) => setSumarioId(v || '')}
+              placeholder={
+                loadingSumarios
+                  ? 'A carregar sumários...'
+                  : sumarios.length
+                    ? 'Nenhum (sem vínculo)'
+                    : 'Nenhum sumário cadastrado para esta matéria/período/ano'
+              }
+              isClearable
+              isDisabled={loadingSumarios || sumarios.length === 0}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Se escolhido, todas as faltas deste lote serão vinculadas a este sumário de aula.
+            </p>
           </div>
         )}
       </div>

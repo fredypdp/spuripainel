@@ -174,10 +174,8 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Género</label>
-              <select value={filtros.genero} onChange={e => setFiltros({ ...filtros, genero: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                <option value="">Todos</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option>
-              </select>
+              <SearchableSelect value={filtros.genero} onChange={v => setFiltros({ ...filtros, genero: v || '' })} isClearable={false}
+                options={[{ value: '', label: 'Todos' }, { value: 'masculino', label: 'Masculino' }, { value: 'feminino', label: 'Feminino' }]} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Idade mínima</label>
@@ -193,10 +191,8 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Turno</label>
-              <select value={filtros.turno} onChange={e => setFiltros({ ...filtros, turno: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                <option value="">Todos</option><option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="noite">Noite</option>
-              </select>
+              <SearchableSelect value={filtros.turno} onChange={v => setFiltros({ ...filtros, turno: v || '' })} isClearable={false}
+                options={[{ value: '', label: 'Todos' }, { value: 'manha', label: 'Manhã' }, { value: 'tarde', label: 'Tarde' }, { value: 'noite', label: 'Noite' }]} />
             </div>
             {isAdmin && (
               <div>
@@ -209,31 +205,22 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             {visibilidade.anoFundamental && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano do Ensino Primário e Iº Ciclo</label>
-                <select value={filtros.anoFundamental} onChange={e => setFiltros({ ...filtros, anoFundamental: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option>
-                  {ANOS_FUNDAMENTAL_LIST.map(ano => <option key={ano.value} value={ano.value}>{ano.label}</option>)}
-                </select>
+                <SearchableSelect value={filtros.anoFundamental} onChange={v => setFiltros({ ...filtros, anoFundamental: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, ...ANOS_FUNDAMENTAL_LIST]} />
               </div>
             )}
             {visibilidade.anoMedio && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano médio</label>
-                <select value={filtros.anoMedio} onChange={e => setFiltros({ ...filtros, anoMedio: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option>
-                  {ANOS_MEDIO_LIST.map(ano => <option key={ano.value} value={ano.value}>{ano.label}</option>)}
-                </select>
+                <SearchableSelect value={filtros.anoMedio} onChange={v => setFiltros({ ...filtros, anoMedio: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, ...ANOS_MEDIO_LIST]} />
               </div>
             )}
             {visibilidade.anoSuperior && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ano superior</label>
-                <select value={filtros.anoSuperior} onChange={e => setFiltros({ ...filtros, anoSuperior: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option>
-                  {ANOS_SUPERIOR_LIST.map(ano => <option key={ano.value} value={ano.value}>{ano.label}</option>)}
-                </select>
+                <SearchableSelect value={filtros.anoSuperior} onChange={v => setFiltros({ ...filtros, anoSuperior: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, ...ANOS_SUPERIOR_LIST]} />
               </div>
             )}
             {visibilidade.semestreAtual && (
@@ -252,11 +239,8 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
                     placeholder="Código do curso. Para vários, separe por vírgula"
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500" />
                 ) : (
-                  <select value={filtros.cursoId} onChange={e => setFiltros({ ...filtros, cursoId: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                    <option value="">Todos</option>
-                    {cursosFiltrados.map(curso => <option key={curso.id} value={curso.id}>{curso.nome} ({curso.type === 'medio' ? 'Médio' : 'Superior'})</option>)}
-                  </select>
+                  <SearchableSelect value={filtros.cursoId} onChange={v => setFiltros({ ...filtros, cursoId: v || '' })} isClearable={false}
+                    options={[{ value: '', label: 'Todos' }, ...cursosFiltrados.map(curso => ({ value: curso.id, label: `${curso.nome} (${curso.type === 'medio' ? 'Médio' : 'Superior'})` }))]} />
                 )}
               </div>
             )}
@@ -268,52 +252,40 @@ function FiltrosPanel({ filtros, setFiltros, isAdmin, onAplicar, visibilidade, c
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Documentos</label>
-              <select value={filtros.statusDocumentos} onChange={e => setFiltros({ ...filtros, statusDocumentos: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                <option value="">Todos</option><option value="pendente_documentos">Pendentes</option>
-              </select>
+              <SearchableSelect value={filtros.statusDocumentos} onChange={v => setFiltros({ ...filtros, statusDocumentos: v || '' })} isClearable={false}
+                options={[{ value: '', label: 'Todos' }, { value: 'pendente_documentos', label: 'Pendentes' }]} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Vínculo de turma</label>
-              <select value={filtros.comTurma} onChange={e => setFiltros({ ...filtros, comTurma: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                <option value="">Todos</option><option value="true">Com turma</option><option value="false">Sem turma</option>
-              </select>
+              <SearchableSelect value={filtros.comTurma} onChange={v => setFiltros({ ...filtros, comTurma: v || '' })} isClearable={false}
+                options={[{ value: '', label: 'Todos' }, { value: 'true', label: 'Com turma' }, { value: 'false', label: 'Sem turma' }]} />
             </div>
             {isAdmin && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação geral</label>
-                <select value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option><option value="ativo">Ativo</option><option value="pendente_documentos">Pendência de documentos</option><option value="inativo">Inativo</option><option value="finalizado">Finalizado</option>
-                </select>
+                <SearchableSelect value={filtros.status} onChange={v => setFiltros({ ...filtros, status: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, { value: 'ativo', label: 'Ativo' }, { value: 'pendente_documentos', label: 'Pendência de documentos' }, { value: 'inativo', label: 'Inativo' }, { value: 'finalizado', label: 'Finalizado' }]} />
               </div>
             )}
             {visibilidade.statusFundamental && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no Ensino Primário e Iº Ciclo</label>
-                <select value={filtros.statusFundamental} onChange={e => setFiltros({ ...filtros, statusFundamental: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
-                </select>
+                <SearchableSelect value={filtros.statusFundamental} onChange={v => setFiltros({ ...filtros, statusFundamental: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, { value: 'inativo', label: 'Inativo' }, { value: 'em_andamento', label: 'Em andamento' }, { value: 'finalizado', label: 'Finalizado' }]} />
               </div>
             )}
             {visibilidade.statusMedio && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no médio</label>
-                <select value={filtros.statusMedio} onChange={e => setFiltros({ ...filtros, statusMedio: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
-                </select>
+                <SearchableSelect value={filtros.statusMedio} onChange={v => setFiltros({ ...filtros, statusMedio: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, { value: 'inativo', label: 'Inativo' }, { value: 'em_andamento', label: 'Em andamento' }, { value: 'finalizado', label: 'Finalizado' }]} />
               </div>
             )}
             {visibilidade.statusSuperior && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Situação no superior</label>
-                <select value={filtros.statusSuperior} onChange={e => setFiltros({ ...filtros, statusSuperior: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500">
-                  <option value="">Todos</option><option value="inativo">Inativo</option><option value="em_andamento">Em andamento</option><option value="finalizado">Finalizado</option>
-                </select>
+                <SearchableSelect value={filtros.statusSuperior} onChange={v => setFiltros({ ...filtros, statusSuperior: v || '' })} isClearable={false}
+                  options={[{ value: '', label: 'Todos' }, { value: 'inativo', label: 'Inativo' }, { value: 'em_andamento', label: 'Em andamento' }, { value: 'finalizado', label: 'Finalizado' }]} />
               </div>
             )}
           </div>

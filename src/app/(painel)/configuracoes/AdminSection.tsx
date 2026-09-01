@@ -6,6 +6,7 @@ import { useApi } from "@/hooks/useApi";
 import { adminService } from "@/lib/api/services";
 import { pollJob } from "@/lib/api/job-service";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import { descreverJanelaFinalizacao, formatAnoLetivo, formatPeriodoAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import PasswordSettingsCard from "./PasswordSettingsCard";
 
@@ -696,9 +697,15 @@ export function GlobalAcademicYearCard({ isFPP }: { isFPP: boolean }) {
                       <form onSubmit={(event) => handleSubmit(event, type)} className="mt-4 space-y-3">
                         <div className="grid grid-cols-3 gap-3">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">De
-                            <select value={anoDe} onChange={(e) => setAnoDe(e.target.value)} disabled={!isFPP || loading} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
-                              {opcoesAnoDe.map((ano) => <option key={ano} value={String(ano)}>{ano}</option>)}
-                            </select>
+                            <div className="mt-1">
+                              <SearchableSelect
+                                value={anoDe}
+                                onChange={(v) => setAnoDe(v || "")}
+                                isDisabled={!isFPP || loading}
+                                isClearable={false}
+                                options={opcoesAnoDe.map((ano) => ({ value: String(ano), label: String(ano) }))}
+                              />
+                            </div>
                           </label>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Até
                             <div className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400">{anoAte}</div>

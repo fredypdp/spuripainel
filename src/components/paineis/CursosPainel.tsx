@@ -5,6 +5,7 @@ import { formatApiError } from "@/lib/api/client";
 import type { Curso, MeuPerfilResponse } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import Alert from "@/components/ui/alert/Alert";
 import Checkbox from "@/components/form/input/Checkbox";
 import { Modal } from "@/components/ui/modal";
@@ -305,14 +306,15 @@ export default function CursosPainel() {
             {!isSuperior && !editingCurso && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo do curso *</label>
-                <select
+                <SearchableSelect
                   value={formData.modelo}
-                  onChange={(e) => setFormData({ ...formData, modelo: e.target.value as CursoFormData["modelo"] })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="liceu">Liceu</option>
-                  <option value="tecnico">Técnico</option>
-                </select>
+                  onChange={(v) => setFormData({ ...formData, modelo: (v || "liceu") as CursoFormData["modelo"] })}
+                  isClearable={false}
+                  options={[
+                    { value: "liceu", label: "Liceu" },
+                    { value: "tecnico", label: "Técnico" },
+                  ]}
+                />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   Esta escolha define automaticamente os anos do curso. Você não precisa informar códigos ou configurar anos manualmente.
                 </p>

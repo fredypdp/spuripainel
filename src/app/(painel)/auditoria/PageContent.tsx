@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import { adminService, tokenStorage, useApi } from "@/lib/api";
 import type { AuditoriaDelecaoTipo } from "@/types/api";
 
@@ -22,7 +23,7 @@ export default function AuditoriaPageContent() {
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
   return <div><PageBreadcrumb pageTitle="Auditoria de Deleções" /><div className="space-y-6">
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <select className="rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-white/[0.05] dark:bg-gray-900 dark:text-white" value={tipo} onChange={(e)=>{setTipo(e.target.value as AuditoriaDelecaoTipo | ""); setOffset(0);}}><option value="">Todos os tipos</option><option value="academia">Academias</option><option value="admin">Administradores</option><option value="estudante">Estudantes</option></select>
+      <div className="min-w-[200px]"><SearchableSelect value={tipo} options={[{ value: "", label: "Todos os tipos" }, { value: "academia", label: "Academias" }, { value: "admin", label: "Administradores" }, { value: "estudante", label: "Estudantes" }]} onChange={(v)=>{setTipo((v || "") as AuditoriaDelecaoTipo | ""); setOffset(0);}} isClearable={false} /></div>
       <Button size="sm" variant="outline" disabled={loading} onClick={()=>execute({ tipo, limit: LIMIT, offset, token: tokenStorage.get() || undefined }).catch(()=>undefined)}>{loading?"Carregando...":"Atualizar"}</Button>
       <span className="text-sm text-gray-500 dark:text-gray-400">{total} registro(s)</span>
     </div>
