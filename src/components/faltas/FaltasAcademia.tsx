@@ -13,6 +13,7 @@ import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import Input from "@/components/form/input/InputField";
 import { useModal } from "@/hooks/useModal";
 import { Dropdown } from "primereact/dropdown";
@@ -315,7 +316,7 @@ function ModalCorrigirFalta({ falta, isOpen, onClose, onConfirm, onDesvincular }
         {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{error}</div>}
         <div><Label>Quantidade (1–100) *</Label><Input type="number" min="1" max="100" value={quantidade} onChange={e => setQuantidade(e.target.value)} /></div>
         <div><Label>Observação</Label><Input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" /></div>
-        <div><Label>Sumário de aula</Label><div className="flex gap-2"><select value={sumarioId} onChange={e => setSumarioId(e.target.value)} disabled={loadingSumarios || desvinculando} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white">{!falta.sumario_id && <option value="">{loadingSumarios ? "Carregando sumários..." : "Nenhum sumário"}</option>}{sumarios.map(sumario => <option key={sumario.id} value={sumario.id}>{sumario.sumario_titulo}</option>)}</select>{falta.sumario_id && <Button type="button" size="sm" variant="outline" onClick={handleDesvincular} disabled={desvinculando}>{desvinculando ? "Desvinculando..." : "Desvincular"}</Button>}</div></div>
+        <div><Label>Sumário de aula</Label><div className="flex gap-2"><div className="min-w-0 flex-1"><SearchableSelect value={sumarioId} onChange={v => setSumarioId(v || "")} isDisabled={loadingSumarios || desvinculando} isClearable={false} options={[...(!falta.sumario_id ? [{ value: "", label: loadingSumarios ? "Carregando sumários..." : "Nenhum sumário" }] : []), ...sumarios.map(sumario => ({ value: sumario.id, label: sumario.sumario_titulo }))]} /></div>{falta.sumario_id && <Button type="button" size="sm" variant="outline" onClick={handleDesvincular} disabled={desvinculando}>{desvinculando ? "Desvinculando..." : "Desvincular"}</Button>}</div></div>
         <div><Label>Motivo da correção *</Label><Input value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique o motivo" /></div>
         <div className="flex gap-3 justify-end"><Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button><Button disabled={loading}>{loading ? "Corrigindo..." : "Corrigir"}</Button></div>
       </form>

@@ -5,6 +5,7 @@ import { formatApiError } from "@/lib/api/client";
 import type { Curso, MeuPerfilResponse, Turma, EstudanteDetalhado } from "@/types/api";
 import Button from "@/components/ui/button/Button";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import Alert from "@/components/ui/alert/Alert";
 import Checkbox from "@/components/form/input/Checkbox";
 import { Modal } from "@/components/ui/modal";
@@ -566,27 +567,39 @@ export default function TurmasPainel() {
         {isMisto && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível de ensino *</label>
-            <select value={formTipo} onChange={e => { const tipo = e.target.value as "fundamental" | "curso"; setFormTipo(tipo); setFormData({ ...formData, curso_id: undefined, nivel: "" }); }} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-              <option value="fundamental">Ensino Primário e Iº Ciclo</option>
-              <option value="curso">Ensino Médio</option>
-            </select>
+            <SearchableSelect
+              value={formTipo}
+              onChange={v => { const tipo = (v || "fundamental") as "fundamental" | "curso"; setFormTipo(tipo); setFormData({ ...formData, curso_id: undefined, nivel: "" }); }}
+              isDisabled={!!editingTurma}
+              isClearable={false}
+              options={[
+                { value: "fundamental", label: "Ensino Primário e Iº Ciclo" },
+                { value: "curso", label: "Ensino Médio" },
+              ]}
+            />
           </div>
         )}
         {turmaUsaCurso && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
-            <select value={formData.curso_id ?? ""} onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, nivel: "" })} disabled={!!editingTurma} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-              <option value="">Selecione um curso</option>
-              {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+            <SearchableSelect
+              value={formData.curso_id ?? ""}
+              onChange={v => setFormData({ ...formData, curso_id: v || undefined, nivel: "" })}
+              isDisabled={!!editingTurma}
+              isClearable={false}
+              options={[{ value: "", label: "Selecione um curso" }, ...cursos.map(c => ({ value: c.id, label: c.nome }))]}
+            />
           </div>
         )}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nível / Ano *</label>
-          <select value={formData.nivel} onChange={e => setFormData({ ...formData, nivel: e.target.value })} disabled={turmaUsaCurso && !formData.curso_id} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-            <option value="">Selecione o ano</option>
-            {getNivelOptions(formData.curso_id).map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
-          </select>
+          <SearchableSelect
+            value={formData.nivel}
+            onChange={v => setFormData({ ...formData, nivel: v || "" })}
+            isDisabled={turmaUsaCurso && !formData.curso_id}
+            isClearable={false}
+            options={[{ value: "", label: "Selecione o ano" }, ...getNivelOptions(formData.curso_id).map(a => ({ value: a.value, label: a.label }))]}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Turno *</label>

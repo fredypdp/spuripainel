@@ -150,6 +150,7 @@ export default function LancamentoFaltasForm() {
           <strong>
             Turma {contextoBaixado.turmaLabel ?? contextoBaixado.codigoTurma} — {contextoBaixado.periodoLabel} —{' '}
             {contextoBaixado.materiaNome}
+            {contextoBaixado.sumarioTitulo ? ` — Sumário: ${contextoBaixado.sumarioTitulo}` : ''}
           </strong>
           . Preencha e envie o ficheiro logo abaixo.
         </div>

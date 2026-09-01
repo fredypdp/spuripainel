@@ -4,6 +4,7 @@ import { useApi, academiaService, tokenStorage } from "@/lib/api";
 import { formatApiError } from "@/lib/api/client";
 import { AnoFundamental, AnoMedio, AnoSuperior, CriarMateriaRequest, Materia, MateriaType } from "@/types/api";
 import Icon from "@/components/ui/Icon";
+import SearchableSelect from "@/components/form/SearchableSelect";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
 import Checkbox from "@/components/form/input/Checkbox";
@@ -617,19 +618,28 @@ export default function MateriaPainel() {
                 {!editingMateria && isAcademiaMista() && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo *</label>
-                    <select value={formData.type} onChange={e => handleTypeChange(e.target.value as MateriaType)} disabled={isTipoDisabled()} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white disabled:opacity-50">
-                      <option value="fundamental">Ensino Primário e Iº Ciclo</option><option value="medio">Médio</option>
-                    </select>
+                    <SearchableSelect
+                      value={formData.type}
+                      onChange={(v) => handleTypeChange((v || "fundamental") as MateriaType)}
+                      isDisabled={isTipoDisabled()}
+                      isClearable={false}
+                      options={[
+                        { value: "fundamental", label: "Ensino Primário e Iº Ciclo" },
+                        { value: "medio", label: "Médio" },
+                      ]}
+                    />
                   </div>
                 )}
                 {formData.type === "superior" && <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"><p className="text-xs text-amber-700 dark:text-amber-300">⚠️ Matérias superiores exigem o período no cadastro; ele deve pertencer aos períodos do curso e não é editado depois.</p></div>}
                 {formData.type !== "fundamental" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso *</label>
-                    <select value={formData.curso_id ?? ""} onChange={e => setFormData({ ...formData, curso_id: e.target.value || undefined, anos_academicos: [], periodo: undefined, pendencia_nivel_conclusao: undefined })} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
-                      <option value="">Selecione um curso</option>
-                      {getCursosByType().map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={formData.curso_id ?? ""}
+                      onChange={(v) => setFormData({ ...formData, curso_id: v || undefined, anos_academicos: [], periodo: undefined, pendencia_nivel_conclusao: undefined })}
+                      isClearable={false}
+                      options={[{ value: "", label: "Selecione um curso" }, ...getCursosByType().map(c => ({ value: c.id, label: c.nome }))]}
+                    />
                   </div>
                 )}
                 <div>
@@ -650,10 +660,12 @@ export default function MateriaPainel() {
                 {!editingMateria && formData.type === "superior" && formData.curso_id && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Período/semestre *</label>
-                    <select value={formData.periodo ?? ""} onChange={e => setFormData({ ...formData, periodo: e.target.value || undefined })} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
-                      <option value="">Selecione o período</option>
-                      {getPeriodosDisponiveis().map(p => <option key={p} value={p}>{formatarPeriodoLabel(p)}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={formData.periodo ?? ""}
+                      onChange={(v) => setFormData({ ...formData, periodo: v || undefined })}
+                      isClearable={false}
+                      options={[{ value: "", label: "Selecione o período" }, ...getPeriodosDisponiveis().map(p => ({ value: p, label: formatarPeriodoLabel(p) }))]}
+                    />
                   </div>
                 )}
                 {!editingMateria && formData.type === "superior" && formData.curso_id && (
@@ -664,10 +676,14 @@ export default function MateriaPainel() {
                     </label>
                     {formData.pendencia_permitida && (
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Limite para conclusão da pendência
-                        <select value={formData.pendencia_nivel_conclusao ?? ""} onChange={e => setFormData({ ...formData, pendencia_nivel_conclusao: e.target.value || undefined })} className="mt-1 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
-                          <option value="">Sem limite explícito</option>
-                          {getPendenciaNiveisDisponiveis().map(n => <option key={n} value={n}>{n.includes("semestre") ? formatarPeriodoLabel(n) : formatarSecaoLabel(n)}</option>)}
-                        </select>
+                        <div className="mt-1">
+                          <SearchableSelect
+                            value={formData.pendencia_nivel_conclusao ?? ""}
+                            onChange={(v) => setFormData({ ...formData, pendencia_nivel_conclusao: v || undefined })}
+                            isClearable={false}
+                            options={[{ value: "", label: "Sem limite explícito" }, ...getPendenciaNiveisDisponiveis().map(n => ({ value: n, label: n.includes("semestre") ? formatarPeriodoLabel(n) : formatarSecaoLabel(n) }))]}
+                          />
+                        </div>
                       </label>
                     )}
                   </div>
@@ -681,10 +697,14 @@ export default function MateriaPainel() {
                 </label>
                 {formData.pendencia_permitida && (
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Até qual semestre
-                    <select value={formData.pendencia_nivel_conclusao ?? ""} onChange={e => setFormData({ ...formData, pendencia_nivel_conclusao: e.target.value || undefined })} className="mt-1 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:bg-gray-700 dark:text-white">
-                      <option value="">Sem limite definido</option>
-                      {getPendenciaNiveisDisponiveis().map(n => <option key={n} value={n}>{formatarPeriodoLabel(n)}</option>)}
-                    </select>
+                    <div className="mt-1">
+                      <SearchableSelect
+                        value={formData.pendencia_nivel_conclusao ?? ""}
+                        onChange={(v) => setFormData({ ...formData, pendencia_nivel_conclusao: v || undefined })}
+                        isClearable={false}
+                        options={[{ value: "", label: "Sem limite definido" }, ...getPendenciaNiveisDisponiveis().map(n => ({ value: n, label: formatarPeriodoLabel(n) }))]}
+                      />
+                    </div>
                   </label>
                 )}
               </div>
