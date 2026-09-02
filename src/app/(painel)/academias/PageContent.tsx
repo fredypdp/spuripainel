@@ -133,8 +133,28 @@ function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDet
   const [documentoAberto, setDocumentoAberto] = useState<string | null>(null);
   const [carregandoDocumento, setCarregandoDocumento] = useState(false);
   const [erroDocumento, setErroDocumento] = useState('');
+  const [enviandoAlvara, setEnviandoAlvara] = useState(false);
+  const [erroEnvioAlvara, setErroEnvioAlvara] = useState('');
+  const [sucessoEnvioAlvara, setSucessoEnvioAlvara] = useState(false);
+  const inputAlvaraRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { if (documentoAberto) URL.revokeObjectURL(documentoAberto); }, [documentoAberto]);
+
+  const enviarAlvara = async (file: File) => {
+    setErroEnvioAlvara('');
+    setSucessoEnvioAlvara(false);
+    setEnviandoAlvara(true);
+    try {
+      await documentosService.enviarAlvaraAcademia(academia.codigo_academia, file, tokenStorage.get() || undefined);
+      setSucessoEnvioAlvara(true);
+      if (documentoAberto) fecharAlvara();
+    } catch (err: any) {
+      setErroEnvioAlvara(err?.message || 'Não foi possível enviar o alvará.');
+    } finally {
+      setEnviandoAlvara(false);
+      if (inputAlvaraRef.current) inputAlvaraRef.current.value = '';
+    }
+  };
 
   const fecharAlvara = () => {
     setDocumentoAberto((atual) => {
@@ -171,7 +191,7 @@ function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDet
     </section>
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white">Dados da academia</h3><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><DetailItem label="NIF" value={academia.nif} /><DetailItem label="Nível" value={labelNivel(academia.nivel)} /><DetailItem label="Natureza" value={labelNatureza(academia.type)} /><DetailItem label="Nível escolar" value={academia.nivel_escolar || '-'} /><DetailItem label="Província" value={academia.provincia} /><DetailItem label="Endereço" value={academia.endereco} /><DetailItem label="Website" value={academia.website || '-'} /><DetailItem label="E-mail" value={academia.email || '-'} /><DetailItem label="E-mail verificado" value={academia.email_verificado ? 'Sim' : 'Não'} /><DetailItem label="Telefone" value={academia.telefone || '-'} /><DetailItem label="Telefone verificado" value={academia.telefone_verificado ? 'Sim' : 'Não'} /><DetailItem label="Total de estudantes" value={academia.total_estudantes} /><DetailItem label="Ano letivo" value={academia.ano_letivo} /><DetailItem label="Tipo do ano letivo" value={academia.tipo_ano_letivo} /><DetailItem label="Ativação do ano letivo" value={formatarDataHora(academia.ano_letivo_ativado_em)} /><DetailItem label="Motivo de desativação/deleção" value={academia.motivo_desativacao} /><DetailItem label="Deletada em" value={formatarDataHora(academia.deleted_at)} /><DetailItem label="Deletada por" value={academia.deletado_por} /><DetailItem label="Versão" value={academia.version} /><DetailItem label="Data de criação" value={formatarDataHora(academia.created_at)} /><DetailItem label="Última atualização" value={formatarDataHora(academia.updated_at)} /></div></section>
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">Anos académicos</h3>{academia.anos_academicos?.length ? <div className="flex flex-wrap gap-2">{academia.anos_academicos.map((ano) => <span key={ano} className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">{formatAnoAcademico(ano)}</span>)}</div> : <p className="text-sm text-gray-500 dark:text-gray-400">Não há anos académicos registados.</p>}</section>
-    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Documentos</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Visualize o alvará da academia sem sair desta tela.</p></div><Button size="sm" variant="outline" disabled={carregandoDocumento} onClick={abrirAlvara} startIcon={<Icon icon={carregandoDocumento ? 'mdi:loading' : documentoAberto ? 'mdi:close' : 'mdi:file-eye-outline'} width={16} className={carregandoDocumento ? 'animate-spin' : undefined} />}>{carregandoDocumento ? 'A abrir...' : documentoAberto ? 'Fechar alvará' : 'Visualizar alvará'}</Button></div>{erroDocumento && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}{documentoAberto && <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"><iframe title={`Alvará de ${academia.nome}`} src={documentoAberto} className="h-[70vh] w-full bg-white" /></div>}</section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Documentos</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">O alvará é opcional no cadastro — visualize ou envie/atualize aqui.</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={carregandoDocumento} onClick={abrirAlvara} startIcon={<Icon icon={carregandoDocumento ? 'mdi:loading' : documentoAberto ? 'mdi:close' : 'mdi:file-eye-outline'} width={16} className={carregandoDocumento ? 'animate-spin' : undefined} />}>{carregandoDocumento ? 'A abrir...' : documentoAberto ? 'Fechar alvará' : 'Visualizar alvará'}</Button><input ref={inputAlvaraRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) enviarAlvara(file); }} /><Button size="sm" disabled={enviandoAlvara} onClick={() => inputAlvaraRef.current?.click()} startIcon={<Icon icon={enviandoAlvara ? 'mdi:loading' : 'mdi:file-upload-outline'} width={16} className={enviandoAlvara ? 'animate-spin' : undefined} />}>{enviandoAlvara ? 'A enviar...' : 'Enviar/atualizar alvará'}</Button></div></div>{erroDocumento && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}{erroEnvioAlvara && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroEnvioAlvara}</p>}{sucessoEnvioAlvara && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">Alvará enviado com sucesso.</p>}{documentoAberto && <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"><iframe title={`Alvará de ${academia.nome}`} src={documentoAberto} className="h-[70vh] w-full bg-white" /></div>}</section>
   </div>;
 }
 

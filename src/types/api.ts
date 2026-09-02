@@ -89,7 +89,7 @@ export interface CriarEscolaRequest {
   type: AcademiaType;
   nome: string;
   nif: string;
-  alvara: File;
+  alvara?: File;
   provincia: string;
   endereco: string;
   telefone?: string;
@@ -110,7 +110,7 @@ export interface CriarUniversidadeRequest {
   type: AcademiaType;
   nome: string;
   nif: string;
-  alvara: File;
+  alvara?: File;
   provincia: string;
   endereco: string;
   telefone?: string;
@@ -120,7 +120,7 @@ export interface CriarUniversidadeRequest {
 }
 
 /**
- * Cadastro público de academia (sem autenticação) — POST /academia/registo-publico.
+ * Cadastro público de academia (sem autenticação) — POST /academia/cadastro.
  * Mesmos campos de CriarEscolaRequest/CriarUniversidadeRequest, mais um campo
  * `senha` obrigatório exclusivo deste fluxo: quem se autocadastra deve definir a
  * própria senha antes de enviar o pedido. Não usar este tipo no fluxo administrativo
