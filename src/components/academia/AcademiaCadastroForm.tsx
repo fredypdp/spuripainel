@@ -92,9 +92,13 @@ export default function AcademiaCadastroForm({ onSubmit, submitting, apiError, s
     const nifDigitos = nif.replace(/\D/g, '');
     if (!nifDigitos) erros.push('Informe o NIF');
     else if (nifDigitos.length !== 10) erros.push('O NIF deve ter exatamente 10 números');
-    if (!alvara) erros.push('Anexe o alvará em PDF');
-    else if (alvara.type !== 'application/pdf' && !alvara.name.toLowerCase().endsWith('.pdf')) erros.push('O alvará deve ser um arquivo PDF');
-    else if (alvara.size > 10 * 1024 * 1024) erros.push('O alvará deve ter no máximo 10 MB');
+    // Alvará é opcional no cadastro: pode ser enviado depois, individualmente
+    // (documentosService.enviarAlvaraAcademia). Se o usuário anexar um
+    // arquivo agora, ele ainda precisa ser um PDF válido de até 10 MB.
+    if (alvara) {
+      if (alvara.type !== 'application/pdf' && !alvara.name.toLowerCase().endsWith('.pdf')) erros.push('O alvará deve ser um arquivo PDF');
+      else if (alvara.size > 10 * 1024 * 1024) erros.push('O alvará deve ter no máximo 10 MB');
+    }
     if (!nivelAcademia) erros.push('Escolha o tipo de instituição');
     if (!academiaType) erros.push('Escolha se é pública ou privada');
     if (!provinciaCodigo) erros.push('Selecione a província');
@@ -124,7 +128,7 @@ export default function AcademiaCadastroForm({ onSubmit, submitting, apiError, s
     const type = academiaType as AcademiaType;
     const nivel = nivelAcademia as 'escola' | 'superior';
     const senhaTrim = senha.trim();
-    const base = { type, nome: nomeAcademia.trim(), nif: nif.replace(/\D/g, ''), alvara: alvara as File, provincia: provinciaCodigo, endereco: endereco.trim(), telefone: onlyDigits(numeroTelefone), email: email.trim(), website: website.trim() || undefined, cursos: [] as string[], ...(showSenhaField ? { senha: senhaTrim } : {}) };
+    const base = { type, nome: nomeAcademia.trim(), nif: nif.replace(/\D/g, ''), alvara: alvara ?? undefined, provincia: provinciaCodigo, endereco: endereco.trim(), telefone: onlyDigits(numeroTelefone), email: email.trim(), website: website.trim() || undefined, cursos: [] as string[], ...(showSenhaField ? { senha: senhaTrim } : {}) };
     const payload: AcademiaCadastroFormPayload = nivel === 'escola'
       ? { ...base, nivel: 'escola' as const, nivel_escolar: nivelEscolar as NivelEscolar, anos_academicos: (nivelEscolar === 'fundamental' || nivelEscolar === 'misto') ? anosAcademicosSelecionados : undefined }
       : { ...base, nivel: 'superior' as const };
@@ -136,7 +140,7 @@ export default function AcademiaCadastroForm({ onSubmit, submitting, apiError, s
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
         <div className="col-span-2"><Label>Nome da instituição *</Label><Input type="text" placeholder="Ex: Escola Primária Ngola Kiluanje" value={nomeAcademia} onChange={(e) => setNomeAcademia(e.target.value)} disabled={submitting} /></div>
         <div className="col-span-2 sm:col-span-1"><Label>NIF *</Label><Input type="text" inputMode="numeric" placeholder="10 números" value={nif} onChange={(e) => setNif(e.target.value.replace(/\D/g, '').slice(0, 10))} disabled={submitting} /><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Informe apenas os 10 números do NIF.</p></div>
-        <div className="col-span-2 sm:col-span-1"><Label>Alvará em PDF *</Label><DocumentUpload id="academia-alvara" label="Alvará" required file={alvara ?? undefined} onChange={(file, error) => { setAlvara(file ?? null); if (error) setValidationErrors([error]); else setValidationErrors((prev) => prev.filter((item) => !item.toLowerCase().includes('alvará') && !item.toLowerCase().includes('ficheiro'))); }} /></div>
+        <div className="col-span-2 sm:col-span-1"><Label>Alvará em PDF (opcional)</Label><DocumentUpload id="academia-alvara" label="Alvará" file={alvara ?? undefined} onChange={(file, error) => { setAlvara(file ?? null); if (error) setValidationErrors([error]); else setValidationErrors((prev) => prev.filter((item) => !item.toLowerCase().includes('alvará') && !item.toLowerCase().includes('ficheiro'))); }} /><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pode enviar depois, individualmente, se ainda não tiver o arquivo em mãos.</p></div>
         <div className="col-span-2 sm:col-span-1"><Label>Tipo de instituição *</Label><SearchableSelect value={nivelAcademia} onChange={(value) => { setNivelAcademia(value as 'escola' | 'superior' | ''); setNivelEscolar(''); setAnosAcademicosSelecionados([]); }} options={NIVEL_ACADEMIA_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))} placeholder="Escola ou Ensino Superior" searchable disabled={submitting} /></div>
         <div className="col-span-2 sm:col-span-1"><Label>Natureza *</Label><SearchableSelect value={academiaType} onChange={(value) => setAcademiaType(value as AcademiaType | '')} options={NATUREZA_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))} placeholder="Pública ou Privada" searchable disabled={submitting} /></div>
         {nivelAcademia === 'escola' && <div className="col-span-2 sm:col-span-1"><Label>Nível escolar *</Label><SearchableSelect value={nivelEscolar} onChange={(value) => { setNivelEscolar(value as NivelEscolar | ''); setAnosAcademicosSelecionados([]); }} options={NIVEL_ESCOLAR_OPCOES.map((opcao) => ({ value: opcao.value, label: opcao.nome }))} placeholder="Primário, Secundário..." searchable disabled={submitting} /></div>}

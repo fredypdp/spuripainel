@@ -502,7 +502,7 @@ export const academiaPublicaService = {
     });
 
     // Rota pública — nenhum token é enviado, igual a solicitacaoMatriculaService.criar.
-    return api.postForm<CadastroAcademiaPublicaResponse>('/academia/registo-publico', formData);
+    return api.postForm<CadastroAcademiaPublicaResponse>('/academia/cadastro', formData);
   },
 };
 
@@ -1088,6 +1088,21 @@ export const documentosService = {
       normalizarDocumentoEndpoint(downloadUrl, '/documentos/academias/'),
       { token: token || tokenStorage.get() || undefined }
     ),
+
+  // Envia (ou substitui) o alvará de uma academia depois do cadastro — o
+  // alvará agora é opcional em POST /dominis/academia/cadastro e
+  // POST /academia/cadastro. Usado tanto pelo admin (qualquer codigo) quanto
+  // pela própria academia (seu próprio codigo) — mesma regra de permissão
+  // do download, validada no backend.
+  enviarAlvaraAcademia: (codigoAcademia: string, alvara: File, token?: string) => {
+    const formData = new FormData();
+    formData.append('alvara', alvara);
+    return api.postForm<{ message: string; codigo_academia: string; download_url: string }>(
+      `/documentos/academias/${encodeURIComponent(codigoAcademia)}/alvara/upload`,
+      formData,
+      { token: token || tokenStorage.get() || undefined }
+    );
+  },
 
   baixarDocumentoEstudante: (codigoEstudante: string, campo: string, token?: string, params?: { nivel?: string; ano_academico?: string }) => {
     const qs = new URLSearchParams();
@@ -2059,7 +2074,7 @@ export const adminService = {
     });
 
     return api.postForm<{ message: string; codigo_academia: string; data: { codigo_academia: string; id: string; nome: string; nif: string; provincia: string } }>(
-      '/dominis/academia/register',
+      '/dominis/academia/cadastro',
       formData,
       { token: token || tokenStorage.get() || undefined }
     );
