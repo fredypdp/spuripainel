@@ -11,7 +11,7 @@ import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
-import { Provincias, AcademiaDetalhada, ConsultarAcademiasResponse, formatAnoAcademico } from '@/types/api';
+import { Provincias, AcademiaDetalhada, ConsultarAcademiasResponse, SolicitacaoAlteracaoNIFAcademia, formatAnoAcademico } from '@/types/api';
 import Icon from "@/components/ui/Icon";
 import Checkbox from "@/components/form/input/Checkbox";
 import {
@@ -110,6 +110,12 @@ function getStatusBadgeClass(status: string) {
   }
 }
 
+const statusSolicitacaoNifClass: Record<string, string> = {
+  pendente: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  aprovada: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  reprovada: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+};
+
 /** Traduz AcademiaNivel (escola/superior) para exibição */
 function labelNivel(nivel?: string): string {
   if (nivel === 'escola')   return 'Escola';
@@ -137,6 +143,54 @@ function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDet
   const [erroEnvioAlvara, setErroEnvioAlvara] = useState('');
   const [sucessoEnvioAlvara, setSucessoEnvioAlvara] = useState(false);
   const inputAlvaraRef = useRef<HTMLInputElement>(null);
+
+  // Solicitações de alteração de NIF: nif deixou de ser único entre
+  // academias — a academia solicita, mas só um Admin (role 'adm' ou 'fpp')
+  // pode aprovar/reprovar. nifExibido é um override local, atualizado só
+  // depois de um "aprovar" bem-sucedido, para o card "Dados da academia"
+  // refletir o novo NIF sem precisar recarregar a lista inteira do pai.
+  const { user } = useUserCookie();
+  const podeDecidirNif = user?.tipo === 'admin' && ['adm', 'fpp'].includes(user?.admin?.role ?? '');
+  const [nifExibido, setNifExibido] = useState(academia.nif);
+  const [nifSolicitacoes, setNifSolicitacoes] = useState<SolicitacaoAlteracaoNIFAcademia[]>([]);
+  const [carregandoNif, setCarregandoNif] = useState(false);
+  const [erroNif, setErroNif] = useState('');
+  const [decidindoNif, setDecidindoNif] = useState<string | null>(null);
+
+  const carregarSolicitacoesNif = useCallback(async () => {
+    setCarregandoNif(true);
+    setErroNif('');
+    try {
+      const response = await adminService.listarSolicitacoesAlteracaoNIFAcademia({ codigo_academia: academia.codigo_academia });
+      setNifSolicitacoes(response.solicitacoes ?? []);
+    } catch (err: any) {
+      setErroNif(formatApiError(err, 'Não foi possível carregar as solicitações de alteração de NIF.'));
+    } finally {
+      setCarregandoNif(false);
+    }
+  }, [academia.codigo_academia]);
+
+  useEffect(() => { void carregarSolicitacoesNif(); }, [carregarSolicitacoesNif]);
+
+  const decidirNif = async (item: SolicitacaoAlteracaoNIFAcademia, action: 'aprovar' | 'reprovar') => {
+    const motivo = action === 'reprovar' ? window.prompt('Motivo da reprovação', '') : null;
+    if (action === 'reprovar' && !motivo?.trim()) return;
+    setDecidindoNif(item.codigo_solicitacao);
+    setErroNif('');
+    try {
+      if (action === 'aprovar') {
+        await adminService.aprovarSolicitacaoAlteracaoNIFAcademia(item.codigo_solicitacao, tokenStorage.get() || undefined);
+        setNifExibido(item.nif_solicitado);
+      } else {
+        await adminService.reprovarSolicitacaoAlteracaoNIFAcademia(item.codigo_solicitacao, { motivo_reprovacao: motivo!.trim() }, tokenStorage.get() || undefined);
+      }
+      await carregarSolicitacoesNif();
+    } catch (err: any) {
+      setErroNif(formatApiError(err, 'Não foi possível decidir a solicitação de alteração de NIF.'));
+    } finally {
+      setDecidindoNif(null);
+    }
+  };
 
   useEffect(() => () => { if (documentoAberto) URL.revokeObjectURL(documentoAberto); }, [documentoAberto]);
 
@@ -189,9 +243,43 @@ function SubtelaDetalhesAcademia({ academia, onVoltar }: { academia: AcademiaDet
         <Icon icon="mdi:school-outline" width={34} className="text-brand-500" />
       </div>
     </section>
-    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white">Dados da academia</h3><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><DetailItem label="NIF" value={academia.nif} /><DetailItem label="Nível" value={labelNivel(academia.nivel)} /><DetailItem label="Natureza" value={labelNatureza(academia.type)} /><DetailItem label="Nível escolar" value={academia.nivel_escolar || '-'} /><DetailItem label="Província" value={academia.provincia} /><DetailItem label="Endereço" value={academia.endereco} /><DetailItem label="Website" value={academia.website || '-'} /><DetailItem label="E-mail" value={academia.email || '-'} /><DetailItem label="E-mail verificado" value={academia.email_verificado ? 'Sim' : 'Não'} /><DetailItem label="Telefone" value={academia.telefone || '-'} /><DetailItem label="Telefone verificado" value={academia.telefone_verificado ? 'Sim' : 'Não'} /><DetailItem label="Total de estudantes" value={academia.total_estudantes} /><DetailItem label="Ano letivo" value={academia.ano_letivo} /><DetailItem label="Tipo do ano letivo" value={academia.tipo_ano_letivo} /><DetailItem label="Ativação do ano letivo" value={formatarDataHora(academia.ano_letivo_ativado_em)} /><DetailItem label="Motivo de desativação/deleção" value={academia.motivo_desativacao} /><DetailItem label="Deletada em" value={formatarDataHora(academia.deleted_at)} /><DetailItem label="Deletada por" value={academia.deletado_por} /><DetailItem label="Versão" value={academia.version} /><DetailItem label="Data de criação" value={formatarDataHora(academia.created_at)} /><DetailItem label="Última atualização" value={formatarDataHora(academia.updated_at)} /></div></section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white">Dados da academia</h3><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"><DetailItem label="NIF" value={nifExibido} /><DetailItem label="Nível" value={labelNivel(academia.nivel)} /><DetailItem label="Natureza" value={labelNatureza(academia.type)} /><DetailItem label="Nível escolar" value={academia.nivel_escolar || '-'} /><DetailItem label="Província" value={academia.provincia} /><DetailItem label="Endereço" value={academia.endereco} /><DetailItem label="Website" value={academia.website || '-'} /><DetailItem label="E-mail" value={academia.email || '-'} /><DetailItem label="E-mail verificado" value={academia.email_verificado ? 'Sim' : 'Não'} /><DetailItem label="Telefone" value={academia.telefone || '-'} /><DetailItem label="Telefone verificado" value={academia.telefone_verificado ? 'Sim' : 'Não'} /><DetailItem label="Total de estudantes" value={academia.total_estudantes} /><DetailItem label="Ano letivo" value={academia.ano_letivo} /><DetailItem label="Tipo do ano letivo" value={academia.tipo_ano_letivo} /><DetailItem label="Ativação do ano letivo" value={formatarDataHora(academia.ano_letivo_ativado_em)} /><DetailItem label="Motivo de desativação/deleção" value={academia.motivo_desativacao} /><DetailItem label="Deletada em" value={formatarDataHora(academia.deleted_at)} /><DetailItem label="Deletada por" value={academia.deletado_por} /><DetailItem label="Versão" value={academia.version} /><DetailItem label="Data de criação" value={formatarDataHora(academia.created_at)} /><DetailItem label="Última atualização" value={formatarDataHora(academia.updated_at)} /></div></section>
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">Anos académicos</h3>{academia.anos_academicos?.length ? <div className="flex flex-wrap gap-2">{academia.anos_academicos.map((ano) => <span key={ano} className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">{formatAnoAcademico(ano)}</span>)}</div> : <p className="text-sm text-gray-500 dark:text-gray-400">Não há anos académicos registados.</p>}</section>
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Documentos</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">O alvará é opcional no cadastro — visualize ou envie/atualize aqui.</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={carregandoDocumento} onClick={abrirAlvara} startIcon={<Icon icon={carregandoDocumento ? 'mdi:loading' : documentoAberto ? 'mdi:close' : 'mdi:file-eye-outline'} width={16} className={carregandoDocumento ? 'animate-spin' : undefined} />}>{carregandoDocumento ? 'A abrir...' : documentoAberto ? 'Fechar alvará' : 'Visualizar alvará'}</Button><input ref={inputAlvaraRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) enviarAlvara(file); }} /><Button size="sm" disabled={enviandoAlvara} onClick={() => inputAlvaraRef.current?.click()} startIcon={<Icon icon={enviandoAlvara ? 'mdi:loading' : 'mdi:file-upload-outline'} width={16} className={enviandoAlvara ? 'animate-spin' : undefined} />}>{enviandoAlvara ? 'A enviar...' : 'Enviar/atualizar alvará'}</Button></div></div>{erroDocumento && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroDocumento}</p>}{erroEnvioAlvara && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroEnvioAlvara}</p>}{sucessoEnvioAlvara && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">Alvará enviado com sucesso.</p>}{documentoAberto && <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"><iframe title={`Alvará de ${academia.nome}`} src={documentoAberto} className="h-[70vh] w-full bg-white" /></div>}</section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="mb-3"><h3 className="text-sm font-semibold text-gray-800 dark:text-white">Solicitações de alteração de NIF</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">NIF não é mais único entre academias. Pedidos de alteração aparecem aqui{podeDecidirNif ? ' — aprovar aplica o novo NIF imediatamente; reprovar não altera nada.' : '.'}</p></div>
+      {erroNif && <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroNif}</p>}
+      {carregandoNif ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">A carregar...</p>
+      ) : nifSolicitacoes.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma solicitação de alteração de NIF para esta academia.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+            <thead className="bg-gray-50 dark:bg-gray-900/40"><tr>{['Código', 'NIF atual', 'NIF solicitado', 'Status', 'Criada em', 'Ações'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>)}</tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {nifSolicitacoes.map((item) => (
+                <tr key={item.codigo_solicitacao}>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{item.codigo_solicitacao}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.nif_atual}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.nif_solicitado}</td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusSolicitacaoNifClass[item.status]}`}>{item.status}</span></td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatarDataHora(item.created_at)}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {podeDecidirNif && item.status === 'pendente' ? (
+                      <div className="flex gap-2">
+                        <button type="button" disabled={decidindoNif === item.codigo_solicitacao} onClick={() => decidirNif(item, 'aprovar')} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">Aprovar</button>
+                        <button type="button" disabled={decidindoNif === item.codigo_solicitacao} onClick={() => decidirNif(item, 'reprovar')} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">Reprovar</button>
+                      </div>
+                    ) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   </div>;
 }
 

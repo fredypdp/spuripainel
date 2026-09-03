@@ -54,6 +54,13 @@ import type {
   ListarSolicitacoesEdicaoDadoEstudanteResponse,
   DecidirSolicitacaoEdicaoDadoEstudanteResponse,
   ReprovarSolicitacaoEdicaoDadoEstudanteRequest,
+  StatusSolicitacaoAlteracaoNIFAcademia,
+  CriarSolicitacaoAlteracaoNIFAcademiaRequest,
+  CriarSolicitacaoAlteracaoNIFAcademiaResponse,
+  ListarSolicitacoesAlteracaoNIFAcademiaParams,
+  ListarSolicitacoesAlteracaoNIFAcademiaResponse,
+  DecidirSolicitacaoAlteracaoNIFAcademiaResponse,
+  ReprovarSolicitacaoAlteracaoNIFAcademiaRequest,
   AtualizarEmailUsuarioRequest,
   AtualizarTelefoneUsuarioRequest,
   AtualizarDadosAcademiaRequest,
@@ -418,6 +425,15 @@ function buildSolicitacoesEdicaoDadoEstudanteQuery(params?: ListarSolicitacoesEd
   if (params?.status) qs.set('status', params.status);
   if (params?.campo) qs.set('campo', params.campo);
   if (params?.codigo_estudante) qs.set('codigo_estudante', params.codigo_estudante);
+  appendPageParams(qs, params);
+  const query = qs.toString();
+  return query ? `?${query}` : '';
+}
+
+function buildSolicitacoesAlteracaoNIFAcademiaQuery(params?: ListarSolicitacoesAlteracaoNIFAcademiaParams): string {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
   appendPageParams(qs, params);
   const query = qs.toString();
   return query ? `?${query}` : '';
@@ -1177,6 +1193,23 @@ export const academiaService = {
       `/academia/solicitacoes-edicao-estudante/${campo.replace(/_/g, '-')}/${encodeURIComponent(codigo)}/reprovar`,
       { motivo_reprovacao: data.motivo_reprovacao?.trim() },
       { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // Fluxo de alteração de NIF (nif deixou de ser único entre academias):
+  // a própria academia solicita, mas só um Admin (role 'adm' ou 'fpp') pode
+  // aprovar — ver adminService.aprovarSolicitacaoAlteracaoNIFAcademia /
+  // reprovarSolicitacaoAlteracaoNIFAcademia.
+  criarSolicitacaoAlteracaoNIF: (data: CriarSolicitacaoAlteracaoNIFAcademiaRequest, token?: string) =>
+    api.post<CriarSolicitacaoAlteracaoNIFAcademiaResponse>(
+      '/academia/solicitacoes-nif',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarSolicitacoesAlteracaoNIF: (params?: { status?: StatusSolicitacaoAlteracaoNIFAcademia; limit?: number; offset?: number; token?: string }) =>
+    api.get<ListarSolicitacoesAlteracaoNIFAcademiaResponse>(
+      `/academia/solicitacoes-nif${buildSolicitacoesAlteracaoNIFAcademiaQuery(params)}`,
+      { token: params?.token || tokenStorage.get() || undefined }
     ),
 
   cadastrarEstudante: (data: CriarEstudanteRequest, token?: string) =>
@@ -2098,6 +2131,30 @@ export const adminService = {
     api.delete<{ message: string }, DesativarRequest>(
       `/dominis/academia/${codigoAcademia}`,
       data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  // Fluxo de alteração de NIF (nif deixou de ser único entre academias):
+  // listagem/decisão do lado do Admin — só role 'adm' ou 'fpp' consegue
+  // aprovar/reprovar de fato (o backend retorna 403 para 'gerente'); a
+  // listagem em si é visível a qualquer admin autenticado.
+  listarSolicitacoesAlteracaoNIFAcademia: (params?: ListarSolicitacoesAlteracaoNIFAcademiaParams & { token?: string }) =>
+    api.get<ListarSolicitacoesAlteracaoNIFAcademiaResponse>(
+      `/dominis/solicitacoes-nif-academia${buildSolicitacoesAlteracaoNIFAcademiaQuery(params)}`,
+      { token: params?.token || tokenStorage.get() || undefined }
+    ),
+
+  aprovarSolicitacaoAlteracaoNIFAcademia: (codigoSolicitacao: string, token?: string) =>
+    api.put<DecidirSolicitacaoAlteracaoNIFAcademiaResponse>(
+      `/dominis/solicitacoes-nif-academia/${encodeURIComponent(codigoSolicitacao)}/aprovar`,
+      undefined,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  reprovarSolicitacaoAlteracaoNIFAcademia: (codigoSolicitacao: string, data: ReprovarSolicitacaoAlteracaoNIFAcademiaRequest, token?: string) =>
+    api.put<DecidirSolicitacaoAlteracaoNIFAcademiaResponse>(
+      `/dominis/solicitacoes-nif-academia/${encodeURIComponent(codigoSolicitacao)}/reprovar`,
+      { motivo_reprovacao: data.motivo_reprovacao?.trim() },
       { token: token || tokenStorage.get() || undefined }
     ),
 

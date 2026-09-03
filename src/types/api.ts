@@ -624,6 +624,64 @@ export interface ListarSolicitacoesEdicaoDadoEstudanteResponse {
   total: number;
 }
 
+/**
+ * Fluxo de alteração de NIF de academia (nif deixou de ser único entre
+ * academias). A academia solicita; só um Admin (role 'adm' ou 'fpp') pode
+ * aprovar ou reprovar — diferente de SolicitacaoEdicaoDadoEstudante, que é
+ * decidida pela própria academia. Sem documento comprobatório.
+ */
+export type StatusSolicitacaoAlteracaoNIFAcademia = 'pendente' | 'aprovada' | 'reprovada';
+
+export interface CriarSolicitacaoAlteracaoNIFAcademiaRequest {
+  novo_nif: string;
+}
+
+export interface CriarSolicitacaoAlteracaoNIFAcademiaResponse {
+  message: string;
+  codigo_solicitacao: string;
+  nif_atual: string;
+  nif_solicitado: string;
+  status: StatusSolicitacaoAlteracaoNIFAcademia;
+}
+
+export interface SolicitacaoAlteracaoNIFAcademia {
+  codigo_solicitacao: string;
+  codigo_academia: string;
+  nif_atual: string;
+  nif_solicitado: string;
+  status: StatusSolicitacaoAlteracaoNIFAcademia;
+  motivo_reprovacao?: string | null;
+  solicitado_por: string;
+  decidido_por?: string | null;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface ListarSolicitacoesAlteracaoNIFAcademiaParams {
+  status?: StatusSolicitacaoAlteracaoNIFAcademia;
+  codigo_academia?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListarSolicitacoesAlteracaoNIFAcademiaResponse {
+  solicitacoes: SolicitacaoAlteracaoNIFAcademia[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export interface DecidirSolicitacaoAlteracaoNIFAcademiaResponse {
+  message: string;
+  codigo_solicitacao: string;
+  status: StatusSolicitacaoAlteracaoNIFAcademia;
+}
+
+export interface ReprovarSolicitacaoAlteracaoNIFAcademiaRequest {
+  motivo_reprovacao: string;
+}
+
 export interface AtualizarDadosAcademicosEstudanteRequest {
   ano_escolar_fundamental?: string;
   ano_escolar_medio?: string;
