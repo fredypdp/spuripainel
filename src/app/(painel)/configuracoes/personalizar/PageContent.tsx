@@ -8,6 +8,8 @@ import { academiaService, adminService, estudanteService, perfilService, useApi 
 import { formatApiError } from "@/lib/api/client";
 import { setCookie } from "@/lib/utils/cookies";
 import type { CampoEdicaoDadoEstudante, MeuPerfilResponse } from "@/types/api";
+import AlvaraSettingsCard from "../AlvaraSettingsCard";
+import NIFSettingsCard from "../NIFSettingsCard";
 
 type DadosForm = {
   nome: string;
@@ -146,5 +148,5 @@ export default function PersonalizarPageContent() {
   const { data: profile, loading, error, execute: loadProfile } = useApi(perfilService.meuPerfil);
   useEffect(() => { loadProfile().catch(() => undefined); }, [loadProfile]);
   useEffect(() => { if (profile) setCookie("user", JSON.stringify(profile), 1); }, [profile]);
-  return <div><PageBreadcrumb pageTitle="Personalizar" />{loading && !profile ? <ProfileSkeleton /> : error ? <Alert title="Não foi possível carregar seu perfil" message="Tente atualizar a página. Se o problema continuar, entre novamente na sua conta." variant="error" /> : profile ? <div className="space-y-6"><DadosPessoaisSection user={profile} onUpdated={loadProfile} /><ContatoSection user={profile} onUpdated={loadProfile} /></div> : null}</div>;
+  return <div><PageBreadcrumb pageTitle="Personalizar" />{loading && !profile ? <ProfileSkeleton /> : error ? <Alert title="Não foi possível carregar seu perfil" message="Tente atualizar a página. Se o problema continuar, entre novamente na sua conta." variant="error" /> : profile ? <div className="space-y-6"><DadosPessoaisSection user={profile} onUpdated={loadProfile} /><ContatoSection user={profile} onUpdated={loadProfile} />{profile.tipo === "academia" && <AlvaraSettingsCard />}{profile.tipo === "academia" && <NIFSettingsCard />}</div> : null}</div>;
 }

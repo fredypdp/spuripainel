@@ -8,9 +8,6 @@ import { academiaService, adminService } from "@/lib/api/services";
 import { descreverJanelaFinalizacao, formatAnoLetivo, formatPeriodoAnoLetivo, type AnoLetivoTipo } from "@/types/api";
 import Icon from "@/components/ui/Icon";
 import SearchableSelect from "@/components/form/SearchableSelect";
-import PasswordSettingsCard from "./PasswordSettingsCard";
-import AlvaraSettingsCard from "./AlvaraSettingsCard";
-import NIFSettingsCard from "./NIFSettingsCard";
 import AcademiaCategoriesSection from "./AcademiaCategoriesSection";
 import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
 
@@ -654,9 +651,6 @@ export default function AcademiaSection({ section = "all" }: { section?: Academi
 
         {showCategorias && <AcademiaCategoriesSection />}
         {showRegras && <AvaliacaoFinalRulesSection />}
-        {section === "all" && <AlvaraSettingsCard />}
-        {section === "all" && <NIFSettingsCard />}
-        {section === "all" && <PasswordSettingsCard />}
       </div>
 
     </div>
