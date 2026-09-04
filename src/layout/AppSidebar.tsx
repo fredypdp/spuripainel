@@ -118,6 +118,7 @@ const navItems: NavItem[] = [
       { name: "Personalizar", path: "/configuracoes/personalizar" },
       { name: "Ano Letivo", path: "/configuracoes/ano-letivo" },
       { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
+      { name: "Categorias de nota", path: "/configuracoes/categorias-nota" },
       { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
       { name: "Segurança", path: "/configuracoes/seguranca" },
     ],
@@ -315,6 +316,7 @@ export default function AppSidebar() {
             "/configuracoes/personalizar",
             "/configuracoes/ano-letivo",
             ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
+            "/configuracoes/categorias-nota",
             "/configuracoes/regras-avaliacao-final",
             "/configuracoes/seguranca",
           ];
