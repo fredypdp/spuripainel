@@ -12,12 +12,14 @@ import AvaliacaoFinalRulesSection from "./AvaliacaoFinalRulesSection";
 type SettingsSection =
   | "ano-letivo"
   | "anos-academicos"
+  | "categorias-nota"
   | "regras-avaliacao-final"
   | "seguranca";
 
 const PAGE_TITLES: Record<SettingsSection, string> = {
   "ano-letivo": "Ano Letivo",
   "anos-academicos": "Anos acadêmicos",
+  "categorias-nota": "Categorias de nota",
   "regras-avaliacao-final": "Regras de avaliação final",
   seguranca: "Segurança",
 };
