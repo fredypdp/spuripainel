@@ -26,9 +26,12 @@ const statusClass: Record<string, string> = {
 // 'adm' ou 'fpp') pode aprovar. Este card cobre o lado da própria academia:
 // ver o NIF atual, ver o estado do último pedido, e criar um novo pedido
 // quando não há nenhum pendente.
-export default function NIFSettingsCard() {
+export default function NIFSettingsCard({ nif }: { nif?: string }) {
   const { user } = useUserType();
-  const nifAtual = user?.academia?.nif;
+  // O cookie de perfil pode estar desatualizado quando a página Personalizar
+  // termina de buscar /meu-perfil. Priorize o NIF recebido dessa resposta para
+  // que o card não desapareça para uma academia cujo cookie antigo não o tenha.
+  const nifAtual = nif ?? user?.academia?.nif;
 
   const [ultima, setUltima] = useState<SolicitacaoAlteracaoNIFAcademia | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -76,8 +79,6 @@ export default function NIFSettingsCard() {
     }
   };
 
-  if (!nifAtual) return null;
-
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div className="mb-4 flex items-center gap-3">
@@ -85,7 +86,7 @@ export default function NIFSettingsCard() {
         <h3 className="text-base font-semibold text-gray-800 dark:text-white">NIF</h3>
       </div>
       <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">NIF atual</p>
-      <p className="mb-4 text-lg font-semibold text-gray-800 dark:text-white">{nifAtual}</p>
+      <p className="mb-4 text-lg font-semibold text-gray-800 dark:text-white">{nifAtual || "Não informado"}</p>
 
       {carregando && <p className="text-sm text-gray-500 dark:text-gray-400">A verificar solicitações...</p>}
       {erroCarregar && <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">{erroCarregar}</p>}

@@ -59,6 +59,7 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Listar",    path: "/academias"           },
       { name: "Cadastrar", path: "/academias/cadastrar" },
+      { name: "Solicitações de NIF", path: "/solicitacoes-nif" },
     ],
   },
   {
