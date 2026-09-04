@@ -15,13 +15,14 @@ depende_de: Tarefa 82 no spuri-backend (upload de alvará exclusivo da própria 
 Rodei a cadeia de validação completa no meu sandbox, com todas as mudanças desta tarefa já aplicadas:
 
 - `npx tsc --noEmit` no repositório inteiro: **0 erros**.
-- `npx eslint` em todos os 7 arquivos tocados (alterados ou criados): **0 erros**. `AppSidebar.tsx` mostrou 3 avisos pré-existentes (linhas 145/158/160, sobre um `useEffect` de sidebar mobile) — confirmei que ficam bem longe da única linha que toquei nesse arquivo (a lista `navItems`, perto da linha 60) e não têm nenhuma relação com esta tarefa.
+- `npx eslint` em todos os 9 arquivos tocados (alterados ou criados): **0 erros**. `AppSidebar.tsx` mostrou 3 avisos pré-existentes (sobre um `useEffect` de sidebar mobile) — confirmei que ficam bem longe das linhas que toquei nesse arquivo e não têm nenhuma relação com esta tarefa.
 
-Este documento corrige três coisas depois que a Tarefa 81 (NIF não-único, já implantada) foi para produção:
+Este documento corrige quatro coisas depois que a Tarefa 81 (NIF não-único, já implantada) foi para produção:
 
 1. O card de NIF (e também o de alvará, que tinha o mesmo problema) nunca aparecia em lugar nenhum — foram colocados dentro de `AcademiaSection.tsx`, atrás de `section === "all"`, mas **nenhuma rota real passa `section="all"`** para esse componente (só `"ano-letivo" | "anos-academicos" | "regras-avaliacao-final" | "seguranca"`, vindos de `configuracoes/PageContent.tsx`). Era código morto e inalcançável desde que foi escrito.
 2. A tela de solicitações de NIF vivia dentro da tela de detalhes de cada academia (`/academias` → abrir uma academia). O Fredy quer isso numa página própria, exclusiva para admin.
 3. A tela de detalhes da academia (admin) tinha um botão "Enviar/atualizar alvará" que não deveria existir ali — só a própria academia pode enviar/atualizar seu alvará (isso é corrigido no backend pela Tarefa 82; aqui é só a parte de interface).
+4. Mesmo bug do item 1, achado numa segunda checagem: a seção "Categorias de nota" (CRUD de categorias de nota da academia) também estava atrás de uma condição que nenhuma rota real disparava — só que aqui faltava a rota inteira, não só o lugar de renderizar. Criei `/configuracoes/categorias-nota`.
 
 O que **você** precisa fazer: aplicar os blocos da seção 3 exatamente como estão, rodar `npx tsc --noEmit` e `npx eslint`, e seguir o checklist da seção 4. Não precisa planejar nada.
 
@@ -38,6 +39,7 @@ O que **você** precisa fazer: aplicar os blocos da seção 3 exatamente como es
 - Rotas admin-only no menu lateral (`src/layout/AppSidebar.tsx`) seguem um padrão: o item pai (ex. "Academias") é filtrado por `user.tipo === "admin"` em `filteredNavItems`, e todo `subItem` dentro dele herda essa restrição de graça — não precisa de lógica de filtro adicional por subitem. Segui esse padrão: a nova página entra como um terceiro subitem de "Academias".
 - A proteção de rota **de verdade** (que redireciona quem não pode acessar) é `src/lib/route-guards.ts` (`ROUTE_PERMISSIONS`), não o menu lateral — o menu só esconde o link. Toda rota nova precisa de uma entrada aqui; sem isso, alguém com o link direto conseguiria abrir a página.
 - Backend (Tarefa 81, já implantada): `GET /dominis/solicitacoes-nif-academia` (lista, qualquer admin, filtros `status` e `codigo_academia` opcionais), `PUT /dominis/solicitacoes-nif-academia/:codigo/aprovar` e `.../reprovar` (decisão, só `adm`/`fpp` — `gerente` recebe `403`). Os métodos de serviço (`adminService.listarSolicitacoesAlteracaoNIFAcademia/aprovarSolicitacaoAlteracaoNIFAcademia/reprovarSolicitacaoAlteracaoNIFAcademia`) já existem em `src/lib/api/services.ts` desde a Tarefa 81 — nenhuma mudança neles aqui, só troquei de onde são chamados.
+- **Mesmo bug, achado numa segunda checagem**: `AcademiaSection.tsx` também tem uma seção `categorias-nota` (`showCategorias = section === "all" || section === "categorias-nota"`), controlando `AcademiaCategoriesSection` (CRUD de categorias de nota da própria academia). Igual ao caso do NIF/alvará, nenhuma rota real passava `section="categorias-nota"` — `configuracoes/PageContent.tsx` só conhecia `"ano-letivo" | "anos-academicos" | "regras-avaliacao-final" | "seguranca"`, e não existia pasta `configuracoes/categorias-nota/`. Diferença em relação a NIF/alvará: aqui a peça que faltava não era "onde renderizar um card de dados pessoais" — era literalmente a rota em si; `AcademiaSection` e o tipo `AcademiaSettingsSection` já sabiam lidar com `"categorias-nota"` desde sempre, só ninguém tinha criado `configuracoes/categorias-nota/page.tsx` nem cadastrado o valor em `SettingsSection`/`PAGE_TITLES` no dispatcher. Por ser uma configuração acadêmica (não um dado pessoal), segui o padrão de `anos-academicos`/`regras-avaliacao-final` (rota própria dentro de `/configuracoes`) em vez de colocar em `/configuracoes/personalizar`.
 
 ## 3. Arquivos a alterar/criar, em ordem
 
@@ -663,6 +665,147 @@ Sem isto, alguém com o link direto de `/solicitacoes-nif` acessaria a página m
 
 Não precisa mexer em `filteredNavItems`/`.filter()` — o item "Academias" já é inteiramente restrito a `user.tipo === "admin"`, e todo `subItem` dentro dele herda essa restrição automaticamente.
 
+---
+
+### 3.8 — `src/app/(painel)/configuracoes/PageContent.tsx`
+
+Liga a rota que faltava: `AcademiaSection` já sabia renderizar `AcademiaCategoriesSection` quando `section === "categorias-nota"`, mas nenhum lugar do dispatcher conhecia esse valor.
+
+**Localizar este bloco exato:**
+
+```typescript
+type SettingsSection =
+  | "ano-letivo"
+  | "anos-academicos"
+  | "regras-avaliacao-final"
+  | "seguranca";
+
+const PAGE_TITLES: Record<SettingsSection, string> = {
+  "ano-letivo": "Ano Letivo",
+  "anos-academicos": "Anos acadêmicos",
+  "regras-avaliacao-final": "Regras de avaliação final",
+  seguranca: "Segurança",
+};
+```
+
+**Substituir por:**
+
+```typescript
+type SettingsSection =
+  | "ano-letivo"
+  | "anos-academicos"
+  | "categorias-nota"
+  | "regras-avaliacao-final"
+  | "seguranca";
+
+const PAGE_TITLES: Record<SettingsSection, string> = {
+  "ano-letivo": "Ano Letivo",
+  "anos-academicos": "Anos acadêmicos",
+  "categorias-nota": "Categorias de nota",
+  "regras-avaliacao-final": "Regras de avaliação final",
+  seguranca: "Segurança",
+};
+```
+
+Não precisa mexer em mais nada neste arquivo — o branch `if (isAcademia) { return <AcademiaSection section={section as AcademiaSettingsSection} /> }`, mais abaixo, já repassa qualquer `section` recebida (inclusive `"categorias-nota"`) para `AcademiaSection`, que já sabe tratá-la.
+
+---
+
+### 3.9 — Criar `src/app/(painel)/configuracoes/categorias-nota/page.tsx`
+
+Arquivo novo, conteúdo exato (mesmo padrão de `configuracoes/anos-academicos/page.tsx`):
+
+```tsx
+import React from "react";
+import { Metadata } from "next";
+import PageContent from "../PageContent";
+
+export const metadata: Metadata = { title: "Categorias de nota" };
+
+export default function CategoriasNotaPage() {
+  return <PageContent section="categorias-nota" />;
+}
+```
+
+---
+
+### 3.10 — `src/lib/route-guards.ts`
+
+**Localizar este bloco exato:**
+
+```typescript
+  {
+    path: '/configuracoes/anos-academicos',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+```
+
+**Substituir por:**
+
+```typescript
+  {
+    path: '/configuracoes/anos-academicos',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/configuracoes/categorias-nota',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+```
+
+**Atenção**: essa âncora (`/configuracoes/anos-academicos`) já existe no arquivo em exatamente um lugar — não confunda com a âncora diferente usada na seção 3.6 deste documento (`/academias/cadastrar`), que já foi aplicada antes desta.
+
+---
+
+### 3.11 — `src/layout/AppSidebar.tsx`
+
+Duas mudanças neste arquivo: o item de menu, e o filtro que decide quem vê esse item.
+
+**3.11.1 — Localizar este bloco exato** (dentro dos `subItems` de "Configurações" — **atenção**: isto é um bloco diferente do que você já editou na seção 3.7, que era dentro de "Academias"):
+
+```typescript
+      { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
+      { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
+```
+
+**Substituir por:**
+
+```typescript
+      { name: "Anos acadêmicos", path: "/configuracoes/anos-academicos" },
+      { name: "Categorias de nota", path: "/configuracoes/categorias-nota" },
+      { name: "Regras de avaliação", path: "/configuracoes/regras-avaliacao-final" },
+```
+
+**3.11.2 — Localizar este bloco exato** (dentro do filtro `if (item.name === "Configurações" && item.subItems)`):
+
+```typescript
+          const academiaSettingsPaths = [
+            "/configuracoes/personalizar",
+            "/configuracoes/ano-letivo",
+            ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
+            "/configuracoes/regras-avaliacao-final",
+            "/configuracoes/seguranca",
+          ];
+```
+
+**Substituir por:**
+
+```typescript
+          const academiaSettingsPaths = [
+            "/configuracoes/personalizar",
+            "/configuracoes/ano-letivo",
+            ...(isFundamentalOrMixed ? ["/configuracoes/anos-academicos"] : []),
+            "/configuracoes/categorias-nota",
+            "/configuracoes/regras-avaliacao-final",
+            "/configuracoes/seguranca",
+          ];
+```
+
+`categorias-nota` fica **fora** do `isFundamentalOrMixed ? [...] : []` condicional de propósito — diferente de `anos-academicos`, `AcademiaCategoriesSection` já lida com academias de nível superior (`isSuperior = user?.academia?.nivel === "superior"` ajusta o comportamento internamente, não esconde a seção inteira), então a página vale para academia de qualquer nível.
+
 ## 4. Checklist de validação
 
 - [ ] `npx tsc --noEmit` na raiz do repositório — sem erros.
@@ -672,6 +815,8 @@ Não precisa mexer em `filteredNavItems`/`.filter()` — o item "Academias" já 
 - [ ] Abrir `/solicitacoes-nif` logado como admin: a página carrega e lista as solicitações; os botões Aprovar/Reprovar só aparecem se o admin for `adm` ou `fpp`.
 - [ ] Abrir `/solicitacoes-nif` logado como academia ou estudante: redireciona (não abre a página).
 - [ ] O item "Solicitações de NIF" só aparece no menu lateral para usuários admin, dentro do dropdown "Academias".
+- [ ] Abrir `/configuracoes/categorias-nota` logado como academia: a página carrega e mostra o CRUD de categorias de nota (mesmo conteúdo que antes não aparecia em lugar nenhum).
+- [ ] O item "Categorias de nota" aparece no menu lateral, dentro do dropdown "Configurações", só para usuários academia.
 
 ## Critérios de aceite
 
@@ -679,12 +824,9 @@ Não precisa mexer em `filteredNavItems`/`.filter()` — o item "Academias" já 
 2. Existe uma página própria, `/solicitacoes-nif`, exclusiva para admin, onde todas as solicitações de NIF de todas as academias podem ser consultadas, filtradas por status e por código de academia, e aprovadas/reprovadas por quem tem role `adm` ou `fpp`.
 3. A tela de detalhes da academia (admin) não tem mais nenhuma forma de enviar/atualizar o alvará — só visualizar.
 4. Nenhuma regressão nas outras seções de `/academias` (ativar, desativar, deletar, listagem, etc.) nem nas outras seções de `/configuracoes` (ano letivo, anos acadêmicos, regras de avaliação, segurança).
+5. A página `/configuracoes/categorias-nota` existe e funciona para academia (mesmo componente que já existia, `AcademiaCategoriesSection`, agora alcançável por uma rota real).
 
 ## 5. Procedimento de conclusão
 
 1. Depois de tudo validado, mova este arquivo para `src/docs/`, renomeando para o padrão já usado nesse diretório (ex.: `Tarefa - Corrigir localizacao das personalizacoes de academia e criar pagina de solicitacoes de NIF (Frontend).md`).
 2. **Coordenação de deploy**: ver seção 4 do documento irmão do backend (Tarefa 82, `spuri-backend`) — não há dependência estrita de ordem, mas o ideal é subir as duas mudanças próximas uma da outra.
-
-## 6. Perguntas em aberto (não bloqueiam a execução, mas o Fredy deve decidir depois)
-
-- `AcademiaSection.tsx` também tem uma seção `categorias-nota` (`showCategorias`) que, pela mesma checagem que fiz (`grep -rn "<AcademiaSection"`), também nunca é passada por nenhuma rota real (não existe `/configuracoes/categorias-nota`). Não toquei nisso porque não foi pedido e está fora do escopo desta correção — mas é o mesmo tipo de problema que motivou este documento, e vale conferir se `AcademiaCategoriesSection` está acessível por algum outro caminho que eu não tenha visto.
