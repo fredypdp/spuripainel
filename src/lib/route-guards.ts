@@ -61,6 +61,11 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     redirectIfUnauthorized: '/',
   },
   {
+    path: '/solicitacoes-nif',
+    allowedTypes: ['admin'],
+    redirectIfUnauthorized: '/',
+  },
+  {
     path: '/estudantes',
     allowedTypes: ['admin', 'academia'],
     redirectIfUnauthorized: '/',
