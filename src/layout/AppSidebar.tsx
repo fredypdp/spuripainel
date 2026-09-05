@@ -51,6 +51,8 @@ const navItems: NavItem[] = [
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
       { name: "Sumários",              path: "/gerenciamento/sumarios"              },
       { name: "Turmas",               path: "/gerenciamento/turmas"               },
+      { name: "Serviços Extras", path: "/gerenciamento/servicos-extras" },
+      { name: "Solicitações de Serviços Extras", path: "/gerenciamento/servicos-extras-solicitacoes" },
     ],
   },
   {
@@ -80,6 +82,14 @@ const navItems: NavItem[] = [
     icon: <Icon width="24px" icon="mdi:cash-clock" />,
     name: "Pagamentos",
     path: "/pagamentos",
+  },
+  {
+    name: "Serviços Extras",
+    icon: <Icon width="24px" icon="mdi:package-variant-closed-plus" />,
+    subItems: [
+      { name: "Catálogo", path: "/servicos-extras" },
+      { name: "Minhas Inscrições", path: "/servicos-extras/minhas-inscricoes" },
+    ],
   },
   {
     name: "Notas & Faltas",
