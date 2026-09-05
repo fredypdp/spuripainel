@@ -49,6 +49,10 @@ import type {
   StatusSolicitacaoServicoExtra,
   PendenciaServicoExtra,
   TipoLancamentoServicoExtra,
+  SolicitarServicoExtraRequest,
+  IniciarPagamentoTaxaInscricaoRequest,
+  IniciarPagamentoObrigacaoRequest,
+  QRCodeChargeResult,
   ListarCursosResponse,
   ListarMateriasResponse,
   AtualizarDadosPessoaisEstudanteRequest,
@@ -937,6 +941,8 @@ export const financeiroService = {
   reativarObrigacoes: (data: ObrigacaoMensalidadeInput, token?: string) => api.post<void, ObrigacaoMensalidadeInput>('/financeiro/mensalidades/obrigacoes/reativar', data, { token: token || tokenStorage.get() || undefined }),
   anularObrigacaoServicoExtra: (data: { solicitacao_id: string; tipo_lancamento: TipoLancamentoServicoExtra; ano?: number; mes?: number; motivo?: string }, token?: string) => api.post<{ message: string }>('/financeiro/servicos-extras/obrigacao/anular', data, { token: token || tokenStorage.get() || undefined }),
   reativarObrigacaoServicoExtra: (data: { solicitacao_id: string; tipo_lancamento: TipoLancamentoServicoExtra; ano?: number; mes?: number; motivo?: string }, token?: string) => api.post<{ message: string }>('/financeiro/servicos-extras/obrigacao/reativar', data, { token: token || tokenStorage.get() || undefined }),
+  iniciarPagamentoTaxaInscricaoServicoExtra: (data: IniciarPagamentoTaxaInscricaoRequest, token?: string) => api.post<{ cobranca: QRCodeChargeResult }, IniciarPagamentoTaxaInscricaoRequest>('/financeiro/servicos-extras/taxa-inscricao/pagamento', data, { token: token || tokenStorage.get() || undefined }),
+  iniciarPagamentoObrigacaoServicoExtra: (data: IniciarPagamentoObrigacaoRequest, token?: string) => api.post<{ cobranca: QRCodeChargeResult }, IniciarPagamentoObrigacaoRequest>('/financeiro/servicos-extras/obrigacao/pagamento', data, { token: token || tokenStorage.get() || undefined }),
   consultarMensalidadesEstudante: (codigoEstudante: string, token?: string) => api.get<ConsultarMensalidadesEstudanteResponse>(`/financeiro/mensalidades/estudante/${encodeURIComponent(codigoEstudante)}`, { token: token || tokenStorage.get() || undefined }),
   iniciarPagamentoMensalidades: (data: MensalidadePagamentoInput, token?: string) => api.post<MensalidadePagamentoResponse, MensalidadePagamentoInput>('/financeiro/mensalidades/pagamento', data, { token: token || tokenStorage.get() || undefined }),
   listarConfiguracoesMatricula: (params: { codigo_academia?: string } = {}, token?: string) => api.get<ListarConfiguracoesMatriculaResponse>(`/financeiro/matriculas/configuracoes${params.codigo_academia ? `?codigo_academia=${encodeURIComponent(params.codigo_academia)}` : ''}`, { token: token || tokenStorage.get() || undefined }),
@@ -1005,6 +1011,12 @@ export const eventSourcingService = {
 // =====================
 
 export const estudanteService = {
+  listarServicosExtrasDisponiveis: (codigoAcademia: string, token?: string) => api.get<{ servicos_extras: ServicoExtra[]; total: number }>(`/academia/servico/${encodeURIComponent(codigoAcademia)}/servicos-extras`, { token: token || tokenStorage.get() || undefined }),
+  solicitarServicoExtra: (servicoId: string, data: SolicitarServicoExtraRequest, token?: string) => { const form = new FormData(); if (data.documento) form.append('documento', data.documento); return api.postForm<{ data: SolicitacaoServicoExtra }>(`/estudante/servicos-extras/${servicoId}/solicitacao`, form, { token: token || tokenStorage.get() || undefined }); },
+  listarMinhasInscricoesServicoExtra: (status?: string, token?: string) => api.get<{ inscricoes: SolicitacaoServicoExtra[]; total: number }>(`/estudante/servicos-extras/minhas-inscricoes${status ? `?status=${encodeURIComponent(status)}` : ''}`, { token: token || tokenStorage.get() || undefined }),
+  cancelarMinhaInscricaoServicoExtra: (id: string, motivo: string | undefined, token?: string) => api.put<{ message: string; status: string }, { motivo?: string }>(`/estudante/servicos-extras/minhas-inscricoes/${id}/cancelar`, { motivo }, { token: token || tokenStorage.get() || undefined }),
+  minhasPendenciasServicoExtra: (id: string, token?: string) => api.get<{ pendencias: PendenciaServicoExtra[] }>(`/estudante/servicos-extras/minhas-inscricoes/${id}/pendencias`, { token: token || tokenStorage.get() || undefined }),
+  downloadMeuDocumentoServicoExtra: (id: string, token?: string) => fetchApiBlob(`/estudante/servicos-extras/minhas-inscricoes/${id}/documento/download`, { token: token || tokenStorage.get() || undefined }),
   /** @deprecated A API removeu PUT /estudante/dados-pessoais. Use as rotas dedicadas abaixo. */
   atualizarDadosPessoais: (data: AtualizarDadosPessoaisEstudanteRequest, token?: string) =>
     api.put<{ message: string }>(

@@ -84,6 +84,14 @@ const navItems: NavItem[] = [
     path: "/pagamentos",
   },
   {
+    name: "Serviços Extras",
+    icon: <Icon width="24px" icon="mdi:package-variant-closed-plus" />,
+    subItems: [
+      { name: "Catálogo", path: "/servicos-extras" },
+      { name: "Minhas Inscrições", path: "/servicos-extras/minhas-inscricoes" },
+    ],
+  },
+  {
     name: "Notas & Faltas",
     icon: <Icon width="24px" icon="vaadin:records" />,
     subItems: [

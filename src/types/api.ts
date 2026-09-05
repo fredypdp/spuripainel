@@ -1323,6 +1323,9 @@ export interface SolicitacaoServicoExtra {
 export type TipoLancamentoServicoExtra = 'mensalidade' | 'preco_unico';
 export type EstadoLancamentoServicoExtra = 'pendente' | 'anulada' | 'pago';
 export interface PendenciaServicoExtra { tipo_lancamento: TipoLancamentoServicoExtra; ano?: number; mes?: number; estado: EstadoLancamentoServicoExtra; valor: number; }
+export interface SolicitarServicoExtraRequest { documento?: File; }
+export interface IniciarPagamentoTaxaInscricaoRequest { solicitacao_id: string; metodo_pagamento: MetodoPagamentoServico; telefone?: string; }
+export interface IniciarPagamentoObrigacaoRequest { solicitacao_id: string; tipo_lancamento: TipoLancamentoServicoExtra; ano?: number; mes?: number; metodo_pagamento: MetodoPagamentoServico; telefone?: string; }
 
 export interface Sumario {
   id: string;
