@@ -1290,6 +1290,40 @@ export interface Materia {
   version: number;
 }
 
+export type TipoCobrancaServico = 'unico' | 'mensal';
+export type MetodoPagamentoServico = 'GPO' | 'REF' | 'GPO_QR';
+
+export interface ServicoExtra {
+  id: string; codigo_academia: string; nome: string; descricao?: string; categoria?: string;
+  pago: boolean; preco: number | null; tipo_cobranca: TipoCobrancaServico | null;
+  metodos_pagamento: MetodoPagamentoServico[]; tem_taxa_inscricao: boolean;
+  valor_taxa_inscricao: number | null; metodos_pagamento_taxa_inscricao: MetodoPagamentoServico[];
+  anos_academicos_disponiveis: string[]; documento_obrigatorio: boolean;
+  documento_instrucoes?: string; detalhes_personalizados: Record<string, unknown>;
+  ativo: boolean; created_at: string; updated_at: string;
+}
+
+export interface ServicoExtraPayload {
+  nome?: string; descricao?: string; categoria?: string; pago?: boolean; preco?: number;
+  tipo_cobranca?: TipoCobrancaServico; metodos_pagamento?: MetodoPagamentoServico[];
+  tem_taxa_inscricao?: boolean; valor_taxa_inscricao?: number;
+  metodos_pagamento_taxa_inscricao?: MetodoPagamentoServico[];
+  anos_academicos_disponiveis?: string[]; documento_obrigatorio?: boolean;
+  documento_instrucoes?: string; detalhes_personalizados?: Record<string, unknown>;
+}
+
+export type StatusSolicitacaoServicoExtra = 'pendente' | 'aprovada_pendente_pagamento_taxa_inscricao' | 'vinculada' | 'reprovada' | 'cancelada_antes_da_vinculacao' | 'cancelada';
+export interface SolicitacaoServicoExtra {
+  id: string; servico_extra_id: string; codigo_academia: string; codigo_estudante: string;
+  status: StatusSolicitacaoServicoExtra; motivo_reprovacao?: string; motivo_cancelamento?: string;
+  cancelada_por?: 'academia' | 'estudante'; documento_path?: string; documento_url?: string;
+  valor_taxa_inscricao: number; metodos_pagamento_taxa_inscricao: MetodoPagamentoServico[];
+  aprovada_por?: string; reprovada_por?: string; vinculada_em?: string; created_at: string; updated_at: string;
+}
+export type TipoLancamentoServicoExtra = 'mensalidade' | 'preco_unico';
+export type EstadoLancamentoServicoExtra = 'pendente' | 'anulada' | 'pago';
+export interface PendenciaServicoExtra { tipo_lancamento: TipoLancamentoServicoExtra; ano?: number; mes?: number; estado: EstadoLancamentoServicoExtra; valor: number; }
+
 export interface Sumario {
   id: string;
   codigo_academia: string;
