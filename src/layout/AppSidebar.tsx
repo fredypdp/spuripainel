@@ -51,6 +51,8 @@ const navItems: NavItem[] = [
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
       { name: "Sumários",              path: "/gerenciamento/sumarios"              },
       { name: "Turmas",               path: "/gerenciamento/turmas"               },
+      { name: "Serviços Extras", path: "/gerenciamento/servicos-extras" },
+      { name: "Solicitações de Serviços Extras", path: "/gerenciamento/servicos-extras-solicitacoes" },
     ],
   },
   {
