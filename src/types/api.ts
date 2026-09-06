@@ -1298,7 +1298,7 @@ export interface ServicoExtra {
   pago: boolean; preco: number | null; tipo_cobranca: TipoCobrancaServico | null;
   metodos_pagamento: MetodoPagamentoServico[]; tem_taxa_inscricao: boolean;
   valor_taxa_inscricao: number | null; metodos_pagamento_taxa_inscricao: MetodoPagamentoServico[];
-  anos_academicos_disponiveis: string[]; documento_obrigatorio: boolean;
+  anos_academicos_disponiveis: string[]; cursos_disponiveis: string[]; documento_obrigatorio: boolean;
   documento_instrucoes?: string; detalhes_personalizados: Record<string, unknown>;
   ativo: boolean; created_at: string; updated_at: string;
 }
@@ -1308,7 +1308,7 @@ export interface ServicoExtraPayload {
   tipo_cobranca?: TipoCobrancaServico; metodos_pagamento?: MetodoPagamentoServico[];
   tem_taxa_inscricao?: boolean; valor_taxa_inscricao?: number;
   metodos_pagamento_taxa_inscricao?: MetodoPagamentoServico[];
-  anos_academicos_disponiveis?: string[]; documento_obrigatorio?: boolean;
+  anos_academicos_disponiveis?: string[]; cursos_disponiveis?: string[]; documento_obrigatorio?: boolean;
   documento_instrucoes?: string; detalhes_personalizados?: Record<string, unknown>;
 }
 

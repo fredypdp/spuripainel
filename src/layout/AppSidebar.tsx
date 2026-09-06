@@ -51,8 +51,6 @@ const navItems: NavItem[] = [
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
       { name: "Sumários",              path: "/gerenciamento/sumarios"              },
       { name: "Turmas",               path: "/gerenciamento/turmas"               },
-      { name: "Serviços Extras", path: "/gerenciamento/servicos-extras" },
-      { name: "Solicitações de Serviços Extras", path: "/gerenciamento/servicos-extras-solicitacoes" },
     ],
   },
   {
@@ -89,6 +87,8 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Catálogo", path: "/servicos-extras" },
       { name: "Minhas Inscrições", path: "/servicos-extras/minhas-inscricoes" },
+      { name: "Gerenciar Serviços", path: "/servicos-extras/gerenciar-servicos" },
+      { name: "Inscrições", path: "/servicos-extras/inscricoes" },
     ],
   },
   {
@@ -352,6 +352,18 @@ export default function AppSidebar() {
             subItems: item.subItems.filter(
               (sub) =>
                 sub.path !== "/estudantes/cadastrar" || user?.tipo === "academia",
+            ),
+          };
+        }
+
+        // Serviços Extras: "Gerenciar Serviços" e "Inscrições" só para academia
+        if (item.name === "Serviços Extras" && item.subItems) {
+          return {
+            ...item,
+            subItems: item.subItems.filter(
+              (sub) =>
+                !["/servicos-extras/gerenciar-servicos", "/servicos-extras/inscricoes"].includes(sub.path) ||
+                user?.tipo === "academia",
             ),
           };
         }
