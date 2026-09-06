@@ -31,14 +31,11 @@ type Form = {
   taxa: boolean; valorTaxa: string; metodosTaxa: MetodoPagamentoServico[];
   anosFundamentais: string[];
   cursos: CursoSelecionado[];
-  anosLegado: string[];
   documento: boolean; instrucoes: string;
 };
-const vazio: Form = { nome: "", descricao: "", categoria: "", pago: false, preco: "", tipo: "unico", metodos: [], taxa: false, valorTaxa: "", metodosTaxa: [], anosFundamentais: [], cursos: [], anosLegado: [], documento: false, instrucoes: "" };
+const vazio: Form = { nome: "", descricao: "", categoria: "", pago: false, preco: "", tipo: "unico", metodos: [], taxa: false, valorTaxa: "", metodosTaxa: [], anosFundamentais: [], cursos: [], documento: false, instrucoes: "" };
 
 const paraForm = (s: ServicoExtra): Form => {
-  const anosFundamentais = s.anos_academicos_disponiveis.filter((a) => a.endsWith("_ano_fundamental"));
-  const anosLegado = s.anos_academicos_disponiveis.filter((a) => !a.endsWith("_ano_fundamental"));
   const porCurso = new Map<string, string[]>();
   for (const item of s.cursos_disponiveis ?? []) {
     const [cursoId, ano] = item.split("|");
@@ -49,7 +46,7 @@ const paraForm = (s: ServicoExtra): Form => {
     nome: s.nome, descricao: s.descricao ?? "", categoria: s.categoria ?? "",
     pago: s.pago, preco: s.preco?.toString() ?? "", tipo: s.tipo_cobranca ?? "unico", metodos: s.metodos_pagamento,
     taxa: s.tem_taxa_inscricao, valorTaxa: s.valor_taxa_inscricao?.toString() ?? "", metodosTaxa: s.metodos_pagamento_taxa_inscricao,
-    anosFundamentais, anosLegado,
+    anosFundamentais: s.anos_academicos_disponiveis,
     cursos: Array.from(porCurso.entries()).map(([curso_id, anos]) => ({ curso_id, anos })),
     documento: s.documento_obrigatorio, instrucoes: s.documento_instrucoes ?? "",
   };
@@ -59,7 +56,7 @@ const valor = (f: Form): ServicoExtraPayload => {
   const p: ServicoExtraPayload = {
     nome: f.nome.trim(), descricao: f.descricao || undefined, categoria: f.categoria || undefined,
     pago: f.pago, tem_taxa_inscricao: f.taxa,
-    anos_academicos_disponiveis: [...f.anosFundamentais, ...f.anosLegado],
+    anos_academicos_disponiveis: f.anosFundamentais,
     cursos_disponiveis: f.cursos.flatMap((c) => c.anos.map((a) => `${c.curso_id}|${a}`)),
     documento_obrigatorio: f.documento,
     documento_instrucoes: f.documento ? f.instrucoes || undefined : undefined,
@@ -143,7 +140,6 @@ export default function ServicosExtrasPainel() {
   const setAnosDoCurso = (cursoId: string, anos: string[]) => {
     set({ cursos: form.cursos.map((c) => (c.curso_id === cursoId ? { ...c, anos } : c)) });
   };
-  const removerAnoLegado = (ano: string) => set({ anosLegado: form.anosLegado.filter((a) => a !== ano) });
 
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,23 +269,6 @@ export default function ServicosExtrasPainel() {
               </div>
             )}
 
-            {form.anosLegado.length > 0 && (
-              <div className="space-y-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
-                <p className="text-sm text-amber-800 dark:text-amber-300">
-                  Anos configurados antes desta funcionalidade, sem curso associado (continuam válidos para qualquer curso desta academia):
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {form.anosLegado.map((ano) => (
-                    <span key={ano} className="flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1 text-sm text-amber-800 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300">
-                      {ano}
-                      <button type="button" onClick={() => removerAnoLegado(ano)} className="text-amber-600 hover:text-amber-900 dark:text-amber-400">
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <Checkbox label="Exige documento anexado na inscrição" checked={form.documento} onChange={(documento) => set({ documento })} />
