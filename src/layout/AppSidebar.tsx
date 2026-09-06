@@ -11,10 +11,9 @@ import {
 } from "../icons/index";
 import Icon from "@/components/ui/Icon";
 import SidebarWidget from "./SidebarWidget";
-import { getCookie } from '@/lib/utils/cookies';
 import { tokenStorage } from '@/lib/api/client';
-import type { MeuPerfilResponse } from '@/types/api';
 import { isTestesPageEnabled } from '@/lib/app-env';
+import { useUserCookie } from '@/hooks/useUserCookie';
 
 type NavItem = {
   name: string;
@@ -85,7 +84,7 @@ const navItems: NavItem[] = [
     name: "Serviços Extras",
     icon: <Icon width="24px" icon="mdi:package-variant-closed-plus" />,
     subItems: [
-      { name: "Catálogo", path: "/servicos-extras" },
+      { name: "Catálogo", path: "/servicos-extras/catalogo" },
       { name: "Minhas Inscrições", path: "/servicos-extras/minhas-inscricoes" },
       { name: "Gerenciar Serviços", path: "/servicos-extras/gerenciar-servicos" },
       { name: "Inscrições", path: "/servicos-extras/inscricoes" },
@@ -148,20 +147,7 @@ const navItems: NavItem[] = [
 export default function AppSidebar() {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered, closeMobileSidebar } = useSidebar();
   const pathname = usePathname();
-  const [user,    setUser]    = useState<MeuPerfilResponse | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // Hydrates sidebar permissions from the user cookie on the client.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    const userCookie = getCookie("user");
-    if (userCookie) {
-      try {
-        setUser(JSON.parse(userCookie));
-      } catch (error) {}
-    }
-  }, []);
+  const { user, loading: loadingUser } = useUserCookie();
 
   useEffect(() => {
     // Fecha a sidebar mobile sempre que a rota mudar (clique em qualquer
@@ -231,7 +217,10 @@ export default function AppSidebar() {
       ? navItems
       : navItems.filter((item) => item.path !== "/testes" && item.path !== "/comunicacao");
 
-    if (!mounted) return environmentNavItems;
+    // Enquanto o perfil do usuário ainda está carregando, não exibe
+    // nenhum item — evita mostrar por um instante opções que o tipo
+    // de usuário não deveria ver, antes de sabermos qual tipo é.
+    if (loadingUser) return [];
     if (tokenStorage.isRestrictedFinance()) {
       return environmentNavItems.filter((item) => item.path === "/pagamentos");
     }
@@ -356,21 +345,24 @@ export default function AppSidebar() {
           };
         }
 
-        // Serviços Extras: "Gerenciar Serviços" e "Inscrições" só para academia
+        // Serviços Extras: catálogo/minhas inscrições são do estudante;
+        // gerenciar serviços/inscrições são da academia.
         if (item.name === "Serviços Extras" && item.subItems) {
+          const estudantePaths = ["/servicos-extras/catalogo", "/servicos-extras/minhas-inscricoes"];
+          const academiaPaths = ["/servicos-extras/gerenciar-servicos", "/servicos-extras/inscricoes"];
           return {
             ...item,
-            subItems: item.subItems.filter(
-              (sub) =>
-                !["/servicos-extras/gerenciar-servicos", "/servicos-extras/inscricoes"].includes(sub.path) ||
-                user?.tipo === "academia",
-            ),
+            subItems: item.subItems.filter((sub) => {
+              if (estudantePaths.includes(sub.path)) return user?.tipo === "estudante";
+              if (academiaPaths.includes(sub.path)) return user?.tipo === "academia";
+              return true;
+            }),
           };
         }
 
         return item;
       });
-  }, [user, mounted]);
+  }, [user, loadingUser]);
 
   // Derive which submenu should be open based on current pathname
   const derivedOpenSubmenu = useMemo(() => {

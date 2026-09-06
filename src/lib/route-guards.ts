@@ -187,6 +187,25 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
 
   // ==========================================
+  // ROTAS PARA ESTUDANTE — Serviços Extras (catálogo)
+  // Antes sem entrada própria em ROUTE_PERMISSIONS (caíam no fallback
+  // "qualquer usuário autenticado"), então uma academia/admin conseguia
+  // abrir essas páginas e só descobria que não tinha acesso ao ver um
+  // erro vindo da API. Agora restritas a 'estudante' aqui, então o
+  // guard bloqueia antes mesmo da página tentar carregar dados.
+  // ==========================================
+  {
+    path: '/servicos-extras/catalogo',
+    allowedTypes: ['estudante'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/servicos-extras/minhas-inscricoes',
+    allowedTypes: ['estudante'],
+    redirectIfUnauthorized: '/',
+  },
+
+  // ==========================================
   // ROTAS DE TESTES — apenas academia em ambiente de teste/desenvolvimento
   // ==========================================
   {

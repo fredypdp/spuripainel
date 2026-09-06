@@ -198,7 +198,7 @@ export default function ServicosExtrasPainel() {
           <button type="button" onClick={cancelar} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white">
             ← Voltar
           </button>
-          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">{edicao ? "Editar Serviço" : "Novo Serviço"}</h1>
+          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">{edicao ? "Editar Serviço" : "Criar novo serviço"}</h1>
         </div>
         {alert && (
           <Alert
@@ -214,7 +214,9 @@ export default function ServicosExtrasPainel() {
           </div>
           <TextArea value={form.descricao} onChange={(descricao) => set({ descricao })} placeholder="Descrição" />
 
-          <Checkbox label="Serviço pago" checked={form.pago} onChange={(pago) => set({ pago })} />
+          <div>
+            <Checkbox label="Serviço pago" checked={form.pago} onChange={(pago) => set({ pago })} />
+          </div>
           {form.pago && (
             <div className="space-y-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
               <Input type="number" value={form.preco} onChange={(e) => set({ preco: e.target.value })} placeholder="Preço" />
@@ -230,7 +232,9 @@ export default function ServicosExtrasPainel() {
             </div>
           )}
 
-          <Checkbox label="Tem taxa de inscrição" checked={form.taxa} onChange={(taxa) => set({ taxa })} />
+          <div>
+            <Checkbox label="Tem taxa de inscrição" checked={form.taxa} onChange={(taxa) => set({ taxa })} />
+          </div>
           {form.taxa && (
             <div className="space-y-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
               <Input type="number" value={form.valorTaxa} onChange={(e) => set({ valorTaxa: e.target.value })} placeholder="Valor da taxa" />
