@@ -170,6 +170,23 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
   },
 
   // ==========================================
+  // ROTAS PARA ACADEMIA — Serviços Extras (gestão)
+  // Movidas de /gerenciamento/servicos-extras* — antes sem entrada própria
+  // aqui (caíam no fallback "qualquer usuário autenticado"), agora
+  // explicitamente restritas a 'academia', como o resto da gestão.
+  // ==========================================
+  {
+    path: '/servicos-extras/gerenciar-servicos',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+  {
+    path: '/servicos-extras/inscricoes',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
+
+  // ==========================================
   // ROTAS DE TESTES — apenas academia em ambiente de teste/desenvolvimento
   // ==========================================
   {
