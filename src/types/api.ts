@@ -1293,24 +1293,30 @@ export interface Materia {
 export type TipoCobrancaServico = 'unico' | 'mensal';
 export type MetodoPagamentoServico = 'GPO' | 'REF' | 'GPO_QR';
 
+export type TipoDetalhePersonalizado = 'texto' | 'numero' | 'booleano' | 'data' | 'hora' | 'lista_texto';
+export interface DetalhePersonalizado { rotulo: string; valor: string | number | boolean | string[]; tipo: TipoDetalhePersonalizado; }
+
 export interface ServicoExtra {
-  id: string; codigo_academia: string; nome: string; descricao?: string; categoria?: string;
+  id: string; codigo_academia: string; nome: string; descricao?: string; categoria_servico_id?: string | null;
   pago: boolean; preco: number | null; tipo_cobranca: TipoCobrancaServico | null;
   metodos_pagamento: MetodoPagamentoServico[]; tem_taxa_inscricao: boolean;
   valor_taxa_inscricao: number | null; metodos_pagamento_taxa_inscricao: MetodoPagamentoServico[];
   anos_academicos_disponiveis: string[]; cursos_disponiveis: string[]; documento_obrigatorio: boolean;
-  documento_instrucoes?: string; detalhes_personalizados: Record<string, unknown>;
+  documento_instrucoes?: string; detalhes_personalizados: Record<string, DetalhePersonalizado>;
   ativo: boolean; created_at: string; updated_at: string;
 }
 
 export interface ServicoExtraPayload {
-  nome?: string; descricao?: string; categoria?: string; pago?: boolean; preco?: number;
+  nome?: string; descricao?: string; categoria_servico_id?: string | null; pago?: boolean; preco?: number;
   tipo_cobranca?: TipoCobrancaServico; metodos_pagamento?: MetodoPagamentoServico[];
   tem_taxa_inscricao?: boolean; valor_taxa_inscricao?: number;
   metodos_pagamento_taxa_inscricao?: MetodoPagamentoServico[];
   anos_academicos_disponiveis?: string[]; cursos_disponiveis?: string[]; documento_obrigatorio?: boolean;
-  documento_instrucoes?: string; detalhes_personalizados?: Record<string, unknown>;
+  documento_instrucoes?: string; detalhes_personalizados?: Record<string, DetalhePersonalizado>;
 }
+
+export interface CategoriaServico { id: string; codigo_academia: string; nome: string; ativo: boolean; created_at: string; updated_at: string; }
+export interface CategoriaServicoPayload { nome: string }
 
 export type StatusSolicitacaoServicoExtra = 'pendente' | 'aprovada_pendente_pagamento_taxa_inscricao' | 'vinculada' | 'reprovada' | 'cancelada_antes_da_vinculacao' | 'cancelada';
 export interface SolicitacaoServicoExtra {

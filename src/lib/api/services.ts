@@ -45,6 +45,8 @@ import type {
   Sumario,
   ServicoExtra,
   ServicoExtraPayload,
+  CategoriaServico,
+  CategoriaServicoPayload,
   SolicitacaoServicoExtra,
   StatusSolicitacaoServicoExtra,
   PendenciaServicoExtra,
@@ -1551,6 +1553,11 @@ export const academiaService = {
   // ── Cursos ────────────────────────────────────────────────────────
 
   // ── Serviços Extras ───────────────────────────────────────────────
+  criarCategoriaServico: (data: CategoriaServicoPayload, token?: string) => api.post<{ data: CategoriaServico }, CategoriaServicoPayload>('/academia/categorias-servico', data, { token: token || tokenStorage.get() || undefined }),
+  atualizarCategoriaServico: (id: string, data: CategoriaServicoPayload, token?: string) => api.put<{ data: CategoriaServico }, CategoriaServicoPayload>(`/academia/categorias-servico/${id}`, data, { token: token || tokenStorage.get() || undefined }),
+  desativarCategoriaServico: (id: string, token?: string) => api.put<{ data: CategoriaServico }>(`/academia/categorias-servico/${id}/desativar`, undefined, { token: token || tokenStorage.get() || undefined }),
+  reativarCategoriaServico: (id: string, token?: string) => api.put<{ data: CategoriaServico }>(`/academia/categorias-servico/${id}/reativar`, undefined, { token: token || tokenStorage.get() || undefined }),
+  listarCategoriasServico: (token?: string) => api.get<{ categorias_servico: CategoriaServico[]; total: number }>('/academia/categorias-servico', { token: token || tokenStorage.get() || undefined }),
   criarServicoExtra: (data: ServicoExtraPayload, token?: string) => api.post<{ message: string; data: ServicoExtra }, ServicoExtraPayload>('/academia/servicos-extras', data, { token: token || tokenStorage.get() || undefined }),
   atualizarServicoExtra: (id: string, data: ServicoExtraPayload, token?: string) => api.put<{ message: string; data: ServicoExtra }, ServicoExtraPayload>(`/academia/servicos-extras/${id}`, data, { token: token || tokenStorage.get() || undefined }),
   desativarServicoExtra: (id: string, token?: string) => api.put<{ data: ServicoExtra }>(`/academia/servicos-extras/${id}/desativar`, undefined, { token: token || tokenStorage.get() || undefined }),
