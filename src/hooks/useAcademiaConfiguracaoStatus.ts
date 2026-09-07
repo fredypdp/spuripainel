@@ -70,9 +70,9 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, email
       return materias.some((materia) => materia.type === "medio" && materia.curso_id === course.id && includes(materia.anos_academicos, year));
     }, { ignoreFourthYearMedio: true });
   const turmaComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year))
-    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year));
+    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year), { ignoreFourthYearMedio: true });
   const studentsInTurmasComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year && asArray(turma.estudantes).length > 0))
-    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && asArray(turma.estudantes).length > 0));
+    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && asArray(turma.estudantes).length > 0), { ignoreFourthYearMedio: true });
 
   const steps: ConfiguracaoGuiaStep[] = [
     base(
@@ -98,9 +98,9 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, email
     steps.push(base("regras-superiores", "Criar regras de avaliação final", "Cadastre ao menos uma regra superior ativa.", "/configuracoes/regras-avaliacao-final", regras.some((regra) => (regra as any).nivel === "superior" || (regra as any).type), `${regras.length} regra(s) ativa(s).`));
   }
   steps.push(
-    base("turmas", "Criar turmas", "Crie turmas ativas para cada ano acadêmico ofertado.", "/gerenciamento/turmas", turmaComplete, "Cobertura exigida para cada ano ofertado."),
+    base("turmas", "Criar turmas", "Crie turmas ativas para cada ano acadêmico ofertado, exceto o 4º ano médio.", "/gerenciamento/turmas", turmaComplete, "Cobertura exigida para cada ano ofertado, exceto o 4º ano médio."),
     base("estudantes", "Cadastrar estudantes ou aprovar solicitações de matrícula", "Tenha ao menos um estudante cadastrado em cada nível da instituição", "/estudantes/cadastrar", hasStudentsInInstitutionLevels(estudantes, nivel, nivelEscolar), `${estudantes.length} estudante(s) encontrado(s), sem filtro de status.`),
-    base("estudantes-turmas", "Adicionar estudantes às turmas", "Para cada ano acadêmico da sua instituição, vincule pelo menos um estudante a uma turma.", "/gerenciamento/turmas", studentsInTurmasComplete, "Cobertura exigida para cada ano ofertado."),
+    base("estudantes-turmas", "Adicionar estudantes às turmas", "Para cada ano acadêmico da sua instituição, exceto o 4º ano médio, vincule pelo menos um estudante a uma turma.", "/gerenciamento/turmas", studentsInTurmasComplete, "Cobertura exigida para cada ano ofertado, exceto o 4º ano médio."),
   );
 
   let previousCompleted = true;
