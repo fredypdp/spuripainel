@@ -70,9 +70,9 @@ function buildSteps(raw: RawStatus, nivel?: string, nivelEscolar?: string, email
       return materias.some((materia) => materia.type === "medio" && materia.curso_id === course.id && includes(materia.anos_academicos, year));
     }, { ignoreFourthYearMedio: true });
   const turmaComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year))
-    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year));
+    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year), { ignoreFourthYearMedio: true });
   const studentsInTurmasComplete = hasFundamentalCoverage((year) => turmas.some((turma) => !turma.curso_id && turma.nivel === year && asArray(turma.estudantes).length > 0))
-    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && asArray(turma.estudantes).length > 0));
+    && hasCourseCoverage((course, year) => turmas.some((turma) => turma.curso_id === course.id && turma.nivel === year && asArray(turma.estudantes).length > 0), { ignoreFourthYearMedio: true });
 
   const steps: ConfiguracaoGuiaStep[] = [
     base(
