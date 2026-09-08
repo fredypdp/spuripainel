@@ -8,7 +8,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/gerenciamento/cursos": "Gerenciamento de Cursos",
   "/gerenciamento/materias-disciplinares": "Gerenciamento de Matérias Disciplinares",
   "/gerenciamento/turmas": "Gerenciamento de Turmas",
-  "/gerenciamento/categorias-servico": "Categorias de Serviço",
 };
 
 export default function GerenciamentoLayout({

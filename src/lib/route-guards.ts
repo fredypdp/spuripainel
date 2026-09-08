@@ -185,6 +185,13 @@ export const ROUTE_PERMISSIONS: RouteConfig[] = [
     allowedTypes: ['academia'],
     redirectIfUnauthorized: '/',
   },
+  {
+    // Movida de /gerenciamento/categorias-servico — antes sem entrada
+    // própria aqui (caía no fallback "qualquer usuário autenticado").
+    path: '/servicos-extras/categorias-servico',
+    allowedTypes: ['academia'],
+    redirectIfUnauthorized: '/',
+  },
 
   // ==========================================
   // ROTAS PARA ESTUDANTE — Serviços Extras (catálogo)

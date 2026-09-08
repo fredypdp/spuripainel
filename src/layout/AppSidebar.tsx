@@ -50,7 +50,6 @@ const navItems: NavItem[] = [
       { name: "Matérias Disciplinares", path: "/gerenciamento/materias-disciplinares" },
       { name: "Sumários",              path: "/gerenciamento/sumarios"              },
       { name: "Turmas",               path: "/gerenciamento/turmas"               },
-      { name: "Categorias de Serviço", path: "/gerenciamento/categorias-servico" },
     ],
   },
   {
@@ -89,6 +88,7 @@ const navItems: NavItem[] = [
       { name: "Minhas Inscrições", path: "/servicos-extras/minhas-inscricoes" },
       { name: "Gerenciar Serviços", path: "/servicos-extras/gerenciar-servicos" },
       { name: "Inscrições", path: "/servicos-extras/inscricoes" },
+      { name: "Categorias de Serviço", path: "/servicos-extras/categorias-servico" },
     ],
   },
   {
@@ -350,7 +350,7 @@ export default function AppSidebar() {
         // gerenciar serviços/inscrições são da academia.
         if (item.name === "Serviços Extras" && item.subItems) {
           const estudantePaths = ["/servicos-extras/catalogo", "/servicos-extras/minhas-inscricoes"];
-          const academiaPaths = ["/servicos-extras/gerenciar-servicos", "/servicos-extras/inscricoes"];
+          const academiaPaths = ["/servicos-extras/gerenciar-servicos", "/servicos-extras/inscricoes", "/servicos-extras/categorias-servico"];
           return {
             ...item,
             subItems: item.subItems.filter((sub) => {
