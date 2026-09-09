@@ -58,6 +58,7 @@ import type {
   ListarCursosResponse,
   ListarMateriasResponse,
   AtualizarDadosPessoaisEstudanteRequest,
+  AtualizarBilheteIdentidadeSemAcademiaRequest,
   AtualizarTelefoneEncarregadoEstudanteRequest,
   CriarSolicitacaoEdicaoDadoEstudanteRequest,
   CriarSolicitacaoEdicaoDadoEstudanteResponse,
@@ -1031,6 +1032,19 @@ export const estudanteService = {
     api.put<{ message: string }>(
       '/estudante/encarregado/telefone',
       prepareAtualizarTelefoneEncarregadoEstudante(data),
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  /**
+   * Autoatualização do BI sem aprovação — só funciona quando o estudante
+   * não está vinculado a uma academia no momento (status 'inativo'). Com
+   * academia vinculada, a API rejeita e o caminho correto é
+   * criarSolicitacaoEdicao('bilhete_identidade', ...).
+   */
+  atualizarBilheteIdentidadeSemAcademia: (data: AtualizarBilheteIdentidadeSemAcademiaRequest, token?: string) =>
+    api.put<{ message: string; bilhete_identidade: string }>(
+      '/estudante/bilhete-identidade',
+      data,
       { token: token || tokenStorage.get() || undefined }
     ),
 

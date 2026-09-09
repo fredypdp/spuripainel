@@ -567,6 +567,17 @@ export interface AtualizarTelefoneEncarregadoEstudanteRequest {
   telefone_encarregado: string;
 }
 
+/**
+ * PUT /estudante/bilhete-identidade — autoatualização do BI do próprio
+ * estudante, sem aprovação. Só é aceita pela API quando o estudante NÃO
+ * está vinculado a uma academia no momento (status 'inativo'). Quando
+ * vinculado (status 'ativo' ou 'pendente_documentos'), use
+ * criarSolicitacaoEdicao('bilhete_identidade', ...) em vez desta.
+ */
+export interface AtualizarBilheteIdentidadeSemAcademiaRequest {
+  bilhete_identidade: string;
+}
+
 export interface CriarSolicitacaoEdicaoDadoEstudanteRequest {
   novo_valor: string;
   documento: File;
