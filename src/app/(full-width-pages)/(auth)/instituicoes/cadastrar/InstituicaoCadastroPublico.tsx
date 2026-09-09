@@ -11,6 +11,23 @@ import type { CadastroAcademiaPublicaRequest } from "@/types/api";
 
 interface ResultadoCadastroPublico { codigo_academia: string; nome: string; aviso: string; }
 
+/**
+ * Aciona (melhor esforço, sem bloquear a UI) o aviso por email aos
+ * administradores com permissão de ativação sobre esta nova instituição
+ * pendente de análise. Nunca aguardado (sem await no chamador) e qualquer
+ * falha aqui é só logada — o cadastro em si já foi concluído com sucesso
+ * antes desta chamada.
+ */
+function notificarAdminsCadastroAcademia(codigoAcademia: string) {
+  fetch("/api/academia-cadastro-notificacao", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ codigoAcademia }),
+  }).catch((error) => {
+    console.error("[cadastro-publico] falha ao acionar aviso aos administradores:", error);
+  });
+}
+
 function SuccessState({ resultado, onCadastrarOutra }: { resultado: ResultadoCadastroPublico; onCadastrarOutra: () => void; }) {
   return (
     <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6 text-center space-y-4">
@@ -37,7 +54,10 @@ export default function InstituicaoCadastroPublico() {
     if (!senha) throw new Error("A senha é obrigatória para o cadastro público de academia.");
 
     const result = await executarCadastro({ ...payload, senha } as CadastroAcademiaPublicaRequest);
-    if (result) setResultado({ codigo_academia: result.codigo_academia, nome: payload.nome, aviso: result.aviso });
+    if (result) {
+      setResultado({ codigo_academia: result.codigo_academia, nome: payload.nome, aviso: result.aviso });
+      notificarAdminsCadastroAcademia(result.codigo_academia);
+    }
   };
   return (
     <div className="flex min-h-screen w-full flex-1 justify-center overflow-y-auto bg-gray-50 px-4 py-6 dark:bg-gray-950 lg:w-1/2 lg:px-8">
