@@ -434,6 +434,69 @@ Se você não solicitou esta recuperação, entre em contato conosco imediatamen
     });
   }
 
+  /**
+   * Template para aviso a administradores: uma instituição acabou de se
+   * autocadastrar (POST /academia/cadastro no backend Go) e está pendente
+   * de análise/ativação.
+   *
+   * Segurança: todos os campos de `academia` devem vir já verificados
+   * contra o backend (GET /consultar-academia/:codigo) por quem chama este
+   * método — nunca passe aqui texto ainda não verificado vindo diretamente
+   * do visitante que preencheu o formulário público de cadastro. Ver
+   * src/app/api/academia-cadastro-notificacao/route.ts.
+   */
+  async sendAcademiaCadastradaAdminEmail(
+    to: string,
+    adminNome: string,
+    academia: { nome: string; codigoAcademia: string; type: string; nivel: string; provincia: string }
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const painelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/academias`;
+    const safeAdminNome = escapeHtml(adminNome);
+    const safeNome = escapeHtml(academia.nome);
+    const safeCodigo = escapeHtml(academia.codigoAcademia);
+    const safeType = escapeHtml(academia.type);
+    const safeNivel = escapeHtml(academia.nivel);
+    const safeProvincia = escapeHtml(academia.provincia);
+
+    const bodyHtml = `
+      <p style="margin:0 0 6px; font-family:${FONT_STACK}; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:${theme.brandBlue};">Novo cadastro pendente</p>
+      <h1 class="spuri-h1 spuri-heading" style="margin:0 0 16px; font-family:${FONT_STACK}; font-size:24px; line-height:1.3; font-weight:700; color:${theme.navy};">Uma instituição acabou de se cadastrar</h1>
+      <p class="spuri-body-text" style="margin:0; font-family:${FONT_STACK}; font-size:15px; line-height:1.65; color:${theme.gray700};">
+        Olá, <strong style="color:${theme.navy};">${safeAdminNome}</strong>! A instituição <strong style="color:${theme.navy};">${safeNome}</strong> concluiu o autocadastro no Spuri e está com a conta <strong>inativa</strong>, aguardando a sua análise.
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px; border-radius:16px; background-color:${theme.gray50}; border:1px solid ${theme.gray100};">
+        <tr>
+          <td style="padding:20px 22px;">
+            <p style="margin:0 0 6px; font-family:${FONT_STACK}; font-size:13px; color:${theme.gray700};"><strong>Código:</strong> ${safeCodigo}</p>
+            <p style="margin:0 0 6px; font-family:${FONT_STACK}; font-size:13px; color:${theme.gray700};"><strong>Tipo:</strong> ${safeType}</p>
+            <p style="margin:0 0 6px; font-family:${FONT_STACK}; font-size:13px; color:${theme.gray700};"><strong>Nível:</strong> ${safeNivel}</p>
+            <p style="margin:0; font-family:${FONT_STACK}; font-size:13px; color:${theme.gray700};"><strong>Província:</strong> ${safeProvincia}</p>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align:center;">${renderButton(painelUrl, 'Analisar no Painel')}</div>
+
+      <p class="spuri-muted" style="margin:24px 0 0; font-family:${FONT_STACK}; font-size:12px; line-height:1.6; color:${theme.gray500}; text-align:center;">
+        Acesse o painel para revisar os dados e decidir se a instituição deve ser ativada.
+      </p>
+    `;
+
+    const html = renderEmailShell({
+      preheader: `${academia.nome} concluiu o autocadastro e está pendente de análise.`,
+      title: 'Nova instituição cadastrada - Spuri',
+      bodyHtml,
+    });
+
+    return this.sendEmail({
+      to,
+      subject: `Nova instituição cadastrada: ${academia.nome}`,
+      html,
+      text: `Olá ${adminNome}!\n\nA instituição ${academia.nome} (código ${academia.codigoAcademia}, ${academia.type}, ${academia.nivel}, província ${academia.provincia}) concluiu o autocadastro no Spuri e está inativa, aguardando análise.\n\nAcesse o painel para revisar: ${painelUrl}`,
+    });
+  }
+
 }
 
 // Singleton instance
