@@ -37,9 +37,18 @@ const emptyDados: DadosForm = {
 const sensitiveStudentFields: Array<{ campo: CampoEdicaoDadoEstudante; key: keyof DadosForm; label: string; type?: string }> = [
   { campo: "nome", key: "nome", label: "Nome" },
   { campo: "data_nascimento", key: "data_nascimento", label: "Data de nascimento", type: "date" },
-  { campo: "bilhete_identidade", key: "bilhete_identidade", label: "BI do estudante" },
   { campo: "bilhete_identidade_encarregado", key: "bilhete_identidade_encarregado", label: "BI do encarregado" },
 ];
+
+// BI do estudante é tratado à parte (fora de sensitiveStudentFields) porque,
+// diferente dos outros 3 campos sensíveis, tem dois caminhos possíveis:
+// solicitação com aprovação (vinculado a uma academia) ou autoatualização
+// direta (sem academia vinculada no momento). Ver StudentBilheteIdentidadeCard.
+const bilheteIdentidadeField: (typeof sensitiveStudentFields)[number] = {
+  campo: "bilhete_identidade",
+  key: "bilhete_identidade",
+  label: "BI do estudante",
+};
 
 function onlyDigits(value: string): string { return value.replace(/\D/g, "").slice(0, 9); }
 function getDadosInitial(user: MeuPerfilResponse): DadosForm {
@@ -76,6 +85,44 @@ function StudentEditRequestCard({ field, initialValue, onCreated }: { field: (ty
   }
 
   return <form onSubmit={submit} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800"><div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end"><Field id={`personalizar-${field.campo}`} label={field.label} type={field.type} value={value} disabled={saving} onChange={setValue} /><div className="flex flex-col gap-2 md:w-64"><input aria-label={`Documento comprovativo para ${field.label}`} type="file" accept="application/pdf,.pdf" disabled={saving} onChange={(event) => setDocumento(event.target.files?.[0] ?? null)} className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-medium file:text-brand-600 hover:file:bg-brand-100 disabled:opacity-60 dark:text-gray-400 dark:file:bg-brand-500/10 dark:file:text-brand-300" /><button type="submit" disabled={saving} className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">{saving ? "Enviando..." : "Enviar solicitação"}</button></div></div>{error && <div className="mt-3"><Alert title="Erro" message={error} variant="error" /></div>}{success && <div className="mt-3"><Alert title="Solicitação enviada" message={success} variant="success" /></div>}</form>;
+}
+
+// Autoatualização direta do BI (sem aprovação) — só é usada quando o
+// estudante não está vinculado a nenhuma academia no momento. Espelha
+// StudentGuardianPhoneCard (mesmo padrão de "campo único + botão salvar",
+// sem upload de documento), não StudentEditRequestCard.
+function StudentBilheteIdentidadeDirectCard({ initialValue, onUpdated }: { initialValue: string; onUpdated: () => Promise<unknown> | void }) {
+  const [value, setValue] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => setValue(initialValue), [initialValue]);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setSuccess(""); setError("");
+    const novoValor = value.trim();
+    if (!novoValor) return setError("BI do estudante é obrigatório.");
+    if (novoValor === initialValue.trim()) return setError("Altere o valor antes de guardar.");
+    setSaving(true);
+    try {
+      await estudanteService.atualizarBilheteIdentidadeSemAcademia({ bilhete_identidade: novoValor });
+      await onUpdated();
+      setSuccess("BI atualizado com sucesso.");
+    } catch (err) { setError(formatApiError(err, "Não foi possível atualizar o BI.")); } finally { setSaving(false); }
+  }
+
+  return <form onSubmit={submit} className="rounded-xl border border-gray-100 p-4 dark:border-gray-800"><div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end"><Field id="personalizar-bi-direto" label="BI do estudante" value={value} disabled={saving} onChange={setValue} /><button type="submit" disabled={saving} className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">{saving ? "A guardar..." : "Guardar BI"}</button></div><p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Você não está vinculado a nenhuma academia no momento, por isso pode atualizar o BI diretamente, sem aprovação.</p>{error && <div className="mt-3"><Alert title="Erro" message={error} variant="error" /></div>}{success && <div className="mt-3"><Alert title="BI atualizado" message={success} variant="success" /></div>}</form>;
+}
+
+// Decide entre os dois caminhos do BI do estudante: solicitação com
+// aprovação (vinculado) ou autoatualização direta (não vinculado). Ver
+// "Decisões de design já tomadas" no documento desta tarefa para a origem
+// exata da regra `vinculado`.
+function StudentBilheteIdentidadeCard({ vinculado, initialValue, onUpdated }: { vinculado: boolean; initialValue: string; onUpdated: () => Promise<unknown> | void }) {
+  if (vinculado) {
+    return <StudentEditRequestCard field={bilheteIdentidadeField} initialValue={initialValue} onCreated={onUpdated} />;
+  }
+  return <StudentBilheteIdentidadeDirectCard initialValue={initialValue} onUpdated={onUpdated} />;
 }
 
 function StudentGuardianPhoneCard({ initialValue, onUpdated }: { initialValue: string; onUpdated: () => Promise<unknown> | void }) {
@@ -128,7 +175,8 @@ function DadosPessoaisSection({ user, onUpdated }: { user: MeuPerfilResponse; on
   }
 
   if (isEstudante) {
-    return <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900"><CardHeader icon="mdi:account-edit-outline" title="Dados do estudante" description="Cada dado é editado em uma seção separada. Dados sensíveis criam solicitações com PDF comprovativo para aprovação da academia." /><div className="space-y-4"><StudentGuardianPhoneCard initialValue={initial.telefone_encarregado} onUpdated={onUpdated} />{sensitiveStudentFields.map((field) => <StudentEditRequestCard key={field.campo} field={field} initialValue={initial[field.key]} onCreated={onUpdated} />)}</div></section>;
+    const vinculado = user.estudante?.status === "ativo" || user.estudante?.status === "pendente_documentos";
+    return <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900"><CardHeader icon="mdi:account-edit-outline" title="Dados do estudante" description="Cada dado é editado em uma seção separada. Dados sensíveis criam solicitações com PDF comprovativo para aprovação da academia." /><div className="space-y-4"><StudentGuardianPhoneCard initialValue={initial.telefone_encarregado} onUpdated={onUpdated} /><StudentBilheteIdentidadeCard vinculado={vinculado} initialValue={initial.bilhete_identidade} onUpdated={onUpdated} />{sensitiveStudentFields.map((field) => <StudentEditRequestCard key={field.campo} field={field} initialValue={initial[field.key]} onCreated={onUpdated} />)}</div></section>;
   }
 
   return <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900"><CardHeader icon="mdi:account-edit-outline" title="Dados pessoais" description="Atualize apenas os campos aceitos pela rota de dados do seu tipo de usuário." /><form onSubmit={handleSubmit} className="space-y-4"><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Field id="personalizar-nome" label="Nome" value={form.nome} disabled={saving} onChange={(value) => setField("nome", value)} />{isAcademia && <Field id="personalizar-endereco" label="Endereço" value={form.endereco} disabled={saving} onChange={(value) => setField("endereco", value)} />}{isAcademia && <Field id="personalizar-website" label="Website" type="url" value={form.website} disabled={saving} onChange={(value) => setField("website", value)} />}</div>{error && <Alert title="Erro ao atualizar dados" message={error} variant="error" />}{success && <Alert title="Dados atualizados" message={success} variant="success" />}<div className="flex justify-end"><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">{saving ? "A guardar..." : "Guardar dados"}</button></div></form></section>;
