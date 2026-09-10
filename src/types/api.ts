@@ -142,7 +142,6 @@ export interface CadastroAcademiaPublicaResponse {
     codigo_academia: string;
     status: string;
   };
-  aviso: string;
 }
 
 export interface AnoLetivoItem {
