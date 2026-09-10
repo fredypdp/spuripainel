@@ -1329,6 +1329,27 @@ export interface ServicoExtraPayload {
 export interface CategoriaServico { id: string; codigo_academia: string; nome: string; ativo: boolean; created_at: string; updated_at: string; }
 export interface CategoriaServicoPayload { nome: string }
 
+export type ProvedorComunicacao = 'GOSMS' | 'ZIETT';
+export interface RemetenteComunicacao {
+  id: string; provedor: ProvedorComunicacao; identificador: string; token_configurado: boolean;
+  configurado_por: string; configurado_por_tipo: 'admin'; created_at: string; updated_at: string;
+}
+export interface RemetenteComunicacaoPayload { provedor: ProvedorComunicacao; identificador: string; token_api: string; }
+export type StatusMensagemComunicacao = 'enviada' | 'falhou';
+export interface TentativaEnvioComunicacao {
+  provedor: ProvedorComunicacao; sucesso: boolean;
+  mensagem_externa_id?: string; erro_codigo?: string; erro_mensagem?: string;
+}
+export interface MensagemComunicacao {
+  id: string; destinatario: string; conteudo: string;
+  provedor_tentado_1: ProvedorComunicacao; provedor_tentado_2?: ProvedorComunicacao; provedor_utilizado?: ProvedorComunicacao;
+  status: StatusMensagemComunicacao; mensagem_externa_id?: string; detalhes_tentativas: TentativaEnvioComunicacao[];
+  enviado_por: string; enviado_por_tipo: 'admin' | 'academia'; codigo_academia?: string; created_at: string;
+}
+export interface EnviarMensagemComunicacaoPayload { destinatario: string; conteudo: string; }
+export interface ListarMensagensComunicacaoResponse { mensagens: MensagemComunicacao[]; total: number; limit: number; offset: number; }
+export interface ProvedorPadraoComunicacaoResponse { provedor_padrao: ProvedorComunicacao | null; atualizado_em?: string | null; }
+
 export type StatusSolicitacaoServicoExtra = 'pendente' | 'aprovada_pendente_pagamento_taxa_inscricao' | 'vinculada' | 'reprovada' | 'cancelada_antes_da_vinculacao' | 'cancelada';
 export interface SolicitacaoServicoExtra {
   id: string; servico_extra_id: string; codigo_academia: string; codigo_estudante: string;

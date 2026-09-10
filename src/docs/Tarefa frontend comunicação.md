@@ -1,10 +1,10 @@
 ---
 criado: 2026-09-09
 origem: Fredy (orquestrado via Claude)
-status: pendente
+status: feito
 ---
 
-# Comunicação deixa de ser página de teste: aviso para academia, gestão completa para admin
+# Comunicação deixa de ser página de teste: aviso para academia, gestão completa para admin (feito)
 
 ## Prompt recomendado para executar a atualização
 

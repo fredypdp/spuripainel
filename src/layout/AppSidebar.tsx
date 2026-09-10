@@ -216,7 +216,7 @@ export default function AppSidebar() {
   const filteredNavItems = useMemo(() => {
     const environmentNavItems = isTestesPageEnabled()
       ? navItems
-      : navItems.filter((item) => item.path !== "/testes" && item.path !== "/comunicacao");
+      : navItems.filter((item) => item.path !== "/testes");
 
     // Enquanto o perfil do usuário ainda está carregando, não exibe
     // nenhum item — evita mostrar por um instante opções que o tipo
@@ -282,9 +282,11 @@ export default function AppSidebar() {
           if (item.path === "/testes") {
             return user.tipo === "academia";
           }
-          // Comunicação: apenas admin FPP
+          // Comunicação: qualquer administrador ou academia (a própria
+          // página decide o que mostrar a cada tipo — aviso de
+          // indisponibilidade para academia, gestão completa para admin)
           if (item.path === "/comunicacao") {
-            return user.tipo === "admin" && user?.admin?.role === "fpp";
+            return user.tipo === "admin" || user.tipo === "academia";
           }
         }
         return true;

@@ -15,6 +15,7 @@ export {
   documentosService,
   academiaService,
   adminService,
+  comunicacaoService,
   solicitacaoMatriculaService,
   financeiroService,
 } from './services';
