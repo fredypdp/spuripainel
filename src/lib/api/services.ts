@@ -47,6 +47,13 @@ import type {
   ServicoExtraPayload,
   CategoriaServico,
   CategoriaServicoPayload,
+  RemetenteComunicacao,
+  RemetenteComunicacaoPayload,
+  MensagemComunicacao,
+  EnviarMensagemComunicacaoPayload,
+  ListarMensagensComunicacaoResponse,
+  ProvedorPadraoComunicacaoResponse,
+  ProvedorComunicacao,
   SolicitacaoServicoExtra,
   StatusSolicitacaoServicoExtra,
   PendenciaServicoExtra,
@@ -2061,6 +2068,58 @@ export const academiaService = {
         body: JSON.stringify(data),
         headers: { 'Content-Type': 'application/json' },
       } as any
+    ),
+};
+
+// =====================
+// COMUNICAÇÃO
+// =====================
+// Módulo global (não pertence a nenhuma academia). Usado tanto por admin
+// quanto por academia — a rota decide o escopo pelo token, não por
+// parâmetro explícito aqui.
+
+export const comunicacaoService = {
+  criarRemetenteComunicacao: (data: RemetenteComunicacaoPayload, token?: string) =>
+    api.post<{ id: string; provedor: ProvedorComunicacao; identificador: string; token_configurado: boolean; configurado_por: string; configurado_por_tipo: 'admin'; created_at: string; updated_at: string; }, RemetenteComunicacaoPayload>(
+      '/comunicacao/remetentes',
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
+  listarRemetentesComunicacao: (token?: string) =>
+    api.get<{ remetentes: RemetenteComunicacao[] }>('/comunicacao/remetentes', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  enviarMensagemComunicacao: (data: EnviarMensagemComunicacaoPayload, token?: string) =>
+    api.post<MensagemComunicacao, EnviarMensagemComunicacaoPayload>('/comunicacao/mensagens', data, {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  listarMensagensComunicacao: (
+    params?: { codigo_academia?: string; limit?: number; offset?: number },
+    token?: string
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.codigo_academia) query.set('codigo_academia', params.codigo_academia);
+    if (params?.limit != null) query.set('limit', String(params.limit));
+    if (params?.offset != null) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return api.get<ListarMensagensComunicacaoResponse>(`/comunicacao/mensagens${qs ? `?${qs}` : ''}`, {
+      token: token || tokenStorage.get() || undefined,
+    });
+  },
+
+  consultarProvedorPadraoComunicacao: (token?: string) =>
+    api.get<ProvedorPadraoComunicacaoResponse>('/admin/comunicacao/provedor-padrao', {
+      token: token || tokenStorage.get() || undefined,
+    }),
+
+  definirProvedorPadraoComunicacao: (provedor_padrao: ProvedorComunicacao, token?: string) =>
+    api.put<{ provedor_padrao: ProvedorComunicacao }, { provedor_padrao: ProvedorComunicacao }>(
+      '/admin/comunicacao/provedor-padrao',
+      { provedor_padrao },
+      { token: token || tokenStorage.get() || undefined }
     ),
 };
 
