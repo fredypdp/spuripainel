@@ -9,7 +9,7 @@ import AcademiaCadastroForm from "@/components/academia/AcademiaCadastroForm";
 import type { AcademiaCadastroFormPayload } from "@/components/academia/AcademiaCadastroForm";
 import type { CadastroAcademiaPublicaRequest } from "@/types/api";
 
-interface ResultadoCadastroPublico { codigo_academia: string; nome: string; aviso: string; }
+interface ResultadoCadastroPublico { codigo_academia: string; nome: string; }
 
 /**
  * Aciona (melhor esforço, sem bloquear a UI) o aviso por email aos
@@ -34,7 +34,7 @@ function SuccessState({ resultado, onCadastrarOutra }: { resultado: ResultadoCad
       <div className="flex justify-center"><div className="w-16 h-16 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center"><svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></div></div>
       <div><h3 className="text-lg font-semibold text-green-800 dark:text-green-300">Cadastro recebido com sucesso!</h3><p className="text-sm text-green-700 dark:text-green-400 mt-1 capitalize">{resultado.nome}</p></div>
       <div className="bg-white dark:bg-green-900/30 rounded-lg p-4 space-y-2 text-left"><div className="flex justify-between items-center"><span className="text-sm font-medium text-gray-600 dark:text-gray-400">Código da instituição</span><span className="text-sm font-bold text-gray-900 dark:text-white font-mono">{resultado.codigo_academia}</span></div></div>
-      <p className="text-xs text-green-700 dark:text-green-400">{resultado.aviso}</p>
+      <p className="text-xs text-green-700 dark:text-green-400">Guarde o código da instituição para usar no login depois da ativação.</p>
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-left"><p className="text-xs text-blue-700 dark:text-blue-300">A conta fica <strong>inativa</strong> até que um administrador do Spuri a ative. Assim que for ativada, já pode entrar usando o código da instituição.</p></div>
       <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
         <button onClick={onCadastrarOutra} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>Cadastrar outra instituição</button>
@@ -55,7 +55,7 @@ export default function InstituicaoCadastroPublico() {
 
     const result = await executarCadastro({ ...payload, senha } as CadastroAcademiaPublicaRequest);
     if (result) {
-      setResultado({ codigo_academia: result.codigo_academia, nome: payload.nome, aviso: result.aviso });
+      setResultado({ codigo_academia: result.codigo_academia, nome: payload.nome });
       notificarAdminsCadastroAcademia(result.codigo_academia);
     }
   };

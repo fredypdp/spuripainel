@@ -76,6 +76,33 @@ export interface FetchOptions extends RequestInit {
   token?: string;
 }
 
+const GENERIC_PUBLIC_API_ERROR = 'Não foi possível concluir esta operação. Tente novamente mais tarde.';
+
+/**
+ * Erros operacionais podem conter rotas, configuração ou detalhes de
+ * infraestrutura. Eles são úteis para administradores, mas nunca devem ser
+ * mostrados a instituições, estudantes ou visitantes.
+ */
+export function isTechnicalApiMessage(message: string): boolean {
+  return /\b(?:GET|POST|PUT|PATCH|DELETE)\s+\/|\b(?:NEXT_PUBLIC_)?API_URL\b|\b(?:stack trace|stacktrace)\b|\b(?:ECONN(?:REFUSED|RESET|TIMEDOUT)|ENOTFOUND|ETIMEDOUT)\b|\b(?:database|postgres(?:ql)?|mysql|mongo(?:db)?|redis|storage provider|provider ativo|MEGAcmd)\b/i.test(message);
+}
+
+function currentUserIsAdmin(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const token = getCookie('auth_token');
+  return token ? decodeTokenPayload(token)?.user_type === 'admin' : false;
+}
+
+/** Returns a safe message for a non-administrative interface. */
+export function sanitizeApiMessageForCurrentUser(message: string, fallback = GENERIC_PUBLIC_API_ERROR): string {
+  if (!message || isTechnicalApiMessage(message)) {
+    return currentUserIsAdmin() ? (message || fallback) : fallback;
+  }
+
+  return message;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -105,14 +132,29 @@ export const asApiErrorEnvelope = (value: unknown): ApiErrorEnvelope | undefined
   };
 };
 
+function sanitizeApiErrorEnvelopeForCurrentUser(data?: ApiErrorEnvelope): ApiErrorEnvelope | undefined {
+  if (!data || currentUserIsAdmin()) return data;
+
+  return {
+    ...data,
+    message: sanitizeApiMessageForCurrentUser(data.message),
+    details: data.details?.map((detail) => ({
+      ...detail,
+      message: detail.message ? sanitizeApiMessageForCurrentUser(detail.message) : undefined,
+    })),
+  };
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     public statusText: string,
     public data?: ApiErrorEnvelope
   ) {
-    const message = extractErrorMessage(data, statusText);
+    const safeData = sanitizeApiErrorEnvelopeForCurrentUser(data);
+    const message = sanitizeApiMessageForCurrentUser(extractErrorMessage(safeData, statusText));
     super(message);
+    this.data = safeData;
     this.name = 'ApiError';
   }
 }
@@ -143,9 +185,9 @@ function extractErrorMessage(data: ApiErrorEnvelope | undefined, statusText: str
 
 export function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
-    return error.message || fallback;
+    return sanitizeApiMessageForCurrentUser(error.message, fallback);
   }
-  if (error instanceof Error) return error.message || fallback;
+  if (error instanceof Error) return sanitizeApiMessageForCurrentUser(error.message, fallback);
   return fallback;
 }
 
@@ -171,7 +213,7 @@ async function fetchApi<T>(
   const baseUrl = getApiBaseUrl();
   
   if (!baseUrl) {
-    throw new Error('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env');
+    throw new Error(sanitizeApiMessageForCurrentUser('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env'));
   }
 
   const url = `${baseUrl}${endpoint}`;
@@ -227,7 +269,7 @@ export async function fetchApiBlob(endpoint: string, options: FetchOptions = {})
   const baseUrl = getApiBaseUrl();
 
   if (!baseUrl) {
-    throw new Error('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env');
+    throw new Error(sanitizeApiMessageForCurrentUser('API_URL não está configurada. Defina NEXT_PUBLIC_API_URL no arquivo .env'));
   }
 
   const response = await fetch(`${baseUrl}${endpoint}`, {
