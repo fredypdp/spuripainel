@@ -4,8 +4,12 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useApi, consultasService, tokenStorage, academiaService, documentosService } from '@/lib/api';
+import { formatApiError } from '@/lib/api/client';
 import Button from "@/components/ui/button/Button";
-import { ConsultarEstudanteResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico } from '@/types/api';
+import { Modal } from "@/components/ui/modal";
+import Label from "@/components/form/Label";
+import { useModal } from "@/hooks/useModal";
+import { ConsultarEstudanteResponse, EstudanteDetalhado, Turma, Curso, formatAnoAcademico, DesativarRequest } from '@/types/api';
 import { useUserType } from "@/hooks/useRoutePermission";
 import { useUserCookie } from "@/hooks/useUserCookie";
 import Icon from "@/components/ui/Icon";
@@ -450,8 +454,8 @@ function BotaoVoltarEstudantes({ onVoltar }: { onVoltar: () => void }) {
   );
 }
 
-function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar }: {
-  estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void;
+function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar, cursos, onVoltar, onEstudanteDeletado }: {
+  estudante: EstudanteDetalhado; isAdmin: boolean; academiaNivel?: string; nivelEscolar?: string; cursos: Curso[]; onVoltar: () => void; onEstudanteDeletado?: () => void;
 }) {
   const [estudanteConsultado, setEstudanteConsultado] = useState<EstudanteDetalhes>(estudante);
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
@@ -460,6 +464,12 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
   const [documentoAberto, setDocumentoAberto] = useState<{ titulo: string; url: string } | null>(null);
   const [carregandoDocumento, setCarregandoDocumento] = useState<string | null>(null);
   const [baixandoDocumento, setBaixandoDocumento] = useState<string | null>(null);
+
+  // Tarefa 98: deleção da conta pela academia que cadastrou o estudante.
+  const modalDelecao = useModal();
+  const { loading: deletando, execute: executarDelecao } = useApi(academiaService.deletarContaEstudantePorAcademia);
+  const [motivoDelecao, setMotivoDelecao] = useState('');
+  const [erroDelecao, setErroDelecao] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -543,6 +553,22 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
       setErroDocumento(err?.message || 'Não foi possível baixar este documento pela rota autenticada de documentos.');
     } finally {
       setBaixandoDocumento(null);
+    }
+  };
+
+  const vinculadoNestaAcademia = estudanteConsultado.status === 'ativo' || estudanteConsultado.status === 'pendente_documentos';
+
+  const handleDeletarConta = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!motivoDelecao.trim()) return;
+    setErroDelecao('');
+    try {
+      const data: DesativarRequest = { motivo: motivoDelecao.trim() };
+      await executarDelecao(estudanteConsultado.codigo_estudante, data, tokenStorage.get() || undefined);
+      modalDelecao.closeModal();
+      onEstudanteDeletado?.();
+    } catch (err) {
+      setErroDelecao(formatApiError(err, 'Não foi possível deletar a conta deste estudante.'));
     }
   };
 
@@ -630,6 +656,44 @@ function TelaDetalhesEstudante({ estudante, isAdmin, academiaNivel, nivelEscolar
           </div>
         )}
       </section>
+      {!isAdmin && (
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-900/60 dark:bg-red-900/10 lg:p-6">
+          <h4 className="text-lg font-semibold text-red-800 dark:text-red-200">Zona de Perigo</h4>
+          <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+            Deletar a conta deste estudante é uma ação irreversível de desativação. O histórico acadêmico de notas e faltas permanece preservado para consultas futuras. Isto só é permitido se a sua academia foi quem cadastrou este estudante no Spuri originalmente — se ele foi transferido de outra academia, a ação será recusada.
+          </p>
+          {!vinculadoNestaAcademia && (
+            <p className="mt-3 text-sm text-red-700 dark:text-red-300">Este estudante não está vinculado a esta academia no momento, então a conta não pode ser deletada por aqui.</p>
+          )}
+          <div className="mt-4">
+            <Button size="sm" variant="danger" disabled={!vinculadoNestaAcademia} onClick={() => { setErroDelecao(''); setMotivoDelecao(''); modalDelecao.openModal(); }}>
+              Deletar conta do estudante
+            </Button>
+          </div>
+          <Modal isOpen={modalDelecao.isOpen} onClose={modalDelecao.closeModal} className="max-w-[540px] p-6 lg:p-10">
+            <form onSubmit={handleDeletarConta} className="space-y-4">
+              <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">Confirmar deleção da conta do estudante</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                A conta de {estudanteConsultado.nome} será desativada. Registros acadêmicos já lançados continuarão guardados.
+              </p>
+              <Label>Motivo *</Label>
+              <textarea
+                className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-white/[0.05] dark:bg-white/[0.03]"
+                rows={4}
+                value={motivoDelecao}
+                onChange={(e) => setMotivoDelecao(e.target.value)}
+                required
+                disabled={deletando}
+              />
+              {erroDelecao && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erroDelecao}</p>}
+              <div className="flex justify-end gap-3">
+                <Button size="sm" variant="outline" onClick={modalDelecao.closeModal} disabled={deletando}>Cancelar</Button>
+                <Button size="sm" variant="danger" disabled={deletando}>{deletando ? 'Deletando...' : 'Deletar conta'}</Button>
+              </div>
+            </form>
+          </Modal>
+        </section>
+      )}
     </div>
   );
 }
@@ -944,7 +1008,7 @@ export default function Estudantes() {
         )}
 
         {modoTela === 'detalhes' && estudanteSelecionado && (
-          <TelaDetalhesEstudante estudante={estudanteSelecionado} isAdmin={!!isAdmin} academiaNivel={academiaNivel} nivelEscolar={nivelEscolar} cursos={cursos} onVoltar={handleVoltarLista} />
+          <TelaDetalhesEstudante estudante={estudanteSelecionado} isAdmin={!!isAdmin} academiaNivel={academiaNivel} nivelEscolar={nivelEscolar} cursos={cursos} onVoltar={handleVoltarLista} onEstudanteDeletado={() => { handleVoltarLista(); carregarLista(); }} />
         )}
 
         {modoTela === 'documentacao' && estudanteSelecionado && (
