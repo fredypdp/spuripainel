@@ -12,6 +12,7 @@ import {
   type JobDetail,
   type JobItemResult,
 } from "@/lib/api";
+import { sanitizeApiMessageForCurrentUser } from "@/lib/api/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -272,7 +273,7 @@ async function retryFailedViaApi(
       data?.error ||
       data?._raw ||
       `Erro HTTP ${r.status} ao submeter retry`;
-    throw new Error(msg);
+    throw new Error(sanitizeApiMessageForCurrentUser(msg));
   }
 
   // A API retorna `retry_job_id` (campo documentado na secção 17)
@@ -285,10 +286,12 @@ async function retryFailedViaApi(
   if (!retryJobId) {
     // Job pode ter sido criado mas sem ID na resposta — avisa sem lançar erro fatal
     throw new Error(
-      data?.message ||
-      data?.error ||
-      data?._raw ||
-      "Retry submetido, mas o servidor não devolveu um job_id. Verifique as notificações."
+      sanitizeApiMessageForCurrentUser(
+        data?.message ||
+        data?.error ||
+        data?._raw ||
+        "Retry submetido, mas o servidor não devolveu um job_id. Verifique as notificações."
+      )
     );
   }
 
