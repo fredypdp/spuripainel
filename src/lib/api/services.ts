@@ -1571,6 +1571,22 @@ export const academiaService = {
       { token: token || tokenStorage.get() || undefined }
     ),
 
+  /**
+   * DELETE /academia/estudante/:codigo/conta — Tarefa 98. Permite que a
+   * academia atualmente vinculada ao estudante delete a conta dele
+   * diretamente (sem exigir desvinculação prévia, ao contrário de
+   * estudanteService.deletarContaEstudante) — mas só quando essa mesma
+   * academia foi a que ORIGINALMENTE cadastrou o estudante no Spuri. Uma
+   * academia que só recebeu o estudante por revinculação/transferência
+   * recebe 403 (ver formatApiError para exibir a mensagem do backend).
+   */
+  deletarContaEstudantePorAcademia: (codigoEstudante: string, data: DesativarRequest, token?: string) =>
+    api.delete<{ message: string; codigo_estudante: string }, DesativarRequest>(
+      `/academia/estudante/${encodeURIComponent(codigoEstudante)}/conta`,
+      data,
+      { token: token || tokenStorage.get() || undefined }
+    ),
+
   // ── Cursos ────────────────────────────────────────────────────────
 
   // ── Serviços Extras ───────────────────────────────────────────────

@@ -1,7 +1,7 @@
 ---
 criado: 2026-09-11
 origem: Fredy + Claude (orquestração)
-status: "pronta para implementação — TypeScript (tsc --noEmit) e ESLint já validados, zero erros; npm run build não pôde ser testado no meu sandbox só por bloqueio de rede a fonts.googleapis.com (ver seção 5), não relacionado ao código"
+status: feito
 depende_de: "Tarefa 98 (backend/spuri-backend) - Deleção da conta do estudante pela academia que o cadastrou e documento de BI vira oficial — precisa estar mergeada e implantada antes desta, porque esta tarefa chama DELETE /academia/estudante/:codigo/conta, uma rota nova que só existe depois daquela."
 ---
 
