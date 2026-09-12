@@ -77,6 +77,20 @@ export const ESTADO_PAGAMENTO_OPCOES = [
 ];
 
 /**
+ * Os cinco valores de ESTADO_PAGAMENTO_OPCOES que representam uma cobrança
+ * REAL (nunca uma pendência sintética) — todos os valores exceto
+ * "pendente". Usado por EstudantePagamentosPainel para pedir
+ * explicitamente ao backend "todos os estados, exceto pendente" quando o
+ * filtro de estado do histórico está em "Todos os estados": omitir o
+ * parâmetro `estado` faria DeveIncluirPendenciasSemCobranca (backend)
+ * incluir as pendências de novo, duplicando-as com a seção "Pendentes",
+ * que já as mostra separadamente nessa tela.
+ */
+export const ESTADOS_COBRANCA_REAL = ESTADO_PAGAMENTO_OPCOES
+  .map((o) => o.value)
+  .filter((v) => v !== "pendente");
+
+/**
  * Texto de exibição de cada método de pagamento AppyPay — usado em toda
  * parte de /financas/* e /pagamentos onde um método aparece para o
  * usuário (nunca mostrar "GPO"/"REF"/"GPO_QR" cru).
@@ -517,7 +531,7 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
         <Table className="w-full text-left">
           <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
             <TableRow>
-              {["Tipo", "Descrição", "Estudante", "Valor", "Método", "Estado", "Atualizado em", ""].map((h) => (
+              {["Tipo", "Estudante", "Valor", "Método", "Estado", "Atualizado em", ""].map((h) => (
                 <TableCell key={h || "acoes"} isHeader className="px-3 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{h}</TableCell>
               ))}
             </TableRow>
@@ -526,7 +540,6 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{origemLabel[r.origem] ?? r.origem}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.descricao || "—"}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.codigo_estudante || "—"}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{money(r.valor)}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{r.metodo_pagamento ? METODO_PAGAMENTO_LABEL[r.metodo_pagamento] : "—"}</TableCell>
@@ -586,7 +599,49 @@ export function CobrancasTable({ rows, onOpen, onCancelar }: {
 }
 
 /**
+ * Um campo label/valor da grade de metadados de SubtelaDetalheCobranca,
+ * com botão de copiar opcional — usado para os dois identificadores que a
+ * academia/admin mais precisa colar em outro lugar (painel da AppyPay,
+ * ticket de suporte): Referência AppyPay e Transação. `break-all` evita
+ * que um id longo (uuid/merchant transaction id) quebre o layout da grade.
+ */
+function CampoDetalheCobranca({ label, valor, onCopiar, copiado }: {
+  label: string;
+  valor: string;
+  onCopiar?: () => void;
+  copiado?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</p>
+      <div className="mt-1 flex items-center gap-2">
+        <p className="break-all text-sm text-gray-700 dark:text-gray-300">{valor}</p>
+        {onCopiar && (
+          <button
+            type="button"
+            onClick={onCopiar}
+            title="Copiar"
+            className="shrink-0 text-gray-400 transition hover:text-brand-500 dark:text-gray-500 dark:hover:text-brand-400"
+          >
+            <Icon icon={copiado ? "mdi:check" : "mdi:content-copy"} width={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Subtela de detalhes de um pagamento (não é mais modal/pop-up).
+ *
+ * Reorganizada nesta tarefa para dar mais hierarquia visual ao que antes
+ * era uma lista plana de `<p><b>Label:</b> valor</p>`: um cabeçalho com o
+ * valor em destaque + o StatusBadge (as duas informações que a academia
+ * escaneia primeiro), seguido de uma grade de metadados de dois campos por
+ * linha, com botão de copiar em Referência AppyPay/Transação — os dois
+ * identificadores que a academia/admin mais precisa colar em outro lugar
+ * (painel da AppyPay, ticket de suporte) ao investigar uma cobrança. Nenhum
+ * dado novo foi adicionado: os mesmos campos de antes, só reorganizados.
  *
  * - Usa os dados já carregados na linha da tabela (PagamentoResumo) em vez
  *   de buscar o pagamento de novo no servidor — evita uma requisição
@@ -614,6 +669,7 @@ export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudan
   const [estudante, setEstudante] = useState<EstudanteDetalhado | null>(null);
   const [erroEstudante, setErroEstudante] = useState<string | null>(null);
   const [carregandoEstudante, setCarregandoEstudante] = useState(false);
+  const [copiado, setCopiado] = useState<"referencia" | "transacao" | null>(null);
 
   const codigoEstudante = cobranca.codigo_estudante;
 
@@ -629,38 +685,74 @@ export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudan
       .finally(() => setCarregandoEstudante(false));
   }, [cobranca.id, mostrarDadosEstudante, codigoEstudante]);
 
+  function copiar(valor: string, campo: "referencia" | "transacao") {
+    navigator.clipboard.writeText(valor).catch(() => { /* ignorado — o clique já teve feedback visual abaixo mesmo se a cópia falhar */ });
+    setCopiado(campo);
+    setTimeout(() => setCopiado((atual) => (atual === campo ? null : atual)), 1500);
+  }
+
   return (
     <SubtelaPanel title="Detalhe da cobrança" icon="mdi:receipt-text-outline" onVoltar={onVoltar}>
-      <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+      <div className="space-y-5">
         {cobranca.status.toLowerCase() === "pendente" && (
-          <p className="rounded-lg bg-amber-50 p-3 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
             Este mês ainda não foi pago e não tem nenhuma cobrança gerada — nenhuma tentativa de pagamento foi feita ainda.
           </p>
         )}
-        <p><b>Tipo:</b> {origemLabel[cobranca.origem] ?? cobranca.origem}</p>
-        <p><b>Descrição:</b> {cobranca.descricao || "—"}</p>
+
+        {/* Cabeçalho: tipo + valor em destaque + estado — as duas informações mais escaneadas ao abrir o detalhe. */}
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-white/[0.05] dark:bg-white/[0.02]">
+          <div>
+            <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{origemLabel[cobranca.origem] ?? cobranca.origem}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-800 dark:text-white/90">{money(cobranca.valor)}</p>
+            {cobranca.moeda && cobranca.moeda !== "AOA" && <p className="text-xs text-gray-500 dark:text-gray-400">{cobranca.moeda}</p>}
+          </div>
+          <StatusBadge status={cobranca.status} />
+        </div>
+
         {cobranca.mensalidades?.[0] && (
-          <p><b>Mês de referência:</b> {capitalizar(NOME_MES[cobranca.mensalidades[0].mes - 1])} ({formatAnoLetivo(cobranca.mensalidades[0].ano_letivo)})</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            <b>Mês de referência:</b> {capitalizar(NOME_MES[cobranca.mensalidades[0].mes - 1])} ({formatAnoLetivo(cobranca.mensalidades[0].ano_letivo)})
+          </p>
         )}
-        <p><b>Valor:</b> {money(cobranca.valor)} {cobranca.moeda ? `(${cobranca.moeda})` : ""}</p>
-        <p><b>Método de pagamento:</b> {cobranca.metodo_pagamento ? METODO_PAGAMENTO_LABEL[cobranca.metodo_pagamento] : "—"}</p>
-        <p><b>Estado:</b> <StatusBadge status={cobranca.status} /></p>
-        <p><b>Referência AppyPay:</b> {cobranca.provider_charge_id || "—"}</p>
-        <p><b>Transação:</b> {cobranca.merchant_transaction_id || "—"}</p>
-        <p><b>Atualizado em:</b> {dt(cobranca.atualizado_em)}</p>
-        {cobranca.codigo_solicitacao && <p><b>Solicitação de matrícula:</b> {cobranca.codigo_solicitacao}</p>}
+
+        {/* Grade de metadados — dois campos por linha em telas largas. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CampoDetalheCobranca label="Método de pagamento" valor={cobranca.metodo_pagamento ? METODO_PAGAMENTO_LABEL[cobranca.metodo_pagamento] : "—"} />
+          <CampoDetalheCobranca label="Atualizado em" valor={dt(cobranca.atualizado_em)} />
+          <CampoDetalheCobranca
+            label="Referência AppyPay"
+            valor={cobranca.provider_charge_id || "—"}
+            onCopiar={cobranca.provider_charge_id ? () => copiar(cobranca.provider_charge_id!, "referencia") : undefined}
+            copiado={copiado === "referencia"}
+          />
+          <CampoDetalheCobranca
+            label="Transação"
+            valor={cobranca.merchant_transaction_id || "—"}
+            onCopiar={cobranca.merchant_transaction_id ? () => copiar(cobranca.merchant_transaction_id!, "transacao") : undefined}
+            copiado={copiado === "transacao"}
+          />
+          {cobranca.codigo_solicitacao && <CampoDetalheCobranca label="Solicitação de matrícula" valor={cobranca.codigo_solicitacao} />}
+        </div>
+
+        {cobranca.descricao && (
+          <div>
+            <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Descrição</p>
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{cobranca.descricao}</p>
+          </div>
+        )}
 
         {codigoEstudante && (
-          <div className="mt-4 rounded-lg border border-gray-100 p-3 dark:border-white/[0.05]">
+          <div className="rounded-lg border border-gray-100 p-3 dark:border-white/[0.05]">
             <p className="mb-2 font-semibold text-gray-800 dark:text-white/90">Estudante vinculado</p>
             {!mostrarDadosEstudante ? (
-              <p><b>Código:</b> {codigoEstudante}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300"><b>Código:</b> {codigoEstudante}</p>
             ) : carregandoEstudante ? (
-              <p className="text-gray-500 dark:text-gray-400">Carregando dados do estudante...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Carregando dados do estudante...</p>
             ) : erroEstudante ? (
-              <p className="text-red-600 dark:text-red-400">{erroEstudante}</p>
+              <p className="text-sm text-red-600 dark:text-red-400">{erroEstudante}</p>
             ) : estudante ? (
-              <div className="space-y-1">
+              <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
                 <p><b>Nome:</b> {estudante.nome}</p>
                 <p><b>Código:</b> {estudante.codigo_estudante}</p>
                 {estudante.telefone && <p><b>Telefone:</b> {estudante.telefone}</p>}
@@ -668,7 +760,7 @@ export function SubtelaDetalheCobranca({ cobranca, onVoltar, mostrarDadosEstudan
                 {estudante.status && <p><b>Status:</b> {estudante.status}</p>}
               </div>
             ) : (
-              <p><b>Código:</b> {codigoEstudante}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300"><b>Código:</b> {codigoEstudante}</p>
             )}
           </div>
         )}
