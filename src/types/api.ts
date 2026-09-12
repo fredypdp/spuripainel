@@ -156,6 +156,25 @@ export interface LoginRequest {
   senha: string;
 }
 
+export interface DocumentoExtra {
+  id: string;
+  rotulo: string;
+  tipo: 'pdf' | 'jpg';
+  obrigatorio: boolean;
+  nivel: 'fundamental' | 'medio' | 'superior';
+  ano_academico: AnoAcademico;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentoExtraPayload {
+  rotulo: string;
+  tipo: 'pdf' | 'jpg';
+  obrigatorio: boolean;
+  ano_academico: AnoAcademico;
+}
+
 export interface CriarEstudanteRequest {
   nome: string;
   /** Obrigatório. "masculino" | "feminino" */
@@ -185,6 +204,7 @@ export interface CriarEstudanteRequest {
   certificado_6_ano_fundamental?: File;
   certificado_9_ano_fundamental?: File;
   certificado_ensino_medio?: File;
+  [campo: `documento_extra_${string}`]: File | string | null | undefined;
 }
 
 export interface MotivoEstudanteRequest {
@@ -320,6 +340,7 @@ export interface CriarSolicitacaoMatriculaRequest {
   certificado_6_ano_fundamental?: File;
   certificado_9_ano_fundamental?: File;
   certificado_ensino_medio?: File;
+  [campo: `documento_extra_${string}`]: File | string | null | undefined;
 }
 
 export interface CriarSolicitacaoMatriculaResponse {

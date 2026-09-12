@@ -10,7 +10,7 @@ import Input from "@/components/form/input/InputField";
 import BirthDatePicker from "@/components/form/BirthDatePicker";
 import DocumentUpload from "@/components/form/DocumentUpload";
 import SearchableSelect from "@/components/form/SearchableSelect";
-import type { Genero, Curso, Turma } from '@/types/api';
+import type { Genero, Curso, Turma, DocumentoExtra } from '@/types/api';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -205,6 +205,8 @@ export default function CadastroSingularForm() {
   const [certificado6File, setCertificado6File] = useState<File | undefined>();
   const [certificado9File, setCertificado9File] = useState<File | undefined>();
   const [certificadoMedioFile, setCertificadoMedioFile] = useState<File | undefined>();
+  const [documentosExtra, setDocumentosExtra] = useState<DocumentoExtra[]>([]);
+  const [filesExtra, setFilesExtra] = useState<Record<string, File | undefined>>({});
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [resultado, setResultado] = useState<ResultadoCadastro | null>(null);
@@ -231,6 +233,10 @@ export default function CadastroSingularForm() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelEscolar, isSuperior]);
+
+  useEffect(() => {
+    academiaService.listarDocumentosExtra({ ativos: true }).then((res) => setDocumentosExtra(res.documentos_extra ?? [])).catch(() => setDocumentosExtra([]));
+  }, []);
 
   // Guard mínimo: a autorização (apenas academia) já é garantida pelo
   // componente pai (PageContent), que só renderiza este formulário depois de
@@ -294,6 +300,8 @@ export default function CadastroSingularForm() {
     t.nivel === anoEscolarSelecionado && (cursoSelecionado?.id ? t.curso_id === cursoSelecionado.id : true)
   );
   const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoEscolarSelecionado);
+  const documentosExtraDoAno = documentosExtra.filter((doc) => doc.ano_academico === anoEscolarSelecionado);
+
   const documentos: DocumentoOpcao[] = (() => {
     const anoAtual = anoEscolarSelecionado ?? undefined;
     const estudanteSuperior = isEstudanteSuperior(anoAtual);
@@ -375,6 +383,7 @@ export default function CadastroSingularForm() {
     setCertificado6File(undefined);
     setCertificado9File(undefined);
     setCertificadoMedioFile(undefined);
+    setFilesExtra({});
   };
 
   const setDocumentoFile = (key: FileKey, file?: File) => {
@@ -524,6 +533,7 @@ export default function CadastroSingularForm() {
       certificado_6_ano_fundamental: certificado6File,
       certificado_9_ano_fundamental: certificado9File,
       certificado_ensino_medio: certificadoMedioFile,
+      ...Object.fromEntries(Object.entries(filesExtra).filter(([, file]) => !!file).map(([id, file]) => [`documento_extra_${id}`, file])),
     };
 
     try {
@@ -789,6 +799,12 @@ export default function CadastroSingularForm() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+          {anoEscolarSelecionado && documentosExtraDoAno.length > 0 && (
+            <div className="col-span-2 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700 sm:grid-cols-2">
+              <p className="sm:col-span-2 text-sm font-medium text-gray-700 dark:text-gray-300">Documentos extra</p>
+              {documentosExtraDoAno.map((doc) => <DocumentUpload key={doc.id} id={`documento-extra-${doc.id}`} label={doc.rotulo} required={doc.obrigatorio} tipo={doc.tipo} file={filesExtra[doc.id]} onChange={(file, error) => { setFilesExtra((prev) => ({ ...prev, [doc.id]: file })); if (error) setValidationErrors([error]); }} />)}
             </div>
           )}
         </div>
