@@ -59,9 +59,17 @@ type Tela = "menu" | "mensalidade-ano" | "mensalidade-mes" | "lista";
  * Dividido em subtelas a partir de um menu de cartões (mesmo padrão de
  * FinanceiroConfiguracoesPainel — nada de <select> para escolher o tipo de
  * cobrança): Mensalidade/Propina abre um drill-down adicional de ano
- * letivo → mês antes de chegar na listagem; Taxa de matrícula e Outros vão
- * direto para a listagem, sem esse passo extra (uma cobrança de matrícula
- * ou avulsa não tem o conceito de "mês do ano letivo").
+ * letivo → mês antes de chegar na listagem; Taxa de matrícula vai direto
+ * para a listagem, sem esse passo extra (uma cobrança de matrícula não tem
+ * o conceito de "mês do ano letivo").
+ *
+ * O cartão "Outros" (cobranças avulsas) foi removido deste menu — avulsa
+ * deixou de ser um tipo consultável por aqui, então `origem` nunca chega a
+ * "avulsa" através desta tela (ver abrirLista, mais abaixo). O `else` para
+ * "avulsa" em `tituloLista`/`iconeLista` (mais abaixo) foi deixado como
+ * estava, deliberadamente: é código inatingível a partir desta UI só
+ * porque FinanceiroOrigemCobranca ainda inclui esse valor no tipo — não
+ * faz parte desta tarefa reescrevê-lo.
  *
  * A listagem final sempre mostra TODOS os estados (Pago/Aguardando
  * pagamento/Falhado/Cancelado/Expirado) — o filtro de estado que já
@@ -250,7 +258,6 @@ export default function FinanceiroPagamentosPainel() {
             opcoes={[
               { id: "mensalidade", icon: "mdi:calendar-month-outline", label: "Mensalidade / Propina", descricao: "Consultar por ano letivo e mês.", onClick: () => abrirLista("mensalidade"), disabled: bloquearSubtelas },
               { id: "matricula", icon: "mdi:school-outline", label: "Taxa de matrícula", descricao: "Todas as cobranças de matrícula, em todos os estados.", onClick: () => abrirLista("matricula"), disabled: bloquearSubtelas },
-              { id: "avulsa", icon: "mdi:cash-multiple", label: "Outros", descricao: "Cobranças avulsas, em todos os estados.", onClick: () => abrirLista("avulsa"), disabled: bloquearSubtelas },
             ]}
           />
           {avisoCredenciais}
