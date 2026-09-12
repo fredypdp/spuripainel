@@ -1,5 +1,5 @@
 ---
-modificado: 29-08-2026 00:00
+modificado: 12-09-2026 00:00
 criado: 05-04-2026 13:01
 ---
 Versão atual: 2.5.0
@@ -51,6 +51,8 @@ Versão atual: 2.5.0
 20. [Armazenamento](#20-armazenamento)
 21. [Integrações Externas / Ziett (Teste)](#21-integrações-externas--ziett-teste)
 22. [Sumários](#22-sumários)
+23. [Serviços Extras](#23-serviços-extras)
+24. [Documentos Extras](#24-documentos-extras)
 
 ---
 
@@ -3063,8 +3065,9 @@ Cadastra um novo estudante vinculado à academia autenticada. O cadastro direto 
 | `certificado_6_ano_fundamental` | Exigido como alternativa à declaração somente para `7_ano_fundamental`. |
 | `certificado_9_ano_fundamental` | Exigido como alternativa à declaração somente para `1_ano_medio`. |
 | `certificado_ensino_medio` | Exigido como alternativa à declaração somente para `1_ano_superior`. |
+| `documento_extra_<id>` | Documento configurado e ativo pela academia para o `ano_academico` do estudante. Substitua `<id>` pelo UUID retornado em `GET /academia/documentos-extra`; envie um campo por definição aplicável. É obrigatório somente quando o catálogo o define como `obrigatorio=true`. Aceita PDF ou JPG conforme o `tipo` configurado; ver seção 24. |
 
-Quando enviados, todos os ficheiros devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 10MB. O cadastro direto usa a mesma validação compartilhada de matrícula aplicada por `POST /solicitacao-matricula` para dados comuns e documentos. Os documentos obrigatórios são validados e enviados para `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` antes de qualquer gravação no ledger; somente após sucesso total dos uploads o evento `EstudanteCriadoComVinculo` é persistido com metadados normalizados em `documentos.<chave>.documento_id`, `documentos.<chave>.tipo`, `documentos.<chave>.nivel`, `documentos.<chave>.ano_academico`, `documentos.<chave>.versao`, `documentos.<chave>.path`, `documentos.<chave>.file_url` e `documentos.<chave>.download_url`. Para identificação, a chave continua sendo o tipo do arquivo (`bi_estudante`, `bi_encarregado`, `cedula_estudante`); para documentos acadêmicos, a chave segue `nivel.ano_academico.tipo`, como `medio.3_ano_medio.declaracao_3_ano_medio`. Se validação/upload falhar, nenhum estudante/vínculo é gravado; se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
+Os documentos fixos devem ter `Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF` e tamanho máximo de 10MB. Cada `documento_extra_<id>` segue o mesmo limite de 10MB, mas deve respeitar o tipo configurado: PDF (`application/pdf`, `.pdf`, assinatura `%PDF`) ou JPG (`image/jpeg` ou `image/jpg`, `.jpg`/`.jpeg`, assinatura JPEG). O cadastro direto usa a mesma validação compartilhada de matrícula aplicada por `POST /solicitacao-matricula` para dados comuns e documentos. Os documentos obrigatórios são validados e enviados para `{codigo_academia}/estudantes/{codigo_estudante}/documentos/` antes de qualquer gravação no ledger; somente após sucesso total dos uploads o evento `EstudanteCriadoComVinculo` é persistido com metadados normalizados em `documentos.<chave>.documento_id`, `documentos.<chave>.tipo`, `documentos.<chave>.nivel`, `documentos.<chave>.ano_academico`, `documentos.<chave>.versao`, `documentos.<chave>.path`, `documentos.<chave>.file_url` e `documentos.<chave>.download_url`. Para identificação, a chave continua sendo o tipo do arquivo (`bi_estudante`, `bi_encarregado`, `cedula_estudante`); para documentos acadêmicos, a chave segue `nivel.ano_academico.tipo`, como `medio.3_ano_medio.declaracao_3_ano_medio`. Se validação/upload falhar, nenhum estudante/vínculo é gravado; se a criação falhar após upload parcial, o backend remove o diretório definitivo do estudante para evitar ficheiros órfãos.
 
 **Request — campos de texto principais (exemplo escolar; requer anexar os PDFs obrigatórios do quadro acima):**
 
@@ -3988,7 +3991,8 @@ Cria uma solicitação pública de matrícula para a academia informada.
 | `curso_medio_id` | UUID | condicional | Curso `medio`, `ativo` e da mesma academia; usado com `ano_escolar_medio`. |
 | `curso_superior_id` | UUID | condicional | Curso `superior`, `ativo` e da mesma academia; usado com `ano_superior`. |
 | `declaracao_ano_academico` | texto | não | Classifica o PDF `declaracao` quando enviado. |
-| `bi_estudante`, `bi_encarregado`, `cedula_estudante`, `declaracao`, `certificado_6_ano_fundamental`, `certificado_9_ano_fundamental`, `certificado_ensino_medio` | arquivo PDF | condicional | Únicos campos de arquivo aceites; a obrigatoriedade depende do percurso de matrícula. |
+| `bi_estudante`, `bi_encarregado`, `cedula_estudante`, `declaracao`, `certificado_6_ano_fundamental`, `certificado_9_ano_fundamental`, `certificado_ensino_medio` | arquivo PDF | condicional | Documentos fixos; a obrigatoriedade depende do percurso de matrícula. |
+| `documento_extra_<id>` | arquivo PDF ou JPG | condicional | Um campo para cada documento extra ativo configurado pela academia para o ano académico solicitado. `<id>` é o UUID retornado por `GET /academia/documentos-extra`; é obrigatório quando a definição tiver `obrigatorio=true` e deve respeitar o `tipo` (`pdf` ou `jpg`) configurado. |
 
 **Exemplo de request — ensino médio:**
 
@@ -4011,8 +4015,8 @@ curl -X POST "$BASE_URL/solicitacao-matricula" \
 
 **Regras de negócio:**
 
-- Qualquer campo de arquivo fora da lista acima é rejeitado.
-- Cada arquivo deve ser PDF (`Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF`) e ter no máximo 10 MB.
+- Qualquer campo de arquivo fora dos documentos fixos ou do padrão `documento_extra_<id>` aplicável ao ano académico solicitado é rejeitado.
+- Documentos fixos devem ser PDF (`Content-Type: application/pdf`, extensão `.pdf`, assinatura `%PDF`); documentos extra devem respeitar o tipo configurado no catálogo (PDF ou JPG, com Content-Type, extensão e assinatura binária correspondentes). Todos têm limite de 10 MB.
 - Os documentos obrigatórios são validados pelas regras automáticas de documentos de matrícula, considerando BI, BI do encarregado e ano pretendido.
 - `7_ano_fundamental` exige `certificado_6_ano_fundamental`; `1_ano_medio` exige `certificado_9_ano_fundamental`; ingresso superior exige curso superior/ano compatível e certificado aplicável pelas regras de documentos.
 - Para matrícula escolar, `bilhete_identidade_encarregado` não pode coincidir com o BI principal de outro estudante escolar.
@@ -9197,38 +9201,243 @@ Remove logicamente (soft delete) um sumário. Nunca é bloqueado por o sumário 
 
 **Erros:** `403` quando o sumário pertence a outra academia; `404` quando o ID não existe ou já está deletado.
 
-## 20. Serviços Extras
+## 23. Serviços Extras
 
 A academia pode configurar serviços adicionais, como transporte e atividades extracurriculares. Serviços pagos ou com taxa de inscrição exigem credenciais AppyPay configuradas.
 
-### 20.1 Criar serviço extra
+### 23.1 Criar serviço extra
 **Proteção:** academia autenticada e ativa. `POST /academia/servicos-extras`.
 
-**Request body:** `nome` (obrigatório), `descricao`, `categoria`, `pago`, `preco`, `tipo_cobranca` (`unico` ou `mensal`), `metodos_pagamento` (`GPO`, `REF`, `GPO_QR`), `tem_taxa_inscricao`, `valor_taxa_inscricao`, `metodos_pagamento_taxa_inscricao`, `anos_academicos_disponiveis`, `cursos_disponiveis`, `documento_obrigatorio`, `documento_instrucoes` e `detalhes_personalizados`.
+**Request body:** `nome` (obrigatório), `descricao`, `categoria_servico_id`, `pago`, `preco`, `tipo_cobranca` (`unico` ou `mensal`), `metodos_pagamento` (`GPO`, `REF`, `GPO_QR`), `tem_taxa_inscricao`, `valor_taxa_inscricao`, `metodos_pagamento_taxa_inscricao`, `anos_academicos_disponiveis`, `cursos_disponiveis`, `documento_obrigatorio`, `documento_instrucoes` e `detalhes_personalizados`.
+
+**`categoria_servico_id`:** opcional (UUID). Quando informado, precisa existir, pertencer à mesma academia autenticada e estar `ativo=true` no momento da criação — caso contrário `400` (`categoria de serviço não encontrada`, `categoria de serviço não pertence a esta academia` ou `categoria de serviço está inativa`, conforme o caso). Ver seção 23.6 para o CRUD de categorias. Uma vez associada, a categoria continua valendo mesmo que seja desativada depois — ela só deixa de poder ser escolhida em serviços NOVOS ou em atualizações que a troquem.
+
+**`detalhes_personalizados`:** objeto com até 30 chaves, onde cada chave mapeia para `{ "rotulo": string, "valor": ..., "tipo": string }`:
+
+- `rotulo`: obrigatório, até 100 caracteres — o texto exibido no formulário.
+- `tipo`: um de `texto`, `numero`, `booleano`, `data`, `hora`, `lista_texto`.
+- `valor`: formato depende de `tipo` — `texto` é string; `numero` é número; `booleano` é `true`/`false`; `data` é string `"AAAA-MM-DD"`; `hora` é string `"HH:MM"`; `lista_texto` é array de strings.
+- Cada chave deve seguir o formato `snake_case` (minúsculas, números e `_`, começando por letra, até 50 caracteres).
+
+Exemplo (`Transporte Escolar`):
+```json
+{
+  "nome": "Transporte Escolar",
+  "categoria_servico_id": "3f2a1c4e-7b1a-4e9d-9c2a-1a2b3c4d5e6f",
+  "pago": false,
+  "detalhes_personalizados": {
+    "rota": { "rotulo": "Rota", "valor": "Centro", "tipo": "texto" },
+    "ponto_de_embarque": { "rotulo": "Ponto de embarque", "valor": "Escola", "tipo": "texto" },
+    "horario_de_saida": { "rotulo": "Horário de saída", "valor": "06:30", "tipo": "hora" }
+  }
+}
+```
+
+Exemplo (`Natação`):
+```json
+{
+  "nome": "Natação",
+  "pago": true,
+  "preco": 25000.00,
+  "tipo_cobranca": "mensal",
+  "metodos_pagamento": ["GPO"],
+  "detalhes_personalizados": {
+    "piscina": { "rotulo": "Piscina", "valor": "Olímpica", "tipo": "texto" },
+    "exige_saber_nadar": { "rotulo": "Exige saber nadar", "valor": true, "tipo": "booleano" },
+    "equipamento_incluido": { "rotulo": "Equipamento incluído", "valor": ["touca", "óculos"], "tipo": "lista_texto" }
+  }
+}
+```
 
 **Regras de negócio:** campos financeiros são obrigatórios apenas quando a respectiva cobrança estiver ativa; `anos_academicos_disponiveis` e `cursos_disponiveis` vazios (ambos) disponibilizam o serviço para todos os anos/cursos. `anos_academicos_disponiveis` só aceita anos de ensino fundamental (`N_ano_fundamental`), sem vínculo com curso — o ensino fundamental não tem cursos neste sistema. `cursos_disponiveis` restringe a um curso específico: cada item é `"<curso_id>|<ano_academico>"`, com ano médio ou superior — médio e superior são sempre escopados a um curso, nunca soltos. O curso precisa pertencer à mesma academia, não estar deletado, ter o tipo correspondente ao ano e conter o ano entre seus anos acadêmicos. As duas listas são combináveis (ex.: fundamental solto + um curso médio específico). Em `POST /estudante/servicos-extras/:id/solicitacao`, se o serviço tiver restrições, o estudante só consegue se inscrever quando seu ano/curso atual corresponder a uma das listas; caso contrário recebe `403`.
 
-### 20.2 Atualizar serviço extra
-**Proteção:** academia proprietária autenticada e ativa. `PUT /academia/servicos-extras/:id`. Aceita os mesmos campos da criação (incluindo `cursos_disponiveis`) de forma parcial.
+### 23.2 Atualizar serviço extra
+**Proteção:** academia proprietária autenticada e ativa. `PUT /academia/servicos-extras/:id`. Aceita os mesmos campos da criação (incluindo `cursos_disponiveis` e `categoria_servico_id`) de forma parcial — envie só os campos que quer alterar. Enviar `categoria_servico_id` explicitamente como `null` remove a categoria do serviço; omitir o campo mantém a categoria atual inalterada.
 
-### 20.3 Desativar serviço extra
+### 23.3 Desativar serviço extra
 **Proteção:** academia proprietária autenticada e ativa. `PUT /academia/servicos-extras/:id/desativar`.
 
-### 20.4 Reativar serviço extra
+### 23.4 Reativar serviço extra
 **Proteção:** academia proprietária autenticada e ativa. `PUT /academia/servicos-extras/:id/reativar`.
 
-### 20.5 Listar e consultar serviços extras
+### 23.5 Listar e consultar serviços extras
 **Proteção:** `GET /academia/servicos-extras` e `GET /academia/servicos-extras/:id` exigem academia ou admin autenticado. A listagem pública `GET /academia/servico/:codigo_academia/servicos-extras` retorna somente serviços ativos.
 
+### 23.6 Categorias de serviço
+**Proteção:** todas exigem academia autenticada e ativa; as rotas de escrita (atualizar/desativar/reativar) exigem que a categoria pertença à academia autenticada — `403` caso contrário (`404` se o ID não existir).
 
-### 19.20 Pagamento de taxa de inscrição de serviço extra
+- `POST /academia/categorias-servico` cria uma categoria. **Request body:** `nome` (obrigatório, até 100 caracteres).
+- `PUT /academia/categorias-servico/:id` renomeia. Mesmo corpo da criação.
+- `PUT /academia/categorias-servico/:id/desativar` e `PUT /academia/categorias-servico/:id/reativar` alternam o status.
+- `GET /academia/categorias-servico` lista as categorias da academia autenticada; aceita `?ativos=true` para retornar somente as ativas.
+
+**Regras de negócio:** nome único por academia, ignorando maiúsculas/minúsculas, enquanto a categoria estiver ativa — duas categorias ativas com o "mesmo" nome (case-insensitive) não podem coexistir na mesma academia, seja por criação, renomeação ou reativação; a tentativa é rejeitada com `400` (`já existe uma categoria de serviço ativa com este nome nesta academia`). Ao desativar uma categoria, o nome fica livre para reutilização por outra categoria (nova ou reativada). Desativar uma categoria não afeta os serviços que já a utilizam — eles continuam funcionando normalmente; a categoria só deixa de poder ser escolhida em serviços novos ou em atualizações de `categoria_servico_id`.
+
+### 23.7 Pagamento de taxa de inscrição de serviço extra
 `POST /financeiro/servicos-extras/taxa-inscricao/pagamento?solicitacao_id={uuid}` (estudante autenticado) inicia o pagamento da taxa já aprovada. O corpo aceita `metodo_pagamento` e, para GPO, `telefone`.
 
-### 20. Serviços Extras — inscrições
+### 23.8 Inscrições em serviços extras
 Estudantes podem criar solicitações em `POST /estudante/servicos-extras/:id/solicitacao`, consultar `GET /estudante/servicos-extras/minhas-inscricoes` e cancelar vínculos próprios. Academias listam, aprovam, reprovam ou cancelam solicitações em `/academia/servicos-extras/solicitacoes` e `/academia/servicos-extras/inscricoes/:id/cancelar`. As listagens financeiras aceitam `origem=servico_extra` para filtrar exclusivamente taxas de inscrição de serviços extras. Uma inscrição pode ter cobranças de `taxa_inscricao`, `mensalidade` ou `preco_unico`, sempre com `origem=servico_extra`.
 
-### 20.7 Pendências e pagamento
+### 23.9 Pendências e pagamento
 - `GET /estudante/servicos-extras/minhas-inscricoes/:id/pendencias` lista as pendências da própria inscrição.
 - `GET /academia/servicos-extras/inscricoes/:id/pendencias` oferece a visão da academia.
 - `POST /financeiro/servicos-extras/obrigacao/pagamento` inicia o pagamento de uma mensalidade ou preço único.
 - `POST /financeiro/servicos-extras/obrigacao/anular` e `/reativar` administram uma obrigação individual da inscrição.
+
+## 24. Documentos Extras
+
+A academia pode manter um catálogo de documentos adicionais para um ano académico específico, além dos documentos fixos de identificação e percurso escolar. Cada definição tem UUID próprio, rótulo, tipo (`pdf` ou `jpg`), obrigatoriedade e `ano_academico`; o `nivel` é derivado pelo backend. Definições ativas são aplicadas no cadastro direto e em `POST /solicitacao-matricula`. Uma alteração é prospectiva: não modifica arquivos já enviados.
+
+### 24.1 `GET /academia/documentos-extra`
+
+Lista o catálogo da academia autenticada. Use `?ativos=true` para retornar apenas definições ativas.
+
+**Proteção:** academia autenticada e ativa.
+
+**Response 200:**
+
+```json
+{
+  "documentos_extra": [
+    {
+      "id": "3f1e2c4a-7b1a-4e9d-9c2a-1a2b3c4d5e6f",
+      "codigo_academia": "ACAD001",
+      "rotulo": "Atestado médico",
+      "tipo": "jpg",
+      "obrigatorio": true,
+      "nivel": "medio",
+      "ano_academico": "2_ano_medio",
+      "ativo": true,
+      "created_at": "2026-09-12T10:00:00Z",
+      "updated_at": "2026-09-12T10:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+### 24.2 `POST /academia/documentos-extra`
+
+Cria uma definição no catálogo da academia autenticada.
+
+**Proteção:** academia autenticada e ativa.
+
+**Request:**
+
+```json
+{
+  "rotulo": "Atestado médico",
+  "tipo": "jpg",
+  "obrigatorio": true,
+  "ano_academico": "2_ano_medio"
+}
+```
+
+`rotulo` é obrigatório e tem até 150 caracteres; `tipo` aceita apenas `pdf` ou `jpg`; `ano_academico` deve ter o formato canónico de ano fundamental, médio ou superior. Não envie `nivel`: ele é derivado de `ano_academico`. Um rótulo ativo é único, sem distinguir maiúsculas/minúsculas, por academia e ano académico.
+
+**Response 201:**
+
+```json
+{
+  "message": "documento extra criado com sucesso",
+  "data": {
+    "id": "3f1e2c4a-7b1a-4e9d-9c2a-1a2b3c4d5e6f",
+    "codigo_academia": "ACAD001",
+    "rotulo": "Atestado médico",
+    "tipo": "jpg",
+    "obrigatorio": true,
+    "nivel": "medio",
+    "ano_academico": "2_ano_medio",
+    "ativo": true,
+    "created_at": "2026-09-12T10:00:00Z",
+    "updated_at": "2026-09-12T10:00:00Z"
+  }
+}
+```
+
+### 24.3 `PUT /academia/documentos-extra/:id`
+
+Atualiza rótulo, tipo, obrigatoriedade e ano académico de uma definição da própria academia. O corpo é exatamente o mesmo de criação e todos os campos são obrigatórios.
+
+**Proteção:** academia autenticada e dona da definição.
+
+**Request:**
+
+```json
+{
+  "rotulo": "Atestado médico atualizado",
+  "tipo": "pdf",
+  "obrigatorio": false,
+  "ano_academico": "2_ano_medio"
+}
+```
+
+**Response 200:** `{ "message": "documento extra atualizado com sucesso", "data": { "...": "definição atualizada" } }`.
+
+### 24.4 `PUT /academia/documentos-extra/:id/desativar`
+
+Desativa logicamente a definição, preservando o histórico e os documentos já enviados. Ela deixa de ser oferecida ou exigida em novos cadastros e matrículas.
+
+**Proteção:** academia autenticada e dona da definição.
+
+**Response 200:**
+
+```json
+{
+  "data": {
+    "id": "3f1e2c4a-7b1a-4e9d-9c2a-1a2b3c4d5e6f",
+    "ativo": false
+  }
+}
+```
+
+### 24.5 `PUT /academia/documentos-extra/:id/reativar`
+
+Reativa uma definição previamente desativada. A mesma regra de unicidade de rótulo ativo por academia/ano académico volta a ser validada.
+
+**Proteção:** academia autenticada e dona da definição.
+
+**Response 200:**
+
+```json
+{
+  "data": {
+    "id": "3f1e2c4a-7b1a-4e9d-9c2a-1a2b3c4d5e6f",
+    "ativo": true
+  }
+}
+```
+
+### Envio, listagem e download
+
+Em `POST /academia/estudante/register`, `POST /academia/estudante/:codigo/documentos` e `POST /solicitacao-matricula`, envie cada arquivo no campo multipart `documento_extra_<id>`, em que `<id>` é o UUID da definição ativa aplicável ao ano académico do estudante. Campos de outra academia, definição inativa ou outro ano académico são rejeitados.
+
+O arquivo é armazenado em `{baseDir}/documento_extra/{id}/{documento_id}.{pdf|jpg}` e aparece no mapa `documentos` sob a chave `documento_extra.<id>`, com `download_url`. As rotas de listagem de documentos e as rotas genéricas já existentes de download de estudante e solicitação de matrícula expõem e baixam este item usando essa chave como `{campo}`; o backend retorna `application/pdf` para PDF e `image/jpeg` para JPG.
+
+**Erros comuns (todas as rotas do catálogo):** `400` para JSON inválido, campos inválidos, rótulo duplicado, UUID inválido ou transição de estado inválida; `403` para definição de outra academia; `404` para UUID inexistente; `500` para falha interna.
+
+## 25. Comunicação
+
+Módulo de envio de SMS institucional via GoSMS ou Ziett. O remetente (Sender ID do GoSMS, ou remitter_id do Ziett) e o respetivo token de API são configurados uma única vez por provedor, diretamente no Spuri — nenhuma chamada é feita à API do provedor para "criar" o remetente; o Spuri apenas grava o que já existe e está aprovado do lado do provedor. Remetente é sempre global (não pertence a nenhuma academia).
+
+### 25.1 Cadastrar remetente
+`POST /comunicacao/remetentes` (admin FPP). Rota única para GOSMS ou ZIETT. **Request body:** `provedor` (`GOSMS` ou `ZIETT`), `identificador` (nome do Sender ID de 1 a 11 caracteres alfanuméricos maiúsculos para GOSMS; UUID do remitter_id para ZIETT), `token_api` (texto plano — é cifrado antes de ser gravado e nunca é devolvido em nenhuma resposta).
+
+Existe no máximo um remetente por provedor. Cadastrar novamente para um provedor que já tem remetente configurado **substitui** o remetente existente (mesmo registo, histórico preservado no ledger de auditoria). Retorna `201` na primeira configuração de um provedor, `200` nas seguintes. A resposta nunca inclui o token — apenas `token_configurado: true`.
+
+### 25.2 Listar remetentes
+`GET /comunicacao/remetentes` (qualquer administrador). Devolve os remetentes configurados (no máximo dois — um por provedor), sem o token de API.
+
+### 25.3 Provedor padrão
+`GET /admin/comunicacao/provedor-padrao` e `PUT /admin/comunicacao/provedor-padrao` (admin FPP). Configuração única e global (não existe por academia). **Request body do PUT:** `provedor_padrao` (`GOSMS` ou `ZIETT`). Enquanto nenhum admin FPP tiver definido o provedor padrão, `POST /comunicacao/mensagens` responde `400` e não tenta enviar nada.
+
+### 25.4 Enviar mensagem
+`POST /comunicacao/mensagens` (administrador ou academia autenticada). Rota única — envia para **um** destinatário por chamada. **Request body:** `destinatario` (número móvel angolano; aceita com ou sem prefixo `+244`/`0`), `conteudo` (texto da SMS, até 1000 caracteres).
+
+O sistema tenta primeiro o provedor padrão; se esse provedor não tiver remetente configurado, ou a tentativa de envio falhar, tenta automaticamente o outro provedor. A mensagem é sempre registada (`enviada` ou `falhou`), com o detalhe de cada tentativa (`provedor`, `sucesso`, `mensagem_externa_id` ou `erro_mensagem`) em `detalhes_tentativas`. Responde `201` quando pelo menos um provedor teve sucesso; `502` quando ambos falharam (o corpo da resposta de erro ainda inclui o registo completo da mensagem e das tentativas).
+
+### 25.5 Listar mensagens
+`GET /comunicacao/mensagens` (administrador ou academia autenticada). Aceita paginação (`?limit=&offset=`, limite padrão e máximo iguais aos demais endpoints de listagem do sistema). Uma academia só vê as mensagens que ela própria enviou; um administrador vê todas, com filtro opcional `?codigo_academia=`.
+
+**Protecção:** `/comunicacao/mensagens` (enviar e listar) exige autenticação de administrador (qualquer role) ou academia. `/comunicacao/remetentes` exige autenticação de administrador — cadastrar exige especificamente role FPP. `/admin/comunicacao/provedor-padrao` exige role FPP tanto para consultar quanto para definir.
