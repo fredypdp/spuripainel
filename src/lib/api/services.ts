@@ -47,6 +47,8 @@ import type {
   ServicoExtraPayload,
   CategoriaServico,
   CategoriaServicoPayload,
+  DocumentoExtra,
+  DocumentoExtraPayload,
   RemetenteComunicacao,
   RemetenteComunicacaoPayload,
   MensagemComunicacao,
@@ -373,6 +375,7 @@ function prepareCriarEstudanteForm(data: CriarEstudanteRequest): FormData {
     certificado_6_ano_fundamental: data.certificado_6_ano_fundamental,
     certificado_9_ano_fundamental: data.certificado_9_ano_fundamental,
     certificado_ensino_medio: data.certificado_ensino_medio,
+    ...Object.fromEntries(Object.entries(data).filter(([key]) => key.startsWith('documento_extra_'))),
   });
   entries.forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
@@ -1595,6 +1598,17 @@ export const academiaService = {
   desativarCategoriaServico: (id: string, token?: string) => api.put<{ data: CategoriaServico }>(`/academia/categorias-servico/${id}/desativar`, undefined, { token: token || tokenStorage.get() || undefined }),
   reativarCategoriaServico: (id: string, token?: string) => api.put<{ data: CategoriaServico }>(`/academia/categorias-servico/${id}/reativar`, undefined, { token: token || tokenStorage.get() || undefined }),
   listarCategoriasServico: (token?: string) => api.get<{ categorias_servico: CategoriaServico[]; total: number }>('/academia/categorias-servico', { token: token || tokenStorage.get() || undefined }),
+  criarDocumentoExtra: (data: DocumentoExtraPayload, token?: string) => api.post<{ data: DocumentoExtra }, DocumentoExtraPayload>('/academia/documentos-extra', data, { token: token || tokenStorage.get() || undefined }),
+  atualizarDocumentoExtra: (id: string, data: DocumentoExtraPayload, token?: string) => api.put<{ data: DocumentoExtra }, DocumentoExtraPayload>(`/academia/documentos-extra/${encodeURIComponent(id)}`, data, { token: token || tokenStorage.get() || undefined }),
+  desativarDocumentoExtra: (id: string, token?: string) => api.put<{ data: DocumentoExtra }>(`/academia/documentos-extra/${encodeURIComponent(id)}/desativar`, undefined, { token: token || tokenStorage.get() || undefined }),
+  reativarDocumentoExtra: (id: string, token?: string) => api.put<{ data: DocumentoExtra }>(`/academia/documentos-extra/${encodeURIComponent(id)}/reativar`, undefined, { token: token || tokenStorage.get() || undefined }),
+  listarDocumentosExtra: (params?: { ativos?: boolean; codigo_academia?: string; token?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.ativos !== undefined) qs.set('ativos', String(params.ativos));
+    if (params?.codigo_academia) qs.set('codigo_academia', params.codigo_academia);
+    const query = qs.toString();
+    return api.get<{ documentos_extra: DocumentoExtra[]; total: number }>(`/academia/documentos-extra${query ? `?${query}` : ''}`, { token: params?.token || tokenStorage.get() || undefined });
+  },
   criarServicoExtra: (data: ServicoExtraPayload, token?: string) => api.post<{ message: string; data: ServicoExtra }, ServicoExtraPayload>('/academia/servicos-extras', data, { token: token || tokenStorage.get() || undefined }),
   atualizarServicoExtra: (id: string, data: ServicoExtraPayload, token?: string) => api.put<{ message: string; data: ServicoExtra }, ServicoExtraPayload>(`/academia/servicos-extras/${id}`, data, { token: token || tokenStorage.get() || undefined }),
   desativarServicoExtra: (id: string, token?: string) => api.put<{ data: ServicoExtra }>(`/academia/servicos-extras/${id}/desativar`, undefined, { token: token || tokenStorage.get() || undefined }),

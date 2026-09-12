@@ -29,8 +29,8 @@ export default function PasswordSettingsCard() {
       return;
     }
 
-    if (novaSenha.length < 6) {
-      setValidacao("A nova senha deve ter no mínimo 6 caracteres.");
+    if (novaSenha.length < 8) {
+      setValidacao("A nova senha deve ter no mínimo 8 caracteres.");
       return;
     }
 
@@ -91,7 +91,7 @@ export default function PasswordSettingsCard() {
               onChange={(e) => setNovaSenha(e.target.value)}
               disabled={alterando}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Mínimo 8 caracteres"
             />
           </div>
         </div>

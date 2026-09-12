@@ -29,8 +29,8 @@ export default function UserConfigCard() {
 
     if (!senhaNova.trim()) {
       erros.push('Nova senha é obrigatória');
-    } else if (senhaNova.length < 6) {
-      erros.push('Nova senha deve ter no mínimo 6 caracteres');
+    } else if (senhaNova.length < 8) {
+      erros.push('Nova senha deve ter no mínimo 8 caracteres');
     }
 
     if (senhaAtual === senhaNova && senhaAtual.trim()) {

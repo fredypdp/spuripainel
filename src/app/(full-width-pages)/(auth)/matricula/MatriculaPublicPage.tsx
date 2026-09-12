@@ -11,7 +11,7 @@ import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { Qr, money } from "@/components/paineis/financeiroShared";
 import { academiaService, consultasService, solicitacaoMatriculaService } from "@/lib/api/services";
-import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, FinanceiroMetodoPagamento, Genero, SolicitacaoMatriculaResumo, SolicitacaoMatriculaStatusResponse } from "@/types/api";
+import type { AcademiaDetalhada, CriarSolicitacaoMatriculaRequest, Curso, FinanceiroMetodoPagamento, Genero, SolicitacaoMatriculaResumo, SolicitacaoMatriculaStatusResponse, DocumentoExtra } from "@/types/api";
 
 type StepId = 0 | 1 | 2 | 3 | 4;
 type FileKey = "bi_estudante" | "bi_encarregado" | "cedula_estudante" | "declaracao" | "certificado_6_ano_fundamental" | "certificado_9_ano_fundamental" | "certificado_ensino_medio";
@@ -75,6 +75,8 @@ export default function MatriculaPublicPage() {
   const [anoSelecionado, setAnoSelecionado] = useState<string | null>(null);
   const [form, setForm] = useState<MatriculaForm>(emptyForm);
   const [files, setFiles] = useState<Partial<Record<FileKey, File>>>({});
+  const [documentosExtra, setDocumentosExtra] = useState<DocumentoExtra[]>([]);
+  const [filesExtra, setFilesExtra] = useState<Record<string, File | undefined>>({});
   const [loading, setLoading] = useState(false);
   const [loadingAcademia, setLoadingAcademia] = useState(false);
   const [loadingCursos, setLoadingCursos] = useState(false);
@@ -114,6 +116,10 @@ export default function MatriculaPublicPage() {
   const academiaMedia = academia?.nivel !== "superior" && academia?.nivel_escolar === "medio";
   const academiaMista = academia?.nivel !== "superior" && academia?.nivel_escolar === "misto";
   const academiaSuperior = academia?.nivel === "superior";
+  useEffect(() => {
+    if (!academia?.codigo_academia) { setDocumentosExtra([]); return; }
+    academiaService.listarDocumentosExtra({ ativos: true, codigo_academia: academia.codigo_academia }).then((res) => setDocumentosExtra(res.documentos_extra ?? [])).catch(() => setDocumentosExtra([]));
+  }, [academia?.codigo_academia]);
 
   const cursosAtivos = useMemo(() => cursos.filter((item) => item.status === "ativo"), [cursos]);
   const cursosMedio = useMemo(() => cursosAtivos.filter((item) => item.type === "medio"), [cursosAtivos]);
@@ -196,6 +202,7 @@ export default function MatriculaPublicPage() {
   );
 
   const declaracaoAnoAcademico = getAnoAcademicoAnterior(anoSelecionado);
+  const documentosExtraDoAno = documentosExtra.filter((doc) => doc.ano_academico === anoSelecionado);
   const estudanteSuperiorSelecionado = isSuperior(anoSelecionado ?? undefined);
   const estudantePrimeiroFundamental = anoSelecionado === "1_ano_fundamental";
   const estudanteEscolarSelecionado = !!anoSelecionado && !estudanteSuperiorSelecionado;
@@ -239,6 +246,7 @@ export default function MatriculaPublicPage() {
     setCurso(null);
     setAnoSelecionado(null);
     setFiles({});
+    setFilesExtra({});
     setForm(emptyForm);
   }
 
@@ -270,6 +278,7 @@ export default function MatriculaPublicPage() {
   function handleAnoChange(value: string) {
     setAnoSelecionado(value);
     setFiles({});
+    setFilesExtra({});
     setForm((prev) => ({
       ...prev,
       bilhete_identidade: value === "1_ano_fundamental" ? undefined : prev.bilhete_identidade,
@@ -373,6 +382,7 @@ export default function MatriculaPublicPage() {
         bilhete_identidade_encarregado: form.bilhete_identidade_encarregado?.toUpperCase(),
         declaracao_ano_academico: files.declaracao ? declaracaoAnoAcademico : undefined,
         ...files,
+        ...Object.fromEntries(Object.entries(filesExtra).filter(([, file]) => !!file).map(([id, file]) => [`documento_extra_${id}`, file])),
       };
       const res = await solicitacaoMatriculaService.criar(payload);
       setSucesso(res.codigo_solicitacao);
@@ -576,6 +586,7 @@ export default function MatriculaPublicPage() {
                       )}
                     </div>
                   )}
+                  {documentosExtraDoAno.length > 0 && <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-gray-800"><p className="sm:col-span-2 text-sm font-medium text-gray-700 dark:text-gray-300">Documentos extra</p>{documentosExtraDoAno.map((doc) => <DocumentUpload key={doc.id} id={`matricula-documento-extra-${doc.id}`} label={doc.rotulo} required={doc.obrigatorio} tipo={doc.tipo} file={filesExtra[doc.id]} onChange={(file, error) => { if (error) setErro(error); else setErro(""); setFilesExtra((prev) => ({ ...prev, [doc.id]: file })); }} />)}</div>}
                 </div>
               )}
             </section>
